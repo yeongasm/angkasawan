@@ -1,0 +1,196 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
+  <!--Array Visualizer-->
+  <Type Name="Array&lt;*,*&gt;">
+    <DisplayString>Array with {Len} elements</DisplayString>
+    <Expand>
+      <Item Name="Length">Len</Item>
+      <Item Name="Capacity">Capacity</Item>
+      <ArrayItems>
+        <Size>Len</Size>
+        <ValuePointer>Data</ValuePointer>
+      </ArrayItems>
+    </Expand>
+  </Type>
+  <!--Hash Map Visualizer-->
+  <Type Name="Map&lt;*,*,*,*,*&gt;">
+    <DisplayString>Map with {Entries.Capacity - NumBuckets} elements</DisplayString>
+    <Expand>
+      <Item Name="Free Buckets">NumBuckets</Item>
+      <Item Name="Length">Entries.Capacity - NumBuckets</Item>
+      <Item Name="Capacity">Entries.Capacity</Item>
+      <LinkedListItems>
+        <Size>Entries.Capacity  - NumBuckets</Size>
+        <HeadPointer>First</HeadPointer>
+        <NextPointer>Next</NextPointer>
+        <ValueNode>*reinterpret_cast&lt;PairNode*&gt;(this)</ValueNode>
+      </LinkedListItems>
+      <!--<IndexListItems>
+        <Size>Entries.Capacity</Size>
+        <ValueNode Condition="((SetPair*)Entries.AllocatorInstance.Memory.Block)[$i].Status == Bucket_IsOccupied">((SetPair*)Entries.AllocatorInstance.Memory.Block)[$i]</ValueNode>
+        <ValueNode>"Empty",sb</ValueNode>
+      </IndexListItems>-->
+    </Expand>
+  </Type>
+  <Type Name="Map&lt;*,*,*,*,*&gt;">
+    <DisplayString>Map with {Entries.Capacity - NumBuckets} elements</DisplayString>
+    <Expand>
+      <Item Name="Free Buckets">NumBuckets</Item>
+      <Item Name="Length">Entries.Capacity - NumBuckets</Item>
+      <Item Name="Capacity">Entries.Capacity</Item>
+      <LinkedListItems>
+        <Size>Entries.Capacity  - NumBuckets</Size>
+        <HeadPointer>First</HeadPointer>
+        <NextPointer>Next</NextPointer>
+        <ValueNode>*reinterpret_cast&lt;PairNode*&gt;(this)</ValueNode>
+      </LinkedListItems>
+      <!--<IndexListItems>
+        <Size>Entries.Capacity</Size>
+        <ValueNode Condition="((SetPair*)Entries.AllocatorInstance.Data)[$i].Status == Bucket_IsOccupied">((SetPair*)Entries.AllocatorInstance.Data)[$i]</ValueNode>
+        <ValueNode>"Empty",sb</ValueNode>
+      </IndexListItems>-->
+    </Expand>
+  </Type>
+  <!--Doubly Linked List Visualizer-->
+  <Type Name="BaseList&lt;*,*&gt;">
+    <!--<AlternativeType Name="TList&lt;*,*&gt;"/>-->
+    <DisplayString>Linked list with {Len} elements</DisplayString>
+    <Expand>
+      <Item Name="Length">Len</Item>
+      <LinkedListItems>
+        <Size>Len</Size>
+        <HeadPointer>Head</HeadPointer>
+        <NextPointer>Next</NextPointer>
+        <ValueNode>Data</ValueNode>
+      </LinkedListItems>
+    </Expand>
+  </Type>
+  <!--String Visualizer-->
+  <Type Name="BasicString&lt;char,*&gt;">
+    <AlternativeType Name="String&lt;char,*&gt;"/>
+    <DisplayString Condition="Capacity &lt;= SSO_MAX">{Buffer, s8}</DisplayString>
+    <DisplayString Condition="Capacity &gt; SSO_MAX">{Data, s8}</DisplayString>
+    <StringView Condition="Capacity &lt;= SSO_MAX">Buffer, s8</StringView>
+    <StringView Condition="Capacity &gt; SSO_MAX">Data, s8</StringView>
+    <Expand>
+      <Item Name="Length">Len</Item>
+      <Item Name="Capacity">Capacity</Item>
+      <ArrayItems>
+        <Size>Len</Size>
+        <ValuePointer Condition="Capacity &lt;= SSO_MAX">Buffer</ValuePointer>
+        <ValuePointer Condition="Capacity &gt; SSO_MAX">Data</ValuePointer>
+      </ArrayItems>
+    </Expand>
+  </Type>
+  <Type Name="BasicString&lt;wchar_t,*&gt;">
+    <AlternativeType Name="String&lt;wchar_t,*&gt;"/>
+    <DisplayString Condition="Capacity &lt;= SSO_MAX">{Buffer, s8}</DisplayString>
+    <DisplayString Condition="Capacity &gt; SSO_MAX">{Data, s8}</DisplayString>
+    <StringView Condition="Capacity &lt;= SSO_MAX">Buffer, s8</StringView>
+    <StringView Condition="Capacity &gt; SSO_MAX">Data, s8</StringView>
+    <Expand>
+      <Item Name="Length">Len</Item>
+      <Item Name="Capacity">Capacity</Item>
+      <ArrayItems>
+        <Size>Len</Size>
+        <ValuePointer Condition="Capacity &lt;= SSO_MAX">Buffer</ValuePointer>
+        <ValuePointer Condition="Capacity &gt; SSO_MAX">Data</ValuePointer>
+      </ArrayItems>
+    </Expand>
+  </Type>
+  <!--Pair Visualizer-->
+  <Type Name="Pair&lt;*,*&gt;">
+    <DisplayString>Key={Key}, Value={Value}</DisplayString>
+    <Expand>
+      <Item Name="Key">Key</Item>
+      <Item Name="Value">Value</Item>
+    </Expand>
+  </Type>
+  <!--Iterator Visualizer-->
+  <Type Name="ArrayIterator&lt;*&gt;">
+    <DisplayString>Iterator with pointer = {Pointer}</DisplayString>
+    <Expand>
+      <Item Name="Pointer">Pointer</Item>
+      <Item Name="Value">*Pointer</Item>
+    </Expand>
+  </Type>
+  <Type Name="NodeIterator&lt;*,*&gt;">
+    <DisplayString>Iterator with NodeType = {$T1} and pointer = {Node}</DisplayString>
+    <Expand>
+      <Item Name="Node">Node</Item>
+      <Item Name="Value">Node->Data</Item>
+    </Expand>
+  </Type>
+  <Type Name="DequeIterator&lt;*&gt;">
+    <DisplayString>Iterator with pointer = {Pointer}</DisplayString>
+    <Expand>
+      <Item Name="Pointer">Pointer</Item>
+      <Item Name="Value">*Pointer</Item>
+    </Expand>
+  </Type>
+  <!--Tuple Visualizer-->
+  <Type Name="Tuple&lt;&gt;">
+    <DisplayString IncludeView="noparens"></DisplayString>
+    <DisplayString ExcludeView="noparens">({*this,view(noparens)})</DisplayString>
+    <Expand>
+    </Expand>
+  </Type>
+  <Type Name="Tuple&lt;*&gt;">
+    <DisplayString IncludeView="noparens">{Element.Value}</DisplayString>
+    <DisplayString ExcludeView="noparens">({*this,view(noparens)})</DisplayString>
+    <Expand>
+      <Item Name="[0]">Element.Value</Item>
+    </Expand>
+  </Type>
+  <Type Name="Tuple&lt;*,*&gt;">
+    <DisplayString IncludeView="noparens">{Element.Value}, {((Super*)this)->Element.Value}</DisplayString>
+    <DisplayString ExcludeView="noparens">({*this,view(noparens)})</DisplayString>
+    <Expand>
+      <Item Name="[0]">Element.Value</Item>
+      <Item Name="[1]">((Super*)this)->Element.Value</Item>
+    </Expand>
+  </Type>
+  <Type Name="Tuple&lt;*,*,*&gt;">
+    <DisplayString IncludeView="noparens">{Element.Value}, {((Super*)this)->Element.Value}, {((Super::Super*)this)->Element.Value}</DisplayString>
+    <DisplayString ExcludeView="noparens">({*this,view(noparens)})</DisplayString>
+    <Expand>
+      <Item Name="[0]">Element.Value</Item>
+      <Item Name="[1]">((Super*)this)->Element.Value</Item>
+      <Item Name="[2]">((Super::Super*)this)->Element.Value</Item>
+    </Expand>
+  </Type>
+  <Type Name="Tuple&lt;*,*,*,*&gt;">
+    <DisplayString IncludeView="noparens">{Element.Value}, {((Super*)this)->Element.Value}, {((Super::Super*)this)->Element.Value}, {((Super::Super::Super*)this)->Element.Value}</DisplayString>
+    <DisplayString ExcludeView="noparens">({*this,view(noparens)})</DisplayString>
+    <Expand>
+      <Item Name="[0]">Element.Value</Item>
+      <Item Name="[1]">((Super*)this)->Element.Value</Item>
+      <Item Name="[2]">((Super::Super*)this)->Element.Value</Item>
+      <Item Name="[3]">((Super::Super::Super*)this)->Element.Value</Item>
+    </Expand>
+  </Type>
+  <Type Name="Tuple&lt;*,*,*,*,*&gt;">
+    <DisplayString IncludeView="noparens">{Element.Value}, {((Super*)this)->Element.Value}, {((Super::Super*)this)->Element.Value}, {((Super::Super::Super*)this)->Element.Value}, {((Super::Super::Super::Super*)this)->Element.Value}</DisplayString>
+    <DisplayString ExcludeView="noparens">({*this,view(noparens)})</DisplayString>
+    <Expand>
+      <Item Name="[0]">Element.Value</Item>
+      <Item Name="[1]">((Super*)this)->Element.Value</Item>
+      <Item Name="[2]">((Super::Super*)this)->Element.Value</Item>
+      <Item Name="[3]">((Super::Super::Super*)this)->Element.Value</Item>
+      <Item Name="[4]">((Super::Super::Super::Super*)this)->Element.Value</Item>
+    </Expand>
+  </Type>
+  <Type Name="Tuple&lt;*,*,*,*,*,*&gt;">
+    <DisplayString IncludeView="noparens">{Element.Value}, {((Super*)this)->Element.Value}, {((Super::Super*)this)->Element.Value}, {((Super::Super::Super*)this)->Element.Value}, {((Super::Super::Super::Super*)this)->Element.Value}, {*((Super::Super::Super::Super::Super*)this),view(noparens)</DisplayString>
+    <DisplayString ExcludeView="noparens">({*this,view(noparens)})</DisplayString>
+    <Expand>
+      <Item Name="[0]">Element.Value</Item>
+      <Item Name="[1]">((Super*)this)->Element.Value</Item>
+      <Item Name="[2]">((Super::Super*)this)->Element.Value</Item>
+      <Item Name="[3]">((Super::Super::Super*)this)->Element.Value</Item>
+      <Item Name="[4]">((Super::Super::Super::Super*)this)->Element.Value</Item>
+      <Synthetic Name="[...]"><DisplayString>Next five elements:</DisplayString></Synthetic>
+      <ExpandedItem>*((Super::Super::Super::Super::Super*)this)</ExpandedItem>
+    </Expand>
+  </Type>
+</AutoVisualizer>

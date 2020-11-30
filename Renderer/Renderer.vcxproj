@@ -1,0 +1,271 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="API\Context.cpp" />
+    <ClCompile Include="API\Vk\ShaderToSPIRVCompiler.cpp" />
+    <ClCompile Include="Assets\Assets.cpp" />
+    <ClCompile Include="Renderer.cpp" />
+    <ClCompile Include="API\Vk\VulkanFunctions.cpp" />
+    <ClCompile Include="API\Vk\VulkanDriver.cpp" />
+    <ClCompile Include="dllmain.cpp" />
+    <ClCompile Include="FrameGraph\FrameGraph.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="API\Context.h" />
+    <ClInclude Include="API\Driver.h" />
+    <ClInclude Include="Assets\GPUHandles.h" />
+    <ClInclude Include="API\RendererFlagBits.h" />
+    <ClInclude Include="API\Vk\ShaderToSPIRVCompiler.h" />
+    <ClInclude Include="API\Vk\Src\shaderc.hpp" />
+    <ClInclude Include="API\Vk\Src\shaderc\env.h" />
+    <ClInclude Include="API\Vk\Src\shaderc.h" />
+    <ClInclude Include="API\Vk\Src\shaderc\status.h" />
+    <ClInclude Include="API\Vk\Src\shaderc\visibility.h" />
+    <ClInclude Include="API\Vk\Vk.h" />
+    <ClInclude Include="Assets\Assets.h" />
+    <ClInclude Include="Assets\Model.h" />
+    <ClInclude Include="Assets\Shader.h" />
+    <ClInclude Include="FrameGraph\FrameGraph.h" />
+    <ClInclude Include="RenderAbstracts\CommandBuffer.h" />
+    <ClInclude Include="RenderAbstracts\DrawCommand.h" />
+    <ClInclude Include="RenderPlatform\API.h" />
+    <ClInclude Include="Renderer.h" />
+    <ClInclude Include="API\Vk\Src\vk_layer.h" />
+    <ClInclude Include="API\Vk\Src\vk_platform.h" />
+    <ClInclude Include="API\Vk\Src\vk_sdk_platform.h" />
+    <ClInclude Include="API\Vk\Src\vulkan.h" />
+    <ClInclude Include="API\Vk\Src\vulkan_core.h" />
+    <ClInclude Include="API\Vk\Src\vulkan_win32.h" />
+    <ClInclude Include="API\Vk\VulkanFunctions.h" />
+    <ClInclude Include="API\Vk\VulkanDriver.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="API\Vk\VkFuncDecl.inl" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Core\Core.vcxproj">
+      <Project>{09bfc76e-822f-4496-96d0-329faf4943ad}</Project>
+    </ProjectReference>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>16.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{cf8e5899-0af5-48a9-a34d-c59700c5959b}</ProjectGuid>
+    <RootNamespace>Renderer</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v142</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v142</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v142</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v142</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="Shared">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <LinkIncremental>true</LinkIncremental>
+    <OutDir>$(SolutionDir)Modules\$(ProjectName)\</OutDir>
+    <IntDir>$(SolutionDir)Modules\$(ProjectName)\Intermediaries\</IntDir>
+    <IncludePath>$(SolutionDir)Core;$(SolutionDir)$(ProjectName);$(IncludePath)</IncludePath>
+    <LibraryPath>$(SolutionDir)ExternalLib;$(SolutionDir)Modules\Core;$(LibraryPath)</LibraryPath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <LinkIncremental>false</LinkIncremental>
+    <OutDir>$(SolutionDir)Modules\$(ProjectName)\</OutDir>
+    <IntDir>$(SolutionDir)Modules\$(ProjectName)\Intermediaries\</IntDir>
+    <IncludePath>$(SolutionDir)Core;$(SolutionDir)$(ProjectName);$(IncludePath)</IncludePath>
+    <LibraryPath>$(SolutionDir)ExternalLib;$(SolutionDir)Modules\Core;$(LibraryPath)</LibraryPath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <LinkIncremental>true</LinkIncremental>
+    <OutDir>$(SolutionDir)Modules\$(ProjectName)\</OutDir>
+    <IntDir>$(SolutionDir)Modules\$(ProjectName)\Intermediaries\</IntDir>
+    <IncludePath>$(SolutionDir)Core;$(SolutionDir)$(ProjectName);$(IncludePath)</IncludePath>
+    <LibraryPath>$(SolutionDir)ExternalLib;$(SolutionDir)Modules\Core;$(LibraryPath)</LibraryPath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <LinkIncremental>false</LinkIncremental>
+    <OutDir>$(SolutionDir)Modules\$(ProjectName)\</OutDir>
+    <IntDir>$(SolutionDir)Modules\$(ProjectName)\Intermediaries\</IntDir>
+    <IncludePath>$(SolutionDir)Core;$(SolutionDir)$(ProjectName);$(IncludePath)</IncludePath>
+    <LibraryPath>$(SolutionDir)ExternalLib;$(SolutionDir)Modules\Core;$(LibraryPath)</LibraryPath>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>RENDERER_EXPORT;VK_NO_PROTOTYPES;SHADERC_SHAREDLIB;VULKAN_RENDERER;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>$(SolutionDir)Core;$(SolutionDir)$(ProjectName)</AdditionalIncludeDirectories>
+      <ExceptionHandling>false</ExceptionHandling>
+      <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+    </ClCompile>
+    <Link>
+      <SubSystem>NotSet</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EnableUAC>false</EnableUAC>
+      <AdditionalLibraryDirectories>$(SolutionDir)Modules\Core;$(SolutionDir)ExternalLib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>Core.lib;shaderc_shared.lib;vulkan-1.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+    <PostBuildEvent>
+      <Command>xcopy "$(TargetDir)$(ProjectName).dll" "$(SolutionDir)Bin\$(Configuration)\" /y /q
+xcopy "$(TargetDir)$(ProjectName).pdb" "$(SolutionDir)Bin\$(Configuration)\" /y /q
+xcopy "$(TargetDir)$(ProjectName).ilk" "$(SolutionDir)Bin\$(Configuration)\" /y /q
+xcopy "$(SolutionDir)ExternalDLL\shaderc_shared.dll" "$(SolutionDir)Bin\$(Configuration)\" /y /q</Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>RENDERER_EXPORT;VK_NO_PROTOTYPES;SHADERC_SHAREDLIB;VULKAN_RENDERER;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>$(SolutionDir)Core;$(SolutionDir)$(ProjectName)</AdditionalIncludeDirectories>
+      <ExceptionHandling>false</ExceptionHandling>
+      <DebugInformationFormat>None</DebugInformationFormat>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+    </ClCompile>
+    <Link>
+      <SubSystem>NotSet</SubSystem>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EnableUAC>false</EnableUAC>
+      <AdditionalLibraryDirectories>$(SolutionDir)Modules\Core;$(SolutionDir)ExternalLib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>Core.lib;shaderc_shared.lib;vulkan-1.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+    <PostBuildEvent>
+      <Command>xcopy "$(TargetDir)$(ProjectName).dll" "$(SolutionDir)Bin\$(Configuration)\" /y /q
+xcopy "$(TargetDir)$(ProjectName).pdb" "$(SolutionDir)Bin\$(Configuration)\" /y /q
+xcopy "$(TargetDir)$(ProjectName).ilk" "$(SolutionDir)Bin\$(Configuration)\" /y /q
+xcopy "$(SolutionDir)ExternalDLL\shaderc_shared.dll" "$(SolutionDir)Bin\$(Configuration)\" /y /q</Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>RENDERER_EXPORT;VK_NO_PROTOTYPES;SHADERC_SHAREDLIB;VULKAN_RENDERER;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>$(SolutionDir)Core;$(SolutionDir)$(ProjectName)</AdditionalIncludeDirectories>
+      <ExceptionHandling>false</ExceptionHandling>
+      <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+    </ClCompile>
+    <Link>
+      <SubSystem>NotSet</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EnableUAC>false</EnableUAC>
+      <AdditionalLibraryDirectories>$(SolutionDir)Modules\Core;$(SolutionDir)ExternalLib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>Core.lib;shaderc_shared.lib;vulkan-1.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+    <PostBuildEvent>
+      <Command>xcopy "$(TargetDir)$(ProjectName).dll" "$(SolutionDir)Bin\$(Configuration)\" /y /q
+xcopy "$(TargetDir)$(ProjectName).pdb" "$(SolutionDir)Bin\$(Configuration)\" /y /q
+xcopy "$(TargetDir)$(ProjectName).ilk" "$(SolutionDir)Bin\$(Configuration)\" /y /q
+xcopy "$(SolutionDir)ExternalDLL\shaderc_shared.dll" "$(SolutionDir)Bin\$(Configuration)\" /y /q</Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>RENDERER_EXPORT;VK_NO_PROTOTYPES;SHADERC_SHAREDLIB;VULKAN_RENDERER;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>$(SolutionDir)Core;$(SolutionDir)$(ProjectName)</AdditionalIncludeDirectories>
+      <ExceptionHandling>false</ExceptionHandling>
+      <DebugInformationFormat>None</DebugInformationFormat>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+    </ClCompile>
+    <Link>
+      <SubSystem>NotSet</SubSystem>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EnableUAC>false</EnableUAC>
+      <AdditionalLibraryDirectories>$(SolutionDir)Modules\Core;$(SolutionDir)ExternalLib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>Core.lib;shaderc_shared.lib;vulkan-1.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+    <PostBuildEvent>
+      <Command>xcopy "$(TargetDir)$(ProjectName).dll" "$(SolutionDir)Bin\$(Configuration)\" /y /q
+xcopy "$(TargetDir)$(ProjectName).pdb" "$(SolutionDir)Bin\$(Configuration)\" /y /q
+xcopy "$(TargetDir)$(ProjectName).ilk" "$(SolutionDir)Bin\$(Configuration)\" /y /q
+xcopy "$(SolutionDir)ExternalDLL\shaderc_shared.dll" "$(SolutionDir)Bin\$(Configuration)\" /y /q</Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

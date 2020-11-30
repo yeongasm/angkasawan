@@ -1,0 +1,292 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>16.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{09bfc76e-822f-4496-96d0-329faf4943ad}</ProjectGuid>
+    <RootNamespace>Core</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v142</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v142</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v142</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v142</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="Shared">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <LinkIncremental>true</LinkIncremental>
+    <OutDir>$(SolutionDir)Modules\$(ProjectName)\</OutDir>
+    <IntDir>$(SolutionDir)Modules\$(ProjectName)\Intermediaries\</IntDir>
+    <TargetName>$(ProjectName)</TargetName>
+    <IncludePath>$(ProjectDir);$(IncludePath)</IncludePath>
+    <LibraryPath>$(LibraryPath)</LibraryPath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <LinkIncremental>false</LinkIncremental>
+    <OutDir>$(SolutionDir)Modules\$(ProjectName)\</OutDir>
+    <IntDir>$(SolutionDir)Modules\$(ProjectName)\Intermediaries\</IntDir>
+    <TargetName>$(ProjectName)</TargetName>
+    <IncludePath>$(ProjectDir);$(IncludePath)</IncludePath>
+    <LibraryPath>$(LibraryPath)</LibraryPath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <LinkIncremental>true</LinkIncremental>
+    <OutDir>$(SolutionDir)Modules\$(ProjectName)\</OutDir>
+    <IntDir>$(SolutionDir)Modules\$(ProjectName)\Intermediaries\</IntDir>
+    <TargetName>$(ProjectName)</TargetName>
+    <IncludePath>$(ProjectDir);$(IncludePath)</IncludePath>
+    <LibraryPath>$(LibraryPath)</LibraryPath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <LinkIncremental>false</LinkIncremental>
+    <OutDir>$(SolutionDir)Modules\$(ProjectName)\</OutDir>
+    <IntDir>$(SolutionDir)Modules\$(ProjectName)\Intermediaries\</IntDir>
+    <TargetName>$(ProjectName)</TargetName>
+    <IncludePath>$(ProjectDir);$(IncludePath)</IncludePath>
+    <LibraryPath>$(LibraryPath)</LibraryPath>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>CORE_EXPORT;HOTRELOAD_ENABLED;_CRT_SECURE_NO_WARNINGS</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
+    </ClCompile>
+    <Link>
+      <SubSystem>NotSet</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EntryPointSymbol>
+      </EntryPointSymbol>
+      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+    </Link>
+    <PostBuildEvent>
+      <Command>xcopy "$(TargetDir)$(ProjectName).dll" "$(SolutionDir)Bin\$(Configuration)\" /y /q
+xcopy "$(TargetDir)$(ProjectName).pdb" "$(SolutionDir)Bin\$(Configuration)\" /y /q
+xcopy "$(TargetDir)$(ProjectName).ilk" "$(SolutionDir)Bin\$(Configuration)\" /y /q</Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>CORE_EXPORT;HOTRELOAD_ENABLED;_CRT_SECURE_NO_WARNINGS</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <DebugInformationFormat>None</DebugInformationFormat>
+    </ClCompile>
+    <Link>
+      <SubSystem>NotSet</SubSystem>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EntryPointSymbol>
+      </EntryPointSymbol>
+      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+    </Link>
+    <PostBuildEvent>
+      <Command>xcopy "$(TargetDir)$(ProjectName).dll" "$(SolutionDir)Bin\$(Configuration)\" /y /q
+xcopy "$(TargetDir)$(ProjectName).pdb" "$(SolutionDir)Bin\$(Configuration)\" /y /q
+xcopy "$(TargetDir)$(ProjectName).ilk" "$(SolutionDir)Bin\$(Configuration)\" /y /q</Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>CORE_EXPORT;HOTRELOAD_ENABLED;_CRT_SECURE_NO_WARNINGS</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
+    </ClCompile>
+    <Link>
+      <SubSystem>NotSet</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EntryPointSymbol>
+      </EntryPointSymbol>
+      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+    </Link>
+    <PostBuildEvent>
+      <Command>xcopy "$(TargetDir)$(ProjectName).dll" "$(SolutionDir)Bin\$(Configuration)\" /y /q
+xcopy "$(TargetDir)$(ProjectName).pdb" "$(SolutionDir)Bin\$(Configuration)\" /y /q
+xcopy "$(TargetDir)$(ProjectName).ilk" "$(SolutionDir)Bin\$(Configuration)\" /y /q</Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>CORE_EXPORT;HOTRELOAD_ENABLED;_CRT_SECURE_NO_WARNINGS</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <DebugInformationFormat>None</DebugInformationFormat>
+    </ClCompile>
+    <Link>
+      <SubSystem>NotSet</SubSystem>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EntryPointSymbol>
+      </EntryPointSymbol>
+      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+    </Link>
+    <PostBuildEvent>
+      <Command>xcopy "$(TargetDir)$(ProjectName).dll" "$(SolutionDir)Bin\$(Configuration)\" /y /q
+xcopy "$(TargetDir)$(ProjectName).pdb" "$(SolutionDir)Bin\$(Configuration)\" /y /q
+xcopy "$(TargetDir)$(ProjectName).ilk" "$(SolutionDir)Bin\$(Configuration)\" /y /q</Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClInclude Include="Library\Algorithms\Tokenizer.h" />
+    <ClInclude Include="Library\Allocators\LinearAllocator.h" />
+    <ClInclude Include="SubSystem\Game\GameApp.h" />
+    <ClInclude Include="Engine\Private\Abstraction.h" />
+    <ClInclude Include="Engine\Interface.h" />
+    <ClInclude Include="Engine\Private\System.h" />
+    <ClInclude Include="Library\Math\MatrixFuncs.h" />
+    <ClInclude Include="Library\Math\Quaternion.h" />
+    <ClInclude Include="Library\Stream\Ifstream.h" />
+    <ClInclude Include="Library\Stream\Ofstream.h" />
+    <ClInclude Include="Library\Templates\Types.h" />
+    <ClInclude Include="SubSystem\Game\GameAppManager.h" />
+    <ClInclude Include="SubSystem\Resource\Handle.h" />
+    <ClInclude Include="Engine\Private\Prototype.h" />
+    <ClInclude Include="Library\Containers\Path.h" />
+    <ClInclude Include="Library\Math\Mat3.h" />
+    <ClInclude Include="Library\Math\Mat4.h" />
+    <ClInclude Include="Library\Math\Math.h" />
+    <ClInclude Include="Library\Math\Vec2.h" />
+    <ClInclude Include="Library\Math\Vec3.h" />
+    <ClInclude Include="Library\Math\Vec4.h" />
+    <ClInclude Include="Library\Random\Xoroshiro.h" />
+    <ClInclude Include="Platform\EngineAPI.h" />
+    <ClInclude Include="Library\Memory\Memory.h" />
+    <ClInclude Include="Platform\Minimal.h" />
+    <ClInclude Include="Library\Algorithms\Hash.h" />
+    <ClInclude Include="Library\Containers\Array.h" />
+    <ClInclude Include="Library\Containers\Deque.h" />
+    <ClInclude Include="Library\Containers\Iterator.h" />
+    <ClInclude Include="Library\Containers\List.h" />
+    <ClInclude Include="Library\Containers\Map.h" />
+    <ClInclude Include="Library\Containers\Pair.h" />
+    <ClInclude Include="Library\Containers\Queue.h" />
+    <ClInclude Include="Library\Containers\String.h" />
+    <ClInclude Include="Library\Containers\Tuple.h" />
+    <ClInclude Include="Library\Templates\Templates.h" />
+    <ClInclude Include="Platform\OS\Win.h" />
+    <ClInclude Include="Platform\Sync\Sync.h" />
+    <ClInclude Include="SubSystem\Input\IO.h" />
+    <ClInclude Include="SubSystem\Resource\ResourceManager.h" />
+    <ClInclude Include="SubSystem\Thread\Thread.h" />
+    <ClInclude Include="SubSystem\Thread\ThreadPool.h" />
+    <ClInclude Include="SubSystem\Time\ScopedTimer.h" />
+    <ClInclude Include="SubSystem\Time\SystemClock.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Engine\Interface.cpp" />
+    <ClCompile Include="Engine\Private\Abstraction.cpp" />
+    <ClCompile Include="Engine\Private\Instance.cpp" />
+    <ClCompile Include="Engine\Private\System.cpp" />
+    <ClCompile Include="Library\Math\Math.cpp" />
+    <ClCompile Include="Library\Stream\Ifstream.cpp" />
+    <ClCompile Include="Library\Stream\Ofstream.cpp" />
+    <ClCompile Include="dllmain.cpp" />
+    <ClCompile Include="Library\Memory\Memory.cpp" />
+    <ClCompile Include="Library\Algorithms\Hash.cpp" />
+    <ClCompile Include="Platform\OS\Win.cpp" />
+    <ClCompile Include="Platform\Sync\Sync.cpp" />
+    <ClCompile Include="SubSystem\Game\GameAppManager.cpp" />
+    <ClCompile Include="SubSystem\Input\IO.cpp" />
+    <ClCompile Include="SubSystem\Resource\ResourceManager.cpp" />
+    <ClCompile Include="SubSystem\Thread\ThreadPool.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="cpp.hint" />
+    <None Include="Engine\Private\System.inl" />
+    <None Include="Library\Math\Mat3.inl" />
+    <None Include="Library\Math\Mat4.inl" />
+    <None Include="Library\Math\Math.inl" />
+    <None Include="Library\Math\MatrixFuncs.inl" />
+    <None Include="Library\Math\Quaternion.inl" />
+    <None Include="Library\Math\Vec2.inl" />
+    <None Include="Library\Math\Vec3.inl" />
+    <None Include="Library\Math\Vec4.inl" />
+    <None Include="SubSystem\Game\GameAppManager.inl" />
+  </ItemGroup>
+  <ItemGroup>
+    <Natvis Include="Orion.natvis" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>
