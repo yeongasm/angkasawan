@@ -33,16 +33,16 @@ bool RenderPass::AddShader(Shader* ShaderSrc, ShaderType Type)
 	return true;
 }
 
-void RenderPass::AddOutputAttachment(const String32& Identifier, const AttachmentInfo& Info)
-{
-	OutAttachments.Insert(Identifier, Info);
-}
-
-void RenderPass::AddInputAttachment(const String32& Identifier, const RenderPass& From)
-{
-	const AttachmentInfo& attachment = From.OutAttachments[Identifier];
-	InAttachments.Insert(Identifier, &attachment);
-}
+//void RenderPass::AddOutputAttachment(const String32& Identifier, const AttachmentInfo& Info)
+//{
+//	OutAttachments.Insert(Identifier, Info);
+//}
+//
+//void RenderPass::AddInputAttachment(const String32& Identifier, const RenderPass& From)
+//{
+//	const AttachmentInfo& attachment = From.OutAttachments[Identifier];
+//	InAttachments.Insert(Identifier, &attachment);
+//}
 
 void RenderPass::SetTopology(TopologyType Type)
 {

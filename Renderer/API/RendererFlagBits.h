@@ -107,6 +107,12 @@ enum SampleCount : uint32
 	Sample_Count_Max = 0x07 // DO NOT USE!
 };
 
+enum AttachmentIsSampled : uint32
+{
+	Attachment_Sampled_No	= 0x00,
+	Attachment_Sampled_Yes	= 0x01,
+};
+
 enum AttachmentType : uint32
 {
 	Attachment_Type_Color			= 0x00,

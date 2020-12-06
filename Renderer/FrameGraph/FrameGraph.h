@@ -39,9 +39,11 @@ public:
 
 	DELETE_COPY_AND_MOVE(RenderPass)
 
-	bool AddShader			(Shader* ShaderSrc, ShaderType Type);
-	void AddOutputAttachment(const String32& Identifier, const AttachmentInfo& Info);
-	void AddInputAttachment	(const String32& Identifier, const RenderPass& From);
+	bool AddShader				(Shader* ShaderSrc, ShaderType Type);
+	void AddColorInput			(const String32& Identifier, const RenderPass& From);
+	void AddDepthStencilInput	(const String32& Identifier, const RenderPass& From);
+	void AddColorOutput			(const String32& Identifier, const AttachmentInfo& Info);
+	void AddDepthStencilOutput	(const String32& Identifier, const AttachmentInfo& Info);
 
 	void SetTopology		(TopologyType Type);
 	void SetCullMode		(CullingMode Mode);
@@ -52,7 +54,7 @@ private:
 	friend class FrameGraph;
 	friend class RenderContext;
 
-	using ConstAttachment = const AttachmentInfo;
+	using AttachmentContainer = Map<String32, AttachmentInfo, MurmurHash<String32>, 1>;
 
 	FrameGraph&			Owner;
 	RenderPassType		Type;
@@ -62,14 +64,18 @@ private:
 	CullingMode			CullMode;
 	PolygonMode			PolygonalMode;
 
-	Array<Shader*>		Shaders;
-	RenderPassState		State;
-	Handle<HPipeline>	PipelineHandle;
-	Handle<HCmdBuffer>	CmdBufferHandle;
-	Handle<HFrameParam> FramePrmHandle;
+	Array<Shader*>		 Shaders;
+	RenderPassState		 State;
+	Handle<HPipeline>	 PipelineHandle;
+	Handle<HCmdBuffer>	 CmdBufferHandle;
+	Handle<HFramebuffer> FramebufferHandle;
 
-	Map<String32, AttachmentInfo>	OutAttachments;
-	Map<String32, ConstAttachment*>	InAttachments;
+	AttachmentContainer ColorInputs;
+	AttachmentContainer ColorOutputs;
+	AttachmentContainer DepthStencilInputs;
+	AttachmentContainer DepthStencilOutputs;
+
+	bool HasDepthStencilAttachment;
 };
 
 class RENDERER_API FrameGraph

@@ -39,6 +39,9 @@
     <ClCompile Include="FrameGraph\FrameGraph.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="API\Vk\Vk.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="API\Vk\VulkanFunctions.h">
@@ -122,8 +125,14 @@
     <ClInclude Include="RenderAbstracts\DrawCommand.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="API\Vk\vk_mem_alloc.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="API\Vk\VkFuncDecl.inl" />
+  </ItemGroup>
+  <ItemGroup>
+    <Natvis Include="vk_mem_alloc.natvis" />
   </ItemGroup>
 </Project>

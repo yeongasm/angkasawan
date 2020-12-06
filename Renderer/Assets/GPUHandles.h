@@ -10,7 +10,7 @@ struct H##Type {}
 DEFINE_GPU_HANDLE(Shader);
 DEFINE_GPU_HANDLE(Pipeline);
 DEFINE_GPU_HANDLE(Image);
-DEFINE_GPU_HANDLE(FrameParam);
+DEFINE_GPU_HANDLE(Framebuffer);
 DEFINE_GPU_HANDLE(CmdBuffer);
 DEFINE_GPU_HANDLE(Model);
 

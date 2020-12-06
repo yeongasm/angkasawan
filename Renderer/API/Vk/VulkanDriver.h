@@ -3,7 +3,6 @@
 #define LEARNVK_RENDERER_API_VK_VULKAN_LOADER
 
 #include "Vk.h"
-#include "Src/shaderc.hpp"
 #include "Library/Templates/Types.h"
 #include "Library/Templates/Templates.h"
 #include "Library/Containers/Map.h"
@@ -11,7 +10,6 @@
 #include "Library/Containers/Path.h"
 #include "Assets/GPUHandles.h"
 #include "API/RendererFlagBits.h"
-#include <vector>
 
 namespace vk
 {
@@ -45,7 +43,7 @@ namespace vk
 	{
 		Handle<HCmdBuffer>*		CommandBufferHandle;
 		Handle<HPipeline>*		PipelineHandle;
-		Handle<HFrameParam>		FramePrmHandle;
+		Handle<HFramebuffer>	FramebufferHandle;
 		float32					ClearColor[Color_Channel_Max];
 		int32					SurfaceOffset[Surface_Offset_Max];
 		uint32					SurfaceExtent[Surface_Extent_Max];
@@ -73,7 +71,8 @@ namespace vk
 		float32					Depth;
 		SampleCount				Samples;
 		Array<HwAttachmentInfo> Attachments;
-		Handle<HFrameParam>*	Handle;
+		uint32					NumColorAttachments;
+		Handle<HFramebuffer>*	Handle;
 	};
 
 	struct HwPipelineCreateInfo
@@ -84,13 +83,13 @@ namespace vk
 			ShaderType		Type;
 		};
 
-		Array<ShaderInfo>	Shaders;
-		TopologyType		Topology;
-		PolygonMode			PolyMode;
-		FrontFaceDir		FrontFace;
-		CullingMode			CullMode;
-		Handle<HFrameParam> FramePrmHandle;
-		Handle<HPipeline>*	Handle;
+		Array<ShaderInfo>		Shaders;
+		TopologyType			Topology;
+		PolygonMode				PolyMode;
+		FrontFaceDir			FrontFace;
+		CullingMode				CullMode;
+		Handle<HFramebuffer>	FramebufferHandle;
+		Handle<HPipeline>*		Handle;
 
 		/**
 		* TODO(Ygsm):
@@ -130,7 +129,21 @@ namespace vk
 		VkCommandBuffer	CmdBuffers[MAX_FRAMES_IN_FLIGHT];
 		VkRenderPass	Renderpass;
 	};
-	 
+	
+	struct HwImageCreateStruct
+	{
+		uint32					Width;
+		uint32					Height;
+		uint32					Depth;
+		uint32					MipLevels;
+		VkFormat				Format;
+		VkImageType				Dimension;
+		VkSampleCountFlagBits	Samples;
+		VkImageLayout			InitialLayout;
+		VkImageUsageFlags		UsageFlags;
+		Handle<HImage>*			Handle;
+	};
+
 	/**
 	* Vulkan initialisation.
 	*/
@@ -161,17 +174,20 @@ namespace vk
 		bool CreateDefaultFramebuffer();
 	};
 
-	// NOTE(Ygsm):
-	// We need to make a stance on what the Vulkan Driver does.
-	// Vulkan Driver should only provide functions that will present an image on to the screen.
-	// Should also provide functions that allows the GPU to manipulate data.
+	/**
+	* NOTE(Ygsm):
+	* Currently implementing vma into the driver.
+	* Creating image attachments for renderpasses.
+	*/
 	struct VulkanDriver : public VulkanCommon
 	{
-		VkDeviceMemory			DeviceMemory;
+		VmaAllocator			Allocator;
 		VkCommandPool			CommandPool;
 		uint32					NextImageIndex;
 		uint32					CurrentFrame;
 		bool					RenderFrame;
+
+		bool CreateVmAllocator();
 
 		bool InitializeDriver();
 		void TerminateDriver();
@@ -204,8 +220,15 @@ namespace vk
 		uint32 FindMemoryType(uint32 TypeFilter, VkMemoryPropertyFlags Properties);
 
 		/**
-		* Temp ***
+		* Creates an image and it's image view.
 		*/
+		bool CreateImage(HwImageCreateStruct& CreateInfo);
+
+		/**
+		* Releases the image and it's image view.
+		*/
+		void DestroyImage(Handle<HImage>& Hnd);
+
 		bool CreateCommandPool();
 		bool AllocateCommandBuffers();
 
@@ -230,7 +253,7 @@ namespace vk
 		/**
 		* Does nothing yet ...
 		*/
-		void DestroyFramebuffer		(Handle<HFrameParam>& Hnd);
+		void DestroyFramebuffer		(Handle<HFramebuffer>& Hnd);
 	};
 }
 

@@ -12,6 +12,8 @@ struct CommandBuffer
 {
 	mat4				Projection;
 	mat4				View;
+
+	// This is wrong! DrawCommands should go by stages depending on the order of the renderpass.
 	Array<DrawCommand>	RenderCommands;
 };
 

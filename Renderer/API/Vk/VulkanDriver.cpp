@@ -17,16 +17,27 @@ namespace vk
 	struct VulkanCompileTimeContext
 	{
 
-		struct FramebufferParams
+		OS::DllHandle				VulkanDll;
+
+		struct ImageParam
 		{
-			VkFramebuffer	Framebuffers[MAX_FRAMES_IN_FLIGHT];
-			VkImage			Images[MAX_FRAMES_IN_FLIGHT][MAX_ATTACHMENTS_IN_FRAMEBUFFER];
-			VkImageView		ImageViews[MAX_FRAMES_IN_FLIGHT][MAX_ATTACHMENTS_IN_FRAMEBUFFER];
-			VkRenderPass	Renderpass;
-			size_t			NumAttachments;
+			VkImage			Image;
+			VkImageView		ImageView;
+			VkSampler		Sampler;
+			VmaAllocation	Allocation;
 		};
 
-		OS::DllHandle				VulkanDll;
+		struct BufferParam
+		{
+			VkBuffer		Buffer;
+			VmaAllocation	Allocation;
+		};
+
+		struct FrameParam
+		{
+			VkFramebuffer	Framebuffer;
+			VkRenderPass	Renderpass;
+		};
 
 		struct Storage
 		{
@@ -35,11 +46,12 @@ namespace vk
 			using CmdBufferArr		= StaticArray<VkCommandBuffer, static_cast<size_t>(MAX_FRAMES_IN_FLIGHT)>;
 			using FramebufferArr	= StaticArray<VkFramebuffer, static_cast<size_t>(MAX_FRAMES_IN_FLIGHT)>;
 
-			StoreContainer<VkShaderModule>		Shaders;
-			StoreContainer<FramebufferParams>	FrameParams;
-			StoreContainer<VkPipeline>			Pipelines;
-			StoreContainer<CmdBufferArr>		CommandBuffers;
-			StoreContainer<VkBuffer>			Buffers;
+			StoreContainer<VkShaderModule>	Shaders;
+			StoreContainer<VkPipeline>		Pipelines;
+			StoreContainer<CmdBufferArr>	CommandBuffers;
+			StoreContainer<VkBuffer>		Buffers;
+			StoreContainer<FrameParam>		Framebuffers;
+			StoreContainer<ImageParam>		Images;
 
 		} Store;
 
@@ -96,6 +108,12 @@ namespace vk
 				VK_IMAGE_TYPE_1D,
 				VK_IMAGE_TYPE_2D,
 				VK_IMAGE_TYPE_3D
+			};
+
+			VkImageViewType ImageViewType[Attachment_Dimension_Max] = {
+				VK_IMAGE_VIEW_TYPE_1D,
+				VK_IMAGE_VIEW_TYPE_2D,
+				VK_IMAGE_VIEW_TYPE_3D
 			};
 
 			VkImageUsageFlagBits ImageUsage[Attachment_Type_Max] = {
@@ -211,6 +229,25 @@ namespace vk
 		return true;
 	}
 
+	bool VulkanDriver::CreateVmAllocator()
+	{
+		VmaAllocatorCreateInfo allocatorInfo;
+		FMemory::InitializeObject(allocatorInfo);
+
+		allocatorInfo.physicalDevice	= GPU;
+		allocatorInfo.device			= Device;
+		allocatorInfo.instance			= Instance;
+		allocatorInfo.vulkanApiVersion	= VK_API_VERSION_1_2;
+
+		if (vmaCreateAllocator(&allocatorInfo, &Allocator) != VK_SUCCESS)
+		{
+			VKT_ASSERT("Failed to create vulkan memory allocator!" && false);
+			return false;
+		}
+
+		return true;
+	}
+
 	bool VulkanDriver::InitializeDriver()
 	{
 		/**
@@ -235,10 +272,12 @@ namespace vk
 		if (!CreateSwapchain())						return false;
 		if (!CreateSyncObjects())					return false;
 		if (!CreateDefaultRenderPass())				return false;
+		if (!CreateVmAllocator())					return false;
 
 		Ctx.Store.CommandBuffers.Reserve(32);
 		Ctx.Store.Pipelines.Reserve(		MAX_GPU_RESOURCE);
-		Ctx.Store.FrameParams.Reserve(		MAX_GPU_RESOURCE);
+		Ctx.Store.Framebuffers.Reserve(		MAX_GPU_RESOURCE);
+		Ctx.Store.Images.Reserve(			MAX_GPU_RESOURCE);
 		Ctx.Store.Shaders.Reserve(		MAX_GPU_RESOURCE_DBL);
 
 		NextImageIndex = 0;
@@ -254,7 +293,10 @@ namespace vk
 		Ctx.Store.CommandBuffers.Release();
 		Ctx.Store.Shaders.Release();
 		Ctx.Store.Pipelines.Release();
-		Ctx.Store.FrameParams.Release();
+		Ctx.Store.Images.Release();
+		Ctx.Store.Framebuffers.Release();
+
+		vmaDestroyAllocator(Allocator);
 
 		for (size_t i = 0; i < SwapChain.NumImages; i++)
 		{
@@ -305,25 +347,20 @@ namespace vk
 			CommandPool = VK_NULL_HANDLE;
 		}
 
-		if (Ctx.Store.FrameParams.Length())
+		if (Ctx.Store.Framebuffers.Length())
 		{
-			for (auto& pair : Ctx.Store.FrameParams)
+			for (auto& pair : Ctx.Store.Framebuffers)
 			{
 				auto& params = pair.Value;
-				//if (!params.Framebuffers.Length())
-				//{
-				//	continue;
-				//}
+				VkFramebuffer& framebuffer = params.Framebuffer;
 
-				for (VkFramebuffer& framebuffer : params.Framebuffers)
+				if (framebuffer == VK_NULL_HANDLE)
 				{
-					if (framebuffer == VK_NULL_HANDLE)
-					{
-						continue;
-					}
-					vkDestroyFramebuffer(Device, framebuffer, nullptr);
-					framebuffer = VK_NULL_HANDLE;
+					continue;
 				}
+
+				vkDestroyFramebuffer(Device, framebuffer, nullptr);
+				framebuffer = VK_NULL_HANDLE;
 			}
 		}
 	}
@@ -1331,7 +1368,7 @@ namespace vk
 		pipelineCreateInfo.pColorBlendState = &colorBlendCreateInfo;
 		//pipelineCreateInfo.pDynamicState = &dynamicStateCreateInfo;
 		pipelineCreateInfo.layout = pipelineLayout;
-		pipelineCreateInfo.renderPass = Ctx.Store.FrameParams[CreateInfo.FramePrmHandle].Renderpass;
+		pipelineCreateInfo.renderPass = Ctx.Store.Framebuffers[CreateInfo.FramebufferHandle].Renderpass;
 		pipelineCreateInfo.subpass = 0;							// TODO(Ygsm): Study more about this!
 		pipelineCreateInfo.basePipelineHandle = VK_NULL_HANDLE;	// TODO(Ygsm): Study more about this!
 		pipelineCreateInfo.basePipelineIndex = -1;				// TODO(Ygsm): Study more about this!
@@ -1458,9 +1495,11 @@ namespace vk
 		VkRenderPassBeginInfo renderPassBeginInfo;
 		FMemory::InitializeObject(renderPassBeginInfo);
 
+		auto& frameParam = Ctx.Store.Framebuffers[RecordInfo.FramebufferHandle];
+
 		renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-		renderPassBeginInfo.renderPass	= Ctx.Store.FrameParams[RecordInfo.FramePrmHandle].Renderpass;
-		renderPassBeginInfo.framebuffer = Ctx.Store.FrameParams[RecordInfo.FramePrmHandle].Framebuffers[NextImageIndex];
+		renderPassBeginInfo.renderPass	= frameParam.Renderpass;
+		renderPassBeginInfo.framebuffer = frameParam.Framebuffers[NextImageIndex];
 		renderPassBeginInfo.renderArea.offset = { offset[Surface_Offset_X], offset[Surface_Offset_Y] };
 		renderPassBeginInfo.renderArea.extent = { extent[Surface_Extent_Width], extent[Surface_Extent_Height] };
 		renderPassBeginInfo.clearValueCount = 1;
@@ -1501,76 +1540,330 @@ namespace vk
 		vkEndCommandBuffer(cmdBuffer);
 	}
 
+	bool VulkanDriver::CreateImage(HwImageCreateStruct& CreateInfo)
+	{
+		bool success = true;
+		uint32 id = g_RandIdVk();
+		*CreateInfo.Handle = id;
+
+		Ctx.Store.Images.Insert(id, {});
+		auto& imageParam = Ctx.Store.Images[id];
+
+		VkImageCreateInfo imageInfo;
+		FMemory::InitializeObject(imageInfo);
+
+		imageInfo.sType			= VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+		imageInfo.imageType		= CreateInfo.Dimension;
+		imageInfo.extent.width	= CreateInfo.Width;
+		imageInfo.extent.height = CreateInfo.Height;
+		imageInfo.extent.depth	= CreateInfo.Depth;
+		imageInfo.format		= CreateInfo.Format;
+		imageInfo.tiling		= VK_IMAGE_TILING_OPTIMAL;
+		imageInfo.mipLevels		= CreateInfo.MipLevels;
+		imageInfo.usage			= CreateInfo.UsageFlags;
+		imageInfo.samples		= CreateInfo.Samples;
+		imageInfo.arrayLayers	= 1;
+		imageInfo.sharingMode	= VK_SHARING_MODE_EXCLUSIVE;
+		imageInfo.initialLayout = CreateInfo.InitialLayout;
+		
+		VmaAllocationCreateInfo allocInfo;
+		FMemory::InitializeObject(allocInfo);
+
+		allocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+
+		if (vmaCreateImage(
+			Allocator,
+			&imageInfo,
+			&allocInfo,
+			&imageParam.Image,
+			&imageParam.Allocation,
+			nullptr) != VK_SUCCESS)
+		{
+			VKT_ASSERT("Unable to create image" && false);
+			success = false;
+			goto BeforeImageCreateEnd;
+		}
+
+		VkImageViewCreateInfo imageViewInfo;
+		FMemory::InitializeObject(imageViewInfo);
+
+		imageViewInfo.sType								= VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+		imageViewInfo.format							= CreateInfo.Format;
+		imageViewInfo.subresourceRange.baseMipLevel		= 0;
+		imageViewInfo.subresourceRange.levelCount		= CreateInfo.MipLevels;
+		imageViewInfo.subresourceRange.baseArrayLayer	= 0;
+		imageViewInfo.subresourceRange.layerCount		= 1;
+		imageViewInfo.image								= imageParam.Image;
+		imageViewInfo.viewType							= Ctx.Flags.ImageViewType[CreateInfo.Dimension];
+
+		if (CreateInfo.UsageFlags & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT == VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT)
+		{
+			imageViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		}
+
+		if (CreateInfo.UsageFlags & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT == VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT)
+		{
+			imageViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+		}
+
+		if (vkCreateImageView(
+			Device, 
+			&imageViewInfo, 
+			nullptr, 
+			&imageParam.ImageView) != VK_SUCCESS)
+		{
+			VKT_ASSERT("Unable to create image's image view" && false);
+			success = false;
+			goto BeforeImageCreateEnd;
+		}
+
+		// NOTE(Ygsm):
+		// Not sure if we should include samplers in image creation.
+		//
+		//if (CreateInfo.UsageFlags & VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT != VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT)
+		//{
+		//	goto BeforeImageCreateEnd;
+		//}
+
+		//VkSamplerCreateInfo samplerInfo;
+		//FMemory::InitializeObject(samplerInfo);
+
+		//samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+
+	BeforeImageCreateEnd:
+
+		if (!success)
+		{
+			*CreateInfo.Handle = INVALID_HANDLE;
+			Ctx.Store.Images.Remove(id);
+		}
+
+		return success;
+	}
+
+	void VulkanDriver::DestroyImage(Handle<HImage>& Hnd)
+	{
+		auto& imageParam = Ctx.Store.Images[Hnd];
+		vkDestroyImageView(Device, imageParam.ImageView, nullptr);
+		vmaDestroyImage(Allocator, imageParam.Image, imageParam.Allocation);
+	}
+
 	bool VulkanDriver::CreateFramebuffer(HwFramebufferCreateInfo& CreateInfo)
 	{
-		//uint32 frameParamId = g_RandIdVk();
-		//Ctx.Store.FrameParams.Insert(frameParamId, {});
+		bool success = true;
+		uint32 id = g_RandIdVk();
 
-		//auto& frameParameters = Ctx.Store.FrameParams[frameParamId];
-		//FMemory::InitializeObject(frameParameters);
+		*CreateInfo.Handle = id;
+		Ctx.Store.Framebuffers.Insert(id, {});
 
-		//bool success = true;
+		auto& framebufferParam = Ctx.Store.Framebuffers[id];
 
-		//const uint32 width	= (!CreateInfo.Width)	? SwapChain.Extent.width : static_cast<uint32>(CreateInfo.Width);
-		//const uint32 height = (!CreateInfo.Height)	? SwapChain.Extent.height : static_cast<uint32>(CreateInfo.Height);
-		//const uint32 depth	= (!CreateInfo.Depth)	? 1 : static_cast<uint32>(CreateInfo.Depth);
+		const uint32 width	= (!CreateInfo.Width)	? SwapChain.Extent.width : static_cast<uint32>(CreateInfo.Width);
+		const uint32 height = (!CreateInfo.Height)	? SwapChain.Extent.height : static_cast<uint32>(CreateInfo.Height);
+		const uint32 depth	= (!CreateInfo.Depth)	? 1 : static_cast<uint32>(CreateInfo.Depth);
 
-		//const size_t numOfAttachments = CreateInfo.Attachments.Length();
+		const size_t numOfAttachments = CreateInfo.Attachments.Length();
+		uint32 inputAttachmentCount = 0;
+		uint32 outputAttachmentCount = 0;
+		VKT_ASSERT("Must not exceed maximum attachment allowed in framebuffer" && numOfAttachments <= MAX_ATTACHMENTS_IN_FRAMEBUFFER);
+		
+		HwImageCreateStruct imageInfo;
 
-		//VKT_ASSERT("Must not exceed maximum attachment allowed in framebuffer" && numOfAttachments <= MAX_ATTACHMENTS_IN_FRAMEBUFFER);
+		//
+		// NOTE(Ygsm):
+		// Since we're not targeting mobile (not using more than a single subpass), there is no need for VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT
+		//
 
-		//for (uint32 f = 0; f < MAX_FRAMES_IN_FLIGHT; f++)
-		//{
-		//	for (size_t i = 0; i < numOfAttachments; i++)
-		//	{
-		//		VkImageCreateInfo imageCreateInfo;
-		//		FMemory::InitializeObject(imageCreateInfo);
+		for (size_t i = 0; i < numOfAttachments; i++)
+		{
+			HwAttachmentInfo& attachment = CreateInfo.Attachments[i];
 
-		//		imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-		//		imageCreateInfo.imageType = Ctx.Flags.ImageType[CreateInfo.Attachments[i].Dimension];
-		//		imageCreateInfo.extent.width = width;
-		//		imageCreateInfo.extent.height = height;
-		//		imageCreateInfo.extent.depth = depth;
-		//		imageCreateInfo.mipLevels = 1;
-		//		imageCreateInfo.arrayLayers = 1;
-		//		imageCreateInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
-		//		imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-		//		imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		//		// To study below ...
-		//		imageCreateInfo.usage = Ctx.Flags.ImageUsage[CreateInfo.Attachments[i].Type] | VK_IMAGE_USAGE_SAMPLED_BIT;
-		//		imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-		//		imageCreateInfo.samples = Ctx.Flags.SampleCounts[CreateInfo.Samples];
+			// Input attachments mean the image was already created and we can skip this step.
+			if (attachment.Type == Attachment_Usage_Input)
+			{
+				inputAttachmentCount++;
+				continue;
+			}
 
-		//		VkImage imageHandle;
-		//		if (vkCreateImage(Device, &imageCreateInfo, nullptr, &imageHandle) != VK_SUCCESS)
-		//		{
-		//			success = false;
-		//			break;
-		//		}
+			FMemory::InitializeObject(imageInfo);
 
-		//		*CreateInfo.Attachments[i].Handle = i;
-		//		frameParameters.Images[f][i] = imageHandle;
+			imageInfo.Handle = attachment.Handle;
+			imageInfo.Width = width;
+			imageInfo.Height = height;
+			imageInfo.Depth = depth;
+			imageInfo.MipLevels = 1;
+			imageInfo.Dimension = Ctx.Flags.ImageType[attachment.Dimension];
+			imageInfo.Samples = Ctx.Flags.SampleCounts[CreateInfo.Samples];
 
-		//		VkMemoryRequirements memRequirements;
-		//		vkGetImageMemoryRequirements(Device, imageHandle, &memRequirements);
+			//
+			// Note(Ygsm):
+			// This makes sense right since they will be sampled at some point?
+			//
+			imageInfo.UsageFlags = VK_IMAGE_USAGE_SAMPLED_BIT;
 
-		//		VkMemoryAllocateInfo allocInfo;
-		//		FMemory::InitializeObject(allocInfo);
+			switch (attachment.Type)
+			{
+				case Attachment_Type_Color:
+					imageInfo.UsageFlags |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+					imageInfo.Format = VK_FORMAT_R8G8B8A8_SRGB;
+					break;
+				case Attachment_Type_Depth_Stencil:
+					imageInfo.UsageFlags |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+					imageInfo.Format = VK_FORMAT_D24_UNORM_S8_UINT;
+					break;
+				default:
+					break;
+			}
 
-		//		allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-		//		allocInfo.memoryTypeIndex = FindMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+			if (!CreateImage(imageInfo))
+			{
+				success = false;
+				goto FramebufferCreateBeforeEnd;
+			}
 
-		//		if (vkAllocateMemory(Device, &allocInfo, nullptr, ))
-		//	}
-		//}
-		// Create image and it's image views.
-		// Create renderpass.
-		// Create framebuffer.
+			if (attachment.Type == Attachment_Type_Color)
+			{
+				outputAttachmentCount++;
+			}
 
-		return true;
+			// Create samplers after creating the image?
+		}
+
+		// Stuck here !!! Help needed !!!
+
+		VkAttachmentDescription attachmentDescs[MAX_ATTACHMENTS_IN_FRAMEBUFFER];
+
+		for (size_t i = 0; i < numOfAttachments; i++)
+		{
+			HwAttachmentInfo& attachment = CreateInfo.Attachments[i];
+			VkAttachmentDescription& attDesc = attachmentDescs[i];
+			FMemory::InitializeObject(attDesc);
+
+			attDesc.samples			= Ctx.Flags.SampleCounts[CreateInfo.Samples];
+			attDesc.initialLayout	= VK_IMAGE_LAYOUT_UNDEFINED;
+			attDesc.stencilLoadOp	= VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+			attDesc.stencilStoreOp	= VK_ATTACHMENT_STORE_OP_DONT_CARE;
+
+			switch (attachment.Type)
+			{
+				case Attachment_Type_Color:
+					attDesc.format			= VK_FORMAT_R8G8B8A8_SRGB;
+					attDesc.finalLayout		= VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+					break;
+				case Attachment_Type_Depth_Stencil:
+					attDesc.format			= VK_FORMAT_D24_UNORM_S8_UINT;
+					attDesc.finalLayout		= VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+					break;
+				default:
+					break;
+			}
+
+			switch (attachment.Usage)
+			{
+				case Attachment_Usage_Input: 
+				{
+					attDesc.finalLayout		= VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+					attDesc.loadOp			= VK_ATTACHMENT_LOAD_OP_LOAD;
+					attDesc.storeOp			= VK_ATTACHMENT_STORE_OP_DONT_CARE;
+
+					if (attachment.Type == Attachment_Type_Depth_Stencil)
+					{
+						attDesc.stencilLoadOp	= VK_ATTACHMENT_LOAD_OP_LOAD;
+						attDesc.stencilStoreOp	= VK_ATTACHMENT_STORE_OP_DONT_CARE;
+					}
+
+					break;
+				}
+				case Attachment_Usage_Output:
+				{
+					attDesc.loadOp	= VK_ATTACHMENT_LOAD_OP_CLEAR;
+					attDesc.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+
+					if (attachment.Type == Attachment_Type_Depth_Stencil)
+					{
+						attDesc.stencilLoadOp	= VK_ATTACHMENT_LOAD_OP_CLEAR;
+						attDesc.stencilStoreOp	= VK_ATTACHMENT_STORE_OP_STORE;
+					}
+
+					break;
+				}
+				default:
+					break;
+			}
+		}
+
+		// TODO(Ygsm):
+		// Create renderpass and it's subpasses.
+		VkSubpassDescription subpassDescription;
+		FMemory::InitializeObject(subpassDescription);
+
+		subpassDescription.pipelineBindPoint	= VK_PIPELINE_BIND_POINT_GRAPHICS;
+		subpassDescription.inputAttachmentCount = inputAttachmentCount;
+		subpassDescription.colorAttachmentCount = outputAttachmentCount;
+
+		// Create subpass dependencies.
+		VkSubpassDependency dependencies[MAX_ATTACHMENTS_IN_FRAMEBUFFER];
+
+		for (size_t i = 0; i < numOfAttachments; i++)
+		{
+
+		}
+
+		// Create actual renderpass.
+		VkRenderPassCreateInfo renderPassInfo;
+		FMemory::InitializeObject(renderPassInfo);
+
+		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+		renderPassInfo.attachmentCount = static_cast<uint32>(numOfAttachments);
+		renderPassInfo.pAttachments = attachmentDescs;
+		renderPassInfo.subpassCount = 1;
+		renderPassInfo.pSubpasses = &subpassDescription;
+		// dependencies ...
+
+		vkCreateRenderPass(Device, &renderPassInfo, nullptr, &framebufferParam.Renderpass);
+
+		VkImageView imgViewAtt[MAX_ATTACHMENTS_IN_FRAMEBUFFER];
+
+		for (size_t i = 0; i < numOfAttachments; i++)
+		{
+			HwAttachmentInfo& attachment = CreateInfo.Attachments[i];
+			auto& imageParam = Ctx.Store.Images[*attachment.Handle];
+			imgViewAtt[i] = imageParam.ImageView;
+		}
+
+		VkFramebufferCreateInfo framebufferInfo;
+		FMemory::InitializeObject(framebufferInfo);
+
+		framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+		framebufferInfo.width = CreateInfo.Width;
+		framebufferInfo.height = CreateInfo.Height;
+		framebufferInfo.pAttachments = imgViewAtt;
+		framebufferInfo.attachmentCount = numOfAttachments;
+		framebufferInfo.layers = 1;
+		framebufferInfo.renderPass = framebufferParam.Renderpass;
+
+		if (vkCreateFramebuffer(
+			Device, 
+			&framebufferInfo, 
+			nullptr, 
+			&framebufferParam.Framebuffer) != VK_SUCCESS)
+		{
+			VKT_ASSERT("Unable to create framebuffer" && false);
+			success = false;
+		}
+
+	FramebufferCreateBeforeEnd:
+
+		if (!success)
+		{
+			*CreateInfo.Handle = INVALID_HANDLE;
+			Ctx.Store.Framebuffers.Remove(id);
+		}
+
+		return success;
 	};
 
-	void VulkanDriver::DestroyFramebuffer(Handle<HFrameParam>& Hnd)
+	void VulkanDriver::DestroyFramebuffer(Handle<HFramebuffer>& Hnd)
 	{
 		// destroy framebuffer.
 		// destroy renderpass.

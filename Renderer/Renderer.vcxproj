@@ -21,6 +21,7 @@
   <ItemGroup>
     <ClCompile Include="API\Context.cpp" />
     <ClCompile Include="API\Vk\ShaderToSPIRVCompiler.cpp" />
+    <ClCompile Include="API\Vk\Vk.cpp" />
     <ClCompile Include="Assets\Assets.cpp" />
     <ClCompile Include="Renderer.cpp" />
     <ClCompile Include="API\Vk\VulkanFunctions.cpp" />
@@ -31,6 +32,7 @@
   <ItemGroup>
     <ClInclude Include="API\Context.h" />
     <ClInclude Include="API\Driver.h" />
+    <ClInclude Include="API\Vk\vk_mem_alloc.h" />
     <ClInclude Include="Assets\GPUHandles.h" />
     <ClInclude Include="API\RendererFlagBits.h" />
     <ClInclude Include="API\Vk\ShaderToSPIRVCompiler.h" />
@@ -64,6 +66,9 @@
     <ProjectReference Include="..\Core\Core.vcxproj">
       <Project>{09bfc76e-822f-4496-96d0-329faf4943ad}</Project>
     </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <Natvis Include="vk_mem_alloc.natvis" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
