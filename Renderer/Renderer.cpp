@@ -2,6 +2,7 @@
 
 
 LinearAllocator g_FrameGraphAllocator;
+LinearAllocator g_RenderGroupAllocator;
 
 RenderSystem::RenderSystem() :
 	AssetManager(),
@@ -145,30 +146,53 @@ void RenderSystem::RenderModel(Model& InModel, uint32 RenderedPass)
 	
 	for (Mesh* mesh : InModel)
 	{
-		drawCommand.Vbo = mesh->Vbo;
-		drawCommand.Ebo = mesh->Ebo;
-		drawCommand.VertexCount = static_cast<uint32>(mesh->Vertices.Length());
-		drawCommand.IndexCount	= static_cast<uint32>(mesh->Indices.Length());
+		RenderGroup& renderGroup = *RenderGroups[mesh->Group];
+		drawCommand.Vbo = renderGroup.Vbo;
+		drawCommand.Ebo = renderGroup.Ebo;
+
+		drawCommand.VertexOffset	= mesh->VertexOffset;
+		drawCommand.IndexOffset		= mesh->IndexOffset;
 
 		PushCommandForRender(drawCommand);
 	}
 }
 
+void RenderSystem::NewRenderGroup(uint32 Identifier)
+{
+	RenderGroup* group = reinterpret_cast<RenderGroup*>(FMemory::Malloc(sizeof(RenderGroup)));
+	FMemory::InitializeObject(group, Context);
+	RenderGroups.Insert(Identifier, group);
+}
+
+void RenderSystem::AddModelToRenderGroup(Model& InModel, uint32 GroupIdentifier)
+{
+	RenderGroup& renderGroup = *RenderGroups[GroupIdentifier];
+	for (Mesh* mesh : InModel)
+	{
+		renderGroup.AddMeshToGroup(*mesh);
+		mesh->Group = GroupIdentifier;
+	}
+}
+
+void RenderSystem::FinalizeRenderGroup(uint32 Identifier)
+{
+	RenderGroup* group = RenderGroups[Identifier];
+	group->Build();
+}
+
+void RenderSystem::TerminateRenderGroup(uint32 Identifier)
+{
+	RenderGroup* group = RenderGroups[Identifier];
+	group->Destroy();
+	FMemory::Free(group);
+	group = nullptr;
+	RenderGroups.Remove(Identifier);
+}
+
+
 RendererAssetManager& RenderSystem::FetchAssetManager()
 {
 	return AssetManager;
-}
-
-bool RenderSystem::FinalizeModel(Model& InModel)
-{
-	for (Mesh* mesh : InModel)
-	{
-		if (!Context.NewVertexBuffer(*mesh))
-		{
-			return false;
-		}
-	}
-	return true;
 }
 
 namespace ao

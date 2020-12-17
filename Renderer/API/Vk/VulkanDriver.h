@@ -15,9 +15,11 @@
 namespace vk
 {
 
-#define MAX_SWAPCHAIN_IMAGE_ALLOWED 3
-#define MAX_FRAMES_IN_FLIGHT 2
-#define MAX_ATTACHMENTS_IN_FRAMEBUFFER 8
+#define MAX_SWAPCHAIN_IMAGE_ALLOWED		3
+#define MAX_FRAMES_IN_FLIGHT			2
+#define MAX_ATTACHMENTS_IN_FRAMEBUFFER	8
+#define MAX_BUFFER_VERTEX_DATA			1 << 20
+#define MAX_BUFFER_INSTANCE_DATA		1 << 24
 
 	using BinaryBuffer = Array<uint8>;
 	using DWordBuffer  = Array<uint32>;
@@ -28,7 +30,6 @@ namespace vk
 		Queue_Type_Present  = 1,
 		Queue_Max = 2
 	};
-
 
 	enum DriverSemaphoreTypes : uint32
 	{
@@ -48,18 +49,20 @@ namespace vk
 
 	struct HwDrawInfo
 	{
-		Handle<HFramePass>		FramePassHandle;
-		Handle<HVertexBuffer>	Vbo;
-		Handle<HIndexBuffer>	Ebo;
-		uint32					VertexCount;
-		uint32					IndexCount;
+		Handle<HFramePass>	FramePassHandle;
+		Handle<HBuffer>		Vbo;
+		Handle<HBuffer>		Ebo;
+		uint32				VertexOffset;
+		uint32				IndexOffset;
 	};
 
-	struct HwVertexBufferCreateInfo
+	struct HwBufferCreateInfo
 	{
-		Handle<HVertexBuffer>*	Handle;
-		void*					Data;
-		size_t					Size;
+		Handle<HBuffer>*	Handle;
+		void*				Data;
+		size_t				Count;
+		size_t				Size;
+		BufferType			Type;
 	};
 
 	struct HwShaderCreateInfo
@@ -255,8 +258,8 @@ namespace vk
 		bool CreateCommandPool();
 		bool AllocateCommandBuffers();
 
-		bool CreateVertexBuffer		(HwVertexBufferCreateInfo& CreateInfo);
-		void DestroyVertexBuffer	(Handle<HVertexBuffer>& Hnd);
+		bool CreateBuffer			(HwBufferCreateInfo& CreateInfo);
+		void DestroyBuffer			(Handle<HBuffer>& Hnd);
 
 		bool CreateShader			(HwShaderCreateInfo& CreateInfo);
 		void DestroyShader			(Handle<HShader>& Hnd);
@@ -272,7 +275,6 @@ namespace vk
 		void RecordCommandBuffer	(HwCmdBufferRecordInfo& RecordInfo);
 		void UnrecordCommandBuffer	(HwCmdBufferRecordInfo& RecordInfo);
 		void Draw					(HwDrawInfo& DrawInfo);
-		void DrawIndexed			(HwDrawInfo& DrawInfo);
 		//void FreeCommandBuffer		(Handle<HCmdBuffer>& Hnd);
 
 		//void PresentImageOnScreen	(Handle<HImage>& Hnd);

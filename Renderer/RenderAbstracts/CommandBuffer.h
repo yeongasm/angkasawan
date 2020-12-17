@@ -8,10 +8,10 @@
 
 struct Drawable
 {
-	Handle<HVertexBuffer>	Vbo;
-	Handle<HIndexBuffer>	Ebo;
-	uint32					VertexCount;
-	uint32					IndexCount;
+	Handle<HBuffer>	Vbo;
+	Handle<HBuffer> Ebo;
+	uint32			VertexOffset;
+	uint32			IndexOffset;
 };
 
 struct DrawCommand : Drawable

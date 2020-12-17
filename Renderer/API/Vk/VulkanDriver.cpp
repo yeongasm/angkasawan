@@ -30,6 +30,7 @@ namespace vk
 		{
 			VkBuffer		Buffer;
 			VmaAllocation	Allocation;
+			uint32			DataCount;
 		};
 
 		struct Storage
@@ -116,6 +117,11 @@ namespace vk
 				VK_FORMAT_R32G32_SFLOAT,
 				VK_FORMAT_R32G32B32_SFLOAT,
 				VK_FORMAT_R32G32B32A32_SFLOAT
+			};
+
+			VkBufferUsageFlagBits BufferTypes[Buffer_Type_Max] = {
+				VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+				VK_BUFFER_USAGE_INDEX_BUFFER_BIT
 			};
 
 		} Flags;
@@ -1172,7 +1178,7 @@ return true;
 		return true;
 	}
 
-	bool VulkanDriver::CreateVertexBuffer(HwVertexBufferCreateInfo& CreateInfo)
+	bool VulkanDriver::CreateBuffer(HwBufferCreateInfo& CreateInfo)
 	{
 		uint32 id = g_RandIdVk();
 		Ctx.Store.Buffers.Insert(id, {});
@@ -1182,9 +1188,9 @@ return true;
 
 		VkBufferCreateInfo bufferCreateInfo = {};
 
-		bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		bufferCreateInfo.size = CreateInfo.Size;
-		bufferCreateInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+		bufferCreateInfo.sType	= VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+		bufferCreateInfo.size	= CreateInfo.Count * CreateInfo.Size;
+		bufferCreateInfo.usage	= Ctx.Flags.BufferTypes[CreateInfo.Type];
 
 		VmaAllocationCreateInfo allocInfo = {};
 
@@ -1196,20 +1202,24 @@ return true;
 			return false;
 		}
 
+		bufferParam.DataCount = static_cast<uint32>(CreateInfo.Count);
+
 		void* data = nullptr;
 		vmaMapMemory(Allocator, bufferParam.Allocation, &data);
-		FMemory::Memcpy(data, CreateInfo.Data, CreateInfo.Size);
+		FMemory::Memcpy(data, CreateInfo.Data, CreateInfo.Count * CreateInfo.Size);
 		vmaUnmapMemory(Allocator, bufferParam.Allocation);
 
 		return true;
 	}
 
-	void VulkanDriver::DestroyVertexBuffer(Handle<HVertexBuffer>& Hnd)
+	void VulkanDriver::DestroyBuffer(Handle<HBuffer>& Hnd)
 	{
+		vkDeviceWaitIdle(Device);
 		auto& bufferParam = Ctx.Store.Buffers[Hnd];
 		vmaDestroyBuffer(Allocator, bufferParam.Buffer, bufferParam.Allocation);
 		bufferParam.Buffer		= VK_NULL_HANDLE;
 		bufferParam.Allocation	= VK_NULL_HANDLE;
+		Ctx.Store.Buffers.Remove(Hnd);
 	}
 
 	bool VulkanDriver::CreateShader(HwShaderCreateInfo& CreateInfo)
@@ -1459,7 +1469,7 @@ return true;
 	//	new (&Hnd) Handle<HCmdBuffer>(INVALID_HANDLE);
 	//}
 
-	//void VulkanDriver::PresentImageOnScreen(Handle<HImage>& Hnd)
+	//void VulkanDriver::PresentImageOCnScreen(Handle<HImage>& Hnd)
 	//{
 	//	//
 	//	// TODO(Ygsm):
@@ -1646,21 +1656,29 @@ return true;
 	void VulkanDriver::Draw(HwDrawInfo& DrawInfo)
 	{
 		auto& frameParams	= Ctx.Store.FramePasses[DrawInfo.FramePassHandle];
-		auto& bufferParams	= Ctx.Store.Buffers[DrawInfo.Vbo];
+		auto& vboParams		= Ctx.Store.Buffers[DrawInfo.Vbo];
 
 		VkCommandBuffer& cmdBuffer = frameParams.CommandBuffers[CurrentFrame];
-		VkBuffer& vertexBuffer = bufferParams.Buffer;
+		VkBuffer& vertexBuffer	= vboParams.Buffer;
 		VkDeviceSize offset = 0;
+		uint32 drawCount = 0;
 
 		vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &vertexBuffer, &offset);
-		vkCmdDraw(cmdBuffer, DrawInfo.VertexCount, 1, 0, 0);
-	}
 
-	void VulkanDriver::DrawIndexed(HwDrawInfo& DrawInfo)
-	{
-		//
-		// TODO(Ygsm):
-		//
+		if (DrawInfo.Ebo != INVALID_HANDLE)
+		{
+			auto& eboParams			= Ctx.Store.Buffers[DrawInfo.Ebo];
+			VkBuffer& indexBuffer	= eboParams.Buffer;
+			drawCount = eboParams.DataCount - DrawInfo.IndexOffset;
+
+			vkCmdBindIndexBuffer(cmdBuffer, indexBuffer, DrawInfo.IndexOffset * sizeof(uint32), VK_INDEX_TYPE_UINT32);
+			vkCmdDrawIndexed(cmdBuffer, drawCount, 1, 0, DrawInfo.VertexOffset, 0);
+		}
+		else
+		{
+			drawCount = vboParams.DataCount - DrawInfo.VertexOffset;
+			vkCmdDraw(cmdBuffer, drawCount, 1, DrawInfo.VertexOffset, 0);
+		}
 	}
 
 	bool VulkanDriver::CreateImage(HwImageCreateStruct& CreateInfo)

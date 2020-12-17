@@ -23,6 +23,7 @@
     <ClCompile Include="API\Vk\ShaderToSPIRVCompiler.cpp" />
     <ClCompile Include="API\Vk\Vk.cpp" />
     <ClCompile Include="Assets\Assets.cpp" />
+    <ClCompile Include="RenderAbstracts\RenderGroup.cpp" />
     <ClCompile Include="Renderer.cpp" />
     <ClCompile Include="API\Vk\VulkanFunctions.cpp" />
     <ClCompile Include="API\Vk\VulkanDriver.cpp" />
@@ -48,6 +49,7 @@
     <ClInclude Include="Assets\Shader.h" />
     <ClInclude Include="FrameGraph\FrameGraph.h" />
     <ClInclude Include="RenderAbstracts\CommandBuffer.h" />
+    <ClInclude Include="RenderAbstracts\RenderGroup.h" />
     <ClInclude Include="RenderPlatform\API.h" />
     <ClInclude Include="Renderer.h" />
     <ClInclude Include="API\Vk\Src\vk_layer.h" />

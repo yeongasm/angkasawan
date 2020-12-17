@@ -9,6 +9,7 @@
 #include "FrameGraph/FrameGraph.h"
 #include "Library/Containers/List.h"
 #include "RenderAbstracts/CommandBuffer.h"
+#include "RenderAbstracts/RenderGroup.h"
 
 
 class RENDERER_API RenderSystem : public SystemInterface
@@ -22,35 +23,34 @@ public:
 
 	DELETE_COPY_AND_MOVE(RenderSystem)
 
-	//bool Initialize();
-
 	void OnInit			() override;
 	void OnUpdate		() override;
 	void OnTerminate	() override;
 	void OnEvent		(const OS::Event& e) override;
-	//void Terminate();
-
+	
 	FrameGraph*	GetFrameGraph			();
 	void		FinalizeGraph			();
-	
-	/**
-	* I think in practice you will always only render models.
-	*/
+
 	void		PushCommandForRender	(DrawCommand& Command);
 	void		RenderModel				(Model& InModel, uint32 RenderedPass);
 
-	RendererAssetManager& FetchAssetManager		();
+	void		NewRenderGroup			(uint32 Identifier);
+	void		AddModelToRenderGroup	(Model& InModel, uint32 GroupIdentifier);
+	void		FinalizeRenderGroup		(uint32 Identifier);
+	void		TerminateRenderGroup	(uint32 Identifier);
 
-	/**
-	* Builds the vertex and index buffers for each mesh in the model
-	*/
-	bool FinalizeModel	(Model& InModel);
+	RendererAssetManager& FetchAssetManager	();
 
 private:
+
+	using RenderGroupStore = Map<uint32, RenderGroup*>;
+
 	RendererAssetManager	AssetManager;
 	RenderContext			Context;
 	FrameGraph*				Graph;
 	CommandBuffer			CmdBuffer;
+	RenderGroupStore		RenderGroups;
+
 };
 
 namespace ao

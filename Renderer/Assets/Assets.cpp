@@ -168,7 +168,9 @@ Handle<Mesh> RendererAssetManager::CreateNewMesh(const MeshCreateInfo& CreateInf
 	resource->Type = Renderer_Resource_Mesh;
 
 	Mesh& mesh = MeshStore.Add(id, Mesh()).Value;
-	FMemory::Memcpy(&mesh, &CreateInfo, sizeof(MeshCreateInfo));
+	mesh.Vertices	= CreateInfo.Vertices;
+	mesh.Indices	= CreateInfo.Indices;
+	mesh.Group		= INVALID_HANDLE;
 
 	return Handle<Mesh>(static_cast<size_t>(id));
 }

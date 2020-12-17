@@ -45,10 +45,11 @@ void RenderContext::UnbindRenderPass(RenderPass& Pass)
 void RenderContext::SubmitForRender(const Drawable& DrawObj, RenderPass& Pass)
 {
 	vk::HwDrawInfo drawInfo = {};
+
 	drawInfo.Vbo				= DrawObj.Vbo;
 	drawInfo.Ebo				= DrawObj.Ebo;
-	drawInfo.VertexCount		= DrawObj.VertexCount;
-	drawInfo.IndexCount			= DrawObj.IndexCount;
+	drawInfo.VertexOffset		= DrawObj.VertexOffset;
+	drawInfo.IndexOffset		= DrawObj.IndexOffset;
 	drawInfo.FramePassHandle	= Pass.FramePassHandle;
 	
 	// NOTE(Ygsm):
@@ -173,23 +174,36 @@ bool RenderContext::CreateCmdPoolAndBuffers()
 	return true;
 }
 
-bool RenderContext::NewVertexBuffer(Mesh& InMesh)
+bool RenderContext::NewVertexBuffer(Handle<HBuffer>& Vbo, void* Data, size_t Count)
 {
-	if (InMesh.Vbo != 0 && InMesh.Vbo != INVALID_HANDLE)
-	{
-		return true;
-	}
+	//if (Vbo != 0 && Vbo != INVALID_HANDLE) { return true; }
 
-	vk::HwVertexBufferCreateInfo vboCreateInfo;
+	vk::HwBufferCreateInfo vboCreateInfo;
 
-	vboCreateInfo.Handle	= &InMesh.Vbo;
-	vboCreateInfo.Data		= InMesh.Vertices.First();
-	vboCreateInfo.Size		= InMesh.Vertices.Length() * sizeof(Vertex);
+	vboCreateInfo.Handle = &Vbo;
+	vboCreateInfo.Data	= Data;
+	vboCreateInfo.Count = Count;
+	vboCreateInfo.Size = sizeof(Vertex);
+	vboCreateInfo.Type = Buffer_Type_Vertex;
 
-	if (!CreateVertexBuffer(vboCreateInfo))
-	{
-		return false;
-	}
+	if (!CreateBuffer(vboCreateInfo)) { return false; }
+
+	return true;
+}
+
+bool RenderContext::NewIndexBuffer(Handle<HBuffer>& Ebo, void* Data, size_t Count)
+{
+	//if (Ebo != 0 && Ebo != INVALID_HANDLE) { return true; }
+
+	vk::HwBufferCreateInfo eboCreateInfo;
+
+	eboCreateInfo.Handle = &Ebo;
+	eboCreateInfo.Data	= Data;
+	eboCreateInfo.Count = Count;
+	eboCreateInfo.Size = sizeof(uint32);
+	eboCreateInfo.Type = Buffer_Type_Index;
+
+	if (!CreateBuffer(eboCreateInfo)) { return false; }
 
 	return true;
 }

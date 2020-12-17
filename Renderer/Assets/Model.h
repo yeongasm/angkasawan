@@ -3,6 +3,7 @@
 #define LEARNVK_RENDERER_MODEL
 
 #include "Library/Containers/Array.h"
+#include "Library/Containers/Path.h"
 #include "Library/Math/Vec3.h"
 #include "GPUHandles.h"
 
@@ -32,10 +33,13 @@ struct MeshCreateInfo
 	Array<uint32> Indices;
 };
 
+class RenderGroup;
+
 struct Mesh : public MeshCreateInfo
 {
-	Handle<HVertexBuffer>	Vbo;
-	Handle<HIndexBuffer>	Ebo;
+	Handle<RenderGroup> Group;
+	uint32				VertexOffset;
+	uint32				IndexOffset;
 };
 
 class Model : private Array<Mesh*>

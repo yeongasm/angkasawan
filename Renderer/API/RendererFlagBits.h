@@ -136,7 +136,15 @@ enum TextureType : uint32
 enum AttachmentType : uint32
 {
 	Attachment_Type_Input,
-	Attachment_Type_Output
+	Attachment_Type_Output,
+	Attachment_Type_Output_To_Swapchain
+};
+
+enum BufferType : uint32
+{
+	Buffer_Type_Vertex	= 0,
+	Buffer_Type_Index	= 1,
+	Buffer_Type_Max		= 2
 };
 
 // Depth testing

@@ -32,11 +32,12 @@ public:
 	bool NewRenderPassFramebuffer		(RenderPass& Pass);
 	bool CreateCmdPoolAndBuffers		();
 
-	bool NewVertexBuffer				(Mesh& InMesh);
+	bool NewVertexBuffer				(Handle<HBuffer>& Vbo, void* Data, size_t Size);
+	bool NewIndexBuffer					(Handle<HBuffer>& Ebo, void* Data, size_t Size);
 
 	Handle<HFramePass> GetDefaultFramebuffer() const;
 
-	using GraphicsDriver::DestroyVertexBuffer;
+	using GraphicsDriver::DestroyBuffer;
 	using GraphicsDriver::DestroyImage;
 	using GraphicsDriver::DestroyShader;
 	using GraphicsDriver::DestroyPipeline;
@@ -48,7 +49,7 @@ public:
 	using GraphicsDriver::OnWindowResize;
 
 private:
-	//bool ValidateGraphicsPipelineCreateInfo(const RenderPass& Pass);
+
 };
 
 #endif // !LEARNVK_RENDERER_API_CONTEXT_H
