@@ -8,7 +8,6 @@ namespace vk
 {
 
 #define MAX_PIPELINE_SHADER_STAGE 4
-#define MAX_ATTACHMENTS_IN_FRAMEBUFFER 8
 #define MAX_GPU_RESOURCE static_cast<size_t>(1024)
 #define MAX_GPU_RESOURCE_DBL static_cast<size_t>(2018)
 
@@ -33,24 +32,15 @@ namespace vk
 			VmaAllocation	Allocation;
 		};
 
-		struct FrameParam
-		{
-			VkFramebuffer	Framebuffer;
-			VkRenderPass	Renderpass;
-		};
-
 		struct Storage
 		{
 			template <typename ResourceType> 
 			using StoreContainer	= Map<uint32, ResourceType>;
-			using CmdBufferArr		= StaticArray<VkCommandBuffer, static_cast<size_t>(MAX_FRAMES_IN_FLIGHT)>;
-			using FramebufferArr	= StaticArray<VkFramebuffer, static_cast<size_t>(MAX_FRAMES_IN_FLIGHT)>;
 
 			StoreContainer<VkShaderModule>	Shaders;
 			StoreContainer<VkPipeline>		Pipelines;
-			StoreContainer<CmdBufferArr>	CommandBuffers;
-			StoreContainer<VkBuffer>		Buffers;
-			StoreContainer<FrameParam>		Framebuffers;
+			StoreContainer<BufferParam>		Buffers;
+			StoreContainer<FramePassParams>	FramePasses;
 			StoreContainer<ImageParam>		Images;
 
 		} Store;
@@ -104,21 +94,28 @@ namespace vk
 				VK_SAMPLE_COUNT_64_BIT
 			};
 
-			VkImageType ImageType[Attachment_Dimension_Max] = {
+			VkImageType ImageType[Texture_Type_Max] = {
 				VK_IMAGE_TYPE_1D,
 				VK_IMAGE_TYPE_2D,
 				VK_IMAGE_TYPE_3D
 			};
 
-			VkImageViewType ImageViewType[Attachment_Dimension_Max] = {
+			VkImageViewType ImageViewType[Texture_Type_Max] = {
 				VK_IMAGE_VIEW_TYPE_1D,
 				VK_IMAGE_VIEW_TYPE_2D,
 				VK_IMAGE_VIEW_TYPE_3D
 			};
 
-			VkImageUsageFlagBits ImageUsage[Attachment_Type_Max] = {
+			VkImageUsageFlagBits ImageUsage[Texture_Usage_Max] = {
 				VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
 				VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT
+			};
+
+			VkFormat ShaderTypes[Shader_Attrib_Type_Max] = {
+				VK_FORMAT_R32_SFLOAT,
+				VK_FORMAT_R32G32_SFLOAT,
+				VK_FORMAT_R32G32B32_SFLOAT,
+				VK_FORMAT_R32G32B32A32_SFLOAT
 			};
 
 		} Flags;
@@ -205,7 +202,7 @@ namespace vk
 	{
 		FMemory::InitializeObject(CreateInfo);
 		CreateInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
-		CreateInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
+		CreateInfo.messageSeverity = //VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
 			VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
 			VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
 		CreateInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
@@ -254,6 +251,10 @@ namespace vk
 		* NOTE(Ygsm):
 		* Application should terminate if the driver fails to initialize.
 		*/
+		Ctx.Store.Pipelines.Reserve(	MAX_GPU_RESOURCE);
+		Ctx.Store.FramePasses.Reserve(	MAX_GPU_RESOURCE);
+		Ctx.Store.Images.Reserve(		MAX_GPU_RESOURCE);
+		Ctx.Store.Shaders.Reserve(	MAX_GPU_RESOURCE_DBL);
 
 		if (!LoadVulkanLibrary())					return false;
 		if (!LoadVulkanModuleAndGlobalFunctions())	return false;
@@ -271,14 +272,14 @@ namespace vk
 		if (!GetDeviceQueue())						return false;
 		if (!CreateSwapchain())						return false;
 		if (!CreateSyncObjects())					return false;
-		if (!CreateDefaultRenderPass())				return false;
-		if (!CreateVmAllocator())					return false;
 
-		Ctx.Store.CommandBuffers.Reserve(32);
-		Ctx.Store.Pipelines.Reserve(		MAX_GPU_RESOURCE);
-		Ctx.Store.Framebuffers.Reserve(		MAX_GPU_RESOURCE);
-		Ctx.Store.Images.Reserve(			MAX_GPU_RESOURCE);
-		Ctx.Store.Shaders.Reserve(		MAX_GPU_RESOURCE_DBL);
+		uint32 id = g_RandIdVk();
+		DefaultFramebuffer = static_cast<uint32>(id);
+		Ctx.Store.FramePasses.Insert(id, {});
+
+		if (!CreateDefaultRenderPass())				return false;
+		if (!CreateDefaultFramebuffer())			return false;
+		if (!CreateVmAllocator())					return false;
 
 		NextImageIndex = 0;
 		CurrentFrame = 0;
@@ -290,11 +291,13 @@ namespace vk
 	{
 		Flush();
 
-		Ctx.Store.CommandBuffers.Release();
+		auto& framePass = Ctx.Store.FramePasses[DefaultFramebuffer];
+		vkDestroyRenderPass(Device, framePass.Renderpass, nullptr);
+
 		Ctx.Store.Shaders.Release();
 		Ctx.Store.Pipelines.Release();
 		Ctx.Store.Images.Release();
-		Ctx.Store.Framebuffers.Release();
+		Ctx.Store.FramePasses.Release();
 
 		vmaDestroyAllocator(Allocator);
 
@@ -331,13 +334,24 @@ namespace vk
 	{
 		vkDeviceWaitIdle(Device);
 
-		if (Ctx.Store.CommandBuffers.Length())
+		for (auto& pair : Ctx.Store.FramePasses)
 		{
-			for (auto& pair : Ctx.Store.CommandBuffers)
+			auto& frameParams = pair.Value;
+			VkCommandBuffer* cmdBuffers = frameParams.CommandBuffers;
+			vkFreeCommandBuffers(Device, CommandPool, MAX_FRAMES_IN_FLIGHT, cmdBuffers);
+			FMemory::Memzero(cmdBuffers, MAX_FRAMES_IN_FLIGHT);
+
+			for (size_t i = 0; i < MAX_SWAPCHAIN_IMAGE_ALLOWED; i++)
 			{
-				VkCommandBuffer* cmdBuffers = pair.Value.First();
-				vkFreeCommandBuffers(Device, CommandPool, MAX_FRAMES_IN_FLIGHT, cmdBuffers);
-				pair.Value.Empty();
+				VkFramebuffer& framebuffer = frameParams.Framebuffers[i];
+
+				if (framebuffer == VK_NULL_HANDLE) 
+				{ 
+					continue; 
+				}
+
+				vkDestroyFramebuffer(Device, framebuffer, nullptr);
+				framebuffer = VK_NULL_HANDLE;
 			}
 		}
 
@@ -345,23 +359,6 @@ namespace vk
 		{
 			vkDestroyCommandPool(Device, CommandPool, nullptr);
 			CommandPool = VK_NULL_HANDLE;
-		}
-
-		if (Ctx.Store.Framebuffers.Length())
-		{
-			for (auto& pair : Ctx.Store.Framebuffers)
-			{
-				auto& params = pair.Value;
-				VkFramebuffer& framebuffer = params.Framebuffer;
-
-				if (framebuffer == VK_NULL_HANDLE)
-				{
-					continue;
-				}
-
-				vkDestroyFramebuffer(Device, framebuffer, nullptr);
-				framebuffer = VK_NULL_HANDLE;
-			}
 		}
 	}
 
@@ -394,15 +391,13 @@ namespace vk
 		}
 
 		RenderFrame = true;
-		for (auto pair : Ctx.Store.CommandBuffers)
-		{
-			auto& cmdBufferArr = pair.Value;
-			VkCommandBuffer& cmdBuffer = cmdBufferArr[CurrentFrame];
 
-			if (cmdBuffer == VK_NULL_HANDLE)
-			{
-				continue;
-			}
+		for (auto& pair : Ctx.Store.FramePasses)
+		{
+			auto& frameParams = pair.Value;
+			VkCommandBuffer& cmdBuffer = frameParams.CommandBuffers[CurrentFrame];
+
+			if (cmdBuffer == VK_NULL_HANDLE) { continue; }
 
 			vkResetCommandBuffer(cmdBuffer, 0);
 		}
@@ -423,19 +418,21 @@ namespace vk
 		{
 			vkWaitForFences(Device, 1, &ImageFences[NextImageIndex], VK_TRUE, UINT64_MAX);
 		}
+
 		ImageFences[NextImageIndex] = Fence[CurrentFrame];
 
 		VkPipelineStageFlags waitDstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 
-		VkSubmitInfo submitInfo;
-		FMemory::InitializeObject(submitInfo);
+		const uint32 numCommandBuffers = static_cast<uint32>(CommandBuffersForSubmit.Length());
+
+		VkSubmitInfo submitInfo = {};
 
 		submitInfo.sType				= VK_STRUCTURE_TYPE_SUBMIT_INFO;
 		submitInfo.waitSemaphoreCount	= 1;
 		submitInfo.pWaitSemaphores		= &Semaphores[CurrentFrame][Semaphore_Type_ImageAvailable];
 		submitInfo.pWaitDstStageMask	= &waitDstStageMask;
-		submitInfo.pCommandBuffers		= &DefFramebuffer.CmdBuffers[CurrentFrame];
-		submitInfo.commandBufferCount	= 1;
+		submitInfo.pCommandBuffers		= CommandBuffersForSubmit.First();
+		submitInfo.commandBufferCount	= numCommandBuffers;
 		submitInfo.signalSemaphoreCount = 1;
 		submitInfo.pSignalSemaphores	= &Semaphores[CurrentFrame][Semaphore_Type_RenderComplete];
 
@@ -446,8 +443,7 @@ namespace vk
 			return false;
 		}
 
-		VkPresentInfoKHR presentInfo;
-		FMemory::InitializeObject(presentInfo);
+		VkPresentInfoKHR presentInfo = {};
 
 		presentInfo.sType				= VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 		presentInfo.waitSemaphoreCount	= 1;
@@ -458,6 +454,7 @@ namespace vk
 		
 		VkResult result = vkQueuePresentKHR(Queues[Queue_Type_Present].Handle, &presentInfo);
 
+		CommandBuffersForSubmit.Empty();
 		CurrentFrame = (CurrentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 
 		switch (result)
@@ -964,6 +961,12 @@ namespace vk
 
 		VkSurfaceFormatKHR desiredFormat = getSwapChainFormat(surfaceFormats, formatCount);
 		uint32 imageCount = getSwapChainImageCount(surfaceCapabilities);
+
+		if (imageCount > MAX_SWAPCHAIN_IMAGE_ALLOWED)
+		{
+			imageCount = MAX_SWAPCHAIN_IMAGE_ALLOWED;
+		}
+
 		VkExtent2D imageExtent = getSwapChainExtent(surfaceCapabilities);
 
 		VkSwapchainKHR oldSwapChain = SwapChain.Handle;
@@ -1023,18 +1026,18 @@ namespace vk
 			}
 		}
 
+		VkImageViewCreateInfo imageViewCreateInfo = {};
+		imageViewCreateInfo.sType		= VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+		imageViewCreateInfo.viewType	= VK_IMAGE_VIEW_TYPE_2D;
+		imageViewCreateInfo.format		= SwapChain.SurfaceFormat.format;
+		imageViewCreateInfo.components	= { VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY };
+		imageViewCreateInfo.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+		
 		// Create Image Views ...
 		for (uint32 i = 0; i < SwapChain.NumImages; i++)
 		{
-			VkImageViewCreateInfo imageViewCreateInfo;
-			FMemory::InitializeObject(imageViewCreateInfo);
 
-			imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
 			imageViewCreateInfo.image = SwapChain.Images[i];
-			imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-			imageViewCreateInfo.format = SwapChain.SurfaceFormat.format;
-			imageViewCreateInfo.components = { VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY };
-			imageViewCreateInfo.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
 
 			if (vkCreateImageView(Device, &imageViewCreateInfo, nullptr, &SwapChain.ImageViews[i]) != VK_SUCCESS)
 			{
@@ -1048,77 +1051,77 @@ namespace vk
 
 	bool VulkanCommon::CreateDefaultRenderPass()
 	{
-		VkAttachmentDescription attachmentDesc;
-		FMemory::InitializeObject(attachmentDesc);
+		auto& frameParams = Ctx.Store.FramePasses[DefaultFramebuffer];
 
-		attachmentDesc.format = SwapChain.SurfaceFormat.format;
-		attachmentDesc.samples = VK_SAMPLE_COUNT_1_BIT;
-		attachmentDesc.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-		attachmentDesc.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-		attachmentDesc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-		attachmentDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		attachmentDesc.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		attachmentDesc.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+		VkAttachmentDescription attachmentDesc = {};
 
-		VkAttachmentReference colorAttachmentReference;
-		FMemory::InitializeObject(colorAttachmentReference);
+		attachmentDesc.format			= SwapChain.SurfaceFormat.format;
+		attachmentDesc.samples			= VK_SAMPLE_COUNT_1_BIT;
+		attachmentDesc.loadOp			= VK_ATTACHMENT_LOAD_OP_CLEAR;
+		attachmentDesc.storeOp			= VK_ATTACHMENT_STORE_OP_STORE;
+		attachmentDesc.stencilLoadOp	= VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+		attachmentDesc.stencilStoreOp	= VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		attachmentDesc.initialLayout	= VK_IMAGE_LAYOUT_UNDEFINED;
+		attachmentDesc.finalLayout		= VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+		VkAttachmentReference colorAttachmentReference = {};
 
 		colorAttachmentReference.attachment = 0;
-		colorAttachmentReference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		colorAttachmentReference.layout		= VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
-		VkSubpassDescription subpassDescription;
-		FMemory::InitializeObject(subpassDescription);
+		VkSubpassDescription subpassDescription = {};
 
-		subpassDescription.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+		subpassDescription.pipelineBindPoint	= VK_PIPELINE_BIND_POINT_GRAPHICS;
 		subpassDescription.colorAttachmentCount = 1;
-		subpassDescription.pColorAttachments = &colorAttachmentReference;
+		subpassDescription.pColorAttachments	= &colorAttachmentReference;
 
-		VkSubpassDependency subpassDependency;
-		FMemory::InitializeObject(subpassDependency);
+		VkSubpassDependency subpassDependency = {};
 
-		subpassDependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-		subpassDependency.dstSubpass = 0;
-		subpassDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+		subpassDependency.srcSubpass	= VK_SUBPASS_EXTERNAL;
+		subpassDependency.dstSubpass	= 0;
+		subpassDependency.srcStageMask	= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 		subpassDependency.srcAccessMask = 0;
-		subpassDependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+		subpassDependency.dstStageMask	= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 		subpassDependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+		subpassDependency.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
 
-		VkRenderPassCreateInfo renderpassCreateInfo;
-		FMemory::InitializeObject(renderpassCreateInfo);
+		VkRenderPassCreateInfo renderpassCreateInfo = {};
 
-		renderpassCreateInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-		renderpassCreateInfo.attachmentCount = 1;
-		renderpassCreateInfo.pAttachments = &attachmentDesc;
-		renderpassCreateInfo.subpassCount = 1;
-		renderpassCreateInfo.pSubpasses = &subpassDescription;
-		renderpassCreateInfo.dependencyCount = 1;
-		renderpassCreateInfo.pDependencies = &subpassDependency;
+		renderpassCreateInfo.sType				= VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+		renderpassCreateInfo.attachmentCount	= 1;
+		renderpassCreateInfo.pAttachments		= &attachmentDesc;
+		renderpassCreateInfo.subpassCount		= 1;
+renderpassCreateInfo.pSubpasses = &subpassDescription;
+renderpassCreateInfo.dependencyCount = 1;
+renderpassCreateInfo.pDependencies = &subpassDependency;
 
-		if (vkCreateRenderPass(Device, &renderpassCreateInfo, nullptr, &DefFramebuffer.Renderpass) != VK_SUCCESS)
-		{
-			VKT_ASSERT("Could not create render pass!" && false);
-			return false;
-		}
+if (vkCreateRenderPass(Device, &renderpassCreateInfo, nullptr, &frameParams.Renderpass) != VK_SUCCESS)
+{
+	VKT_ASSERT("Could not create render pass!" && false);
+	return false;
+}
 
-		return true;
+return true;
 	}
 
 	bool VulkanCommon::CreateDefaultFramebuffer()
 	{
-		for (uint32 i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+		auto& frameParams = Ctx.Store.FramePasses[DefaultFramebuffer];
+
+		VkFramebufferCreateInfo createInfo = {};
+
+		createInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+		createInfo.renderPass = frameParams.Renderpass;
+		createInfo.attachmentCount = 1;
+		createInfo.width = SwapChain.Extent.width;
+		createInfo.height = SwapChain.Extent.height;
+		createInfo.layers = 1;
+
+		for (uint32 i = 0; i < MAX_SWAPCHAIN_IMAGE_ALLOWED; i++)
 		{
-			VkFramebufferCreateInfo createInfo;
-			FMemory::InitializeObject(createInfo);
+			createInfo.pAttachments = &SwapChain.ImageViews[i];
 
-			createInfo.sType			= VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-			createInfo.renderPass		= DefFramebuffer.Renderpass;
-			createInfo.attachmentCount	= 1;
-			createInfo.pAttachments		= &SwapChain.ImageViews[i];
-			createInfo.width			= SwapChain.Extent.width;
-			createInfo.height			= SwapChain.Extent.height;
-			createInfo.layers			= 1;
-
-			if (vkCreateFramebuffer(Device, &createInfo, nullptr, &DefFramebuffer.Framebuffers[i]) != VK_SUCCESS)
+			if (vkCreateFramebuffer(Device, &createInfo, nullptr, &frameParams.Framebuffers[i]) != VK_SUCCESS)
 			{
 				VKT_ASSERT("Could not create a framebuffer!" && false);
 				return false;
@@ -1143,54 +1146,70 @@ namespace vk
 			return false;
 		}
 
-		if ((vkGetSwapchainImagesKHR(Device, SwapChain.Handle, &SwapChain.NumImages, nullptr) != VK_SUCCESS) || !SwapChain.NumImages)
-		{
-			VKT_ASSERT("Could not get the number of swap chain images!" && false);
-			return false;
-		}
-
 		return true;
 	}
 
 	bool VulkanDriver::AllocateCommandBuffers()
 	{
+		VkCommandBufferAllocateInfo cmdBufferAllocateInfo;
+		FMemory::InitializeObject(cmdBufferAllocateInfo);
+
+		cmdBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+		cmdBufferAllocateInfo.commandPool = CommandPool;
+		cmdBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+		cmdBufferAllocateInfo.commandBufferCount = MAX_FRAMES_IN_FLIGHT;
+
+		for (auto& pair : Ctx.Store.FramePasses)
 		{
-			/**
-			* Default framebuffer command buffer.
-			*/
-
-			VkCommandBufferAllocateInfo cmdBufferAllocateInfo;
-			FMemory::InitializeObject(cmdBufferAllocateInfo);
-
-			cmdBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-			cmdBufferAllocateInfo.commandPool = CommandPool;
-			cmdBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-			cmdBufferAllocateInfo.commandBufferCount = MAX_FRAMES_IN_FLIGHT;
-
-			if (vkAllocateCommandBuffers(Device, &cmdBufferAllocateInfo, DefFramebuffer.CmdBuffers) != VK_SUCCESS)
+			VkCommandBuffer* commandBuffers = pair.Value.CommandBuffers;
+			if (vkAllocateCommandBuffers(Device, &cmdBufferAllocateInfo, commandBuffers) != VK_SUCCESS)
 			{
 				VKT_ASSERT("Could not allocate command buffers!" && false);
 				return false;
 			}
 		}
 
-		for (auto& pair : Ctx.Store.CommandBuffers)
-		{
-			VkCommandBufferAllocateInfo cmdBufferAllocateInfo;
-			FMemory::InitializeObject(cmdBufferAllocateInfo);
-
-			cmdBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-			cmdBufferAllocateInfo.commandPool = CommandPool;
-			cmdBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-			cmdBufferAllocateInfo.commandBufferCount = MAX_FRAMES_IN_FLIGHT;
-
-			if (vkAllocateCommandBuffers(Device, &cmdBufferAllocateInfo, pair.Value.First()) != VK_SUCCESS)
-			{
-				VKT_ASSERT("Could not allocate command buffers!" && false);
-				return false;
-			}
-		}
 		return true;
+	}
+
+	bool VulkanDriver::CreateVertexBuffer(HwVertexBufferCreateInfo& CreateInfo)
+	{
+		uint32 id = g_RandIdVk();
+		Ctx.Store.Buffers.Insert(id, {});
+		*CreateInfo.Handle = id;
+
+		auto& bufferParam = Ctx.Store.Buffers[id];
+
+		VkBufferCreateInfo bufferCreateInfo = {};
+
+		bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+		bufferCreateInfo.size = CreateInfo.Size;
+		bufferCreateInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+
+		VmaAllocationCreateInfo allocInfo = {};
+
+		allocInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
+
+		if (vmaCreateBuffer(Allocator, &bufferCreateInfo, &allocInfo, &bufferParam.Buffer, &bufferParam.Allocation, nullptr) != VK_SUCCESS)
+		{
+			VKT_ASSERT("Could not create vertex buffer" && false);
+			return false;
+		}
+
+		void* data = nullptr;
+		vmaMapMemory(Allocator, bufferParam.Allocation, &data);
+		FMemory::Memcpy(data, CreateInfo.Data, CreateInfo.Size);
+		vmaUnmapMemory(Allocator, bufferParam.Allocation);
+
+		return true;
+	}
+
+	void VulkanDriver::DestroyVertexBuffer(Handle<HVertexBuffer>& Hnd)
+	{
+		auto& bufferParam = Ctx.Store.Buffers[Hnd];
+		vmaDestroyBuffer(Allocator, bufferParam.Buffer, bufferParam.Allocation);
+		bufferParam.Buffer		= VK_NULL_HANDLE;
+		bufferParam.Allocation	= VK_NULL_HANDLE;
 	}
 
 	bool VulkanDriver::CreateShader(HwShaderCreateInfo& CreateInfo)
@@ -1226,6 +1245,9 @@ namespace vk
 	{
 		VKT_ASSERT("Number of shaders exceeded amount allowed by driver!" && CreateInfo.Shaders.Length() <= MAX_PIPELINE_SHADER_STAGE);
 		VkPipelineShaderStageCreateInfo pipelineShaders[MAX_PIPELINE_SHADER_STAGE];
+		
+		uint32 vertexAttribCount = 0;
+		ShaderAttrib* pVertexAttrib = nullptr;
 
 		// Pipeline shader stage declaration.
 		for (size_t i = 0; i < CreateInfo.Shaders.Length(); i++)
@@ -1238,27 +1260,50 @@ namespace vk
 			pipelineCreateInfo.stage	= Ctx.Flags.ShaderStageFlags[shaderInformation.Type];
 			pipelineCreateInfo.module	= Ctx.Store.Shaders[shaderInformation.Handle];
 			pipelineCreateInfo.pName	= "main";
+
+			if (shaderInformation.Type == Shader_Type_Vertex)
+			{
+				pVertexAttrib		= shaderInformation.Attributes;
+				vertexAttribCount	= static_cast<uint32>(shaderInformation.AttributeCount);
+			}
 		}
 
-		// Baking VkPipelineVertexInputStateCreateInfo for tutorial's sake.
-		// TODO(Ygsm):
-		// This part needs to be dynamic in the future.
+		// Vertex attributes ...
 
-		VkPipelineVertexInputStateCreateInfo vertexStateCreateInfo;
-		FMemory::InitializeObject(vertexStateCreateInfo);
+		VKT_ASSERT("Vertex attribute count exceeds static array capability" && vertexAttribCount < 9);
+
+		VkVertexInputBindingDescription bindingDescription = {};
+
+		bindingDescription.binding	 = 0;
+		bindingDescription.stride	 = CreateInfo.VertexStride;
+		bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+		VkVertexInputAttributeDescription vertexAttributes[8];
+
+		for (uint32 i = 0; i < vertexAttribCount; i++)
+		{
+			vertexAttributes[i].binding		= pVertexAttrib[i].Binding;
+			vertexAttributes[i].location	= pVertexAttrib[i].Location;
+			vertexAttributes[i].offset		= pVertexAttrib[i].Offset;
+			vertexAttributes[i].format		= Ctx.Flags.ShaderTypes[pVertexAttrib[i].Format];
+		}
+
+		VkPipelineVertexInputStateCreateInfo vertexStateCreateInfo = {};
 
 		vertexStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+		vertexStateCreateInfo.pVertexBindingDescriptions = &bindingDescription;
+		vertexStateCreateInfo.pVertexAttributeDescriptions = vertexAttributes;
+		vertexStateCreateInfo.vertexBindingDescriptionCount = 1;
+		vertexStateCreateInfo.vertexAttributeDescriptionCount = vertexAttribCount;
 
-		VkPipelineInputAssemblyStateCreateInfo inputAssemblyCreateInfo;
-		FMemory::InitializeObject(inputAssemblyCreateInfo);
+		VkPipelineInputAssemblyStateCreateInfo inputAssemblyCreateInfo = {};
 
 		inputAssemblyCreateInfo.sType					= VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
 		inputAssemblyCreateInfo.topology				= Ctx.Flags.Topology[CreateInfo.Topology];
 		inputAssemblyCreateInfo.primitiveRestartEnable	= VK_FALSE;
 
 		// Viewport and scissoring.
-		VkViewport viewport;
-		FMemory::InitializeObject(viewport);
+		VkViewport viewport = {};
 		
 		viewport.x			= 0.0f;
 		viewport.y			= 0.0f;
@@ -1267,14 +1312,12 @@ namespace vk
 		viewport.minDepth	= 0.0f;
 		viewport.maxDepth	= 1.0f;
 
-		VkRect2D scissor;
-		FMemory::InitializeObject(scissor);
+		VkRect2D scissor = {};
 
 		scissor.offset = { 0, 0 };
 		scissor.extent = SwapChain.Extent;
 
-		VkPipelineViewportStateCreateInfo viewportStateCreateInfo;
-		FMemory::InitializeObject(viewportStateCreateInfo);
+		VkPipelineViewportStateCreateInfo viewportStateCreateInfo = {};
 
 		viewportStateCreateInfo.sType			= VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
 		viewportStateCreateInfo.pViewports		= &viewport;
@@ -1294,8 +1337,7 @@ namespace vk
 		//dynamicStateCreateInfo.pDynamicStates = dynamicStates;
 
 		// Rasterization state.
-		VkPipelineRasterizationStateCreateInfo rasterStateCreateInfo;
-		FMemory::InitializeObject(rasterStateCreateInfo);
+		VkPipelineRasterizationStateCreateInfo rasterStateCreateInfo = {};
 
 		rasterStateCreateInfo.sType			= VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
 		rasterStateCreateInfo.polygonMode	= Ctx.Flags.PolygonMode[CreateInfo.PolyMode];
@@ -1305,8 +1347,7 @@ namespace vk
 		//rasterStateCreateInfo.depthClampEnable = VK_FALSE; // Will be true for shadow rendering for some reason I do not know yet...
 
 		// Multisampling state description
-		VkPipelineMultisampleStateCreateInfo multisampleCreateInfo;
-		FMemory::InitializeObject(multisampleCreateInfo);
+		VkPipelineMultisampleStateCreateInfo multisampleCreateInfo = {};
 
 		multisampleCreateInfo.sType					= VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
 		multisampleCreateInfo.rasterizationSamples	= VK_SAMPLE_COUNT_1_BIT;
@@ -1318,20 +1359,18 @@ namespace vk
 		// Blending state description.
 		// TODO(Ygsm):
 		// Need to study this part more.
-		VkPipelineColorBlendAttachmentState colorBlendState;
-		FMemory::InitializeObject(colorBlendState);
+		VkPipelineColorBlendAttachmentState colorBlendState = {};
 
 		colorBlendState.blendEnable			= VK_FALSE;
-		//colorBlendState.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
-		//colorBlendState.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
-		//colorBlendState.colorBlendOp		= VK_BLEND_OP_ADD;
-		//colorBlendState.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-		//colorBlendState.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-		//colorBlendState.alphaBlendOp		= VK_BLEND_OP_ADD;
+		colorBlendState.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+		colorBlendState.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
+		colorBlendState.colorBlendOp		= VK_BLEND_OP_ADD;
+		colorBlendState.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+		colorBlendState.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+		colorBlendState.alphaBlendOp		= VK_BLEND_OP_ADD;
 		colorBlendState.colorWriteMask		= VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 
-		VkPipelineColorBlendStateCreateInfo colorBlendCreateInfo;
-		FMemory::InitializeObject(colorBlendCreateInfo);
+		VkPipelineColorBlendStateCreateInfo colorBlendCreateInfo = {};
 
 		colorBlendCreateInfo.sType				= VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
 		colorBlendCreateInfo.attachmentCount	= 1;
@@ -1340,8 +1379,7 @@ namespace vk
 		colorBlendCreateInfo.logicOp			= VK_LOGIC_OP_COPY;
 
 		// Pipeline layour description.
-		VkPipelineLayoutCreateInfo layoutCreateInfo;
-		FMemory::InitializeObject(layoutCreateInfo);
+		VkPipelineLayoutCreateInfo layoutCreateInfo = {};
 
 		layoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 
@@ -1352,8 +1390,7 @@ namespace vk
 			return false;
 		}
 
-		VkGraphicsPipelineCreateInfo pipelineCreateInfo;
-		FMemory::InitializeObject(pipelineCreateInfo);
+		VkGraphicsPipelineCreateInfo pipelineCreateInfo = {};
 
 		pipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
 		pipelineCreateInfo.stageCount = static_cast<uint32>(CreateInfo.Shaders.Length());
@@ -1368,7 +1405,7 @@ namespace vk
 		pipelineCreateInfo.pColorBlendState = &colorBlendCreateInfo;
 		//pipelineCreateInfo.pDynamicState = &dynamicStateCreateInfo;
 		pipelineCreateInfo.layout = pipelineLayout;
-		pipelineCreateInfo.renderPass = Ctx.Store.Framebuffers[CreateInfo.FramebufferHandle].Renderpass;
+		pipelineCreateInfo.renderPass = Ctx.Store.FramePasses[CreateInfo.FramePassHandle].Renderpass;
 		pipelineCreateInfo.subpass = 0;							// TODO(Ygsm): Study more about this!
 		pipelineCreateInfo.basePipelineHandle = VK_NULL_HANDLE;	// TODO(Ygsm): Study more about this!
 		pipelineCreateInfo.basePipelineIndex = -1;				// TODO(Ygsm): Study more about this!
@@ -1397,33 +1434,90 @@ namespace vk
 		new (&Hnd) Handle<HPipeline>(INVALID_HANDLE);
 	}
 
-	bool VulkanDriver::AddCommandBufferEntry(HwCmdBufferAllocInfo& AllocateInfo)
-	{
-		uint32 id = g_RandIdVk();
-		new (AllocateInfo.Handle) Handle<HCmdBuffer>(id);
+	//bool VulkanDriver::AddCommandBufferEntry(HwCmdBufferAllocInfo& AllocateInfo)
+	//{
+	//	uint32 id = g_RandIdVk();
+	//	new (AllocateInfo.Handle) Handle<HCmdBuffer>(id);
 
-		auto& storage = Ctx.Store.CommandBuffers.Insert(id, {});
-		for (uint32 i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
-		{
-			storage.Push(VkCommandBuffer());
-		}
+	//	auto& storage = Ctx.Store.CommandBuffers.Insert(id, {});
+	//	for (uint32 i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+	//	{
+	//		storage.Push(VkCommandBuffer());
+	//	}
 
-		return true;
-	}
+	//	return true;
+	//}
 
-	void VulkanDriver::FreeCommandBuffer(Handle<HCmdBuffer>& Hnd)
-	{
-		vkDeviceWaitIdle(Device);
-		VkCommandBuffer* cmdBuffer = Ctx.Store.CommandBuffers[Hnd].First();
-		//size_t numCmdBuffers = Ctx.Store.CommandBuffers[Hnd].Length();
-		vkFreeCommandBuffers(Device, CommandPool, MAX_FRAMES_IN_FLIGHT, cmdBuffer);
-		//CommandBuffers.PopAt(Hnd, false);
-		Ctx.Store.CommandBuffers.Remove(Hnd);
-		new (&Hnd) Handle<HCmdBuffer>(INVALID_HANDLE);
-	}
+	//void VulkanDriver::FreeCommandBuffer(Handle<HCmdBuffer>& Hnd)
+	//{
+	//	vkDeviceWaitIdle(Device);
+	//	VkCommandBuffer* cmdBuffer = Ctx.Store.CommandBuffers[Hnd].First();
+	//	//size_t numCmdBuffers = Ctx.Store.CommandBuffers[Hnd].Length();
+	//	vkFreeCommandBuffers(Device, CommandPool, MAX_FRAMES_IN_FLIGHT, cmdBuffer);
+	//	//CommandBuffers.PopAt(Hnd, false);
+	//	Ctx.Store.CommandBuffers.Remove(Hnd);
+	//	new (&Hnd) Handle<HCmdBuffer>(INVALID_HANDLE);
+	//}
+
+	//void VulkanDriver::PresentImageOnScreen(Handle<HImage>& Hnd)
+	//{
+	//	//
+	//	// TODO(Ygsm):
+	//	//
+	//	auto& imageParams = Ctx.Store.Images[Hnd];
+	//	VkCommandBuffer& cmdBuffer = DefFramebuffer.CmdBuffers[CurrentFrame];
+	//	VkCommandBufferBeginInfo cmdBufferBeginInfo;
+	//	FMemory::InitializeObject(cmdBufferBeginInfo);
+
+	//	cmdBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	//	cmdBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
+
+	//	VkRenderPassBeginInfo renderPassBeginInfo;
+	//	FMemory::InitializeObject(renderPassBeginInfo);
+
+	//	const VkClearValue clearValue = {
+	//		{
+	//			0, 0, 0, 0
+	//		}
+	//	};
+
+	//	renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+	//	renderPassBeginInfo.framebuffer = DefFramebuffer.Framebuffers[CurrentFrame];
+	//	renderPassBeginInfo.renderPass = DefFramebuffer.Renderpass;
+	//	renderPassBeginInfo.renderArea.extent = SwapChain.Extent;
+	//	renderPassBeginInfo.renderArea.offset = { 0, 0 };
+	//	renderPassBeginInfo.pClearValues = &clearValue;
+	//	renderPassBeginInfo.clearValueCount = 1;
+
+	//	VkImageBlit region;
+	//	FMemory::InitializeObject(region);
+
+	//	region.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	//	region.srcSubresource.layerCount = 1;
+	//	region.srcOffsets[1] = { static_cast<int32>(SwapChain.Extent.width), static_cast<int32>(SwapChain.Extent.height), 1 };
+
+	//	region.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	//	region.dstSubresource.layerCount = 1;
+	//	region.dstOffsets[1] = { static_cast<int32>(SwapChain.Extent.width), static_cast<int32>(SwapChain.Extent.height), 1 };
+
+	//	vkBeginCommandBuffer(cmdBuffer, &cmdBufferBeginInfo);
+	//	vkCmdBlitImage(
+	//		cmdBuffer,
+	//		imageParams.Image,
+	//		VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+	//		SwapChain.Images[CurrentFrame],
+	//		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+	//		1,
+	//		&region,
+	//		VK_FILTER_NEAREST);
+	//	vkEndCommandBuffer(cmdBuffer);
+	//	CommandBuffersForSubmit.Push(cmdBuffer);
+	//}
 
 	void VulkanDriver::RecordCommandBuffer(HwCmdBufferRecordInfo& RecordInfo)
 	{
+		auto& frameParams = Ctx.Store.FramePasses[RecordInfo.FramePassHandle];
+
 		VkCommandBufferBeginInfo cmdBufferBeginInfo;
 		FMemory::InitializeObject(cmdBufferBeginInfo);
 
@@ -1440,44 +1534,45 @@ namespace vk
 			}
 		};
 
-		VkImageSubresourceRange imageSubresourceRange;
-		FMemory::InitializeObject(imageSubresourceRange);
+		//VkImageSubresourceRange imageSubresourceRange;
+		//FMemory::InitializeObject(imageSubresourceRange);
 
-		imageSubresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		imageSubresourceRange.levelCount = 1;
-		imageSubresourceRange.layerCount = 1;
+		//imageSubresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		//imageSubresourceRange.levelCount = 1;
+		//imageSubresourceRange.layerCount = 1;
 
-		VkPipeline pipeline = Ctx.Store.Pipelines[*RecordInfo.PipelineHandle];
-		VkCommandBuffer& cmdBuffer = Ctx.Store.CommandBuffers[*RecordInfo.CommandBufferHandle][CurrentFrame];
+		VkPipeline pipeline = Ctx.Store.Pipelines[RecordInfo.PipelineHandle];
+		VkCommandBuffer& cmdBuffer = frameParams.CommandBuffers[CurrentFrame];
 
 		vkBeginCommandBuffer(cmdBuffer, &cmdBufferBeginInfo);
 
-		if (Queues[Queue_Type_Graphics].Handle != Queues[Queue_Type_Present].Handle)
-		{
-			VkImageMemoryBarrier barrierFromPresentToDraw;
-			FMemory::InitializeObject(barrierFromPresentToDraw);
+		//if (Queues[Queue_Type_Graphics].Handle != Queues[Queue_Type_Present].Handle)
+		//{
+		//	VkImageMemoryBarrier barrierFromPresentToDraw;
+		//	FMemory::InitializeObject(barrierFromPresentToDraw);
 
-			barrierFromPresentToDraw.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-			barrierFromPresentToDraw.srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
-			barrierFromPresentToDraw.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-			barrierFromPresentToDraw.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-			barrierFromPresentToDraw.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-			barrierFromPresentToDraw.srcQueueFamilyIndex = Queues[Queue_Type_Present].FamilyIndex;
-			barrierFromPresentToDraw.dstQueueFamilyIndex = Queues[Queue_Type_Graphics].FamilyIndex;
-			barrierFromPresentToDraw.image = SwapChain.Images[NextImageIndex];
-			barrierFromPresentToDraw.subresourceRange = imageSubresourceRange;
+		//	barrierFromPresentToDraw.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+		//	barrierFromPresentToDraw.srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+		//	barrierFromPresentToDraw.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+		//	barrierFromPresentToDraw.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		//	barrierFromPresentToDraw.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+		//	barrierFromPresentToDraw.srcQueueFamilyIndex = Queues[Queue_Type_Present].FamilyIndex;
+		//	barrierFromPresentToDraw.dstQueueFamilyIndex = Queues[Queue_Type_Graphics].FamilyIndex;
+		//	barrierFromPresentToDraw.image = SwapChain.Images[NextImageIndex];
+		//	barrierFromPresentToDraw.subresourceRange = imageSubresourceRange;
 
-			vkCmdPipelineBarrier(cmdBuffer,
-				VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-				VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-				0,
-				0,
-				nullptr,
-				0,
-				nullptr,
-				1,
-				&barrierFromPresentToDraw);
-		}
+		//	vkCmdPipelineBarrier(
+		//		cmdBuffer,
+		//		VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+		//		VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+		//		0,
+		//		0,
+		//		nullptr,
+		//		0,
+		//		nullptr,
+		//		1,
+		//		&barrierFromPresentToDraw);
+		//}
 
 		int32* offset  = RecordInfo.SurfaceOffset;
 		uint32* extent = RecordInfo.SurfaceExtent;
@@ -1495,11 +1590,9 @@ namespace vk
 		VkRenderPassBeginInfo renderPassBeginInfo;
 		FMemory::InitializeObject(renderPassBeginInfo);
 
-		auto& frameParam = Ctx.Store.Framebuffers[RecordInfo.FramebufferHandle];
-
 		renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-		renderPassBeginInfo.renderPass	= frameParam.Renderpass;
-		renderPassBeginInfo.framebuffer = frameParam.Framebuffers[NextImageIndex];
+		renderPassBeginInfo.renderPass	= frameParams.Renderpass;
+		renderPassBeginInfo.framebuffer = frameParams.Framebuffers[NextImageIndex];
 		renderPassBeginInfo.renderArea.offset = { offset[Surface_Offset_X], offset[Surface_Offset_Y] };
 		renderPassBeginInfo.renderArea.extent = { extent[Surface_Extent_Width], extent[Surface_Extent_Height] };
 		renderPassBeginInfo.clearValueCount = 1;
@@ -1507,37 +1600,67 @@ namespace vk
 
 		vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 		vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-		vkCmdDraw(cmdBuffer, 3, 1, 0, 0);	// NOTE(Ygsm): I'm assuming you need to specify the number of vertices in the mesh.
+		//vkCmdDraw(cmdBuffer, 3, 1, 0, 0);
+		//vkCmdEndRenderPass(cmdBuffer);
+
+		//if (Queues[Queue_Type_Graphics].Handle != Queues[Queue_Type_Present].Handle)
+		//{
+		//	VkImageMemoryBarrier barrierFromDrawToPresent;
+		//	FMemory::InitializeObject(barrierFromDrawToPresent);
+
+		//	barrierFromDrawToPresent.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+		//	barrierFromDrawToPresent.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+		//	barrierFromDrawToPresent.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+		//	barrierFromDrawToPresent.oldLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+		//	barrierFromDrawToPresent.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+		//	barrierFromDrawToPresent.srcQueueFamilyIndex = Queues[Queue_Type_Graphics].FamilyIndex;
+		//	barrierFromDrawToPresent.dstQueueFamilyIndex = Queues[Queue_Type_Present].FamilyIndex;
+		//	barrierFromDrawToPresent.image = SwapChain.Images[NextImageIndex];
+		//	barrierFromDrawToPresent.subresourceRange = imageSubresourceRange;
+
+		//	vkCmdPipelineBarrier(
+		//		cmdBuffer,
+		//		VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+		//		VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+		//		0,
+		//		0,
+		//		nullptr,
+		//		0,
+		//		nullptr,
+		//		1,
+		//		&barrierFromDrawToPresent);
+		//}
+
+		//vkEndCommandBuffer(cmdBuffer);
+	}
+
+	void VulkanDriver::UnrecordCommandBuffer(HwCmdBufferRecordInfo& RecordInfo)
+	{
+		auto& frameParams = Ctx.Store.FramePasses[RecordInfo.FramePassHandle];
+		VkCommandBuffer& cmdBuffer = frameParams.CommandBuffers[CurrentFrame];
+
 		vkCmdEndRenderPass(cmdBuffer);
-
-		if (Queues[Queue_Type_Graphics].Handle != Queues[Queue_Type_Present].Handle)
-		{
-			VkImageMemoryBarrier barrierFromDrawToPresent;
-			FMemory::InitializeObject(barrierFromDrawToPresent);
-
-			barrierFromDrawToPresent.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-			barrierFromDrawToPresent.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-			barrierFromDrawToPresent.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
-			barrierFromDrawToPresent.oldLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-			barrierFromDrawToPresent.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-			barrierFromDrawToPresent.srcQueueFamilyIndex = Queues[Queue_Type_Graphics].FamilyIndex;
-			barrierFromDrawToPresent.dstQueueFamilyIndex = Queues[Queue_Type_Present].FamilyIndex;
-			barrierFromDrawToPresent.image = SwapChain.Images[NextImageIndex];
-			barrierFromDrawToPresent.subresourceRange = imageSubresourceRange;
-
-			vkCmdPipelineBarrier(cmdBuffer,
-				VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-				VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-				0,
-				0,
-				nullptr,
-				0,
-				nullptr,
-				1,
-				&barrierFromDrawToPresent);
-		}
-
 		vkEndCommandBuffer(cmdBuffer);
+	}
+
+	void VulkanDriver::Draw(HwDrawInfo& DrawInfo)
+	{
+		auto& frameParams	= Ctx.Store.FramePasses[DrawInfo.FramePassHandle];
+		auto& bufferParams	= Ctx.Store.Buffers[DrawInfo.Vbo];
+
+		VkCommandBuffer& cmdBuffer = frameParams.CommandBuffers[CurrentFrame];
+		VkBuffer& vertexBuffer = bufferParams.Buffer;
+		VkDeviceSize offset = 0;
+
+		vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &vertexBuffer, &offset);
+		vkCmdDraw(cmdBuffer, DrawInfo.VertexCount, 1, 0, 0);
+	}
+
+	void VulkanDriver::DrawIndexed(HwDrawInfo& DrawInfo)
+	{
+		//
+		// TODO(Ygsm):
+		//
 	}
 
 	bool VulkanDriver::CreateImage(HwImageCreateStruct& CreateInfo)
@@ -1571,13 +1694,7 @@ namespace vk
 
 		allocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
 
-		if (vmaCreateImage(
-			Allocator,
-			&imageInfo,
-			&allocInfo,
-			&imageParam.Image,
-			&imageParam.Allocation,
-			nullptr) != VK_SUCCESS)
+		if (vmaCreateImage(Allocator, &imageInfo, &allocInfo, &imageParam.Image, &imageParam.Allocation, nullptr) != VK_SUCCESS)
 		{
 			VKT_ASSERT("Unable to create image" && false);
 			success = false;
@@ -1596,12 +1713,12 @@ namespace vk
 		imageViewInfo.image								= imageParam.Image;
 		imageViewInfo.viewType							= Ctx.Flags.ImageViewType[CreateInfo.Dimension];
 
-		if (CreateInfo.UsageFlags & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT == VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT)
+		if ((CreateInfo.UsageFlags & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT) == VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT)
 		{
 			imageViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 		}
 
-		if (CreateInfo.UsageFlags & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT == VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT)
+		if ((CreateInfo.UsageFlags & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT) == VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT)
 		{
 			imageViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
 		}
@@ -1643,9 +1760,18 @@ namespace vk
 
 	void VulkanDriver::DestroyImage(Handle<HImage>& Hnd)
 	{
+		vkDeviceWaitIdle(Device);
 		auto& imageParam = Ctx.Store.Images[Hnd];
+
+		if (imageParam.Sampler != VK_NULL_HANDLE)
+		{
+			vkDestroySampler(Device, imageParam.Sampler, nullptr);
+		}
+
 		vkDestroyImageView(Device, imageParam.ImageView, nullptr);
 		vmaDestroyImage(Allocator, imageParam.Image, imageParam.Allocation);
+		Ctx.Store.Images.Remove(Hnd);
+		Hnd = INVALID_HANDLE;
 	}
 
 	bool VulkanDriver::CreateFramebuffer(HwFramebufferCreateInfo& CreateInfo)
@@ -1654,60 +1780,64 @@ namespace vk
 		uint32 id = g_RandIdVk();
 
 		*CreateInfo.Handle = id;
-		Ctx.Store.Framebuffers.Insert(id, {});
+		Ctx.Store.FramePasses.Insert(id, {});
 
-		auto& framebufferParam = Ctx.Store.Framebuffers[id];
+		auto& frameParams = Ctx.Store.FramePasses[id];
 
 		const uint32 width	= (!CreateInfo.Width)	? SwapChain.Extent.width : static_cast<uint32>(CreateInfo.Width);
 		const uint32 height = (!CreateInfo.Height)	? SwapChain.Extent.height : static_cast<uint32>(CreateInfo.Height);
 		const uint32 depth	= (!CreateInfo.Depth)	? 1 : static_cast<uint32>(CreateInfo.Depth);
 
-		const size_t numOfAttachments = CreateInfo.Attachments.Length();
-		uint32 inputAttachmentCount = 0;
-		uint32 outputAttachmentCount = 0;
-		VKT_ASSERT("Must not exceed maximum attachment allowed in framebuffer" && numOfAttachments <= MAX_ATTACHMENTS_IN_FRAMEBUFFER);
+		const size_t colorAttachmentCount = CreateInfo.NumColorAttachments;
+		//bool hasDepthStencil = false;
+
+		//if (CreateInfo.DepthStencilAttachment.Handle != nullptr)
+		//{
+		//	hasDepthStencil = true;
+		//}
+
+		VKT_ASSERT("Must not exceed maximum attachment allowed in framebuffer" && colorAttachmentCount <= MAX_ATTACHMENTS_IN_FRAMEBUFFER);
 		
 		HwImageCreateStruct imageInfo;
 
-		//
-		// NOTE(Ygsm):
-		// Since we're not targeting mobile (not using more than a single subpass), there is no need for VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT
-		//
+		VkSamplerCreateInfo samplerInfo;
+		FMemory::InitializeObject(samplerInfo);
 
-		for (size_t i = 0; i < numOfAttachments; i++)
+		samplerInfo.sType			= VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+		samplerInfo.magFilter		= VK_FILTER_LINEAR;
+		samplerInfo.minFilter		= VK_FILTER_LINEAR;
+		samplerInfo.mipmapMode		= VK_SAMPLER_MIPMAP_MODE_LINEAR;
+		samplerInfo.addressModeU	= VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+		samplerInfo.addressModeV	= VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+		samplerInfo.addressModeW	= VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+		samplerInfo.mipLodBias		= 0.0f;
+		samplerInfo.maxAnisotropy	= 1.0f;
+		samplerInfo.minLod			= 0.0f;
+		samplerInfo.maxLod			= 1.0f;
+		samplerInfo.borderColor		= VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+
+		for (size_t i = 0; i < colorAttachmentCount; i++)
 		{
-			HwAttachmentInfo& attachment = CreateInfo.Attachments[i];
-
-			// Input attachments mean the image was already created and we can skip this step.
-			if (attachment.Type == Attachment_Usage_Input)
-			{
-				inputAttachmentCount++;
-				continue;
-			}
+			HwAttachmentInfo& attachment = CreateInfo.ColorAttachments[i];
 
 			FMemory::InitializeObject(imageInfo);
 
-			imageInfo.Handle = attachment.Handle;
-			imageInfo.Width = width;
-			imageInfo.Height = height;
-			imageInfo.Depth = depth;
+			imageInfo.Handle	= attachment.Handle;
+			imageInfo.Width		= width;
+			imageInfo.Height	= height;
+			imageInfo.Depth		= depth;
 			imageInfo.MipLevels = 1;
 			imageInfo.Dimension = Ctx.Flags.ImageType[attachment.Dimension];
-			imageInfo.Samples = Ctx.Flags.SampleCounts[CreateInfo.Samples];
+			imageInfo.Samples	= Ctx.Flags.SampleCounts[CreateInfo.Samples];
+			imageInfo.UsageFlags = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
 
-			//
-			// Note(Ygsm):
-			// This makes sense right since they will be sampled at some point?
-			//
-			imageInfo.UsageFlags = VK_IMAGE_USAGE_SAMPLED_BIT;
-
-			switch (attachment.Type)
+			switch (attachment.Usage)
 			{
-				case Attachment_Type_Color:
+				case Texture_Usage_Color:
 					imageInfo.UsageFlags |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 					imageInfo.Format = VK_FORMAT_R8G8B8A8_SRGB;
 					break;
-				case Attachment_Type_Depth_Stencil:
+				case Texture_Usage_Depth_Stencil:
 					imageInfo.UsageFlags |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
 					imageInfo.Format = VK_FORMAT_D24_UNORM_S8_UINT;
 					break;
@@ -1721,21 +1851,18 @@ namespace vk
 				goto FramebufferCreateBeforeEnd;
 			}
 
-			if (attachment.Type == Attachment_Type_Color)
-			{
-				outputAttachmentCount++;
-			}
-
-			// Create samplers after creating the image?
+			VkSampler& sampler = Ctx.Store.Images[*attachment.Handle].Sampler;
+			vkCreateSampler(Device, &samplerInfo, nullptr, &sampler);
 		}
 
-		// Stuck here !!! Help needed !!!
+		// TODO(Ygsm):
+		// Separate render pass creation.
 
 		VkAttachmentDescription attachmentDescs[MAX_ATTACHMENTS_IN_FRAMEBUFFER];
 
-		for (size_t i = 0; i < numOfAttachments; i++)
+		for (size_t i = 0; i < colorAttachmentCount; i++)
 		{
-			HwAttachmentInfo& attachment = CreateInfo.Attachments[i];
+			HwAttachmentInfo& attachment = CreateInfo.ColorAttachments[i];
 			VkAttachmentDescription& attDesc = attachmentDescs[i];
 			FMemory::InitializeObject(attDesc);
 
@@ -1743,90 +1870,79 @@ namespace vk
 			attDesc.initialLayout	= VK_IMAGE_LAYOUT_UNDEFINED;
 			attDesc.stencilLoadOp	= VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 			attDesc.stencilStoreOp	= VK_ATTACHMENT_STORE_OP_DONT_CARE;
+			attDesc.loadOp			= VK_ATTACHMENT_LOAD_OP_CLEAR;
+			attDesc.storeOp			= VK_ATTACHMENT_STORE_OP_STORE;
 
-			switch (attachment.Type)
+			if (attachment.Type == Texture_Usage_Depth_Stencil)
 			{
-				case Attachment_Type_Color:
+				attDesc.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
+				attDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
+			}
+
+			switch (attachment.Usage)
+			{
+				case Texture_Usage_Color:
 					attDesc.format			= VK_FORMAT_R8G8B8A8_SRGB;
 					attDesc.finalLayout		= VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 					break;
-				case Attachment_Type_Depth_Stencil:
+				case Texture_Usage_Depth_Stencil:
 					attDesc.format			= VK_FORMAT_D24_UNORM_S8_UINT;
 					attDesc.finalLayout		= VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 					break;
 				default:
 					break;
 			}
-
-			switch (attachment.Usage)
-			{
-				case Attachment_Usage_Input: 
-				{
-					attDesc.finalLayout		= VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-					attDesc.loadOp			= VK_ATTACHMENT_LOAD_OP_LOAD;
-					attDesc.storeOp			= VK_ATTACHMENT_STORE_OP_DONT_CARE;
-
-					if (attachment.Type == Attachment_Type_Depth_Stencil)
-					{
-						attDesc.stencilLoadOp	= VK_ATTACHMENT_LOAD_OP_LOAD;
-						attDesc.stencilStoreOp	= VK_ATTACHMENT_STORE_OP_DONT_CARE;
-					}
-
-					break;
-				}
-				case Attachment_Usage_Output:
-				{
-					attDesc.loadOp	= VK_ATTACHMENT_LOAD_OP_CLEAR;
-					attDesc.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-
-					if (attachment.Type == Attachment_Type_Depth_Stencil)
-					{
-						attDesc.stencilLoadOp	= VK_ATTACHMENT_LOAD_OP_CLEAR;
-						attDesc.stencilStoreOp	= VK_ATTACHMENT_STORE_OP_STORE;
-					}
-
-					break;
-				}
-				default:
-					break;
-			}
 		}
 
-		// TODO(Ygsm):
-		// Create renderpass and it's subpasses.
+		VkAttachmentReference attachmentRef[MAX_ATTACHMENTS_IN_FRAMEBUFFER];
+		
+		for (size_t i = 0; i < colorAttachmentCount; i++)
+		{
+			VkAttachmentReference& attRef = attachmentRef[i];
+			attRef.attachment = static_cast<uint32>(i);
+			attRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		}
+
 		VkSubpassDescription subpassDescription;
 		FMemory::InitializeObject(subpassDescription);
 
 		subpassDescription.pipelineBindPoint	= VK_PIPELINE_BIND_POINT_GRAPHICS;
-		subpassDescription.inputAttachmentCount = inputAttachmentCount;
-		subpassDescription.colorAttachmentCount = outputAttachmentCount;
+		subpassDescription.pColorAttachments	= attachmentRef;
+		subpassDescription.colorAttachmentCount = static_cast<uint32>(colorAttachmentCount);
 
 		// Create subpass dependencies.
 		VkSubpassDependency dependencies[MAX_ATTACHMENTS_IN_FRAMEBUFFER];
 
-		for (size_t i = 0; i < numOfAttachments; i++)
+		for (size_t i = 0; i < colorAttachmentCount; i++)
 		{
-
+			dependencies[i].srcSubpass		= VK_SUBPASS_EXTERNAL;
+			dependencies[i].dstSubpass		= 0;
+			dependencies[i].srcStageMask	= VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+			dependencies[i].dstStageMask	= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+			dependencies[i].srcAccessMask	= VK_ACCESS_SHADER_READ_BIT;
+			dependencies[i].dstAccessMask	= VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+			dependencies[i].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
 		}
 
 		// Create actual renderpass.
 		VkRenderPassCreateInfo renderPassInfo;
 		FMemory::InitializeObject(renderPassInfo);
 
-		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-		renderPassInfo.attachmentCount = static_cast<uint32>(numOfAttachments);
-		renderPassInfo.pAttachments = attachmentDescs;
-		renderPassInfo.subpassCount = 1;
-		renderPassInfo.pSubpasses = &subpassDescription;
-		// dependencies ...
+		renderPassInfo.sType			= VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+		renderPassInfo.attachmentCount	= static_cast<uint32>(colorAttachmentCount);
+		renderPassInfo.pAttachments		= attachmentDescs;
+		renderPassInfo.pSubpasses		= &subpassDescription;
+		renderPassInfo.subpassCount		= 1;
+		renderPassInfo.pDependencies	= dependencies;
+		renderPassInfo.dependencyCount	= static_cast<uint32>(colorAttachmentCount);
 
-		vkCreateRenderPass(Device, &renderPassInfo, nullptr, &framebufferParam.Renderpass);
+		vkCreateRenderPass(Device, &renderPassInfo, nullptr, &frameParams.Renderpass);
 
 		VkImageView imgViewAtt[MAX_ATTACHMENTS_IN_FRAMEBUFFER];
 
-		for (size_t i = 0; i < numOfAttachments; i++)
+		for (size_t i = 0; i < colorAttachmentCount; i++)
 		{
-			HwAttachmentInfo& attachment = CreateInfo.Attachments[i];
+			HwAttachmentInfo& attachment = CreateInfo.ColorAttachments[i];
 			auto& imageParam = Ctx.Store.Images[*attachment.Handle];
 			imgViewAtt[i] = imageParam.ImageView;
 		}
@@ -1834,22 +1950,21 @@ namespace vk
 		VkFramebufferCreateInfo framebufferInfo;
 		FMemory::InitializeObject(framebufferInfo);
 
-		framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-		framebufferInfo.width = CreateInfo.Width;
-		framebufferInfo.height = CreateInfo.Height;
-		framebufferInfo.pAttachments = imgViewAtt;
-		framebufferInfo.attachmentCount = numOfAttachments;
+		framebufferInfo.sType	= VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+		framebufferInfo.width	= width;
+		framebufferInfo.height	= height;
+		framebufferInfo.pAttachments	= imgViewAtt;
+		framebufferInfo.attachmentCount = static_cast<uint32>(colorAttachmentCount);
 		framebufferInfo.layers = 1;
-		framebufferInfo.renderPass = framebufferParam.Renderpass;
+		framebufferInfo.renderPass = frameParams.Renderpass;
 
-		if (vkCreateFramebuffer(
-			Device, 
-			&framebufferInfo, 
-			nullptr, 
-			&framebufferParam.Framebuffer) != VK_SUCCESS)
+		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 		{
-			VKT_ASSERT("Unable to create framebuffer" && false);
-			success = false;
+			if (vkCreateFramebuffer(Device, &framebufferInfo, nullptr, &frameParams.Framebuffers[i]) != VK_SUCCESS)
+			{
+				VKT_ASSERT("Unable to create framebuffer" && false);
+				success = false;
+			}
 		}
 
 	FramebufferCreateBeforeEnd:
@@ -1857,17 +1972,39 @@ namespace vk
 		if (!success)
 		{
 			*CreateInfo.Handle = INVALID_HANDLE;
-			Ctx.Store.Framebuffers.Remove(id);
+			// TODO(Ygsm):
+			// Release all resources when creation fails.
 		}
 
 		return success;
 	};
 
-	void VulkanDriver::DestroyFramebuffer(Handle<HFramebuffer>& Hnd)
+	void VulkanDriver::DestroyFramebuffer(Handle<HFramePass>& Hnd)
 	{
-		// destroy framebuffer.
-		// destroy renderpass.
-		// destroy image and it's image view.
+		auto& frameParams = Ctx.Store.FramePasses[Hnd];
+
+		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+		{
+			vkDestroyFramebuffer(Device, frameParams.Framebuffers[i], nullptr);
+			frameParams.Framebuffers[i] = VK_NULL_HANDLE;
+		}
+
+		Hnd = INVALID_HANDLE;
 	};
+
+	void VulkanDriver::DestroyRenderPass(Handle<HFramePass>& Hnd)
+	{
+		auto& frameParams = Ctx.Store.FramePasses[Hnd];
+
+		vkDestroyRenderPass(Device, frameParams.Renderpass, nullptr);
+		frameParams.Renderpass = VK_NULL_HANDLE;
+	}
+
+	void VulkanDriver::PushCmdBufferForSubmit(Handle<HFramePass>& Hnd)
+	{
+		auto& frameParams = Ctx.Store.FramePasses[Hnd];
+		VkCommandBuffer& commandBuffer = frameParams.CommandBuffers[CurrentFrame];
+		CommandBuffersForSubmit.Push(commandBuffer);
+	}
 
 }

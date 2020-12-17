@@ -3,21 +3,16 @@
 #define LEARNVK_RENDERER_ASSETS_SHADER_H
 
 #include "API/RendererFlagBits.h"
+#include "API/ShaderAttribute.h"
 #include "GPUHandles.h"
 #include "Library/Containers/Path.h"
+#include "Library/Containers/Array.h"
 
 struct ShaderCreateInfo
 {
 	FilePath	Path;
 	String128	Name;
 	ShaderType	Type;
-};
-
-
-struct ShaderAttribs
-{
-	size_t Binding;
-	size_t Location;
 };
 
 
@@ -29,10 +24,11 @@ struct ShaderAttribs
 */
 struct Shader
 {
-	String			Code;
-	String128		Name;
-	ShaderType		Type;
-	Handle<HShader>	Handle;
+	String				Code;
+	String128			Name;
+	ShaderType			Type;
+	Handle<HShader>		Handle;
+	Array<ShaderAttrib> Attributes;
 };
 
 

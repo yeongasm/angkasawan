@@ -6,6 +6,7 @@
 #include "Library/Containers/Map.h"
 #include "SubSystem/Resource/Handle.h"
 #include "Shader.h"
+#include "Model.h"
 
 // Only the items below are considered as an asset to the graphics system.
 enum RendererResourceType : uint32
@@ -17,15 +18,11 @@ enum RendererResourceType : uint32
 	Renderer_Resource_Material	= 0x04
 };
 
-// TODO(Ygsm):
-// IMPORTANT before proceeding to shader and pipeline creation in Vulkan!!!
-
-// This is how resources will be loaded and built in the engine.
-// Users will call LoadAssetType that takes in an AssetTypeCreateInfo struct.
-// LoadAssetType function creates a new entry in the Resource for it's type inside of ResourceManager.
-// It also stores a copy of the asset into it's own store.
-// By default, signals the driver to build the asset (something like Gravity's).
-// Driver watches for new assets to be built every frame.
+/**
+* Renderer's resource manager class.
+* 
+* Does not create the resources on the GPU tho. Still figuring out how to streamline asset creation and deletion.
+*/
 class RENDERER_API RendererAssetManager
 {
 public:
@@ -38,18 +35,28 @@ public:
 	void Initialize();
 	void Terminate();
 
-	/**
-	* Loads the contents of the shader file into memory.
-	*/
 	Handle<Shader>	CreateNewShader		(const ShaderCreateInfo& CreateInfo);
-	Shader*			GetShaderWithHandle	(Handle<Shader> Handle);
-	/**
-	* Removes the contents of the shader file from memory.
-	*/
-	bool			DeleteShader		(Handle<Shader> Id);
+	Shader*			GetShaderWithHandle	(Handle<Shader> Hnd);
+	bool			DeleteShader		(Handle<Shader> Hnd);
+
+	Handle<Model>	CreateNewModel		(const ModelCreateInfo& CreateInfo);
+	Model*			GetModelWithName	(const char* Identity);
+	Model*			GetModelWithHandle	(Handle<Model> Hnd);
+	bool			DeleteModel			(Handle<Model> Hnd);
+
+	Handle<Mesh>	CreateNewMesh		(const MeshCreateInfo& CreateInfo);
+	Mesh*			GetMeshWithHandle	(Handle<Mesh> Hnd);
+	bool			DeleteMesh			(Handle<Mesh> Hnd);
+
+	void			PushMeshIntoModel	(Handle<Mesh> MeshHnd, Handle<Model> ModelHnd);
+	bool			RemoveMeshFromModel	(Handle<Mesh> MeshHnd, Handle<Model> ModelHnd);
+
+	//Handle<Model>	ImportModel(const ModelImportInfo& ImportInfo);
 
 private:
 	Map<uint32, Shader> ShaderStore;
+	Map<uint32, Mesh>	MeshStore;
+	Map<uint32, Model>	ModelStore;
 	ResourceManager*	Manager;
 };
 

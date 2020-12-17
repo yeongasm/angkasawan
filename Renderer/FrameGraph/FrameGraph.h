@@ -13,17 +13,18 @@ class RenderSystem;
 class FrameGraph;
 class RenderContext;
 
-// Most games only use a single subpass in a renderpass.
-
-struct AttachmentInfo
+struct AttachmentCreateInfo
 {
-	AttachmentUsage		Usage;
-	AttachmentType		Type;
-	AttachmentDimension	Dimension;
-	SampleCount			Samples;
-	float32				Width;
-	float32				Height;
-	Handle<HImage>		ImageHandle;
+	AttachmentType	Type;
+	TextureUsage	Usage;
+	TextureType		Dimensions;
+};
+
+// NOTE(Ygsm):
+// ON HOLD!!!
+struct SubPass
+{
+
 };
 
 /**
@@ -40,42 +41,53 @@ public:
 	DELETE_COPY_AND_MOVE(RenderPass)
 
 	bool AddShader				(Shader* ShaderSrc, ShaderType Type);
-	void AddColorInput			(const String32& Identifier, const RenderPass& From);
-	void AddDepthStencilInput	(const String32& Identifier, const RenderPass& From);
-	void AddColorOutput			(const String32& Identifier, const AttachmentInfo& Info);
-	void AddDepthStencilOutput	(const String32& Identifier, const AttachmentInfo& Info);
+	void AddColorInput			(const String32& Identifier, RenderPass& From);
+	//void AddDepthStencilInput	(const String32& Identifier, const RenderPass& From);
+	void AddColorOutput			(const String32& Identifier, const AttachmentCreateInfo& Info);
+	//void AddDepthStencilOutput	(const String32& Identifier, const AttachmentInfo& Info);
 
+	void SetWidth			(float32 Width);
+	void SetHeight			(float32 Height);
+	void SetDepth			(float32 Depth);
+	void SetSampleCount		(SampleCount Samples);
 	void SetTopology		(TopologyType Type);
 	void SetCullMode		(CullingMode Mode);
 	void SetPolygonMode		(PolygonMode Mode);
 	void SetFrontFace		(FrontFaceDir Face);
 
 private:
+
+	struct RenderPassAttachment : public AttachmentCreateInfo
+	{
+		Handle<HImage> Handle;
+	};
+
 	friend class FrameGraph;
 	friend class RenderContext;
 
-	using AttachmentContainer = Map<String32, AttachmentInfo, MurmurHash<String32>, 1>;
+	using OutputAttachments = Map<String32, RenderPassAttachment, MurmurHash<String32>, 1>;
+	using InputAttachments	= Map<String32, RenderPassAttachment*, MurmurHash<String32>, 1>;
 
 	FrameGraph&			Owner;
 	RenderPassType		Type;
 
-	TopologyType		Topology;
-	FrontFaceDir		FrontFace;
-	CullingMode			CullMode;
-	PolygonMode			PolygonalMode;
+	SampleCount		Samples;
+	TopologyType	Topology;
+	FrontFaceDir	FrontFace;
+	CullingMode		CullMode;
+	PolygonMode		PolygonalMode;
+	float32			Width;
+	float32			Height;
+	float32			Depth;
 
-	Array<Shader*>		 Shaders;
-	RenderPassState		 State;
-	Handle<HPipeline>	 PipelineHandle;
-	Handle<HCmdBuffer>	 CmdBufferHandle;
-	Handle<HFramebuffer> FramebufferHandle;
+	Array<Shader*>		Shaders;
+	RenderPassState		State;
+	Handle<HPipeline>	PipelineHandle;
+	Handle<HFramePass>	FramePassHandle;
 
-	AttachmentContainer ColorInputs;
-	AttachmentContainer ColorOutputs;
-	AttachmentContainer DepthStencilInputs;
-	AttachmentContainer DepthStencilOutputs;
+	InputAttachments	ColorInputs;
+	OutputAttachments	ColorOutputs;
 
-	bool HasDepthStencilAttachment;
 };
 
 class RENDERER_API FrameGraph
@@ -89,11 +101,14 @@ public:
 
 	DELETE_COPY_AND_MOVE(FrameGraph)
 
-	Handle<RenderPass>	AddPass(PassNameEnum PassIdentity, RenderPassType Type);
-	RenderPass&			GetRenderPass(Handle<RenderPass> Handle);
+	Handle<RenderPass>	AddPass				(PassNameEnum PassIdentity, RenderPassType Type);
+	RenderPass&			GetRenderPass		(Handle<RenderPass> Handle);
+
+	void OutputRenderPassToScreen(RenderPass& Pass);
 
 	void Destroy();
 	bool Compile();
+	bool Compiled() const;
 
 private:
 	friend class RenderSystem;
@@ -102,6 +117,7 @@ private:
 	LinearAllocator&	Allocator;
 	String128			Name;
 	RenderPassTable		RenderPasses;
+	bool				IsCompiled;
 };
 
 #endif // !LEARNVK_RENDERER_RENDERGRAPH_RENDER_GRAPH_H

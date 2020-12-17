@@ -10,10 +10,14 @@
 #include "Library/Containers/Path.h"
 #include "Assets/GPUHandles.h"
 #include "API/RendererFlagBits.h"
+#include "API/ShaderAttribute.h"
 
 namespace vk
 {
+
+#define MAX_SWAPCHAIN_IMAGE_ALLOWED 3
 #define MAX_FRAMES_IN_FLIGHT 2
+#define MAX_ATTACHMENTS_IN_FRAMEBUFFER 8
 
 	using BinaryBuffer = Array<uint8>;
 	using DWordBuffer  = Array<uint32>;
@@ -33,20 +37,29 @@ namespace vk
 		Semaphore_Max = 2
 	};
 
-	struct HwCmdBufferAllocInfo
-	{
-		Handle<HCmdBuffer>* Handle;
-		//CommandBufferLevel	Level;
-	};
-
 	struct HwCmdBufferRecordInfo
 	{
-		Handle<HCmdBuffer>*		CommandBufferHandle;
-		Handle<HPipeline>*		PipelineHandle;
-		Handle<HFramebuffer>	FramebufferHandle;
-		float32					ClearColor[Color_Channel_Max];
-		int32					SurfaceOffset[Surface_Offset_Max];
-		uint32					SurfaceExtent[Surface_Extent_Max];
+		Handle<HPipeline>	PipelineHandle;
+		Handle<HFramePass>	FramePassHandle;
+		float32				ClearColor[Color_Channel_Max];
+		int32				SurfaceOffset[Surface_Offset_Max];
+		uint32				SurfaceExtent[Surface_Extent_Max];
+	};
+
+	struct HwDrawInfo
+	{
+		Handle<HFramePass>		FramePassHandle;
+		Handle<HVertexBuffer>	Vbo;
+		Handle<HIndexBuffer>	Ebo;
+		uint32					VertexCount;
+		uint32					IndexCount;
+	};
+
+	struct HwVertexBufferCreateInfo
+	{
+		Handle<HVertexBuffer>*	Handle;
+		void*					Data;
+		size_t					Size;
 	};
 
 	struct HwShaderCreateInfo
@@ -55,24 +68,33 @@ namespace vk
 		Handle<HShader>*	Handle;
 	};
 
-
+	/**
+	* NOTE(Ygsm):
+	* We do not need to include input attachments in the framebuffer because it will not be included.
+	* Texture attachments will be included into the pass via samplers.
+	*/
 	struct HwAttachmentInfo
 	{
 		AttachmentType		Type;
-		AttachmentUsage		Usage;
-		AttachmentDimension Dimension;
+		TextureUsage		Usage;
+		TextureType			Dimension;
 		Handle<HImage>*		Handle;
 	};
 
+	/**
+	* NOTE(Ygsm):
+	* Only build output attachments.
+	*/
 	struct HwFramebufferCreateInfo
 	{
+		HwAttachmentInfo		ColorAttachments[MAX_ATTACHMENTS_IN_FRAMEBUFFER];
+		//HwAttachmentInfo		DepthStencilAttachment;
+		Handle<HFramePass>*		Handle;
+		SampleCount				Samples;
 		float32					Width;
 		float32					Height;
 		float32					Depth;
-		SampleCount				Samples;
-		Array<HwAttachmentInfo> Attachments;
-		uint32					NumColorAttachments;
-		Handle<HFramebuffer>*	Handle;
+		size_t					NumColorAttachments;
 	};
 
 	struct HwPipelineCreateInfo
@@ -81,6 +103,8 @@ namespace vk
 		{
 			Handle<HShader> Handle;
 			ShaderType		Type;
+			ShaderAttrib*	Attributes;
+			size_t			AttributeCount;
 		};
 
 		Array<ShaderInfo>		Shaders;
@@ -88,14 +112,29 @@ namespace vk
 		PolygonMode				PolyMode;
 		FrontFaceDir			FrontFace;
 		CullingMode				CullMode;
-		Handle<HFramebuffer>	FramebufferHandle;
+		Handle<HFramePass>		FramePassHandle;
 		Handle<HPipeline>*		Handle;
+		uint32					VertexStride;
 
 		/**
 		* TODO(Ygsm):
 		* 1. Figure out color blending.
 		* 2. Figure out a way to dynamically create the pipeline's layout.
 		*/
+	};
+
+	struct HwImageCreateStruct
+	{
+		uint32					Width;
+		uint32					Height;
+		uint32					Depth;
+		uint32					MipLevels;
+		VkFormat				Format;
+		VkImageType				Dimension;
+		VkSampleCountFlagBits	Samples;
+		VkImageLayout			InitialLayout;
+		VkImageUsageFlags		UsageFlags;
+		Handle<HImage>*			Handle;
 	};
 
 	/**
@@ -120,28 +159,11 @@ namespace vk
 		uint32				NumImages;
 	};
 
-	/**
-	* Default framebuffer.
-	*/
-	struct DefaultFramebuffer
+	struct FramePassParams
 	{
-		VkFramebuffer	Framebuffers[MAX_FRAMES_IN_FLIGHT];
-		VkCommandBuffer	CmdBuffers[MAX_FRAMES_IN_FLIGHT];
+		VkFramebuffer	Framebuffers[MAX_SWAPCHAIN_IMAGE_ALLOWED];
+		VkCommandBuffer CommandBuffers[MAX_FRAMES_IN_FLIGHT];
 		VkRenderPass	Renderpass;
-	};
-	
-	struct HwImageCreateStruct
-	{
-		uint32					Width;
-		uint32					Height;
-		uint32					Depth;
-		uint32					MipLevels;
-		VkFormat				Format;
-		VkImageType				Dimension;
-		VkSampleCountFlagBits	Samples;
-		VkImageLayout			InitialLayout;
-		VkImageUsageFlags		UsageFlags;
-		Handle<HImage>*			Handle;
 	};
 
 	/**
@@ -156,7 +178,7 @@ namespace vk
 
 		SwapChainParams		SwapChain;
 		QueueParams			Queues[Queue_Max];
-		DefaultFramebuffer	DefFramebuffer;
+		Handle<HFramePass>	DefaultFramebuffer;
 
 		VkSemaphore			Semaphores[MAX_FRAMES_IN_FLIGHT][Semaphore_Max];
 		VkFence				Fence[MAX_FRAMES_IN_FLIGHT];
@@ -181,6 +203,7 @@ namespace vk
 	*/
 	struct VulkanDriver : public VulkanCommon
 	{
+		Array<VkCommandBuffer>	CommandBuffersForSubmit;
 		VmaAllocator			Allocator;
 		VkCommandPool			CommandPool;
 		uint32					NextImageIndex;
@@ -232,6 +255,9 @@ namespace vk
 		bool CreateCommandPool();
 		bool AllocateCommandBuffers();
 
+		bool CreateVertexBuffer		(HwVertexBufferCreateInfo& CreateInfo);
+		void DestroyVertexBuffer	(Handle<HVertexBuffer>& Hnd);
+
 		bool CreateShader			(HwShaderCreateInfo& CreateInfo);
 		void DestroyShader			(Handle<HShader>& Hnd);
 
@@ -242,19 +268,23 @@ namespace vk
 		* Only adds a command buffer entry into the driver.
 		* Does not allocate it from the command pool yet.
 		*/
-		bool AddCommandBufferEntry	(HwCmdBufferAllocInfo& AllocateInfo);
+		//bool AddCommandBufferEntry	(HwCmdBufferAllocInfo& AllocateInfo);
 		void RecordCommandBuffer	(HwCmdBufferRecordInfo& RecordInfo);
-		void FreeCommandBuffer		(Handle<HCmdBuffer>& Hnd);
+		void UnrecordCommandBuffer	(HwCmdBufferRecordInfo& RecordInfo);
+		void Draw					(HwDrawInfo& DrawInfo);
+		void DrawIndexed			(HwDrawInfo& DrawInfo);
+		//void FreeCommandBuffer		(Handle<HCmdBuffer>& Hnd);
 
-		/**
-		* Does nothing yet ...
-		*/
+		//void PresentImageOnScreen	(Handle<HImage>& Hnd);
+
 		bool CreateFramebuffer		(HwFramebufferCreateInfo& CreateInfo);
-		/**
-		* Does nothing yet ...
-		*/
-		void DestroyFramebuffer		(Handle<HFramebuffer>& Hnd);
+		void DestroyFramebuffer		(Handle<HFramePass>& Hnd);
+
+		void DestroyRenderPass		(Handle<HFramePass>& Hnd);
+
+		void PushCmdBufferForSubmit	(Handle<HFramePass>& Hnd);
 	};
+
 }
 
 #endif // !LEARNVK_RENDERER_API_VK_VULKAN_LOADER

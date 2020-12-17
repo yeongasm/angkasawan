@@ -2,10 +2,22 @@
 #include "Renderer.h"
 
 RenderPass::RenderPass(FrameGraph& OwnerGraph, RenderPassType Type) :
+	Samples(Sample_Count_Max),
+	Width(0.0f),
+	Height(0.0f),
+	Depth(0.0f),
 	Owner(OwnerGraph), 
-	Type(Type), 
+	Type(Type),
+	Topology(Topology_Type_Triangle),
+	FrontFace(Front_Face_Clockwise),
+	CullMode(Culling_Mode_None),
+	PolygonalMode(Polygon_Mode_Fill),
 	Shaders(), 
-	State(RenderPass_State_New)
+	State(RenderPass_State_New),
+	PipelineHandle(INVALID_HANDLE),
+	FramePassHandle(INVALID_HANDLE),
+	ColorInputs(),
+	ColorOutputs()
 {}
 
 RenderPass::~RenderPass()
@@ -33,16 +45,39 @@ bool RenderPass::AddShader(Shader* ShaderSrc, ShaderType Type)
 	return true;
 }
 
-//void RenderPass::AddOutputAttachment(const String32& Identifier, const AttachmentInfo& Info)
-//{
-//	OutAttachments.Insert(Identifier, Info);
-//}
-//
-//void RenderPass::AddInputAttachment(const String32& Identifier, const RenderPass& From)
-//{
-//	const AttachmentInfo& attachment = From.OutAttachments[Identifier];
-//	InAttachments.Insert(Identifier, &attachment);
-//}
+void RenderPass::AddColorInput(const String32& Identifier, RenderPass& From)
+{
+	RenderPassAttachment* attachment = &From.ColorOutputs[Identifier];
+	ColorInputs.Insert(Identifier, attachment);
+}
+
+void RenderPass::AddColorOutput(const String32& Identifier, const AttachmentCreateInfo& Info)
+{
+	RenderPassAttachment attachment;
+	FMemory::InitializeObject(attachment);
+	FMemory::Memcpy(&attachment, &Info, sizeof(AttachmentCreateInfo));
+	ColorOutputs.Insert(Identifier, Move(attachment));
+}
+
+void RenderPass::SetWidth(float32 Width)
+{
+	this->Width = Width;
+}
+
+void RenderPass::SetHeight(float32 Height)
+{
+	this->Height = Height;
+}
+
+void RenderPass::SetDepth(float32 Depth)
+{
+	this->Depth = Depth;
+}
+
+void RenderPass::SetSampleCount(SampleCount Samples)
+{
+	this->Samples = Samples;
+}
 
 void RenderPass::SetTopology(TopologyType Type)
 {
@@ -66,7 +101,12 @@ void RenderPass::SetFrontFace(FrontFaceDir Face)
 
 
 FrameGraph::FrameGraph(RenderContext& Context, LinearAllocator& GraphAllocator) :
-	Context(Context), Allocator(GraphAllocator), Name(), RenderPasses()
+	Context(Context),
+	Allocator(GraphAllocator),
+	Name(),
+	RenderPasses(),
+	//PresentationImage(nullptr),
+	IsCompiled(false)
 {}
 
 FrameGraph::~FrameGraph()
@@ -77,10 +117,10 @@ FrameGraph::~FrameGraph()
 Handle<RenderPass> FrameGraph::AddPass(PassNameEnum PassIdentity, RenderPassType Type)
 {
 	RenderPass* renderPass = reinterpret_cast<RenderPass*>(Allocator.Malloc(sizeof(RenderPass)));
-	new (renderPass) RenderPass(*this, Type);
+	FMemory::InitializeObject(renderPass, *this, Type);
+	//new (renderPass) RenderPass(*this, Type);
 
 	RenderPasses.Insert(PassIdentity, renderPass);
-	Context.RegisterRenderPassCmdBuffer(*renderPass);
 
 	return Handle<RenderPass>(PassIdentity);
 }
@@ -88,10 +128,13 @@ Handle<RenderPass> FrameGraph::AddPass(PassNameEnum PassIdentity, RenderPassType
 RenderPass& FrameGraph::GetRenderPass(Handle<RenderPass> Handle)
 {
 	VKT_ASSERT("Handle supplied into function is invalid" && Handle != INVALID_HANDLE);
-	// NOTE(Ygsm):
-	// Don't need to check if render pass exist because the container would throw an assertion.
 	RenderPass* renderPass = RenderPasses[Handle];
 	return *renderPass;
+}
+
+void FrameGraph::OutputRenderPassToScreen(RenderPass& Pass)
+{
+	Pass.FramePassHandle = Context.GetDefaultFramebuffer();
 }
 
 void FrameGraph::Destroy()
@@ -99,27 +142,47 @@ void FrameGraph::Destroy()
 	for (auto pair : RenderPasses)
 	{
 		RenderPass* renderPass = pair.Value;
+		for (auto& pair : renderPass->ColorOutputs)
+		{
+			auto& attachment = pair.Value;
+			Context.DestroyImage(attachment.Handle);
+		}
 		for (Shader* shader : renderPass->Shaders)
 		{
 			Context.DestroyShader(shader->Handle);
 		}
 		Context.DestroyPipeline(renderPass->PipelineHandle);
-		Context.FreeCommandBuffer(renderPass->CmdBufferHandle);
+		Context.DestroyRenderPass(renderPass->FramePassHandle);
+		Context.DestroyFramebuffer(renderPass->FramePassHandle);
 	}
 }
 
 bool FrameGraph::Compile()
 {
+	//
+	// TODO(Ygsm): 
+	// Include a logger.
+	//
 	for (Pair<PassNameEnum, RenderPass*>& pair : RenderPasses)
 	{
 		RenderPass* renderPass = pair.Value;
-		if (!Context.NewGraphicsPipeline(*renderPass))
+
+		if (renderPass->FramePassHandle == INVALID_HANDLE)
 		{
-			// TODO(Ygsm):
-			// Include a logger.
-			return false;
+			if (!Context.NewRenderPassFramebuffer(*renderPass)) 
+			{ 
+				return false; 
+			}
 		}
+
+		if (!Context.NewGraphicsPipeline(*renderPass))		{ return false; }
 	}
 	Context.CreateCmdPoolAndBuffers();
+	IsCompiled = true;
 	return true;
+}
+
+bool FrameGraph::Compiled() const
+{
+	return IsCompiled;
 }

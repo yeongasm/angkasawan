@@ -4,8 +4,9 @@
 
 #include "Driver.h"
 #include "Assets/Shader.h"
+#include "Assets/Model.h"
 #include "FrameGraph/FrameGraph.h"
-#include "RenderAbstracts/DrawCommand.h"
+#include "RenderAbstracts/CommandBuffer.h"
 
 // Asset building.
 // Command buffer creation.
@@ -19,19 +20,30 @@ public:
 
 	DELETE_COPY_AND_MOVE(RenderContext)
 
-	bool InitializeContext();
-	void TerminateContext();
+	bool InitializeContext				();
+	void TerminateContext				();
 
-	void Render(DrawCommand& Command);
+	void BindRenderPass					(RenderPass& Pass);
+	void UnbindRenderPass				(RenderPass& Pass);
+	void SubmitForRender				(const Drawable& DrawObj, RenderPass& Pass);
+	void FinalizeRenderPass				(RenderPass& Pass);
 
 	bool NewGraphicsPipeline			(RenderPass& Pass);
-	bool RegisterRenderPassCmdBuffer	(RenderPass& Pass);
+	bool NewRenderPassFramebuffer		(RenderPass& Pass);
 	bool CreateCmdPoolAndBuffers		();
 
-	using GraphicsDriver::Clear;
+	bool NewVertexBuffer				(Mesh& InMesh);
+
+	Handle<HFramePass> GetDefaultFramebuffer() const;
+
+	using GraphicsDriver::DestroyVertexBuffer;
+	using GraphicsDriver::DestroyImage;
 	using GraphicsDriver::DestroyShader;
 	using GraphicsDriver::DestroyPipeline;
-	using GraphicsDriver::FreeCommandBuffer;
+	using GraphicsDriver::DestroyRenderPass;
+	using GraphicsDriver::DestroyFramebuffer;
+
+	using GraphicsDriver::Clear;
 	using GraphicsDriver::SwapBuffers;
 	using GraphicsDriver::OnWindowResize;
 

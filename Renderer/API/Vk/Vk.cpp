@@ -1,2 +1,7 @@
+#define DO_NOT_INCLUDE_VMA 1
+#include "VulkanFunctions.h"
+
+#define VMA_STATIC_VULKAN_FUNCTIONS 0
+#define VMA_DYNAMIC_VULKAN_FUNCTIONS 1
 #define VMA_IMPLEMENTATION
-#include "Vk.h"
+#include "vk_mem_alloc.h"

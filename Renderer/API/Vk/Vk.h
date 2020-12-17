@@ -10,7 +10,9 @@
 #endif
 
 #include "Src/vulkan.h"
+#ifndef DO_NOT_INCLUDE_VMA
 #include "vk_mem_alloc.h"
+#endif
 
 #ifndef RENDERER_DEBUG_RENDER_DEVICE
 #define RENDERER_DEBUG_RENDER_DEVICE 1

@@ -122,10 +122,10 @@
     <ClInclude Include="RenderAbstracts\CommandBuffer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="RenderAbstracts\DrawCommand.h">
+    <ClInclude Include="API\Vk\vk_mem_alloc.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="API\Vk\vk_mem_alloc.h">
+    <ClInclude Include="API\ShaderAttribute.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

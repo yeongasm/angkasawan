@@ -30,21 +30,26 @@ public:
 	void OnEvent		(const OS::Event& e) override;
 	//void Terminate();
 
+	FrameGraph*	GetFrameGraph			();
+	void		FinalizeGraph			();
+	
 	/**
-	* NOTE(Ygsm):
-	* There is a flaw with using indices as handles. When objects are dynamically added or removed, the indices will be invalidated.
+	* I think in practice you will always only render models.
 	*/
-	Handle<FrameGraph>	NewFrameGraph			(const char* GraphName);
-	FrameGraph&			GetFrameGraph			(Handle<FrameGraph> Handle);
-	FrameGraph*			GetFrameGraphWithName	(const char* GraphName);
-	void				PushCommandForRender	(const DrawCommand& Command);
+	void		PushCommandForRender	(DrawCommand& Command);
+	void		RenderModel				(Model& InModel, uint32 RenderedPass);
 
 	RendererAssetManager& FetchAssetManager		();
+
+	/**
+	* Builds the vertex and index buffers for each mesh in the model
+	*/
+	bool FinalizeModel	(Model& InModel);
 
 private:
 	RendererAssetManager	AssetManager;
 	RenderContext			Context;
-	Array<FrameGraph*>		FrameGraphs;
+	FrameGraph*				Graph;
 	CommandBuffer			CmdBuffer;
 };
 

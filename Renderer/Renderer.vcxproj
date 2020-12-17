@@ -32,6 +32,7 @@
   <ItemGroup>
     <ClInclude Include="API\Context.h" />
     <ClInclude Include="API\Driver.h" />
+    <ClInclude Include="API\ShaderAttribute.h" />
     <ClInclude Include="API\Vk\vk_mem_alloc.h" />
     <ClInclude Include="Assets\GPUHandles.h" />
     <ClInclude Include="API\RendererFlagBits.h" />
@@ -47,7 +48,6 @@
     <ClInclude Include="Assets\Shader.h" />
     <ClInclude Include="FrameGraph\FrameGraph.h" />
     <ClInclude Include="RenderAbstracts\CommandBuffer.h" />
-    <ClInclude Include="RenderAbstracts\DrawCommand.h" />
     <ClInclude Include="RenderPlatform\API.h" />
     <ClInclude Include="Renderer.h" />
     <ClInclude Include="API\Vk\Src\vk_layer.h" />

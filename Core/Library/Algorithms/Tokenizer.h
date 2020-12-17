@@ -171,6 +171,9 @@ public:
 		{
 			EleType* string = Source.First() + start;
 			offset = SearchBoyerMoore(string, strLen, Delimiters, dlen);
+
+			if (start + offset >= untilOffset) { break; }
+
 			if (offset == -1)
 			{
 				if (strLen)
@@ -192,7 +195,10 @@ public:
 		}
 	}
 
-
+	size_t Find(Type& InToken, const EleType* Delimeters)
+	{
+		return SearchBoyerMoore(InToken.First(), InToken.Length(), Delimeters, strlen(Delimeters));
+	}
 };
 
 using StringTokenizer  = Tokenizer<char>;
