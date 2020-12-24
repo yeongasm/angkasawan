@@ -46,6 +46,10 @@ void RenderGroup::AddMeshToGroup(Mesh& InMesh)
 	if (InMesh.Indices.Length())
 	{
 		InMesh.IndexOffset = static_cast<uint32>(IndexPool.Length());
+		for (uint32& index : InMesh.Indices)
+		{
+			index += InMesh.IndexOffset;
+		}
 		IndexPool.Append(InMesh.Indices.begin(), InMesh.Indices.Length());
 		InMesh.Indices.Release();
 	}

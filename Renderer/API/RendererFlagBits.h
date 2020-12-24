@@ -42,10 +42,28 @@ enum RenderPassType
 	RenderPass_Type_Max			= 2
 };
 
+enum RenderPassOrder
+{
+	RenderPass_Order_First		= 0,
+	RenderPass_Order_Last		= 1,
+	RenderPass_Order_InBetween	= 2
+};
+
 enum RenderPassState
 {
 	RenderPass_State_New,
 	RenderPass_State_Built
+};
+
+enum RenderPassFlagBits : uint32
+{
+	RenderPass_Bit_None					= 0,
+	RenderPass_Bit_Color_Input			= 1,
+	RenderPass_Bit_Color_Output			= 2,
+	RenderPass_Bit_DepthStencil_Input	= 3,
+	RenderPass_Bit_DepthStencil_Output	= 4,
+	RenderPass_Bit_No_Color_Render		= 5,
+	RenderPass_Bit_No_DepthStencil_Render = 6
 };
 
 enum CommandBufferLevel : uint32
@@ -56,11 +74,10 @@ enum CommandBufferLevel : uint32
 
 enum ShaderAttribFormat : uint32
 {
-	Shader_Attrib_Type_Float	= 0,
-	Shader_Attrib_Type_Vec2		= 1,
-	Shader_Attrib_Type_vec3		= 2,
-	Shader_Attrib_Type_Vec4		= 3,
-	Shader_Attrib_Type_Max		= 4
+	Shader_Attrib_Type_Float	= 3,
+	Shader_Attrib_Type_Vec2		= 4,
+	Shader_Attrib_Type_vec3		= 5,
+	Shader_Attrib_Type_Vec4		= 6
 };
 
 enum ShaderType : uint32
@@ -121,8 +138,9 @@ enum SampleCount : uint32
 enum TextureUsage : uint32
 {
 	Texture_Usage_Color			= 0,
-	Texture_Usage_Depth_Stencil = 1,
-	Texture_Usage_Max			= 2
+	Texture_Usage_Color_HDR		= 1,
+	Texture_Usage_Depth_Stencil = 2,
+	Texture_Usage_Max			= 3
 };
 
 enum TextureType : uint32
@@ -133,11 +151,19 @@ enum TextureType : uint32
 	Texture_Type_Max = 3
 };
 
+enum ImageUsageFlags : uint32
+{
+	Image_Usage_Transfer_Src	= 1,
+	Image_Usage_Transfer_Dst	= 2,
+	Image_Usage_Sampled			= 4,
+	Image_Usage_Color_Attachment		 = 16,
+	Image_Usage_Depth_Stencil_Attachment = 32
+};
+
 enum AttachmentType : uint32
 {
 	Attachment_Type_Input,
-	Attachment_Type_Output,
-	Attachment_Type_Output_To_Swapchain
+	Attachment_Type_Output
 };
 
 enum BufferType : uint32

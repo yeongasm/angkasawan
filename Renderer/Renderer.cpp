@@ -39,6 +39,7 @@ void RenderSystem::OnUpdate()
 		Context.UnbindRenderPass(*renderPass);
 	}
 
+	Graph->BlitToDefault();
 	Context.SwapBuffers();
 
 	// Empty each drawable command that's in the array.
@@ -53,6 +54,7 @@ void RenderSystem::OnEvent(const OS::Event& e)
 	switch (e.EventType)
 	{
 		case OS::Event::Type::WINDOW_RESIZE:
+			// Resize all of framegraph's attachment.
 			Context.OnWindowResize();
 			break;
 		default:

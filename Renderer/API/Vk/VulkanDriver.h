@@ -8,6 +8,7 @@
 #include "Library/Containers/Map.h"
 #include "Library/Containers/Deque.h"
 #include "Library/Containers/Path.h"
+#include "Library/Containers/Bitset.h"
 #include "Assets/GPUHandles.h"
 #include "API/RendererFlagBits.h"
 #include "API/ShaderAttribute.h"
@@ -17,12 +18,13 @@ namespace vk
 
 #define MAX_SWAPCHAIN_IMAGE_ALLOWED		3
 #define MAX_FRAMES_IN_FLIGHT			2
-#define MAX_ATTACHMENTS_IN_FRAMEBUFFER	8
+#define MAX_FRAMEBUFFER_OUTPUTS			16
 #define MAX_BUFFER_VERTEX_DATA			1 << 20
 #define MAX_BUFFER_INSTANCE_DATA		1 << 24
 
 	using BinaryBuffer = Array<uint8>;
 	using DWordBuffer  = Array<uint32>;
+	using ImageUsageBits = uint32;
 
 	enum DriverQueueTypes : uint32
 	{
@@ -36,6 +38,13 @@ namespace vk
 		Semaphore_Type_ImageAvailable = 0,
 		Semaphore_Type_RenderComplete = 1,
 		Semaphore_Max = 2
+	};
+
+	enum DefaultOutputs : uint32
+	{
+		Default_Output_Color		= 0,
+		Default_Output_DepthStencil = 1,
+		Default_Output_Max = 2
 	};
 
 	struct HwCmdBufferRecordInfo
@@ -78,26 +87,33 @@ namespace vk
 	*/
 	struct HwAttachmentInfo
 	{
-		AttachmentType		Type;
 		TextureUsage		Usage;
-		TextureType			Dimension;
+		TextureType			Type;
+		ImageUsageBits		UsageFlagBits;
 		Handle<HImage>*		Handle;
 	};
 
-	/**
-	* NOTE(Ygsm):
-	* Only build output attachments.
-	*/
 	struct HwFramebufferCreateInfo
 	{
-		HwAttachmentInfo		ColorAttachments[MAX_ATTACHMENTS_IN_FRAMEBUFFER];
-		//HwAttachmentInfo		DepthStencilAttachment;
-		Handle<HFramePass>*		Handle;
+		HwAttachmentInfo		Outputs[MAX_FRAMEBUFFER_OUTPUTS];
+		Handle<HImage>			DefaultOutputs[Default_Output_Max];
+		Handle<HFramePass>		Handle;
 		SampleCount				Samples;
 		float32					Width;
 		float32					Height;
 		float32					Depth;
-		size_t					NumColorAttachments;
+		uint32					NumOutputs;
+		uint32					NumColorOutputs;
+	};
+
+	struct HwRenderpassCreateInfo
+	{
+		Handle<HFramePass>* Handle;
+		BitSet<uint32>		DefaultOutputs;
+		RenderPassOrder		Order;
+		SampleCount			Samples;
+		uint32				NumColorOutputs;
+		bool				HasDepthStencilAttachment;
 	};
 
 	struct HwPipelineCreateInfo
@@ -118,6 +134,7 @@ namespace vk
 		Handle<HFramePass>		FramePassHandle;
 		Handle<HPipeline>*		Handle;
 		uint32					VertexStride;
+		bool					HasDepthStencil;
 
 		/**
 		* TODO(Ygsm):
@@ -126,18 +143,13 @@ namespace vk
 		*/
 	};
 
-	struct HwImageCreateStruct
+	struct HwImageCreateStruct : public HwAttachmentInfo
 	{
-		uint32					Width;
-		uint32					Height;
-		uint32					Depth;
-		uint32					MipLevels;
-		VkFormat				Format;
-		VkImageType				Dimension;
-		VkSampleCountFlagBits	Samples;
-		VkImageLayout			InitialLayout;
-		VkImageUsageFlags		UsageFlags;
-		Handle<HImage>*			Handle;
+		uint32			Width;
+		uint32			Height;
+		uint32			Depth;
+		uint32			MipLevels;
+		SampleCount		Samples;
 	};
 
 	/**
@@ -282,6 +294,7 @@ namespace vk
 		bool CreateFramebuffer		(HwFramebufferCreateInfo& CreateInfo);
 		void DestroyFramebuffer		(Handle<HFramePass>& Hnd);
 
+		bool CreateRenderPass		(HwRenderpassCreateInfo& CreateInfo);
 		void DestroyRenderPass		(Handle<HFramePass>& Hnd);
 
 		void PushCmdBufferForSubmit	(Handle<HFramePass>& Hnd);

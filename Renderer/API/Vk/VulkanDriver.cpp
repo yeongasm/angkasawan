@@ -107,12 +107,10 @@ namespace vk
 				VK_IMAGE_VIEW_TYPE_3D
 			};
 
-			VkImageUsageFlagBits ImageUsage[Texture_Usage_Max] = {
-				VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-				VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT
-			};
-
-			VkFormat ShaderTypes[Shader_Attrib_Type_Max] = {
+			VkFormat Formats[7] = {
+				VK_FORMAT_R8G8B8A8_SRGB,
+				VK_FORMAT_R32G32B32A32_SFLOAT,
+				VK_FORMAT_D24_UNORM_S8_UINT,
 				VK_FORMAT_R32_SFLOAT,
 				VK_FORMAT_R32G32_SFLOAT,
 				VK_FORMAT_R32G32B32_SFLOAT,
@@ -1097,9 +1095,9 @@ namespace vk
 		renderpassCreateInfo.attachmentCount	= 1;
 		renderpassCreateInfo.pAttachments		= &attachmentDesc;
 		renderpassCreateInfo.subpassCount		= 1;
-renderpassCreateInfo.pSubpasses = &subpassDescription;
-renderpassCreateInfo.dependencyCount = 1;
-renderpassCreateInfo.pDependencies = &subpassDependency;
+		renderpassCreateInfo.pSubpasses			= &subpassDescription;
+		renderpassCreateInfo.dependencyCount	= 1;
+		renderpassCreateInfo.pDependencies		= &subpassDependency;
 
 if (vkCreateRenderPass(Device, &renderpassCreateInfo, nullptr, &frameParams.Renderpass) != VK_SUCCESS)
 {
@@ -1295,7 +1293,7 @@ return true;
 			vertexAttributes[i].binding		= pVertexAttrib[i].Binding;
 			vertexAttributes[i].location	= pVertexAttrib[i].Location;
 			vertexAttributes[i].offset		= pVertexAttrib[i].Offset;
-			vertexAttributes[i].format		= Ctx.Flags.ShaderTypes[pVertexAttrib[i].Format];
+			vertexAttributes[i].format		= Ctx.Flags.Formats[pVertexAttrib[i].Format];
 		}
 
 		VkPipelineVertexInputStateCreateInfo vertexStateCreateInfo = {};
@@ -1400,6 +1398,19 @@ return true;
 			return false;
 		}
 
+		VkPipelineDepthStencilStateCreateInfo depthStencilCreateInfo = {};
+
+		depthStencilCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+		depthStencilCreateInfo.depthTestEnable = VK_TRUE;
+		depthStencilCreateInfo.depthWriteEnable = VK_TRUE;
+		depthStencilCreateInfo.depthCompareOp = VK_COMPARE_OP_LESS;
+		depthStencilCreateInfo.depthBoundsTestEnable = VK_FALSE;
+		depthStencilCreateInfo.minDepthBounds = 0.0f;
+		depthStencilCreateInfo.maxDepthBounds = 1.0f;
+		depthStencilCreateInfo.stencilTestEnable = TRUE;
+		depthStencilCreateInfo.front = {};
+		depthStencilCreateInfo.back  = {};
+
 		VkGraphicsPipelineCreateInfo pipelineCreateInfo = {};
 
 		pipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
@@ -1419,6 +1430,11 @@ return true;
 		pipelineCreateInfo.subpass = 0;							// TODO(Ygsm): Study more about this!
 		pipelineCreateInfo.basePipelineHandle = VK_NULL_HANDLE;	// TODO(Ygsm): Study more about this!
 		pipelineCreateInfo.basePipelineIndex = -1;				// TODO(Ygsm): Study more about this!
+
+		if (CreateInfo.HasDepthStencil)
+		{
+			pipelineCreateInfo.pDepthStencilState = &depthStencilCreateInfo;
+		}
 
 		VkPipeline graphicsPipeline;
 		if (vkCreateGraphicsPipelines(Device, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &graphicsPipeline) != VK_SUCCESS)
@@ -1661,14 +1677,15 @@ return true;
 		VkCommandBuffer& cmdBuffer = frameParams.CommandBuffers[CurrentFrame];
 		VkBuffer& vertexBuffer	= vboParams.Buffer;
 		VkDeviceSize offset = 0;
-		uint32 drawCount = 0;
+		uint32 drawCount = vboParams.DataCount - DrawInfo.VertexOffset;
 
 		vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &vertexBuffer, &offset);
 
 		if (DrawInfo.Ebo != INVALID_HANDLE)
 		{
-			auto& eboParams			= Ctx.Store.Buffers[DrawInfo.Ebo];
-			VkBuffer& indexBuffer	= eboParams.Buffer;
+			auto& eboParams	= Ctx.Store.Buffers[DrawInfo.Ebo];
+			VkBuffer& indexBuffer = eboParams.Buffer;
+
 			drawCount = eboParams.DataCount - DrawInfo.IndexOffset;
 
 			vkCmdBindIndexBuffer(cmdBuffer, indexBuffer, DrawInfo.IndexOffset * sizeof(uint32), VK_INDEX_TYPE_UINT32);
@@ -1676,7 +1693,6 @@ return true;
 		}
 		else
 		{
-			drawCount = vboParams.DataCount - DrawInfo.VertexOffset;
 			vkCmdDraw(cmdBuffer, drawCount, 1, DrawInfo.VertexOffset, 0);
 		}
 	}
@@ -1690,25 +1706,23 @@ return true;
 		Ctx.Store.Images.Insert(id, {});
 		auto& imageParam = Ctx.Store.Images[id];
 
-		VkImageCreateInfo imageInfo;
-		FMemory::InitializeObject(imageInfo);
+		VkImageCreateInfo imageInfo = {};
 
 		imageInfo.sType			= VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-		imageInfo.imageType		= CreateInfo.Dimension;
+		imageInfo.imageType		= Ctx.Flags.ImageType[CreateInfo.Type];
+		imageInfo.format		= Ctx.Flags.Formats[CreateInfo.Usage];
+		imageInfo.samples		= Ctx.Flags.SampleCounts[CreateInfo.Samples];
 		imageInfo.extent.width	= CreateInfo.Width;
 		imageInfo.extent.height = CreateInfo.Height;
 		imageInfo.extent.depth	= CreateInfo.Depth;
-		imageInfo.format		= CreateInfo.Format;
 		imageInfo.tiling		= VK_IMAGE_TILING_OPTIMAL;
 		imageInfo.mipLevels		= CreateInfo.MipLevels;
-		imageInfo.usage			= CreateInfo.UsageFlags;
-		imageInfo.samples		= CreateInfo.Samples;
+		imageInfo.usage			= CreateInfo.UsageFlagBits;
 		imageInfo.arrayLayers	= 1;
 		imageInfo.sharingMode	= VK_SHARING_MODE_EXCLUSIVE;
-		imageInfo.initialLayout = CreateInfo.InitialLayout;
+		imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 		
-		VmaAllocationCreateInfo allocInfo;
-		FMemory::InitializeObject(allocInfo);
+		VmaAllocationCreateInfo allocInfo = {};
 
 		allocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
 
@@ -1723,20 +1737,20 @@ return true;
 		FMemory::InitializeObject(imageViewInfo);
 
 		imageViewInfo.sType								= VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-		imageViewInfo.format							= CreateInfo.Format;
+		imageViewInfo.format							= Ctx.Flags.Formats[CreateInfo.Usage];
 		imageViewInfo.subresourceRange.baseMipLevel		= 0;
 		imageViewInfo.subresourceRange.levelCount		= CreateInfo.MipLevels;
 		imageViewInfo.subresourceRange.baseArrayLayer	= 0;
 		imageViewInfo.subresourceRange.layerCount		= 1;
 		imageViewInfo.image								= imageParam.Image;
-		imageViewInfo.viewType							= Ctx.Flags.ImageViewType[CreateInfo.Dimension];
+		imageViewInfo.viewType							= Ctx.Flags.ImageViewType[CreateInfo.Type];
 
-		if ((CreateInfo.UsageFlags & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT) == VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT)
+		if ((CreateInfo.UsageFlagBits & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT) == VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT)
 		{
 			imageViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 		}
 
-		if ((CreateInfo.UsageFlags & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT) == VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT)
+		if ((CreateInfo.UsageFlagBits & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT) == VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT)
 		{
 			imageViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
 		}
@@ -1794,27 +1808,19 @@ return true;
 
 	bool VulkanDriver::CreateFramebuffer(HwFramebufferCreateInfo& CreateInfo)
 	{
-		bool success = true;
-		uint32 id = g_RandIdVk();
+		bool hasDepthStencil = false;
+		uint32 attOffset = 0;
 
-		*CreateInfo.Handle = id;
-		Ctx.Store.FramePasses.Insert(id, {});
-
-		auto& frameParams = Ctx.Store.FramePasses[id];
+		auto& frameParams = Ctx.Store.FramePasses[CreateInfo.Handle];
 
 		const uint32 width	= (!CreateInfo.Width)	? SwapChain.Extent.width : static_cast<uint32>(CreateInfo.Width);
 		const uint32 height = (!CreateInfo.Height)	? SwapChain.Extent.height : static_cast<uint32>(CreateInfo.Height);
 		const uint32 depth	= (!CreateInfo.Depth)	? 1 : static_cast<uint32>(CreateInfo.Depth);
 
-		const size_t colorAttachmentCount = CreateInfo.NumColorAttachments;
-		//bool hasDepthStencil = false;
+		const uint32 totalOutputs = CreateInfo.NumOutputs;
+		const uint32 colorAttachmentCount = CreateInfo.NumColorOutputs;
 
-		//if (CreateInfo.DepthStencilAttachment.Handle != nullptr)
-		//{
-		//	hasDepthStencil = true;
-		//}
-
-		VKT_ASSERT("Must not exceed maximum attachment allowed in framebuffer" && colorAttachmentCount <= MAX_ATTACHMENTS_IN_FRAMEBUFFER);
+		VKT_ASSERT("Must not exceed maximum attachment allowed in framebuffer" && totalOutputs <= MAX_FRAMEBUFFER_OUTPUTS);
 		
 		HwImageCreateStruct imageInfo;
 
@@ -1834,146 +1840,76 @@ return true;
 		samplerInfo.maxLod			= 1.0f;
 		samplerInfo.borderColor		= VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
 
-		for (size_t i = 0; i < colorAttachmentCount; i++)
+		for (size_t i = 0; i < totalOutputs; i++)
 		{
-			HwAttachmentInfo& attachment = CreateInfo.ColorAttachments[i];
+			HwAttachmentInfo& attachment = CreateInfo.Outputs[i];
 
-			FMemory::InitializeObject(imageInfo);
+			FMemory::Memzero(&imageInfo, sizeof(HwImageCreateStruct));
+			FMemory::Memcpy(&imageInfo, &attachment, sizeof(HwAttachmentInfo));
 
-			imageInfo.Handle	= attachment.Handle;
 			imageInfo.Width		= width;
 			imageInfo.Height	= height;
 			imageInfo.Depth		= depth;
 			imageInfo.MipLevels = 1;
-			imageInfo.Dimension = Ctx.Flags.ImageType[attachment.Dimension];
-			imageInfo.Samples	= Ctx.Flags.SampleCounts[CreateInfo.Samples];
-			imageInfo.UsageFlags = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+			imageInfo.Samples	= CreateInfo.Samples;
+			imageInfo.UsageFlagBits = VK_IMAGE_USAGE_SAMPLED_BIT;
 
 			switch (attachment.Usage)
 			{
 				case Texture_Usage_Color:
-					imageInfo.UsageFlags |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-					imageInfo.Format = VK_FORMAT_R8G8B8A8_SRGB;
+				case Texture_Usage_Color_HDR:
+					imageInfo.UsageFlagBits |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 					break;
 				case Texture_Usage_Depth_Stencil:
-					imageInfo.UsageFlags |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-					imageInfo.Format = VK_FORMAT_D24_UNORM_S8_UINT;
+					imageInfo.UsageFlagBits |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
 					break;
 				default:
 					break;
 			}
 
-			if (!CreateImage(imageInfo))
-			{
-				success = false;
-				goto FramebufferCreateBeforeEnd;
-			}
+			// Should probably check for fail here ...
+			if (!CreateImage(imageInfo)) { VKT_ASSERT(false); }
 
 			VkSampler& sampler = Ctx.Store.Images[*attachment.Handle].Sampler;
 			vkCreateSampler(Device, &samplerInfo, nullptr, &sampler);
 		}
 
-		// TODO(Ygsm):
-		// Separate render pass creation.
+		VkImageView imgViewAtt[MAX_FRAMEBUFFER_OUTPUTS];
 
-		VkAttachmentDescription attachmentDescs[MAX_ATTACHMENTS_IN_FRAMEBUFFER];
-
-		for (size_t i = 0; i < colorAttachmentCount; i++)
+		if (CreateInfo.DefaultOutputs[Default_Output_Color] != INVALID_HANDLE)
 		{
-			HwAttachmentInfo& attachment = CreateInfo.ColorAttachments[i];
-			VkAttachmentDescription& attDesc = attachmentDescs[i];
-			FMemory::InitializeObject(attDesc);
+			auto& imageParams = Ctx.Store.Images[CreateInfo.DefaultOutputs[Default_Output_Color]];
+			imgViewAtt[attOffset] = imageParams.ImageView;
+			attOffset++;
+		}
 
-			attDesc.samples			= Ctx.Flags.SampleCounts[CreateInfo.Samples];
-			attDesc.initialLayout	= VK_IMAGE_LAYOUT_UNDEFINED;
-			attDesc.stencilLoadOp	= VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-			attDesc.stencilStoreOp	= VK_ATTACHMENT_STORE_OP_DONT_CARE;
-			attDesc.loadOp			= VK_ATTACHMENT_LOAD_OP_CLEAR;
-			attDesc.storeOp			= VK_ATTACHMENT_STORE_OP_STORE;
+		for (size_t i = 0; i < totalOutputs; i++, attOffset++)
+		{
+			HwAttachmentInfo& attachment = CreateInfo.Outputs[i];
+			auto& imageParams = Ctx.Store.Images[*attachment.Handle];
 
-			if (attachment.Type == Texture_Usage_Depth_Stencil)
+			if (attachment.Usage == Texture_Usage_Depth_Stencil)
 			{
-				attDesc.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
-				attDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
+				hasDepthStencil = true;
 			}
 
-			switch (attachment.Usage)
-			{
-				case Texture_Usage_Color:
-					attDesc.format			= VK_FORMAT_R8G8B8A8_SRGB;
-					attDesc.finalLayout		= VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-					break;
-				case Texture_Usage_Depth_Stencil:
-					attDesc.format			= VK_FORMAT_D24_UNORM_S8_UINT;
-					attDesc.finalLayout		= VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-					break;
-				default:
-					break;
-			}
+			imgViewAtt[attOffset] = imageParams.ImageView;
 		}
 
-		VkAttachmentReference attachmentRef[MAX_ATTACHMENTS_IN_FRAMEBUFFER];
-		
-		for (size_t i = 0; i < colorAttachmentCount; i++)
+		if (CreateInfo.DefaultOutputs[Default_Output_DepthStencil] != INVALID_HANDLE && !hasDepthStencil)
 		{
-			VkAttachmentReference& attRef = attachmentRef[i];
-			attRef.attachment = static_cast<uint32>(i);
-			attRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+			auto& imageParams = Ctx.Store.Images[CreateInfo.DefaultOutputs[Default_Output_DepthStencil]];
+			imgViewAtt[attOffset++] = imageParams.ImageView;
 		}
 
-		VkSubpassDescription subpassDescription;
-		FMemory::InitializeObject(subpassDescription);
+		VkFramebufferCreateInfo framebufferInfo = {};
 
-		subpassDescription.pipelineBindPoint	= VK_PIPELINE_BIND_POINT_GRAPHICS;
-		subpassDescription.pColorAttachments	= attachmentRef;
-		subpassDescription.colorAttachmentCount = static_cast<uint32>(colorAttachmentCount);
-
-		// Create subpass dependencies.
-		VkSubpassDependency dependencies[MAX_ATTACHMENTS_IN_FRAMEBUFFER];
-
-		for (size_t i = 0; i < colorAttachmentCount; i++)
-		{
-			dependencies[i].srcSubpass		= VK_SUBPASS_EXTERNAL;
-			dependencies[i].dstSubpass		= 0;
-			dependencies[i].srcStageMask	= VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-			dependencies[i].dstStageMask	= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-			dependencies[i].srcAccessMask	= VK_ACCESS_SHADER_READ_BIT;
-			dependencies[i].dstAccessMask	= VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-			dependencies[i].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
-		}
-
-		// Create actual renderpass.
-		VkRenderPassCreateInfo renderPassInfo;
-		FMemory::InitializeObject(renderPassInfo);
-
-		renderPassInfo.sType			= VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-		renderPassInfo.attachmentCount	= static_cast<uint32>(colorAttachmentCount);
-		renderPassInfo.pAttachments		= attachmentDescs;
-		renderPassInfo.pSubpasses		= &subpassDescription;
-		renderPassInfo.subpassCount		= 1;
-		renderPassInfo.pDependencies	= dependencies;
-		renderPassInfo.dependencyCount	= static_cast<uint32>(colorAttachmentCount);
-
-		vkCreateRenderPass(Device, &renderPassInfo, nullptr, &frameParams.Renderpass);
-
-		VkImageView imgViewAtt[MAX_ATTACHMENTS_IN_FRAMEBUFFER];
-
-		for (size_t i = 0; i < colorAttachmentCount; i++)
-		{
-			HwAttachmentInfo& attachment = CreateInfo.ColorAttachments[i];
-			auto& imageParam = Ctx.Store.Images[*attachment.Handle];
-			imgViewAtt[i] = imageParam.ImageView;
-		}
-
-		VkFramebufferCreateInfo framebufferInfo;
-		FMemory::InitializeObject(framebufferInfo);
-
-		framebufferInfo.sType	= VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-		framebufferInfo.width	= width;
-		framebufferInfo.height	= height;
-		framebufferInfo.pAttachments	= imgViewAtt;
-		framebufferInfo.attachmentCount = static_cast<uint32>(colorAttachmentCount);
+		framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+		framebufferInfo.width = width;
+		framebufferInfo.height = height;
 		framebufferInfo.layers = 1;
+		framebufferInfo.pAttachments = imgViewAtt;
+		framebufferInfo.attachmentCount = attOffset;
 		framebufferInfo.renderPass = frameParams.Renderpass;
 
 		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
@@ -1981,26 +1917,18 @@ return true;
 			if (vkCreateFramebuffer(Device, &framebufferInfo, nullptr, &frameParams.Framebuffers[i]) != VK_SUCCESS)
 			{
 				VKT_ASSERT("Unable to create framebuffer" && false);
-				success = false;
+				return false;
 			}
 		}
 
-	FramebufferCreateBeforeEnd:
-
-		if (!success)
-		{
-			*CreateInfo.Handle = INVALID_HANDLE;
-			// TODO(Ygsm):
-			// Release all resources when creation fails.
-		}
-
-		return success;
+		return true;
 	};
 
 	void VulkanDriver::DestroyFramebuffer(Handle<HFramePass>& Hnd)
 	{
 		auto& frameParams = Ctx.Store.FramePasses[Hnd];
 
+		vkDeviceWaitIdle(Device);
 		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 		{
 			vkDestroyFramebuffer(Device, frameParams.Framebuffers[i], nullptr);
@@ -2010,10 +1938,197 @@ return true;
 		Hnd = INVALID_HANDLE;
 	};
 
+	bool VulkanDriver::CreateRenderPass(HwRenderpassCreateInfo& CreateInfo)
+	{
+		uint32 offset = 0;
+		uint32 totalColorAttCount = 0;
+		uint32 id = g_RandIdVk();
+
+		*CreateInfo.Handle = id;
+		Ctx.Store.FramePasses.Insert(id, {});
+
+		auto& frameParams = Ctx.Store.FramePasses[id];
+
+		VkAttachmentDescription attachmentDescs[MAX_FRAMEBUFFER_OUTPUTS];
+		VkAttachmentReference	attachmentRef[MAX_FRAMEBUFFER_OUTPUTS];
+		VkSubpassDependency		dependencies[MAX_FRAMEBUFFER_OUTPUTS];
+
+		if (!CreateInfo.DefaultOutputs.Has(RenderPass_Bit_No_Color_Render))
+		{
+			VkAttachmentDescription& desc = attachmentDescs[offset];
+			VkAttachmentReference& ref = attachmentRef[offset];
+			VkSubpassDependency& dep = dependencies[offset];
+
+			desc = {};
+			ref = {};
+			dep = {};
+
+			desc.format = VK_FORMAT_R8G8B8A8_SRGB;
+			desc.samples = VK_SAMPLE_COUNT_1_BIT;
+			desc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+			desc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+			desc.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+			desc.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+
+			switch (CreateInfo.Order)
+			{
+				case RenderPass_Order_First:
+					desc.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+					desc.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+					desc.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+					break;
+				case RenderPass_Order_Last:
+					desc.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+					desc.finalLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+					break;
+				default:
+					desc.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+					desc.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+					break;
+			}
+
+			ref.attachment = offset++;
+			ref.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+			dep.srcSubpass = VK_SUBPASS_EXTERNAL;
+			dep.dstSubpass = 0;
+			dep.srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+			dep.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+			dep.srcAccessMask = 0;
+			dep.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+			dep.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+
+			totalColorAttCount++;
+		}
+
+		for (size_t i = 0; i < CreateInfo.NumColorOutputs; i++, offset++)
+		{
+			VkAttachmentDescription& attDesc = attachmentDescs[offset];
+			VkAttachmentReference& ref = attachmentRef[offset];
+			VkSubpassDependency& dep = dependencies[offset];
+
+			attDesc = {};
+			ref = {};
+			dep = {};
+
+			attDesc.format = VK_FORMAT_R8G8B8A8_SRGB;
+			attDesc.samples = Ctx.Flags.SampleCounts[CreateInfo.Samples];
+			attDesc.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+			attDesc.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+			attDesc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+			attDesc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+			attDesc.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+			attDesc.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+			ref.attachment = offset;
+			ref.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+			dep.srcSubpass = VK_SUBPASS_EXTERNAL;
+			dep.dstSubpass = 0;
+			dep.srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+			dep.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+			dep.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
+			dep.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+			dep.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+
+			totalColorAttCount++;
+		}
+
+		// NOTE(Ygsm):
+		// Since framebuffers only allow a single depth stencil attachment, we have to make a choice.
+		// By default the default output's depth attachment is used but if it has it's own depth stencil attachment,
+		// we set up that instead.
+		if (CreateInfo.HasDepthStencilAttachment || !CreateInfo.DefaultOutputs.Has(RenderPass_Bit_No_DepthStencil_Render))
+		{
+			VkAttachmentDescription& desc = attachmentDescs[offset];
+			VkAttachmentReference& ref = attachmentRef[offset];
+			VkSubpassDependency& dep = dependencies[offset];
+
+			desc = {};
+			ref = {};
+			dep = {};
+
+			desc.format = VK_FORMAT_D24_UNORM_S8_UINT;
+			desc.samples = Ctx.Flags.SampleCounts[CreateInfo.Samples];
+			desc.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+			desc.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+			desc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+			desc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
+			desc.initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+			desc.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+			if (CreateInfo.Order == RenderPass_Order_First)
+			{
+				desc.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+				desc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+				desc.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+				desc.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+			}
+
+			if (CreateInfo.HasDepthStencilAttachment)
+			{
+				desc.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+				desc.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+				desc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+				desc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
+				desc.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+				desc.finalLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_STENCIL_READ_ONLY_OPTIMAL;
+			}
+
+			ref.attachment = offset++;
+			ref.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+			dep.srcSubpass = VK_SUBPASS_EXTERNAL;
+			dep.dstSubpass = 0;
+			dep.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;;
+			dep.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;;
+			dep.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
+			dep.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+			dep.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+		}
+
+		if (CreateInfo.HasDepthStencilAttachment || !CreateInfo.DefaultOutputs.Has(RenderPass_Bit_No_DepthStencil_Render))
+		{
+			VkAttachmentReference& depthStencilRef = attachmentRef[offset - 1];
+		}
+
+		VkSubpassDescription subpassDescription = {};
+
+		subpassDescription.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+		subpassDescription.pColorAttachments = attachmentRef;
+		subpassDescription.colorAttachmentCount = totalColorAttCount;
+
+		if (CreateInfo.HasDepthStencilAttachment || !CreateInfo.DefaultOutputs.Has(RenderPass_Bit_No_DepthStencil_Render))
+		{
+			subpassDescription.pDepthStencilAttachment = &attachmentRef[offset - 1];
+		}
+
+		// Create actual renderpass.
+		VkRenderPassCreateInfo renderPassInfo;
+		FMemory::InitializeObject(renderPassInfo);
+
+		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+		renderPassInfo.attachmentCount = offset;
+		renderPassInfo.pAttachments = attachmentDescs;
+		renderPassInfo.pSubpasses = &subpassDescription;
+		renderPassInfo.subpassCount = 1;
+		renderPassInfo.pDependencies = dependencies;
+		renderPassInfo.dependencyCount = offset;
+
+		if (vkCreateRenderPass(Device, &renderPassInfo, nullptr, &frameParams.Renderpass) != VK_SUCCESS)
+		{
+			VKT_ASSERT("Unable to create render pass." && false);
+			return false;
+		}
+
+		return true;
+	}
+
 	void VulkanDriver::DestroyRenderPass(Handle<HFramePass>& Hnd)
 	{
 		auto& frameParams = Ctx.Store.FramePasses[Hnd];
 
+		vkDeviceWaitIdle(Device);
 		vkDestroyRenderPass(Device, frameParams.Renderpass, nullptr);
 		frameParams.Renderpass = VK_NULL_HANDLE;
 	}

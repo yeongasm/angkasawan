@@ -57,6 +57,37 @@ void RenderContext::SubmitForRender(const Drawable& DrawObj, RenderPass& Pass)
 	Draw(drawInfo);
 }
 
+bool RenderContext::NewFrameImages(FrameImages& Images)
+{
+	vk::HwImageCreateStruct image = {};
+
+	image.Handle		= &Images.Color;
+	image.Width			= SwapChain.Extent.width;
+	image.Height		= SwapChain.Extent.height;
+	image.MipLevels		= 1;
+	image.Depth			= 1;
+	image.Samples		= Sample_Count_1;
+	image.Type			= Texture_Type_2D;
+	image.Usage			= Texture_Usage_Color;
+	image.UsageFlagBits = Image_Usage_Color_Attachment | Image_Usage_Transfer_Src | Image_Usage_Sampled;
+
+	if (!CreateImage(image)) { return false; }
+
+	image.Handle		= &Images.DepthStencil;
+	image.Usage			= Texture_Usage_Depth_Stencil;
+	image.UsageFlagBits = Image_Usage_Depth_Stencil_Attachment | Image_Usage_Sampled;
+
+	if (!CreateImage(image)) { return false; }
+
+	return true;
+}
+
+void RenderContext::DestroyFrameImages(FrameImages& Images)
+{
+	DestroyImage(Images.Color);
+	DestroyImage(Images.DepthStencil);
+}
+
 bool RenderContext::NewGraphicsPipeline(RenderPass& Pass)
 {
 	//if (!ValidateGraphicsPipelineCreateInfo(CreateInfo))
@@ -119,12 +150,18 @@ bool RenderContext::NewGraphicsPipeline(RenderPass& Pass)
 	pipelineCreateInfo.FrontFace		= Pass.FrontFace;
 	pipelineCreateInfo.PolyMode			= Pass.PolygonalMode;
 	pipelineCreateInfo.Topology			= Pass.Topology;
+	pipelineCreateInfo.HasDepthStencil	= Pass.Flags.Has(RenderPass_Bit_DepthStencil_Output) || !Pass.Flags.Has(RenderPass_Bit_No_DepthStencil_Render);
 
 	if (!CreatePipeline(pipelineCreateInfo))
 	{
 		// TODO(Ygsm):
 		// Include a logging system.
 		return false;
+	}
+
+	for (Shader* shader : Pass.Shaders)
+	{
+		DestroyShader(shader->Handle);
 	}
 
 	Pass.State = RenderPass_State_Built;
@@ -134,37 +171,107 @@ bool RenderContext::NewGraphicsPipeline(RenderPass& Pass)
 
 bool RenderContext::NewRenderPassFramebuffer(RenderPass& Pass)
 {
-	vk::HwFramebufferCreateInfo framebufferCreateInfo;
-	FMemory::InitializeObject(framebufferCreateInfo);
+	vk::HwFramebufferCreateInfo framebufferCreateInfo = {};
 
 	framebufferCreateInfo.Width		= Pass.Width;
 	framebufferCreateInfo.Height	= Pass.Height;
 	framebufferCreateInfo.Depth		= Pass.Depth;
 	framebufferCreateInfo.Samples	= Pass.Samples;
-	framebufferCreateInfo.Handle	= &Pass.FramePassHandle;
+	framebufferCreateInfo.Handle	= Pass.FramePassHandle;
 
-	size_t i = 0;
+	framebufferCreateInfo.DefaultOutputs[vk::Default_Output_Color]			= Pass.Owner.GetColorImage();
+	framebufferCreateInfo.DefaultOutputs[vk::Default_Output_DepthStencil]	= Pass.Owner.GetDepthStencilImage();
+
+	if (Pass.Flags.Has(RenderPass_Bit_No_Color_Render))
+	{
+		framebufferCreateInfo.DefaultOutputs[vk::Default_Output_Color] = INVALID_HANDLE;
+	}
+
+	if (Pass.Flags.Has(RenderPass_Bit_No_DepthStencil_Render))
+	{
+		framebufferCreateInfo.DefaultOutputs[vk::Default_Output_DepthStencil] = INVALID_HANDLE;
+	}
+
+	uint32 i = 0;
+
 	for (auto& pair : Pass.ColorOutputs)
 	{
 		auto& passAttachment = pair.Value;
-		vk::HwAttachmentInfo& colorAttachment = framebufferCreateInfo.ColorAttachments[i];
+		vk::HwAttachmentInfo& colorAttachment = framebufferCreateInfo.Outputs[i++];
 		FMemory::InitializeObject(colorAttachment);
 
 		colorAttachment.Handle		= &passAttachment.Handle;
-		colorAttachment.Dimension	= passAttachment.Dimensions;
 		colorAttachment.Type		= passAttachment.Type;
 		colorAttachment.Usage		= passAttachment.Usage;
 
-		i++;
-		framebufferCreateInfo.NumColorAttachments++;
+		colorAttachment.UsageFlagBits = Image_Usage_Color_Attachment | Image_Usage_Sampled;
 	}
 
-	if (!CreateFramebuffer(framebufferCreateInfo)) 
-	{ 
-		return false; 
+	framebufferCreateInfo.NumColorOutputs = i;
+
+
+	if (Pass.Flags.Has(RenderPass_Bit_DepthStencil_Output))
+	{
+		vk::HwAttachmentInfo& depthStencil = framebufferCreateInfo.Outputs[i++];
+
+		depthStencil.Handle	= &Pass.DepthStencilOutput.Handle;
+		depthStencil.Type = Pass.DepthStencilOutput.Type;
+		depthStencil.Usage = Pass.DepthStencilOutput.Usage;
+		depthStencil.UsageFlagBits	= Image_Usage_Depth_Stencil_Attachment | Image_Usage_Sampled;
 	}
 
-	return true;
+	framebufferCreateInfo.NumOutputs = i;
+
+	return CreateFramebuffer(framebufferCreateInfo);
+}
+
+void RenderContext::DestroyRenderPassFramebuffer(RenderPass& Pass)
+{
+	for (auto& pair : Pass.ColorOutputs)
+	{
+		DestroyImage(pair.Value.Handle);
+	}
+
+	if (Pass.Flags.Has(RenderPass_Bit_DepthStencil_Output))
+	{
+		DestroyImage(Pass.DepthStencilOutput.Handle);
+	}
+
+	DestroyFramebuffer(Pass.FramePassHandle);
+}
+
+bool RenderContext::NewRenderPassRenderpass(RenderPass& Pass)
+{
+	const uint32 finalOrder = Pass.Owner.GetNumRenderPasses() - 1;
+
+	vk::HwRenderpassCreateInfo createInfo = {};
+
+	createInfo.Handle = &Pass.FramePassHandle;
+	createInfo.Samples = Pass.Samples;
+	createInfo.NumColorOutputs = static_cast<uint32>(Pass.ColorOutputs.Length());
+	createInfo.DefaultOutputs  = Pass.Flags;
+	createInfo.HasDepthStencilAttachment = Pass.Flags.Has(RenderPass_Bit_DepthStencil_Output);
+
+	if (!Pass.Order)
+	{
+		createInfo.Order = RenderPass_Order_First;
+	}
+
+	if (Pass.Order == finalOrder)
+	{
+		createInfo.Order = RenderPass_Order_Last;
+	}
+	else
+	{
+		createInfo.Order = RenderPass_Order_InBetween;
+	}
+	
+	return CreateRenderPass(createInfo);
+}
+
+void RenderContext::DestroyRenderPassRenderpass(RenderPass& Pass)
+{
+	DestroyRenderPass(Pass.FramePassHandle);
 }
 
 bool RenderContext::CreateCmdPoolAndBuffers()
@@ -208,10 +315,10 @@ bool RenderContext::NewIndexBuffer(Handle<HBuffer>& Ebo, void* Data, size_t Coun
 	return true;
 }
 
-Handle<HFramePass> RenderContext::GetDefaultFramebuffer() const
-{
-	return DefaultFramebuffer;
-}
+//Handle<HFramePass> RenderContext::GetDefaultFramebuffer() const
+//{
+//	return DefaultFramebuffer;
+//}
 
 void RenderContext::FinalizeRenderPass(RenderPass& Pass)
 {

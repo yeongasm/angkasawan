@@ -28,21 +28,25 @@ public:
 	void SubmitForRender				(const Drawable& DrawObj, RenderPass& Pass);
 	void FinalizeRenderPass				(RenderPass& Pass);
 
+	bool NewFrameImages					(FrameImages& Images);
+	void DestroyFrameImages				(FrameImages& Images);
+
 	bool NewGraphicsPipeline			(RenderPass& Pass);
+	
 	bool NewRenderPassFramebuffer		(RenderPass& Pass);
+	void DestroyRenderPassFramebuffer	(RenderPass& Pass);
+
+	bool NewRenderPassRenderpass		(RenderPass& Pass);
+	void DestroyRenderPassRenderpass	(RenderPass& Pass);
+
 	bool CreateCmdPoolAndBuffers		();
 
 	bool NewVertexBuffer				(Handle<HBuffer>& Vbo, void* Data, size_t Size);
 	bool NewIndexBuffer					(Handle<HBuffer>& Ebo, void* Data, size_t Size);
 
-	Handle<HFramePass> GetDefaultFramebuffer() const;
-
 	using GraphicsDriver::DestroyBuffer;
 	using GraphicsDriver::DestroyImage;
-	using GraphicsDriver::DestroyShader;
 	using GraphicsDriver::DestroyPipeline;
-	using GraphicsDriver::DestroyRenderPass;
-	using GraphicsDriver::DestroyFramebuffer;
 
 	using GraphicsDriver::Clear;
 	using GraphicsDriver::SwapBuffers;

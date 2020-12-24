@@ -209,6 +209,7 @@ xcopy "$(TargetDir)$(ProjectName).ilk" "$(SolutionDir)Bin\$(Configuration)\" /y 
   <ItemGroup>
     <ClInclude Include="Library\Algorithms\Tokenizer.h" />
     <ClInclude Include="Library\Allocators\LinearAllocator.h" />
+    <ClInclude Include="Library\Containers\Bitset.h" />
     <ClInclude Include="SubSystem\Game\GameApp.h" />
     <ClInclude Include="Engine\Private\Abstraction.h" />
     <ClInclude Include="Engine\Interface.h" />

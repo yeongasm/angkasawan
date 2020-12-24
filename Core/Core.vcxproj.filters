@@ -147,6 +147,9 @@
     <ClInclude Include="Library\Algorithms\Tokenizer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Library\Containers\Bitset.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Library\Algorithms\Hash.cpp">

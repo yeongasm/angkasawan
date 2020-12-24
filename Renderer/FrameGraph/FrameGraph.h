@@ -2,6 +2,7 @@
 #ifndef LEARNVK_RENDERER_RENDERGRAPH_RENDER_GRAPH_H
 #define LEARNVK_RENDERER_RENDERGRAPH_RENDER_GRAPH_H
 
+#include "Library/Containers/Bitset.h"
 #include "Library/Containers/Map.h"
 #include "Library/Allocators/LinearAllocator.h"
 #include "SubSystem/Resource/Handle.h"
@@ -15,9 +16,8 @@ class RenderContext;
 
 struct AttachmentCreateInfo
 {
-	AttachmentType	Type;
 	TextureUsage	Usage;
-	TextureType		Dimensions;
+	TextureType		Type;
 };
 
 // NOTE(Ygsm):
@@ -28,6 +28,15 @@ struct SubPass
 };
 
 /**
+* Render output images that the framegraph owns.
+*/
+struct FrameImages
+{
+	Handle<HImage> Color;
+	Handle<HImage> DepthStencil;
+};
+
+/**
 * NOTE(Ygsm):
 * A render pass represents a single framebuffer / render-pass / graphics pipeline in the hardware.
 */
@@ -35,29 +44,34 @@ class RENDERER_API RenderPass
 {
 public:
 
-	RenderPass(FrameGraph& OwnerGraph, RenderPassType Type);
+	RenderPass(FrameGraph& OwnerGraph, RenderPassType Type, uint32 Order);
 	~RenderPass();
 
 	DELETE_COPY_AND_MOVE(RenderPass)
 
 	bool AddShader				(Shader* ShaderSrc, ShaderType Type);
 	void AddColorInput			(const String32& Identifier, RenderPass& From);
-	//void AddDepthStencilInput	(const String32& Identifier, const RenderPass& From);
 	void AddColorOutput			(const String32& Identifier, const AttachmentCreateInfo& Info);
-	//void AddDepthStencilOutput	(const String32& Identifier, const AttachmentInfo& Info);
 
-	void SetWidth			(float32 Width);
-	void SetHeight			(float32 Height);
-	void SetDepth			(float32 Depth);
-	void SetSampleCount		(SampleCount Samples);
-	void SetTopology		(TopologyType Type);
-	void SetCullMode		(CullingMode Mode);
-	void SetPolygonMode		(PolygonMode Mode);
-	void SetFrontFace		(FrontFaceDir Face);
+	void AddDepthStencilInput	(const RenderPass& From);
+	void AddDepthStencilOutput	();
+
+	void SetWidth		(float32 Width);
+	void SetHeight		(float32 Height);
+	void SetDepth		(float32 Depth);
+	void SetSampleCount	(SampleCount Samples);
+	void SetTopology	(TopologyType Type);
+	void SetCullMode	(CullingMode Mode);
+	void SetPolygonMode	(PolygonMode Mode);
+	void SetFrontFace	(FrontFaceDir Face);
+
+	void NoRender				();
+	void NoColorRender			();
+	void NoDepthStencilRender	();
 
 private:
 
-	struct RenderPassAttachment : public AttachmentCreateInfo
+	struct AttachmentInfo : public AttachmentCreateInfo
 	{
 		Handle<HImage> Handle;
 	};
@@ -65,20 +79,22 @@ private:
 	friend class FrameGraph;
 	friend class RenderContext;
 
-	using OutputAttachments = Map<String32, RenderPassAttachment, MurmurHash<String32>, 1>;
-	using InputAttachments	= Map<String32, RenderPassAttachment*, MurmurHash<String32>, 1>;
+	using OutputAttachments = Map<String32, AttachmentInfo, MurmurHash<String32>, 1>;
+	using InputAttachments	= Map<String32, AttachmentInfo*, MurmurHash<String32>, 1>;
 
 	FrameGraph&			Owner;
 	RenderPassType		Type;
 
-	SampleCount		Samples;
-	TopologyType	Topology;
-	FrontFaceDir	FrontFace;
-	CullingMode		CullMode;
-	PolygonMode		PolygonalMode;
-	float32			Width;
-	float32			Height;
-	float32			Depth;
+	SampleCount			Samples;
+	TopologyType		Topology;
+	FrontFaceDir		FrontFace;
+	CullingMode			CullMode;
+	PolygonMode			PolygonalMode;
+	BitSet<uint32>		Flags;
+	float32				Width;
+	float32				Height;
+	float32				Depth;
+	uint32				Order;
 
 	Array<Shader*>		Shaders;
 	RenderPassState		State;
@@ -87,6 +103,8 @@ private:
 
 	InputAttachments	ColorInputs;
 	OutputAttachments	ColorOutputs;
+	AttachmentInfo		DepthStencilInput;
+	AttachmentInfo		DepthStencilOutput;
 
 };
 
@@ -104,20 +122,30 @@ public:
 	Handle<RenderPass>	AddPass				(PassNameEnum PassIdentity, RenderPassType Type);
 	RenderPass&			GetRenderPass		(Handle<RenderPass> Handle);
 
-	void OutputRenderPassToScreen(RenderPass& Pass);
+	Handle<HImage>		GetColorImage		()	const;
+	Handle<HImage>		GetDepthStencilImage()	const;
+
+	uint32				GetNumRenderPasses	()	const;
+	void				BlitToDefault		();
 
 	void Destroy();
 	bool Compile();
 	bool Compiled() const;
 
-private:
+private:			
+
 	friend class RenderSystem;
 	using RenderPassTable = Map<PassNameEnum, RenderPass*>;
+
+	String128			Name;
+
 	RenderContext&		Context;
 	LinearAllocator&	Allocator;
-	String128			Name;
+
+	FrameImages			Images;
 	RenderPassTable		RenderPasses;
 	bool				IsCompiled;
+
 };
 
 #endif // !LEARNVK_RENDERER_RENDERGRAPH_RENDER_GRAPH_H
