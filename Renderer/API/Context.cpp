@@ -23,11 +23,56 @@ void RenderContext::TerminateContext()
 	TerminateDriver();
 }
 
+void RenderContext::BlitToDefault(const FrameGraph& Graph)
+{
+	vk::HwBlitInfo blitInfo = {};
+	//vk::HwCmdBufferRecordInfo recordInfo = {};
+	//vk::HwCmdBufferUnrecordInfo unrecordInfo = {};
+
+	//recordInfo.FramePassHandle	= DefaultFramebuffer;
+	//recordInfo.PipelineHandle	= INVALID_HANDLE;
+	//
+	blitInfo.FramePassHandle	= DefaultFramebuffer;
+	blitInfo.Source				= Graph.GetColorImage();
+	blitInfo.Destination		= INVALID_HANDLE;
+
+	//unrecordInfo.FramePassHandle	= DefaultFramebuffer;
+	//unrecordInfo.UnbindRenderpass	= true;
+	//unrecordInfo.Unrecord			= false;
+
+	//RecordCommandBuffer(recordInfo);
+	//UnrecordCommandBuffer(unrecordInfo);
+	BlitImageToSwapchain(blitInfo);
+	PushCmdBufferForSubmit(DefaultFramebuffer);
+	
+	//unrecordInfo.UnbindRenderpass	= false;
+	//unrecordInfo.Unrecord			= true;
+
+	//UnrecordCommandBuffer(unrecordInfo);
+}
+
 void RenderContext::BindRenderPass(RenderPass& Pass)
 {
 	vk::HwCmdBufferRecordInfo recordInfo = {};
+	
 	recordInfo.FramePassHandle	= Pass.FramePassHandle;
 	recordInfo.PipelineHandle	= Pass.PipelineHandle;
+	recordInfo.NumOutputs		= static_cast<uint32>(Pass.ColorOutputs.Length());
+
+	recordInfo.ClearColor[Color_Channel_Red]	= 0.46f;
+	recordInfo.ClearColor[Color_Channel_Green]	= 0.64f;
+	recordInfo.ClearColor[Color_Channel_Blue]	= 0.55f;
+	recordInfo.ClearColor[Color_Channel_Alpha]	= 1.0f;
+
+	if (!Pass.Flags.Has(RenderPass_Bit_No_Color_Render))
+	{
+		recordInfo.NumOutputs++;
+	}
+
+	if (!Pass.Flags.Has(RenderPass_Bit_No_DepthStencil_Render))
+	{
+		recordInfo.NumOutputs++;
+	}
 
 	RecordCommandBuffer(recordInfo);
 }
@@ -38,7 +83,12 @@ void RenderContext::UnbindRenderPass(RenderPass& Pass)
 	recordInfo.FramePassHandle = Pass.FramePassHandle;
 	recordInfo.PipelineHandle = Pass.PipelineHandle;
 
-	UnrecordCommandBuffer(recordInfo);
+	vk::HwCmdBufferUnrecordInfo unrecordInfo = {};
+	unrecordInfo.FramePassHandle = Pass.FramePassHandle;
+	unrecordInfo.Unrecord = true;
+	unrecordInfo.UnbindRenderpass = true;
+
+	UnrecordCommandBuffer(unrecordInfo);
 	PushCmdBufferForSubmit(Pass.FramePassHandle);
 }
 
@@ -121,8 +171,7 @@ bool RenderContext::NewGraphicsPipeline(RenderPass& Pass)
 			return false;
 		}
 
-		vk::HwShaderCreateInfo createInfo;
-		FMemory::InitializeObject(&createInfo);
+		vk::HwShaderCreateInfo createInfo = {};
 
 		createInfo.DWordBuf = &GlobalVars.ShaderBinaries;
 		createInfo.Handle = &shader->Handle;
@@ -132,8 +181,7 @@ bool RenderContext::NewGraphicsPipeline(RenderPass& Pass)
 			return false;
 		}
 
-		vk::HwPipelineCreateInfo::ShaderInfo shaderInfo;
-		FMemory::InitializeObject(shaderInfo);
+		vk::HwPipelineCreateInfo::ShaderInfo shaderInfo = {};
 
 		shaderInfo.Handle			= shader->Handle;
 		shaderInfo.Type				= shader->Type;
@@ -143,6 +191,11 @@ bool RenderContext::NewGraphicsPipeline(RenderPass& Pass)
 		pipelineCreateInfo.Shaders.Push(shaderInfo);
 	}
 
+	//
+	// TODO(Ygsm):
+	// Configure depth stencil out graphics pipeline properly.
+	//
+
 	pipelineCreateInfo.VertexStride		= sizeof(Vertex);
 	pipelineCreateInfo.FramePassHandle	= Pass.FramePassHandle;
 	pipelineCreateInfo.Handle			= &Pass.PipelineHandle;
@@ -150,7 +203,15 @@ bool RenderContext::NewGraphicsPipeline(RenderPass& Pass)
 	pipelineCreateInfo.FrontFace		= Pass.FrontFace;
 	pipelineCreateInfo.PolyMode			= Pass.PolygonalMode;
 	pipelineCreateInfo.Topology			= Pass.Topology;
-	pipelineCreateInfo.HasDepthStencil	= Pass.Flags.Has(RenderPass_Bit_DepthStencil_Output) || !Pass.Flags.Has(RenderPass_Bit_No_DepthStencil_Render);
+	pipelineCreateInfo.HasDepth			= Pass.Flags.Has(RenderPass_Bit_DepthStencil_Output) || !Pass.Flags.Has(RenderPass_Bit_No_DepthStencil_Render);
+	pipelineCreateInfo.HasStencil		= false;
+
+	pipelineCreateInfo.NumColorAttachments = static_cast<uint32>(Pass.ColorOutputs.Length());
+
+	if (!Pass.Flags.Has(RenderPass_Bit_No_Color_Render))
+	{
+		pipelineCreateInfo.NumColorAttachments++;
+	}
 
 	if (!CreatePipeline(pipelineCreateInfo))
 	{
@@ -254,16 +315,17 @@ bool RenderContext::NewRenderPassRenderpass(RenderPass& Pass)
 
 	if (!Pass.Order)
 	{
-		createInfo.Order = RenderPass_Order_First;
+		createInfo.Order.Set(RenderPass_Order_First);
 	}
 
 	if (Pass.Order == finalOrder)
 	{
-		createInfo.Order = RenderPass_Order_Last;
+		createInfo.Order.Set(RenderPass_Order_Last);
 	}
-	else
+	
+	if (Pass.Order && Pass.Order != finalOrder)
 	{
-		createInfo.Order = RenderPass_Order_InBetween;
+		createInfo.Order.Set(RenderPass_Order_InBetween);
 	}
 	
 	return CreateRenderPass(createInfo);

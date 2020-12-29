@@ -15,8 +15,12 @@ namespace vk
 
 	struct VulkanCompileTimeContext
 	{
+		using ColorBlendStatesArr	= Array<VkPipelineColorBlendAttachmentState>;
+		using ClearValuesArr		= Array<VkClearValue>;
 
-		OS::DllHandle				VulkanDll;
+		OS::DllHandle		VulkanDll;
+		ColorBlendStatesArr	ColorBlendStates;
+		ClearValuesArr		ClearValues;
 
 		struct ImageParam
 		{
@@ -255,6 +259,9 @@ namespace vk
 		* NOTE(Ygsm):
 		* Application should terminate if the driver fails to initialize.
 		*/
+		Ctx.ColorBlendStates.Reserve(MAX_FRAMEBUFFER_OUTPUTS);
+		Ctx.ClearValues.Reserve(MAX_FRAMEBUFFER_OUTPUTS);
+
 		Ctx.Store.Pipelines.Reserve(	MAX_GPU_RESOURCE);
 		Ctx.Store.FramePasses.Reserve(	MAX_GPU_RESOURCE);
 		Ctx.Store.Images.Reserve(		MAX_GPU_RESOURCE);
@@ -1061,11 +1068,13 @@ namespace vk
 
 		attachmentDesc.format			= SwapChain.SurfaceFormat.format;
 		attachmentDesc.samples			= VK_SAMPLE_COUNT_1_BIT;
-		attachmentDesc.loadOp			= VK_ATTACHMENT_LOAD_OP_CLEAR;
+		//attachmentDesc.loadOp			= VK_ATTACHMENT_LOAD_OP_CLEAR;
+		attachmentDesc.loadOp			= VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 		attachmentDesc.storeOp			= VK_ATTACHMENT_STORE_OP_STORE;
 		attachmentDesc.stencilLoadOp	= VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 		attachmentDesc.stencilStoreOp	= VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		attachmentDesc.initialLayout	= VK_IMAGE_LAYOUT_UNDEFINED;
+		//attachmentDesc.initialLayout	= VK_IMAGE_LAYOUT_UNDEFINED;
+		attachmentDesc.initialLayout	= VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
 		attachmentDesc.finalLayout		= VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
 		VkAttachmentReference colorAttachmentReference = {};
@@ -1099,13 +1108,13 @@ namespace vk
 		renderpassCreateInfo.dependencyCount	= 1;
 		renderpassCreateInfo.pDependencies		= &subpassDependency;
 
-if (vkCreateRenderPass(Device, &renderpassCreateInfo, nullptr, &frameParams.Renderpass) != VK_SUCCESS)
-{
-	VKT_ASSERT("Could not create render pass!" && false);
-	return false;
-}
+		if (vkCreateRenderPass(Device, &renderpassCreateInfo, nullptr, &frameParams.Renderpass) != VK_SUCCESS)
+		{
+			VKT_ASSERT("Could not create render pass!" && false);
+			return false;
+		}
 
-return true;
+		return true;
 	}
 
 	bool VulkanCommon::CreateDefaultFramebuffer()
@@ -1365,11 +1374,12 @@ return true;
 		multisampleCreateInfo.alphaToOneEnable		= VK_FALSE;
 
 		// Blending state description.
-		// TODO(Ygsm):
-		// Need to study this part more.
+		// NOTE(Ygsm):
+		// Blending attachment state is needed for each COLOUR attachment that's used by the subpass.
+
 		VkPipelineColorBlendAttachmentState colorBlendState = {};
 
-		colorBlendState.blendEnable			= VK_FALSE;
+		colorBlendState.blendEnable			= VK_TRUE;
 		colorBlendState.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
 		colorBlendState.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
 		colorBlendState.colorBlendOp		= VK_BLEND_OP_ADD;
@@ -1378,11 +1388,16 @@ return true;
 		colorBlendState.alphaBlendOp		= VK_BLEND_OP_ADD;
 		colorBlendState.colorWriteMask		= VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 
+		for (uint32 i = 0; i < CreateInfo.NumColorAttachments; i++)
+		{
+			Ctx.ColorBlendStates.Push(colorBlendState);
+		}
+
 		VkPipelineColorBlendStateCreateInfo colorBlendCreateInfo = {};
 
 		colorBlendCreateInfo.sType				= VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-		colorBlendCreateInfo.attachmentCount	= 1;
-		colorBlendCreateInfo.pAttachments		= &colorBlendState;
+		colorBlendCreateInfo.attachmentCount	= CreateInfo.NumColorAttachments;
+		colorBlendCreateInfo.pAttachments		= Ctx.ColorBlendStates.First();
 		colorBlendCreateInfo.logicOpEnable		= VK_FALSE;
 		colorBlendCreateInfo.logicOp			= VK_LOGIC_OP_COPY;
 
@@ -1401,15 +1416,23 @@ return true;
 		VkPipelineDepthStencilStateCreateInfo depthStencilCreateInfo = {};
 
 		depthStencilCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-		depthStencilCreateInfo.depthTestEnable = VK_TRUE;
-		depthStencilCreateInfo.depthWriteEnable = VK_TRUE;
 		depthStencilCreateInfo.depthCompareOp = VK_COMPARE_OP_LESS;
-		depthStencilCreateInfo.depthBoundsTestEnable = VK_FALSE;
 		depthStencilCreateInfo.minDepthBounds = 0.0f;
 		depthStencilCreateInfo.maxDepthBounds = 1.0f;
-		depthStencilCreateInfo.stencilTestEnable = TRUE;
-		depthStencilCreateInfo.front = {};
-		depthStencilCreateInfo.back  = {};
+		depthStencilCreateInfo.depthBoundsTestEnable = VK_FALSE;
+
+		if (CreateInfo.HasDepth)
+		{
+			depthStencilCreateInfo.depthTestEnable	= VK_TRUE;
+			depthStencilCreateInfo.depthWriteEnable = VK_TRUE;
+		}
+
+		if (CreateInfo.HasStencil)
+		{
+			depthStencilCreateInfo.stencilTestEnable = VK_TRUE;
+			depthStencilCreateInfo.front = {};
+			depthStencilCreateInfo.back  = {};
+		}
 
 		VkGraphicsPipelineCreateInfo pipelineCreateInfo = {};
 
@@ -1431,7 +1454,7 @@ return true;
 		pipelineCreateInfo.basePipelineHandle = VK_NULL_HANDLE;	// TODO(Ygsm): Study more about this!
 		pipelineCreateInfo.basePipelineIndex = -1;				// TODO(Ygsm): Study more about this!
 
-		if (CreateInfo.HasDepthStencil)
+		if (CreateInfo.HasDepth || CreateInfo.HasStencil)
 		{
 			pipelineCreateInfo.pDepthStencilState = &depthStencilCreateInfo;
 		}
@@ -1439,12 +1462,15 @@ return true;
 		VkPipeline graphicsPipeline;
 		if (vkCreateGraphicsPipelines(Device, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &graphicsPipeline) != VK_SUCCESS)
 		{
+			Ctx.ColorBlendStates.Empty();
 			VKT_ASSERT("Could not create graphics pipeline!" && false);
 			return false;
 		}
 
 		*CreateInfo.Handle = g_RandIdVk();
 		Ctx.Store.Pipelines.Insert(*CreateInfo.Handle, graphicsPipeline);
+		
+		Ctx.ColorBlendStates.Empty();
 
 		vkDestroyPipelineLayout(Device, pipelineLayout, nullptr);
 
@@ -1544,21 +1570,33 @@ return true;
 	{
 		auto& frameParams = Ctx.Store.FramePasses[RecordInfo.FramePassHandle];
 
-		VkCommandBufferBeginInfo cmdBufferBeginInfo;
-		FMemory::InitializeObject(cmdBufferBeginInfo);
+		VkCommandBufferBeginInfo cmdBufferBeginInfo = {};
 
 		cmdBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 		cmdBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
 
 		float32* color = RecordInfo.ClearColor;
-		const VkClearValue clearValue = {
+
+		for (uint32 i = 0; i < RecordInfo.NumOutputs; i++)
+		{
+			VkClearValue& clearValue = Ctx.ClearValues.Insert(VkClearValue());
+			clearValue.color = { color[Color_Channel_Red], color[Color_Channel_Green], color[Color_Channel_Blue], color[Color_Channel_Alpha] };
+
+			if (i == RecordInfo.NumOutputs && RecordInfo.HasDepthStencil)
 			{
-				color[Color_Channel_Red],
-				color[Color_Channel_Green],
-				color[Color_Channel_Blue],
-				color[Color_Channel_Alpha]
+				FMemory::Memzero(&clearValue, sizeof(VkClearValue));
+				clearValue.depthStencil = { 1.0f, 0 };
 			}
-		};
+		}
+
+		//const VkClearValue clearValue = {
+		//	{
+		//		color[Color_Channel_Red],
+		//		color[Color_Channel_Green],
+		//		color[Color_Channel_Blue],
+		//		color[Color_Channel_Alpha]
+		//	}
+		//};
 
 		//VkImageSubresourceRange imageSubresourceRange;
 		//FMemory::InitializeObject(imageSubresourceRange);
@@ -1567,38 +1605,9 @@ return true;
 		//imageSubresourceRange.levelCount = 1;
 		//imageSubresourceRange.layerCount = 1;
 
-		VkPipeline pipeline = Ctx.Store.Pipelines[RecordInfo.PipelineHandle];
 		VkCommandBuffer& cmdBuffer = frameParams.CommandBuffers[CurrentFrame];
 
 		vkBeginCommandBuffer(cmdBuffer, &cmdBufferBeginInfo);
-
-		//if (Queues[Queue_Type_Graphics].Handle != Queues[Queue_Type_Present].Handle)
-		//{
-		//	VkImageMemoryBarrier barrierFromPresentToDraw;
-		//	FMemory::InitializeObject(barrierFromPresentToDraw);
-
-		//	barrierFromPresentToDraw.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-		//	barrierFromPresentToDraw.srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
-		//	barrierFromPresentToDraw.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-		//	barrierFromPresentToDraw.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		//	barrierFromPresentToDraw.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-		//	barrierFromPresentToDraw.srcQueueFamilyIndex = Queues[Queue_Type_Present].FamilyIndex;
-		//	barrierFromPresentToDraw.dstQueueFamilyIndex = Queues[Queue_Type_Graphics].FamilyIndex;
-		//	barrierFromPresentToDraw.image = SwapChain.Images[NextImageIndex];
-		//	barrierFromPresentToDraw.subresourceRange = imageSubresourceRange;
-
-		//	vkCmdPipelineBarrier(
-		//		cmdBuffer,
-		//		VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-		//		VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-		//		0,
-		//		0,
-		//		nullptr,
-		//		0,
-		//		nullptr,
-		//		1,
-		//		&barrierFromPresentToDraw);
-		//}
 
 		int32* offset  = RecordInfo.SurfaceOffset;
 		uint32* extent = RecordInfo.SurfaceExtent;
@@ -1613,60 +1622,41 @@ return true;
 			extent[Surface_Extent_Height] = SwapChain.Extent.height;
 		}
 
-		VkRenderPassBeginInfo renderPassBeginInfo;
-		FMemory::InitializeObject(renderPassBeginInfo);
+		VkRenderPassBeginInfo renderPassBeginInfo = {};
 
 		renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 		renderPassBeginInfo.renderPass	= frameParams.Renderpass;
 		renderPassBeginInfo.framebuffer = frameParams.Framebuffers[NextImageIndex];
 		renderPassBeginInfo.renderArea.offset = { offset[Surface_Offset_X], offset[Surface_Offset_Y] };
 		renderPassBeginInfo.renderArea.extent = { extent[Surface_Extent_Width], extent[Surface_Extent_Height] };
-		renderPassBeginInfo.clearValueCount = 1;
-		renderPassBeginInfo.pClearValues = &clearValue;
+		renderPassBeginInfo.clearValueCount = RecordInfo.NumOutputs;
+		renderPassBeginInfo.pClearValues = Ctx.ClearValues.First();
 
 		vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-		vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-		//vkCmdDraw(cmdBuffer, 3, 1, 0, 0);
-		//vkCmdEndRenderPass(cmdBuffer);
 
-		//if (Queues[Queue_Type_Graphics].Handle != Queues[Queue_Type_Present].Handle)
-		//{
-		//	VkImageMemoryBarrier barrierFromDrawToPresent;
-		//	FMemory::InitializeObject(barrierFromDrawToPresent);
+		if (RecordInfo.PipelineHandle != INVALID_HANDLE)
+		{
+			VkPipeline pipeline = Ctx.Store.Pipelines[RecordInfo.PipelineHandle];
+			vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+		}
 
-		//	barrierFromDrawToPresent.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-		//	barrierFromDrawToPresent.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-		//	barrierFromDrawToPresent.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
-		//	barrierFromDrawToPresent.oldLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-		//	barrierFromDrawToPresent.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-		//	barrierFromDrawToPresent.srcQueueFamilyIndex = Queues[Queue_Type_Graphics].FamilyIndex;
-		//	barrierFromDrawToPresent.dstQueueFamilyIndex = Queues[Queue_Type_Present].FamilyIndex;
-		//	barrierFromDrawToPresent.image = SwapChain.Images[NextImageIndex];
-		//	barrierFromDrawToPresent.subresourceRange = imageSubresourceRange;
-
-		//	vkCmdPipelineBarrier(
-		//		cmdBuffer,
-		//		VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-		//		VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-		//		0,
-		//		0,
-		//		nullptr,
-		//		0,
-		//		nullptr,
-		//		1,
-		//		&barrierFromDrawToPresent);
-		//}
-
-		//vkEndCommandBuffer(cmdBuffer);
+		Ctx.ClearValues.Empty();
 	}
 
-	void VulkanDriver::UnrecordCommandBuffer(HwCmdBufferRecordInfo& RecordInfo)
+	void VulkanDriver::UnrecordCommandBuffer(HwCmdBufferUnrecordInfo& UnrecordInfo)
 	{
-		auto& frameParams = Ctx.Store.FramePasses[RecordInfo.FramePassHandle];
+		auto& frameParams = Ctx.Store.FramePasses[UnrecordInfo.FramePassHandle];
 		VkCommandBuffer& cmdBuffer = frameParams.CommandBuffers[CurrentFrame];
 
-		vkCmdEndRenderPass(cmdBuffer);
-		vkEndCommandBuffer(cmdBuffer);
+		if (UnrecordInfo.UnbindRenderpass)
+		{
+			vkCmdEndRenderPass(cmdBuffer);
+		}
+
+		if (UnrecordInfo.Unrecord)
+		{
+			vkEndCommandBuffer(cmdBuffer);
+		}
 	}
 
 	void VulkanDriver::Draw(HwDrawInfo& DrawInfo)
@@ -1695,6 +1685,127 @@ return true;
 		{
 			vkCmdDraw(cmdBuffer, drawCount, 1, DrawInfo.VertexOffset, 0);
 		}
+	}
+
+	void VulkanDriver::BlitImage(HwBlitInfo& BlitInfo)
+	{
+		auto& frameParams = Ctx.Store.FramePasses[BlitInfo.FramePassHandle];
+
+		VkCommandBuffer& cmdBuffer = frameParams.CommandBuffers[CurrentFrame];
+		VkImage& srcImage = Ctx.Store.Images[BlitInfo.Source].Image;
+		VkImage& dstImage = Ctx.Store.Images[BlitInfo.Destination].Image;
+
+		VkImageBlit region = {};
+		region.srcSubresource.mipLevel		= 1;
+		region.srcSubresource.layerCount	= 1;
+		region.srcSubresource.aspectMask	= VK_IMAGE_ASPECT_COLOR_BIT;
+		region.dstSubresource.mipLevel		= 1;
+		region.dstSubresource.layerCount	= 1;
+		region.dstSubresource.aspectMask	= VK_IMAGE_ASPECT_COLOR_BIT;
+
+		vkCmdBlitImage(cmdBuffer, srcImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, dstImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region, VK_FILTER_LINEAR);
+	}
+
+	void VulkanDriver::BlitImageToSwapchain(HwBlitInfo& BlitInfo)
+	{
+		auto& frameParams = Ctx.Store.FramePasses[BlitInfo.FramePassHandle];
+
+		VkImage& srcImage = Ctx.Store.Images[BlitInfo.Source].Image;
+		VkImage& dstImage = SwapChain.Images[NextImageIndex];
+
+		VkCommandBufferBeginInfo cmdBufferBeginInfo = {};
+
+		cmdBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+		cmdBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
+
+		const VkClearValue clearValue = {
+			{
+				0.0f, 0.0f, 0.0f, 0.0f
+			}
+		};
+
+		VkCommandBuffer& cmdBuffer = frameParams.CommandBuffers[CurrentFrame];
+
+		vkBeginCommandBuffer(cmdBuffer, &cmdBufferBeginInfo);
+
+		VkImageSubresourceRange subresourceRange = {};
+
+		subresourceRange.levelCount = 1;
+		subresourceRange.layerCount = 1;
+		subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+
+		//VkMemoryBarrier memoryBarrier = {};
+
+		//memoryBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+		//memoryBarrier.srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+		//memoryBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+
+		VkImageMemoryBarrier imageBarrier = {};
+
+		imageBarrier.sType				 = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+		imageBarrier.srcAccessMask		 = VK_ACCESS_MEMORY_READ_BIT;
+		imageBarrier.dstAccessMask		 = VK_ACCESS_TRANSFER_WRITE_BIT;
+		imageBarrier.oldLayout			 = VK_IMAGE_LAYOUT_UNDEFINED;
+		imageBarrier.newLayout			 = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+		imageBarrier.srcQueueFamilyIndex = Queues[Queue_Type_Present].FamilyIndex;
+		imageBarrier.dstQueueFamilyIndex = Queues[Queue_Type_Graphics].FamilyIndex;
+		imageBarrier.image				 = dstImage;
+		imageBarrier.subresourceRange	 = subresourceRange;
+
+		VkImageBlit region = {};
+		
+		int32 width		= static_cast<int32>(SwapChain.Extent.width);
+		int32 height	= static_cast<int32>(SwapChain.Extent.height);
+
+		VkOffset3D srcOffset = { width, height, 1 };
+		VkOffset3D dstOffset = { width, height, 1 };
+
+		region.srcOffsets[1] = srcOffset;
+		region.dstOffsets[1] = dstOffset;
+
+		region.srcSubresource.mipLevel	 = 0;
+		region.srcSubresource.layerCount = 1;
+		region.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		region.dstSubresource.mipLevel	 = 0;
+		region.dstSubresource.layerCount = 1;
+		region.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+
+		vkCmdPipelineBarrier(
+			cmdBuffer,
+			VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+			VK_PIPELINE_STAGE_TRANSFER_BIT,
+			0,
+			0,
+			nullptr,
+			0,
+			nullptr,
+			1,
+			&imageBarrier);
+
+		vkCmdBlitImage(cmdBuffer, srcImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, dstImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region, VK_FILTER_LINEAR);
+
+		imageBarrier.srcAccessMask	= VK_ACCESS_TRANSFER_WRITE_BIT;
+		imageBarrier.dstAccessMask	= VK_ACCESS_MEMORY_READ_BIT;
+		imageBarrier.oldLayout		= VK_IMAGE_LAYOUT_UNDEFINED;
+		imageBarrier.newLayout		= VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+		//memoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+		//memoryBarrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+
+		vkCmdPipelineBarrier(
+			cmdBuffer,
+			VK_PIPELINE_STAGE_TRANSFER_BIT,
+			VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+			0,
+			0,
+			nullptr,
+			0,
+			nullptr,
+			1,
+			&imageBarrier
+		);
+
+		vkEndCommandBuffer(cmdBuffer);
 	}
 
 	bool VulkanDriver::CreateImage(HwImageCreateStruct& CreateInfo)
@@ -1879,8 +1990,7 @@ return true;
 		if (CreateInfo.DefaultOutputs[Default_Output_Color] != INVALID_HANDLE)
 		{
 			auto& imageParams = Ctx.Store.Images[CreateInfo.DefaultOutputs[Default_Output_Color]];
-			imgViewAtt[attOffset] = imageParams.ImageView;
-			attOffset++;
+			imgViewAtt[attOffset++] = imageParams.ImageView;
 		}
 
 		for (size_t i = 0; i < totalOutputs; i++, attOffset++)
@@ -1912,7 +2022,7 @@ return true;
 		framebufferInfo.attachmentCount = attOffset;
 		framebufferInfo.renderPass = frameParams.Renderpass;
 
-		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+		for (size_t i = 0; i < MAX_SWAPCHAIN_IMAGE_ALLOWED; i++)
 		{
 			if (vkCreateFramebuffer(Device, &framebufferInfo, nullptr, &frameParams.Framebuffers[i]) != VK_SUCCESS)
 			{
@@ -1942,6 +2052,8 @@ return true;
 	{
 		uint32 offset = 0;
 		uint32 totalColorAttCount = 0;
+		uint32 dependencyCount = 0;
+
 		uint32 id = g_RandIdVk();
 
 		*CreateInfo.Handle = id;
@@ -1952,6 +2064,10 @@ return true;
 		VkAttachmentDescription attachmentDescs[MAX_FRAMEBUFFER_OUTPUTS];
 		VkAttachmentReference	attachmentRef[MAX_FRAMEBUFFER_OUTPUTS];
 		VkSubpassDependency		dependencies[MAX_FRAMEBUFFER_OUTPUTS];
+
+		FMemory::Memzero(attachmentDescs,	MAX_FRAMEBUFFER_OUTPUTS * sizeof(VkAttachmentDescription));
+		FMemory::Memzero(attachmentRef,		MAX_FRAMEBUFFER_OUTPUTS * sizeof(VkAttachmentReference));
+		FMemory::Memzero(dependencies,		MAX_FRAMEBUFFER_OUTPUTS * sizeof(VkSubpassDependency));
 
 		if (!CreateInfo.DefaultOutputs.Has(RenderPass_Bit_No_Color_Render))
 		{
@@ -1970,20 +2086,25 @@ return true;
 			desc.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
 			desc.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 
-			switch (CreateInfo.Order)
+			switch (CreateInfo.Order.Value())
 			{
-				case RenderPass_Order_First:
-					desc.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-					desc.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-					desc.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+				case RenderPass_Order_Value_First:
+					desc.loadOp			= VK_ATTACHMENT_LOAD_OP_CLEAR;
+					desc.initialLayout	= VK_IMAGE_LAYOUT_UNDEFINED;
+					desc.finalLayout	= VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 					break;
-				case RenderPass_Order_Last:
-					desc.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-					desc.finalLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+				case RenderPass_Order_Value_FirstLast:
+					desc.loadOp			= VK_ATTACHMENT_LOAD_OP_CLEAR;
+					desc.initialLayout	= VK_IMAGE_LAYOUT_UNDEFINED;
+					desc.finalLayout	= VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+					break;
+				case RenderPass_Order_Value_Last:
+					desc.initialLayout	= VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+					desc.finalLayout	= VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
 					break;
 				default:
-					desc.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-					desc.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+					desc.initialLayout	= VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+					desc.finalLayout	= VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 					break;
 			}
 
@@ -1998,6 +2119,7 @@ return true;
 			dep.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 			dep.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
 
+			dependencyCount++;
 			totalColorAttCount++;
 		}
 
@@ -2026,10 +2148,13 @@ return true;
 			dep.srcSubpass = VK_SUBPASS_EXTERNAL;
 			dep.dstSubpass = 0;
 			dep.srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-			dep.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-			dep.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
+			dep.dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+			//dep.srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+			dep.srcAccessMask = 0;
 			dep.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 			dep.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+
+			dependencyCount++;
 
 			totalColorAttCount++;
 		}
@@ -2042,54 +2167,36 @@ return true;
 		{
 			VkAttachmentDescription& desc = attachmentDescs[offset];
 			VkAttachmentReference& ref = attachmentRef[offset];
-			VkSubpassDependency& dep = dependencies[offset];
 
-			desc = {};
-			ref = {};
-			dep = {};
-
-			desc.format = VK_FORMAT_D24_UNORM_S8_UINT;
-			desc.samples = Ctx.Flags.SampleCounts[CreateInfo.Samples];
-			desc.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
-			desc.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-			desc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+			desc.format			= VK_FORMAT_D24_UNORM_S8_UINT;
+			desc.samples		= Ctx.Flags.SampleCounts[CreateInfo.Samples];
+			desc.loadOp			= VK_ATTACHMENT_LOAD_OP_CLEAR;
+			desc.storeOp		= VK_ATTACHMENT_STORE_OP_STORE;
+			desc.stencilLoadOp	= VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 			desc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
-			desc.initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-			desc.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
-			if (CreateInfo.Order == RenderPass_Order_First)
-			{
-				desc.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-				desc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-				desc.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-				desc.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-			}
+			desc.initialLayout	= VK_IMAGE_LAYOUT_UNDEFINED;
+			desc.finalLayout	= VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
 			if (CreateInfo.HasDepthStencilAttachment)
 			{
-				desc.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-				desc.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-				desc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-				desc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
-				desc.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-				desc.finalLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_STENCIL_READ_ONLY_OPTIMAL;
+				desc.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+				dependencyCount++;
 			}
 
-			ref.attachment = offset++;
-			ref.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+			uint32 dependencyOffset = (!CreateInfo.DefaultOutputs.Has(RenderPass_Bit_No_Color_Render)) ? 0 : offset;
+
+			VkSubpassDependency& dep = dependencies[dependencyOffset];
+
+			ref.attachment	= offset++;
+			ref.layout		= VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
 			dep.srcSubpass = VK_SUBPASS_EXTERNAL;
 			dep.dstSubpass = 0;
-			dep.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;;
-			dep.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;;
-			dep.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
-			dep.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+			dep.srcStageMask |= VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+			dep.dstStageMask |= VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+			dep.srcAccessMask = 0;
+			dep.dstAccessMask |= VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 			dep.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
-		}
-
-		if (CreateInfo.HasDepthStencilAttachment || !CreateInfo.DefaultOutputs.Has(RenderPass_Bit_No_DepthStencil_Render))
-		{
-			VkAttachmentReference& depthStencilRef = attachmentRef[offset - 1];
 		}
 
 		VkSubpassDescription subpassDescription = {};
@@ -2104,16 +2211,15 @@ return true;
 		}
 
 		// Create actual renderpass.
-		VkRenderPassCreateInfo renderPassInfo;
-		FMemory::InitializeObject(renderPassInfo);
+		VkRenderPassCreateInfo renderPassInfo = {};
 
-		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-		renderPassInfo.attachmentCount = offset;
-		renderPassInfo.pAttachments = attachmentDescs;
-		renderPassInfo.pSubpasses = &subpassDescription;
-		renderPassInfo.subpassCount = 1;
-		renderPassInfo.pDependencies = dependencies;
-		renderPassInfo.dependencyCount = offset;
+		renderPassInfo.sType			= VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+		renderPassInfo.attachmentCount	= offset;
+		renderPassInfo.pAttachments		= attachmentDescs;
+		renderPassInfo.pSubpasses		= &subpassDescription;
+		renderPassInfo.subpassCount		= 1;
+		renderPassInfo.pDependencies	= dependencies;
+		renderPassInfo.dependencyCount	= dependencyCount;
 
 		if (vkCreateRenderPass(Device, &renderPassInfo, nullptr, &frameParams.Renderpass) != VK_SUCCESS)
 		{

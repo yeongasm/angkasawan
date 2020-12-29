@@ -32,21 +32,19 @@ void RenderSystem::OnUpdate()
 		RenderPass* renderPass = Graph->RenderPasses[pair.Key];
 
 		Context.BindRenderPass(*renderPass);
+
 		for (Drawable& drawable : pair.Value)
 		{
 			Context.SubmitForRender(drawable, *renderPass);
 		}
+
 		Context.UnbindRenderPass(*renderPass);
 	}
 
-	Graph->BlitToDefault();
+	Context.BlitToDefault(*Graph);
 	Context.SwapBuffers();
 
-	// Empty each drawable command that's in the array.
-	for (auto& pair : CmdBuffer.RenderCommands)
-	{
-		pair.Value.Empty();
-	}
+	ClearCommandBuffers();
 }
 
 void RenderSystem::OnEvent(const OS::Event& e)
@@ -195,6 +193,14 @@ void RenderSystem::TerminateRenderGroup(uint32 Identifier)
 RendererAssetManager& RenderSystem::FetchAssetManager()
 {
 	return AssetManager;
+}
+
+void RenderSystem::ClearCommandBuffers()
+{
+	for (auto& pair : CmdBuffer.RenderCommands)
+	{
+		pair.Value.Empty();
+	}
 }
 
 namespace ao

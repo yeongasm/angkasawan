@@ -23,10 +23,12 @@ public:
 	bool InitializeContext				();
 	void TerminateContext				();
 
+	void BlitToDefault					(const FrameGraph& Graph);
+
 	void BindRenderPass					(RenderPass& Pass);
 	void UnbindRenderPass				(RenderPass& Pass);
-	void SubmitForRender				(const Drawable& DrawObj, RenderPass& Pass);
 	void FinalizeRenderPass				(RenderPass& Pass);
+	void SubmitForRender				(const Drawable& DrawObj, RenderPass& Pass);
 
 	bool NewFrameImages					(FrameImages& Images);
 	void DestroyFrameImages				(FrameImages& Images);

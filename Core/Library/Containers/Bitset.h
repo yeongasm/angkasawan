@@ -75,6 +75,11 @@ public:
 	{
 		Data ^= (1 << Bit);
 	}
+
+	Type Value() const
+	{
+		return Data;
+	}
 };
 
 #endif // !LEARNVK_CORE_LIBRARY_CONTAINERS_BITSET_H

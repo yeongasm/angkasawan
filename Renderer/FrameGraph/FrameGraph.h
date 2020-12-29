@@ -20,13 +20,6 @@ struct AttachmentCreateInfo
 	TextureType		Type;
 };
 
-// NOTE(Ygsm):
-// ON HOLD!!!
-struct SubPass
-{
-
-};
-
 /**
 * Render output images that the framegraph owns.
 */
@@ -53,8 +46,18 @@ public:
 	void AddColorInput			(const String32& Identifier, RenderPass& From);
 	void AddColorOutput			(const String32& Identifier, const AttachmentCreateInfo& Info);
 
+	//void AddDepthInput			(const RenderPass& From);
+	//void AddDepthOutput			();
+
+	//void AddStencilInput		(const RenderPass& From);
+	//void AddStencilOutput		();
+
 	void AddDepthStencilInput	(const RenderPass& From);
 	void AddDepthStencilOutput	();
+
+	bool AddSubpass		(RenderPass& Subpass);
+	bool IsMainpass		() const;
+	bool IsSubpass		() const;
 
 	void SetWidth		(float32 Width);
 	void SetHeight		(float32 Height);
@@ -95,6 +98,7 @@ private:
 	float32				Height;
 	float32				Depth;
 	uint32				Order;
+	uint32				PassType;
 
 	Array<Shader*>		Shaders;
 	RenderPassState		State;
@@ -105,6 +109,9 @@ private:
 	OutputAttachments	ColorOutputs;
 	AttachmentInfo		DepthStencilInput;
 	AttachmentInfo		DepthStencilOutput;
+
+	RenderPass*			Parent;
+	Array<RenderPass*>	Childrens;
 
 };
 
@@ -126,7 +133,6 @@ public:
 	Handle<HImage>		GetDepthStencilImage()	const;
 
 	uint32				GetNumRenderPasses	()	const;
-	void				BlitToDefault		();
 
 	void Destroy();
 	bool Compile();

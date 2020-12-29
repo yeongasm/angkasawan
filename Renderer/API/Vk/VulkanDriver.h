@@ -54,6 +54,15 @@ namespace vk
 		float32				ClearColor[Color_Channel_Max];
 		int32				SurfaceOffset[Surface_Offset_Max];
 		uint32				SurfaceExtent[Surface_Extent_Max];
+		uint32				NumOutputs;
+		bool				HasDepthStencil;
+	};
+
+	struct HwCmdBufferUnrecordInfo
+	{
+		Handle<HFramePass>	FramePassHandle;
+		bool				UnbindRenderpass;
+		bool				Unrecord;
 	};
 
 	struct HwDrawInfo
@@ -63,6 +72,13 @@ namespace vk
 		Handle<HBuffer>		Ebo;
 		uint32				VertexOffset;
 		uint32				IndexOffset;
+	};
+
+	struct HwBlitInfo
+	{
+		Handle<HFramePass>	FramePassHandle;
+		Handle<HImage>		Source;
+		Handle<HImage>		Destination;
 	};
 
 	struct HwBufferCreateInfo
@@ -110,7 +126,7 @@ namespace vk
 	{
 		Handle<HFramePass>* Handle;
 		BitSet<uint32>		DefaultOutputs;
-		RenderPassOrder		Order;
+		BitSet<uint32>		Order;
 		SampleCount			Samples;
 		uint32				NumColorOutputs;
 		bool				HasDepthStencilAttachment;
@@ -118,6 +134,7 @@ namespace vk
 
 	struct HwPipelineCreateInfo
 	{
+
 		struct ShaderInfo
 		{
 			Handle<HShader> Handle;
@@ -126,15 +143,20 @@ namespace vk
 			size_t			AttributeCount;
 		};
 
-		Array<ShaderInfo>		Shaders;
-		TopologyType			Topology;
-		PolygonMode				PolyMode;
-		FrontFaceDir			FrontFace;
-		CullingMode				CullMode;
-		Handle<HFramePass>		FramePassHandle;
-		Handle<HPipeline>*		Handle;
-		uint32					VertexStride;
-		bool					HasDepthStencil;
+		using ShaderArr = StaticArray<ShaderInfo, 4>;
+
+		ShaderArr			Shaders;
+		//Array<ShaderInfo>	Shaders;
+		TopologyType		Topology;
+		PolygonMode			PolyMode;
+		FrontFaceDir		FrontFace;
+		CullingMode			CullMode;
+		Handle<HFramePass>	FramePassHandle;
+		Handle<HPipeline>*	Handle;
+		uint32				VertexStride;
+		uint32				NumColorAttachments;
+		bool				HasDepth;
+		bool				HasStencil;
 
 		/**
 		* TODO(Ygsm):
@@ -279,25 +301,28 @@ namespace vk
 		bool CreatePipeline			(HwPipelineCreateInfo& CreateInfo);
 		void DestroyPipeline		(Handle<HPipeline>& Hnd);
 
-		/**
-		* Only adds a command buffer entry into the driver.
-		* Does not allocate it from the command pool yet.
-		*/
-		//bool AddCommandBufferEntry	(HwCmdBufferAllocInfo& AllocateInfo);
-		void RecordCommandBuffer	(HwCmdBufferRecordInfo& RecordInfo);
-		void UnrecordCommandBuffer	(HwCmdBufferRecordInfo& RecordInfo);
-		void Draw					(HwDrawInfo& DrawInfo);
-		//void FreeCommandBuffer		(Handle<HCmdBuffer>& Hnd);
-
-		//void PresentImageOnScreen	(Handle<HImage>& Hnd);
-
 		bool CreateFramebuffer		(HwFramebufferCreateInfo& CreateInfo);
 		void DestroyFramebuffer		(Handle<HFramePass>& Hnd);
 
 		bool CreateRenderPass		(HwRenderpassCreateInfo& CreateInfo);
 		void DestroyRenderPass		(Handle<HFramePass>& Hnd);
 
+		/**
+		* Only adds a command buffer entry into the driver.
+		* Does not allocate it from the command pool yet.
+		*/
+		//bool AddCommandBufferEntry	(HwCmdBufferAllocInfo& AllocateInfo);
+		void RecordCommandBuffer	(HwCmdBufferRecordInfo& RecordInfo);
+		void UnrecordCommandBuffer	(HwCmdBufferUnrecordInfo& UnrecordInfo);
+		void Draw					(HwDrawInfo& DrawInfo);
+		void BlitImage				(HwBlitInfo& BlitInfo);
+		void BlitImageToSwapchain	(HwBlitInfo& BlitInfo);
+		//void FreeCommandBuffer		(Handle<HCmdBuffer>& Hnd);
+
+		//void PresentImageOnScreen	(Handle<HImage>& Hnd);
+
 		void PushCmdBufferForSubmit	(Handle<HFramePass>& Hnd);
+
 	};
 
 }

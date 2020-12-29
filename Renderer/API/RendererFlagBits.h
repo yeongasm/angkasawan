@@ -35,18 +35,32 @@ enum ColorChannel : size_t
 	Color_Channel_Max	= 4
 };
 
-enum RenderPassType
+enum RenderPassType : uint32
 {
 	RenderPass_Type_Graphics	= 0,
 	RenderPass_Type_Compute		= 1,
 	RenderPass_Type_Max			= 2
 };
 
-enum RenderPassOrder
+enum RenderPassPassType : uint32
+{
+	RenderPass_Pass_Main	= 0,
+	RenderPass_Pass_Sub		= 1
+};
+
+enum RenderPassOrder : uint32
 {
 	RenderPass_Order_First		= 0,
 	RenderPass_Order_Last		= 1,
 	RenderPass_Order_InBetween	= 2
+};
+
+enum RenderPassOrderValue : uint32
+{
+	RenderPass_Order_Value_First		= 1,
+	RenderPass_Order_Value_Last			= 2,
+	RenderPass_Order_Value_FirstLast	= 3,
+	RenderPass_Order_Value_InBetween	= 4
 };
 
 enum RenderPassState
@@ -57,13 +71,17 @@ enum RenderPassState
 
 enum RenderPassFlagBits : uint32
 {
-	RenderPass_Bit_None					= 0,
-	RenderPass_Bit_Color_Input			= 1,
-	RenderPass_Bit_Color_Output			= 2,
-	RenderPass_Bit_DepthStencil_Input	= 3,
-	RenderPass_Bit_DepthStencil_Output	= 4,
-	RenderPass_Bit_No_Color_Render		= 5,
-	RenderPass_Bit_No_DepthStencil_Render = 6
+	RenderPass_Bit_None						= 0,
+	RenderPass_Bit_Color_Input				= 1,
+	RenderPass_Bit_Color_Output				= 2,
+	RenderPass_Bit_DepthStencil_Input		= 3,
+	RenderPass_Bit_DepthStencil_Output		= 4,
+	RenderPass_Bit_No_Color_Render			= 5,
+	RenderPass_Bit_No_DepthStencil_Render	= 6,
+	RenderPass_Bit_Depth_Input				= 7,
+	RenderPass_Bit_Depth_OUtput				= 8,
+	RenderPass_Bit_Stencil_Input			= 9,
+	RenderPass_Bit_Stencil_Output			= 10
 };
 
 enum CommandBufferLevel : uint32

@@ -7,6 +7,7 @@ RenderPass::RenderPass(FrameGraph& OwnerGraph, RenderPassType Type, uint32 Order
 	Height(0.0f),
 	Depth(0.0f),
 	Order(Order),
+	PassType(RenderPass_Pass_Main),
 	Flags(RenderPass_Bit_None),
 	Owner(OwnerGraph), 
 	Type(Type),
@@ -21,7 +22,9 @@ RenderPass::RenderPass(FrameGraph& OwnerGraph, RenderPassType Type, uint32 Order
 	ColorInputs(),
 	ColorOutputs(),
 	DepthStencilInput(),
-	DepthStencilOutput()
+	DepthStencilOutput(),
+	Parent(nullptr),
+	Childrens()
 {}
 
 RenderPass::~RenderPass()
@@ -130,6 +133,33 @@ void RenderPass::SetFrontFace(FrontFaceDir Face)
 	FrontFace = Face;
 }
 
+bool RenderPass::AddSubpass(RenderPass& Subpass)
+{
+	if (Subpass.IsSubpass())
+	{
+		return false;
+	}
+	
+	if (!Childrens.Length())
+	{
+		Childrens.Reserve(8);
+	}
+
+	Childrens.Push(&Subpass);
+	Subpass.PassType = RenderPass_Pass_Sub;
+
+	return true;
+}
+
+bool RenderPass::IsMainpass() const
+{
+	return PassType == RenderPass_Pass_Main;
+}
+
+bool RenderPass::IsSubpass() const
+{
+	return PassType == RenderPass_Pass_Sub;
+}
 
 void RenderPass::NoRender()
 {
@@ -193,11 +223,6 @@ Handle<HImage> FrameGraph::GetDepthStencilImage() const
 uint32 FrameGraph::GetNumRenderPasses() const
 {
 	return static_cast<uint32>(RenderPasses.Length());
-}
-
-void FrameGraph::BlitToDefault()
-{
-
 }
 
 void FrameGraph::Destroy()

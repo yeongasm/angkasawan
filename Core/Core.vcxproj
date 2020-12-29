@@ -149,9 +149,7 @@ xcopy "$(TargetDir)$(ProjectName).ilk" "$(SolutionDir)Bin\$(Configuration)\" /y 
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent>
-      <Command>xcopy "$(TargetDir)$(ProjectName).dll" "$(SolutionDir)Bin\$(Configuration)\" /y /q
-xcopy "$(TargetDir)$(ProjectName).pdb" "$(SolutionDir)Bin\$(Configuration)\" /y /q
-xcopy "$(TargetDir)$(ProjectName).ilk" "$(SolutionDir)Bin\$(Configuration)\" /y /q</Command>
+      <Command>xcopy "$(TargetDir)$(ProjectName).dll" "$(SolutionDir)Bin\$(Configuration)\" /y /q</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -201,9 +199,7 @@ xcopy "$(TargetDir)$(ProjectName).ilk" "$(SolutionDir)Bin\$(Configuration)\" /y 
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent>
-      <Command>xcopy "$(TargetDir)$(ProjectName).dll" "$(SolutionDir)Bin\$(Configuration)\" /y /q
-xcopy "$(TargetDir)$(ProjectName).pdb" "$(SolutionDir)Bin\$(Configuration)\" /y /q
-xcopy "$(TargetDir)$(ProjectName).ilk" "$(SolutionDir)Bin\$(Configuration)\" /y /q</Command>
+      <Command>xcopy "$(TargetDir)$(ProjectName).dll" "$(SolutionDir)Bin\$(Configuration)\" /y /q</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>

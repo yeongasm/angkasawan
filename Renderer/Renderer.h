@@ -51,6 +51,8 @@ private:
 	CommandBuffer			CmdBuffer;
 	RenderGroupStore		RenderGroups;
 
+	void ClearCommandBuffers			();
+
 };
 
 namespace ao

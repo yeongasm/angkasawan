@@ -204,7 +204,7 @@ private:
 
 		ElementNode* Element = &Entries[Index];
 
-		VKT_ASSERT(Element->Status != Bucket_IsEmpty && Element->Status != Bucket_WasDeleted);
+		//VKT_ASSERT(Element->Status != Bucket_IsEmpty && Element->Status != Bucket_WasDeleted);
 
 		while (Element->Key != Key)
 		{
