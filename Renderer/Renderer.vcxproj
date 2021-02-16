@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -25,6 +25,7 @@
     <ClCompile Include="Assets\Assets.cpp" />
     <ClCompile Include="External\cgltf\cgltf.cpp" />
     <ClCompile Include="External\stb\stb_image.cpp" />
+    <ClCompile Include="RenderAbstracts\DescriptorSets.cpp" />
     <ClCompile Include="RenderAbstracts\RenderGroup.cpp" />
     <ClCompile Include="Renderer.cpp" />
     <ClCompile Include="API\Vk\VulkanFunctions.cpp" />
@@ -55,7 +56,8 @@
     <ClInclude Include="External\cgltf\cgltf.h" />
     <ClInclude Include="External\stb\stb_image.h" />
     <ClInclude Include="FrameGraph\FrameGraph.h" />
-    <ClInclude Include="RenderAbstracts\CommandBuffer.h" />
+    <ClInclude Include="RenderAbstracts\DescriptorSets.h" />
+    <ClInclude Include="RenderAbstracts\DrawCommand.h" />
     <ClInclude Include="RenderAbstracts\RenderGroup.h" />
     <ClInclude Include="RenderPlatform\API.h" />
     <ClInclude Include="Renderer.h" />

@@ -3,21 +3,20 @@
 #define LEARNVK_RENDERER_API_SHADER_ATTRIBUTE_H
 
 #include "RendererFlagBits.h"
-#include "Library/Templates/Types.h"
 #include "Library/Templates/Templates.h"
 
 struct ShaderAttrib
 {
-	uint32				Binding;
-	uint32				Location;
-	uint32				Offset;
-	ShaderAttribFormat	Format;
+	uint32 Binding;
+	uint32 Location;
+	uint32 Offset;
+	EShaderAttribFormat Format;
 
 	ShaderAttrib() :
 		Binding(0), Location(0), Offset(0), Format(Shader_Attrib_Type_Float)
 	{};
 
-	ShaderAttrib(uint32 InBinding, uint32 InLocation, uint32 InOffset, ShaderAttribFormat InFormat) :
+	ShaderAttrib(uint32 InBinding, uint32 InLocation, uint32 InOffset, EShaderAttribFormat InFormat) :
 		Binding(InBinding), Location(InLocation), Offset(InOffset), Format(InFormat)
 	{};
 
@@ -52,4 +51,5 @@ struct ShaderAttrib
 		return *this;
 	};
 };
+
 #endif // !LEARNVK_RENDERER_API_SHADER_ATTRIBUTE_H

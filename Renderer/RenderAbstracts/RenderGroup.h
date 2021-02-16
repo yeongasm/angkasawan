@@ -3,35 +3,73 @@
 #define LEARNVK_RENDERER_RENDER_ABSTRACTS_RENDER_GROUP_H
 
 #include "Library/Containers/Array.h"
+#include "Library/Allocators/LinearAllocator.h"
+#include "RenderPlatform/API.h"
 #include "Assets/GPUHandles.h"
 #include "Assets/Model.h"
-#include "API/Context.h"
 
-class RenderGroup
+class RenderContext;
+class Model;
+
+struct VertexGroupCreateInfo
 {
-public:
+	size_t VertexPoolReserveCount;
+	size_t IndexPoolReserveCount;
+	uint32 Id;
+};
 
-	Handle<HBuffer>		Vbo;
-	Handle<HBuffer>		Ebo;
+struct VertexGroup
+{
+	Handle<HBuffer>	Vbo;
+	Handle<HBuffer>	Ebo;
+	VertexData		VertexPool;
+	IndexData		IndexPool;
+	uint32			Id;
+	bool			IsCompiled;
+};
 
+struct VertexGroupManagerConfiguration
+{
+	size_t GroupReserveCount;
+};
+
+class RENDERER_API IRVertexGroupManager
+{
 private:
 
-	template <typename Type>
-	using DataPool = Array<Type, 16>;
+	enum ExistEnum : size_t 
+	{
+		Resource_Not_Exist = -1
+	};
 
-	DataPool<Vertex>	VertexPool;
-	DataPool<uint32>	IndexPool;
-	RenderContext&		Context;
+	Array<VertexGroup*> VertexGroups;
+	RenderContext& Context;
+	LinearAllocator& Allocator;
+
+	friend class RenderSystem;
+
+	size_t DoesVertexGroupExist(uint32 Id);
 
 public:
 
-	RenderGroup(RenderContext& Context);
-	~RenderGroup();
+	IRVertexGroupManager(RenderContext& Context, LinearAllocator& InAllocator);
+	~IRVertexGroupManager();
 
-	bool Build			();
-	void Destroy		();
-	void AddMeshToGroup	(Mesh& InMesh);
+	DELETE_COPY_AND_MOVE(IRVertexGroupManager)
 
+	void Initialize(const VertexGroupManagerConfiguration& Config);
+
+	Handle<VertexGroup> CreateVertexGroup			(const VertexGroupCreateInfo& CreateInfo);
+	Handle<VertexGroup> GetVertexGroupHandleWithId	(uint32 Id);
+	VertexGroup*		GetVertexGroup				(Handle<VertexGroup> Hnd);
+
+	bool				AddModelToVertexGroup		(Model& InModel, Handle<VertexGroup> GroupHandle);
+
+	//bool Build(Handle<VertexGroup> Hnd);
+	//bool Destroy(Handle<VertexGroup> Hnd);
+
+	void Build();
+	void Destroy();
 };
 
 #endif // !LEARNVK_RENDERER_RENDER_ABSTRACTS_RENDER_GROUP_H

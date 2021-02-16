@@ -1,7 +1,7 @@
 #include "FrameGraph.h"
 #include "Renderer.h"
 
-RenderPass::RenderPass(FrameGraph& OwnerGraph, RenderPassType Type, uint32 Order) :
+RenderPass::RenderPass(IRFrameGraph& OwnerGraph, ERenderPassType Type, uint32 Order) :
 	Samples(Sample_Count_Max),
 	Width(0.0f),
 	Height(0.0f),
@@ -24,7 +24,8 @@ RenderPass::RenderPass(FrameGraph& OwnerGraph, RenderPassType Type, uint32 Order
 	DepthStencilInput(),
 	DepthStencilOutput(),
 	Parent(nullptr),
-	Childrens()
+	Childrens(),
+	BoundDescriptorLayouts()
 {}
 
 RenderPass::~RenderPass()
@@ -32,7 +33,7 @@ RenderPass::~RenderPass()
 	Shaders.Release();
 }
 
-bool RenderPass::AddShader(Shader* ShaderSrc, ShaderType Type)
+bool RenderPass::AddShader(Shader* ShaderSrc, EShaderType Type)
 {
 	for (Shader* shader : Shaders)
 	{
@@ -108,27 +109,27 @@ void RenderPass::SetDepth(float32 Depth)
 	this->Depth = Depth;
 }
 
-void RenderPass::SetSampleCount(SampleCount Samples)
+void RenderPass::SetSampleCount(ESampleCount Samples)
 {
 	this->Samples = Samples;
 }
 
-void RenderPass::SetTopology(TopologyType Type)
+void RenderPass::SetTopology(ETopologyType Type)
 {
 	Topology = Type;
 }
 
-void RenderPass::SetCullMode(CullingMode Mode)
+void RenderPass::SetCullMode(ECullingMode Mode)
 {
 	CullMode = Mode;
 }
 
-void RenderPass::SetPolygonMode(PolygonMode Mode)
+void RenderPass::SetPolygonMode(EPolygonMode Mode)
 {
 	PolygonalMode = Mode;
 }
 
-void RenderPass::SetFrontFace(FrontFaceDir Face)
+void RenderPass::SetFrontFace(EFrontFaceDir Face)
 {
 	FrontFace = Face;
 }
@@ -143,6 +144,14 @@ bool RenderPass::AddSubpass(RenderPass& Subpass)
 	if (!Childrens.Length())
 	{
 		Childrens.Reserve(8);
+	}
+
+	for (RenderPass* subpasses : Childrens)
+	{
+		if (subpasses == &Subpass)
+		{
+			return false;
+		}
 	}
 
 	Childrens.Push(&Subpass);
@@ -177,7 +186,7 @@ void RenderPass::NoDepthStencilRender()
 	Flags.Set(RenderPass_Bit_No_DepthStencil_Render);
 }
 
-FrameGraph::FrameGraph(RenderContext& Context, LinearAllocator& GraphAllocator) :
+IRFrameGraph::IRFrameGraph(RenderContext& Context, LinearAllocator& GraphAllocator) :
 	Context(Context),
 	Allocator(GraphAllocator),
 	Name(),
@@ -186,12 +195,12 @@ FrameGraph::FrameGraph(RenderContext& Context, LinearAllocator& GraphAllocator) 
 	IsCompiled(false)
 {}
 
-FrameGraph::~FrameGraph()
+IRFrameGraph::~IRFrameGraph()
 {
 	RenderPasses.Release();
 }
 
-Handle<RenderPass> FrameGraph::AddPass(PassNameEnum PassIdentity, RenderPassType Type)
+Handle<RenderPass> IRFrameGraph::AddPass(RenderPassEnum PassIdentity, ERenderPassType Type)
 {
 	uint32 order = static_cast<uint32>(RenderPasses.Length());
 
@@ -203,61 +212,70 @@ Handle<RenderPass> FrameGraph::AddPass(PassNameEnum PassIdentity, RenderPassType
 	return Handle<RenderPass>(PassIdentity);
 }
 
-RenderPass& FrameGraph::GetRenderPass(Handle<RenderPass> Handle)
+RenderPass& IRFrameGraph::GetRenderPass(Handle<RenderPass> Handle)
 {
 	VKT_ASSERT("Handle supplied into function is invalid" && Handle != INVALID_HANDLE);
 	RenderPass* renderPass = RenderPasses[Handle];
 	return *renderPass;
 }
 
-Handle<HImage> FrameGraph::GetColorImage() const
+Handle<HImage> IRFrameGraph::GetColorImage() const
 {
 	return Images.Color;
 }
 
-Handle<HImage> FrameGraph::GetDepthStencilImage() const
+Handle<HImage> IRFrameGraph::GetDepthStencilImage() const
 {
 	return Images.DepthStencil;
 }
 
-uint32 FrameGraph::GetNumRenderPasses() const
+uint32 IRFrameGraph::GetNumRenderPasses() const
 {
 	return static_cast<uint32>(RenderPasses.Length());
 }
 
-void FrameGraph::Destroy()
+void IRFrameGraph::OnWindowResize()
 {
-	for (auto pair : RenderPasses)
+	Context.DestroyFrameImages(Images);
+	Context.NewFrameImages(Images);
+
+	RenderPass* renderPass = nullptr;
+	for (auto& pair : RenderPasses)
+	{
+		renderPass = pair.Value;
+		Context.DestroyRenderPassFramebuffer(*renderPass);
+		Context.NewRenderPassFramebuffer(*renderPass);
+		Context.DestroyGraphicsPipeline(*renderPass);
+		Context.NewGraphicsPipeline(*renderPass);
+	}
+}
+
+void IRFrameGraph::Destroy()
+{
+	for (auto& pair : RenderPasses)
 	{
 		RenderPass* renderPass = pair.Value;
-
 		Context.DestroyRenderPassRenderpass(*renderPass);
-		Context.DestroyRenderPassFramebuffer(*renderPass);
-		Context.DestroyPipeline(renderPass->PipelineHandle);
+		Context.DestroyRenderPassFramebuffer(*renderPass, true);
+		Context.DestroyGraphicsPipeline(*renderPass, true);
 	}
-
 	Context.DestroyFrameImages(Images);
 }
 
-bool FrameGraph::Compile()
+bool IRFrameGraph::Compile()
 {
+	if (Compiled()) { return false; }
+
 	Context.NewFrameImages(Images);
 
-	for (Pair<PassNameEnum, RenderPass*>& pair : RenderPasses)
+	for (Pair<RenderPassEnum, RenderPass*>& pair : RenderPasses)
 	{
 		RenderPass* renderPass = pair.Value;
 
-		if (renderPass->FramePassHandle == INVALID_HANDLE)
+		if (renderPass->IsMainpass() && (renderPass->FramePassHandle == INVALID_HANDLE))
 		{
-			if (!Context.NewRenderPassRenderpass(*renderPass)) 
-			{
-				return false;
-			}
-
-			if (!Context.NewRenderPassFramebuffer(*renderPass)) 
-			{ 
-				return false; 
-			}
+			if (!Context.NewRenderPassRenderpass(*renderPass))	{ return false; }
+			if (!Context.NewRenderPassFramebuffer(*renderPass)) { return false; }
 		}
 
 		if (!Context.NewGraphicsPipeline(*renderPass)) 
@@ -272,7 +290,13 @@ bool FrameGraph::Compile()
 	return true;
 }
 
-bool FrameGraph::Compiled() const
+bool IRFrameGraph::Compiled() const
 {
 	return IsCompiled;
+}
+
+void IRFrameGraph::BindLayoutToRenderPass(DescriptorLayout& Layout, Handle<RenderPass> PassHandle)
+{
+	RenderPass& renderPass = GetRenderPass(PassHandle);
+	renderPass.BoundDescriptorLayouts.Push(&Layout);
 }

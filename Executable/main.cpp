@@ -5,8 +5,13 @@
 bool InitializeEngine(EngineImpl* Engine, const EngineCreationInfo& CreateInfo)
 {
 	Engine->InitializeEngine(CreateInfo);
-	RenderSystem* renderer = Engine->Systems.RegisterSystem<RenderSystem>(System_Engine_Type);
-	if (!renderer) { return false; }
+
+	Handle<ISystem> hnd;
+	size_t renderSystemSize = sizeof(RenderSystem);
+	RenderSystem* renderer = reinterpret_cast<RenderSystem*>(Engine->AllocateAndRegisterSystem(renderSystemSize, System_Engine_Type, &hnd));
+	FMemory::InitializeObject(renderer, *Engine, hnd);
+	renderer->OnInit();
+
 	Engine->RegisterGame(CreateInfo);
 	return true;
 }
@@ -14,8 +19,7 @@ bool InitializeEngine(EngineImpl* Engine, const EngineCreationInfo& CreateInfo)
 int main(int argc, char* argv[])
 {
 	ConfigFileParser configParser;
-	EngineCreationInfo createInfo;
-	FMemory::InitializeObject(createInfo);
+	EngineCreationInfo createInfo = {};
 	
 	if (!configParser.InitializeFromConfigFile(createInfo))
 	{

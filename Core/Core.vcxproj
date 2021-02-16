@@ -203,14 +203,18 @@ xcopy "$(TargetDir)$(ProjectName).ilk" "$(SolutionDir)Bin\$(Configuration)\" /y 
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="Engine\Private\System.h" />
     <ClInclude Include="Library\Algorithms\Tokenizer.h" />
+    <ClInclude Include="Library\Allocators\BaseAllocator.h" />
     <ClInclude Include="Library\Allocators\LinearAllocator.h" />
     <ClInclude Include="Library\Containers\Bitset.h" />
+    <ClInclude Include="Library\Containers\Node.h" />
+    <ClInclude Include="Library\Math\Matrix.h" />
+    <ClInclude Include="Library\Math\Operations.h" />
+    <ClInclude Include="Library\Math\Vector.h" />
     <ClInclude Include="SubSystem\Game\GameApp.h" />
     <ClInclude Include="Engine\Private\Abstraction.h" />
     <ClInclude Include="Engine\Interface.h" />
-    <ClInclude Include="Engine\Private\System.h" />
-    <ClInclude Include="Library\Math\MatrixFuncs.h" />
     <ClInclude Include="Library\Math\Quaternion.h" />
     <ClInclude Include="Library\Stream\Ifstream.h" />
     <ClInclude Include="Library\Stream\Ofstream.h" />
@@ -219,12 +223,7 @@ xcopy "$(TargetDir)$(ProjectName).ilk" "$(SolutionDir)Bin\$(Configuration)\" /y 
     <ClInclude Include="SubSystem\Resource\Handle.h" />
     <ClInclude Include="Engine\Private\Prototype.h" />
     <ClInclude Include="Library\Containers\Path.h" />
-    <ClInclude Include="Library\Math\Mat3.h" />
-    <ClInclude Include="Library\Math\Mat4.h" />
     <ClInclude Include="Library\Math\Math.h" />
-    <ClInclude Include="Library\Math\Vec2.h" />
-    <ClInclude Include="Library\Math\Vec3.h" />
-    <ClInclude Include="Library\Math\Vec4.h" />
     <ClInclude Include="Library\Random\Xoroshiro.h" />
     <ClInclude Include="Platform\EngineAPI.h" />
     <ClInclude Include="Library\Memory\Memory.h" />
@@ -253,8 +252,10 @@ xcopy "$(TargetDir)$(ProjectName).ilk" "$(SolutionDir)Bin\$(Configuration)\" /y 
     <ClCompile Include="Engine\Interface.cpp" />
     <ClCompile Include="Engine\Private\Abstraction.cpp" />
     <ClCompile Include="Engine\Private\Instance.cpp" />
-    <ClCompile Include="Engine\Private\System.cpp" />
-    <ClCompile Include="Library\Math\Math.cpp" />
+    <ClCompile Include="Library\Math\Matrix.cpp" />
+    <ClCompile Include="Library\Math\Operations.cpp" />
+    <ClCompile Include="Library\Math\Quaternion.cpp" />
+    <ClCompile Include="Library\Math\Vector.cpp" />
     <ClCompile Include="Library\Stream\Ifstream.cpp" />
     <ClCompile Include="Library\Stream\Ofstream.cpp" />
     <ClCompile Include="dllmain.cpp" />
@@ -269,15 +270,6 @@ xcopy "$(TargetDir)$(ProjectName).ilk" "$(SolutionDir)Bin\$(Configuration)\" /y 
   </ItemGroup>
   <ItemGroup>
     <None Include="cpp.hint" />
-    <None Include="Engine\Private\System.inl" />
-    <None Include="Library\Math\Mat3.inl" />
-    <None Include="Library\Math\Mat4.inl" />
-    <None Include="Library\Math\Math.inl" />
-    <None Include="Library\Math\MatrixFuncs.inl" />
-    <None Include="Library\Math\Quaternion.inl" />
-    <None Include="Library\Math\Vec2.inl" />
-    <None Include="Library\Math\Vec3.inl" />
-    <None Include="Library\Math\Vec4.inl" />
     <None Include="SubSystem\Game\GameAppManager.inl" />
   </ItemGroup>
   <ItemGroup>

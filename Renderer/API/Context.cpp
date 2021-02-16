@@ -23,7 +23,7 @@ void RenderContext::TerminateContext()
 	TerminateDriver();
 }
 
-void RenderContext::BlitToDefault(const FrameGraph& Graph)
+void RenderContext::BlitToDefault(const IRFrameGraph& Graph)
 {
 	vk::HwBlitInfo blitInfo = {};
 	//vk::HwCmdBufferRecordInfo recordInfo = {};
@@ -58,6 +58,7 @@ void RenderContext::BindRenderPass(RenderPass& Pass)
 	recordInfo.FramePassHandle	= Pass.FramePassHandle;
 	recordInfo.PipelineHandle	= Pass.PipelineHandle;
 	recordInfo.NumOutputs		= static_cast<uint32>(Pass.ColorOutputs.Length());
+	recordInfo.HasDepthStencil	= (Pass.DepthStencilOutput.Handle != INVALID_HANDLE);
 
 	recordInfo.ClearColor[Color_Channel_Red]	= 0.46f;
 	recordInfo.ClearColor[Color_Channel_Green]	= 0.64f;
@@ -72,6 +73,7 @@ void RenderContext::BindRenderPass(RenderPass& Pass)
 	if (!Pass.Flags.Has(RenderPass_Bit_No_DepthStencil_Render))
 	{
 		recordInfo.NumOutputs++;
+		recordInfo.HasDepthStencil = true;
 	}
 
 	RecordCommandBuffer(recordInfo);
@@ -92,18 +94,16 @@ void RenderContext::UnbindRenderPass(RenderPass& Pass)
 	PushCmdBufferForSubmit(Pass.FramePassHandle);
 }
 
-void RenderContext::SubmitForRender(const Drawable& DrawObj, RenderPass& Pass)
+void RenderContext::SubmitForRender(const DrawCommand& Command, RenderPass& Pass)
 {
 	vk::HwDrawInfo drawInfo = {};
 
-	drawInfo.Vbo				= DrawObj.Vbo;
-	drawInfo.Ebo				= DrawObj.Ebo;
-	drawInfo.VertexOffset		= DrawObj.VertexOffset;
-	drawInfo.IndexOffset		= DrawObj.IndexOffset;
+	drawInfo.VertexOffset		= Command.VertexOffset;
+	drawInfo.VertexCount		= Command.NumVertices;
+	drawInfo.IndexOffset		= Command.IndexOffset;
+	drawInfo.IndexCount			= Command.NumIndices;
 	drawInfo.FramePassHandle	= Pass.FramePassHandle;
-	
-	// NOTE(Ygsm):
-	// Indexed draw is not implemented yet.
+
 	Draw(drawInfo);
 }
 
@@ -195,9 +195,15 @@ bool RenderContext::NewGraphicsPipeline(RenderPass& Pass)
 	// TODO(Ygsm):
 	// Configure depth stencil out graphics pipeline properly.
 	//
+	Handle<HFramePass>* passHandle = &Pass.FramePassHandle;
+
+	if (Pass.IsSubpass())
+	{
+		passHandle = &Pass.Parent->FramePassHandle;
+	}
 
 	pipelineCreateInfo.VertexStride		= sizeof(Vertex);
-	pipelineCreateInfo.FramePassHandle	= Pass.FramePassHandle;
+	pipelineCreateInfo.FramePassHandle	= *passHandle;
 	pipelineCreateInfo.Handle			= &Pass.PipelineHandle;
 	pipelineCreateInfo.CullMode			= Pass.CullMode;
 	pipelineCreateInfo.FrontFace		= Pass.FrontFace;
@@ -205,6 +211,11 @@ bool RenderContext::NewGraphicsPipeline(RenderPass& Pass)
 	pipelineCreateInfo.Topology			= Pass.Topology;
 	pipelineCreateInfo.HasDepth			= Pass.Flags.Has(RenderPass_Bit_DepthStencil_Output) || !Pass.Flags.Has(RenderPass_Bit_No_DepthStencil_Render);
 	pipelineCreateInfo.HasStencil		= false;
+
+	for (DescriptorLayout* layout : Pass.BoundDescriptorLayouts)
+	{
+		pipelineCreateInfo.DescriptorLayouts.Push(layout->Handle);
+	}
 
 	pipelineCreateInfo.NumColorAttachments = static_cast<uint32>(Pass.ColorOutputs.Length());
 
@@ -228,6 +239,15 @@ bool RenderContext::NewGraphicsPipeline(RenderPass& Pass)
 	Pass.State = RenderPass_State_Built;
 
 	return true;
+}
+
+void RenderContext::DestroyGraphicsPipeline(RenderPass& Pass, bool Release)
+{
+	DestroyPipeline(Pass.PipelineHandle);
+	if (Release)
+	{
+		ReleasePipeline(Pass.PipelineHandle);
+	}
 }
 
 bool RenderContext::NewRenderPassFramebuffer(RenderPass& Pass)
@@ -286,7 +306,7 @@ bool RenderContext::NewRenderPassFramebuffer(RenderPass& Pass)
 	return CreateFramebuffer(framebufferCreateInfo);
 }
 
-void RenderContext::DestroyRenderPassFramebuffer(RenderPass& Pass)
+void RenderContext::DestroyRenderPassFramebuffer(RenderPass& Pass, bool Release)
 {
 	for (auto& pair : Pass.ColorOutputs)
 	{
@@ -299,6 +319,11 @@ void RenderContext::DestroyRenderPassFramebuffer(RenderPass& Pass)
 	}
 
 	DestroyFramebuffer(Pass.FramePassHandle);
+
+	if (Release)
+	{
+		ReleaseFramePass(Pass.FramePassHandle);
+	}
 }
 
 bool RenderContext::NewRenderPassRenderpass(RenderPass& Pass)
@@ -336,6 +361,39 @@ void RenderContext::DestroyRenderPassRenderpass(RenderPass& Pass)
 	DestroyRenderPass(Pass.FramePassHandle);
 }
 
+bool RenderContext::NewDescriptorPool(DescriptorPool& Pool)
+{
+	vk::HwDescriptorPoolCreateInfo createInfo = {};
+	createInfo.Handle = &Pool.Handle;
+	createInfo.Type = Pool.DescriptorTypes.Value();
+	createInfo.NumDescriptorsOfType = Pool.Capacity;
+
+	return CreateDescriptorPool(createInfo);
+}
+
+bool RenderContext::NewDestriptorSetLayout(DescriptorLayout& Layout)
+{
+	vk::HwDescriptorSetLayoutCreateInfo createInfo = {};
+	createInfo.Binding = Layout.Binding;
+	createInfo.Handle = &Layout.Handle;
+	createInfo.ShaderStages = Layout.ShaderStages;
+	createInfo.Type = Layout.Type;
+
+	return CreateDescriptorSetLayout(createInfo);
+}
+
+bool RenderContext::NewDescriptorSet(DescriptorSet& Set)
+{
+	vk::HwDescriptorSetAllocateInfo allocInfo = {};
+	allocInfo.Handle = &Set.Handle;
+	allocInfo.Layout = Set.Layout->Handle;
+	allocInfo.Pool	 = Set.Pool->Handle;
+	allocInfo.Count	 = Set.NumOfData;
+	allocInfo.Size	 = static_cast<uint32>(PadDataSizeForUniform(Set.TypeSize));
+
+	return AllocateDescriptorSet(allocInfo);
+}
+
 bool RenderContext::CreateCmdPoolAndBuffers()
 {
 	if (!CreateCommandPool())		{ return false; }
@@ -355,9 +413,7 @@ bool RenderContext::NewVertexBuffer(Handle<HBuffer>& Vbo, void* Data, size_t Cou
 	vboCreateInfo.Size = sizeof(Vertex);
 	vboCreateInfo.Type = Buffer_Type_Vertex;
 
-	if (!CreateBuffer(vboCreateInfo)) { return false; }
-
-	return true;
+	return CreateBuffer(vboCreateInfo);
 }
 
 bool RenderContext::NewIndexBuffer(Handle<HBuffer>& Ebo, void* Data, size_t Count)
@@ -372,29 +428,93 @@ bool RenderContext::NewIndexBuffer(Handle<HBuffer>& Ebo, void* Data, size_t Coun
 	eboCreateInfo.Size = sizeof(uint32);
 	eboCreateInfo.Type = Buffer_Type_Index;
 
-	if (!CreateBuffer(eboCreateInfo)) { return false; }
-
-	return true;
+	return CreateBuffer(eboCreateInfo);
 }
 
-//Handle<HFramePass> RenderContext::GetDefaultFramebuffer() const
-//{
-//	return DefaultFramebuffer;
-//}
+bool RenderContext::NewUniformBuffer(Handle<HBuffer>& Ubo, void* Data, size_t Size)
+{
+	vk::HwBufferCreateInfo uboCreateInfo = {};
+	uboCreateInfo.Handle = &Ubo;
+	uboCreateInfo.Data = Data;
+	uboCreateInfo.Count = 1;
+	uboCreateInfo.Size = Size;
+	uboCreateInfo.Type  = Buffer_Type_Uniform;
+
+	return CreateBuffer(uboCreateInfo);
+}
+
+uint32 RenderContext::PadSizeToAlignedSize(uint32 Size)
+{
+	return static_cast<uint32>(PadDataSizeForUniform(static_cast<size_t>(Size)));
+}
+
+void RenderContext::BindDescriptorSetInstance(DescriptorSetInstance& Descriptor, RenderPass& Pass)
+{
+	DescriptorSet* descriptorSet = Descriptor.Owner;
+
+	const uint32 frameIndex = GetCurrentFrameIndex();
+	uint32 base = descriptorSet->Base + (frameIndex * descriptorSet->NumOfData * descriptorSet->TypeSize);
+	vk::HwDescriptorSetBindInfo bindInfo = {};
+
+	bindInfo.DescriptorType = descriptorSet->Type;
+	bindInfo.Offset = base + Descriptor.Offset;
+	bindInfo.PipelineHandle = Pass.PipelineHandle;
+	bindInfo.FramePassHandle = Pass.FramePassHandle;
+	bindInfo.DescriptorSetHandle = descriptorSet->Handle;
+
+	BindDescriptorSets(bindInfo);
+}
+
+void RenderContext::BindDataToDescriptorSet(void* Data, size_t Size, DescriptorSet& Set)
+{
+	uint32 paddedSize = static_cast<uint32>(PadDataSizeForUniform(Size));
+	
+	const uint32 frameIndex = GetCurrentFrameIndex();
+	uint32 originOffset = Set.Base + (frameIndex * Set.NumOfData * Set.TypeSize);
+
+	vk::HwDataToDescriptorSetMapInfo mapInfo = {};
+	mapInfo.Data = Data;
+	mapInfo.DescriptorSetHandle = Set.Handle;
+	mapInfo.Offset = originOffset + Set.Offset;
+	mapInfo.Size = paddedSize;
+	mapInfo.BufferHandle = Set.Buffer->Handle;
+
+	MapDataToDescriptorSet(mapInfo);
+
+	Set.Offset += paddedSize;
+}
+
+void RenderContext::MapDescriptorSetToBuffer(DescriptorSet& Set)
+{
+	uint32 paddedRange = PadSizeToAlignedSize(Set.NumOfData * Set.TypeSize);
+
+	vk::HwDescriptorSetMapInfo mapInfo = {};
+	mapInfo.Binding = Set.Layout->Binding;
+	mapInfo.BufferHandle = Set.Buffer->Handle;
+	mapInfo.DescriptorSetHandle = Set.Handle;
+	mapInfo.Offset = Set.Base;
+	mapInfo.DescriptorType = Set.Type;
+	mapInfo.Range = paddedRange;
+
+	MapDescSetToBuffer(mapInfo);
+}
+
+uint32 RenderContext::GetCurrentFrameIndex() const
+{
+	return CurrentFrame;
+}
 
 void RenderContext::FinalizeRenderPass(RenderPass& Pass)
 {
 	PushCmdBufferForSubmit(Pass.FramePassHandle);
 }
 
-//bool RenderContext::ValidateGraphicsPipelineCreateInfo(const GraphicsPipelineCreateInfo& CreateInfo)
-//{
-//	bool valid = true;
-//	if (!CreateInfo.VertexShader || 
-//		!CreateInfo.FragmentShader)
-//	{
-//		valid = false;
-//	}
-//
-//	return valid;
-//}
+void RenderContext::BindVertexAndIndexBuffer(const DrawCommand& Command, RenderPass& Pass)
+{
+	vk::HwBindVboEboInfo bindInfo = {};
+	bindInfo.FramePassHandle = Pass.FramePassHandle;
+	bindInfo.Vbo = Command.Vbo;
+	bindInfo.Ebo = Command.Ebo;
+
+	BindVboAndEbo(bindInfo);
+}

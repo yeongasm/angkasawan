@@ -4,7 +4,9 @@
 
 #include "Platform/Minimal.h"
 #include "Platform/EngineAPI.h"
-#include "Library/Math/Vec2.h"
+#include "Library/Math/Vector.h"
+
+using vec2 = math::vec2;
 
 enum IOMouseButton : uint32
 {
@@ -133,9 +135,9 @@ struct ENGINE_API IOSystem
 
 	// Configurations ...
 	float32 KeyDoubleTapTime;
-	float32 MouseDoubleClickTime	= 500.0f;
+	float32 MouseDoubleClickTime	= 1.0f;
 	float32 MouseDoubleClickMaxDistance = 5.0f;
-	float32 MinDurationForHold = 1000.f;
+	float32 MinDurationForHold = 0.25f;
 	float32 MouseWheel;
 	float32 MouseWheelH;
 	vec2	MousePos;

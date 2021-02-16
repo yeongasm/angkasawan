@@ -321,20 +321,26 @@ namespace OS
 		return { p.x, p.y };
 	}
 
-	void SetMouseScreenPos(int32 x, int32 y)
+	void SetMousePos(WindowHandle Wnd, int32 x, int32 y)
 	{
-		::SetCursorPos(x, y);
+		POINT point;
+		point.x = x;
+		point.y = y;
+		::ClientToScreen(Wnd, &point);
+		::SetCursorPos(point.x, point.y);
 	}
 
 	void ShowCursor(bool Show)
 	{
 		if (Show)
 		{
-			while (::ShowCursor(Show) < 0);
+			::SetCursor(Ctx.Cursors.Arrow);
+			//while (::ShowCursor(Show) < 0);
 		}
 		else
 		{
-			while (::ShowCursor(Show) >= 0);
+			::SetCursor(NULL);
+			//while (::ShowCursor(Show) >= 0);
 		}
 	}
 
@@ -568,11 +574,13 @@ namespace OS
 				e.EventType = Event::Type::KEY;
 				e.Key.Down = true;
 				e.Key.Code = TranslateKeyCode((uint32)msg.wParam);
+				Ctx.App->OnEvent(e);
 				break;
 			case WM_KEYUP:
 				e.EventType = Event::Type::KEY;
 				e.Key.Down = false;
 				e.Key.Code = TranslateKeyCode((uint32)msg.wParam);
+				Ctx.App->OnEvent(e);
 				break;
 			case WM_CHAR:
 				e.EventType = Event::Type::CHAR;

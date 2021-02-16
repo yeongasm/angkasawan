@@ -104,6 +104,15 @@ VK_DEVICE_LEVEL_FUNCTION(vkCmdBindVertexBuffers)
 VK_DEVICE_LEVEL_FUNCTION(vkCmdBindIndexBuffer)
 VK_DEVICE_LEVEL_FUNCTION(vkCmdDraw)
 VK_DEVICE_LEVEL_FUNCTION(vkCmdDrawIndexed)
+VK_DEVICE_LEVEL_FUNCTION(vkCreateDescriptorPool)
+VK_DEVICE_LEVEL_FUNCTION(vkDestroyDescriptorPool)
+VK_DEVICE_LEVEL_FUNCTION(vkAllocateDescriptorSets)
+VK_DEVICE_LEVEL_FUNCTION(vkFreeDescriptorSets)
+VK_DEVICE_LEVEL_FUNCTION(vkUpdateDescriptorSets)
+VK_DEVICE_LEVEL_FUNCTION(vkCreateDescriptorSetLayout)
+VK_DEVICE_LEVEL_FUNCTION(vkDestroyDescriptorSetLayout)
+VK_DEVICE_LEVEL_FUNCTION(vkCmdPushConstants)
+VK_DEVICE_LEVEL_FUNCTION(vkCmdBindDescriptorSets)
 
 
 #undef VK_DEVICE_LEVEL_FUNCTION

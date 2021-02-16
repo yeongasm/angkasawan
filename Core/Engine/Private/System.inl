@@ -16,6 +16,7 @@ SystemClass* SystemManager::RegisterSystem(SystemType Type)
 	{
 		GameSystems.Insert(Identity::Value, system);
 	}
+
 	system->OnInit();
 
 	return system;

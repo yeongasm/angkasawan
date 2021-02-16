@@ -6,13 +6,17 @@
 #include "Library/Containers/Deque.h"
 #include "Library/Containers/String.h"
 #include "Src/shaderc.hpp"
-#include <vector>
 
 namespace vk
 {
 	using BinaryBuffer = Array<uint8>;
 	using DWordBuffer = Array<uint32>;
 
+	/**
+	* TODO(Ygsm):
+	* 
+	* Should include SpirV-Cross for reflections and generate pipeline layout automatically.s
+	*/
 	class ShaderToSPIRVCompiler
 	{
 	public:

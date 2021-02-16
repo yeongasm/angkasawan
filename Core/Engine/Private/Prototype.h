@@ -41,7 +41,7 @@ struct EngineBase : public ApplicationInterface
 	WindowInfo			Window;
 	ResourceManager		Manager;
 	ThreadPool			JobSystem;
-	SystemManager		Systems;
+	//SystemManager		Systems;
 	SystemClock			Clock;
 	IOSystem			Io;
 	AppState			State;

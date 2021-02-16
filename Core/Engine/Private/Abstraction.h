@@ -3,6 +3,8 @@
 #define LEARNVK_ENGINE_PRIVATE_ABSTRACTION
 
 #include "Prototype.h"
+#include "SubSystem/Resource/Handle.h"
+#include "Library/Allocators/LinearAllocator.h"
 
 struct EngineCreationInfo
 {
@@ -19,61 +21,53 @@ struct EngineCreationInfo
 
 class ENGINE_API EngineImpl final : public EngineBase
 {
+private:
+
+	LinearAllocator	SystemAllocator;
+	Array<SystemInterface*> EngineSystems;
+	Array<SystemInterface*>	GameSystems;
+
+	using CWndInfoRef = const WindowInfo&;
+
+	void ReserveMemoryForSystems();
+	void RunGameAndUpdateSystems();
+	static void InitializeGlobalContext(EngineImpl* Engine);
+	//void UpdateIOStates();
+	void UpdateMouseStates();
+	void UpdateKeyStates();
+	void BeginFrame();
+	void EndFrame();	// Not really sure what to do with this yet. Perhaps for profiling.
+	virtual void OnEvent(const OS::Event& e) override;
+	virtual void OnInit() override;
+	virtual void OnTerminate() override;
+	void FreeAllSystems();
+
 public:
+
 	EngineImpl()  = default;
 	~EngineImpl() = default;;
 	DELETE_COPY_AND_MOVE(EngineImpl)
 
 	// Engine start-up, update and terminate.
-	void		InitializeEngine	(const EngineCreationInfo& Info);
-	void		RegisterGame		(const EngineCreationInfo& Info);
-	void		Run					();
-	void		TerminateEngine		();
-	
-	IOSystem&	GetIO				();
-
+	void InitializeEngine(const EngineCreationInfo& Info);
+	void RegisterGame(const EngineCreationInfo& Info);
+	void Run();
+	void TerminateEngine();
+	IOSystem& GetIO();
 	// Thread system start-up, update and terminate.
 	//void		KickJob				(JobFunction Callback, Job::Args Args, Job* Parent = nullptr);
 	//void		KickJobsAndWait		(Job* Jobs, size_t Count);
+	ResourceCache& CreateNewResourceCache(ResourceType Type);
+	ResourceCache* FetchResourceCacheForType(ResourceType Type);
+	bool DeleteResourceCacheForType(ResourceType Type);
+	CWndInfoRef GetWindowInformation() const;
+	void ShowCursor(bool Show = true);
+	void SetMousePosition(float32 x, float32 y);
+	bool IsWindowFocused() const;
+	bool HasWindowSizeChanged() const;
+	void* AllocateAndRegisterSystem(size_t Size, SystemType Type, Handle<ISystem>* Hnd);
+	SystemInterface* GetRegisteredSystem(SystemType Type, Handle<ISystem> Hnd);
 
-	// Resource manager procedures.
-	ResourceCache&	CreateNewResourceCache		(ResourceType Type);
-	ResourceCache*	FetchResourceCacheForType	(ResourceType Type);
-	bool			DeleteResourceCacheForType	(ResourceType Type);
-	
-private:
-
-	using CWndInfoRef = const WindowInfo&;
-
-	static void InitializeGlobalContext(EngineImpl* Engine);
-
-	void		UpdateIOStates				();
-
-	// Os related events here ...
-	virtual void OnEvent(const OS::Event& e)	override;
-	virtual void OnInit()						override;
-	virtual void OnTerminate()					override;
-
-	void BeginFrame();
-	void EndFrame();	// Not really sure what to do with this yet. Perhaps for profiling.
-
-public:
-
-	//bool		IsKeyPressed		(IOKeys Key);
-	//bool		IsKeyDoubleTapped	(IOKeys Key);
-	//bool		IsKeyHeld			(IOKeys Key);
-	//bool		IsKeyReleased		(IOKeys Key);
-	//bool		IsMouseClicked		(IOMouseButton Button);
-	//bool		IsMouseDoubleClicked(IOMouseButton Button);
-	//bool		IsMouseHeld			(IOMouseButton Button);
-	//bool		IsMouseReleased		(IOMouseButton Button);
-	//bool		IsMouseDragging		(IOMouseButton Button);
-	//bool		MouseDragDelta		(IOMouseButton Button, vec2& Buf);
-	//bool		IsCtrlPressed		();
-	//bool		IsAltPressed		();
-	//bool		IsShiftPressed		();
-
-	CWndInfoRef	GetWindowInformation() const;
 };
 
 EngineImpl& FetchEngineContext();

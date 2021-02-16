@@ -50,6 +50,16 @@ struct MurmurHash<uint32>
 	}
 };
 
+template <>
+struct MurmurHash<size_t>
+{
+	uint32 operator() (const size_t Source) const
+	{
+		uint32 Hash = 0;
+		MurmurHash32(&Source, sizeof(size_t), &Hash);
+		return Hash;
+	}
+};
 
 template <>
 struct MurmurHash<float32>

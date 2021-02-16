@@ -21,6 +21,7 @@ namespace vk
 #define MAX_FRAMEBUFFER_OUTPUTS			16
 #define MAX_BUFFER_VERTEX_DATA			1 << 20
 #define MAX_BUFFER_INSTANCE_DATA		1 << 24
+//#define MAX_UNIFORM_BUFFER_PAGE_SIZE	KILOBYTES(4)
 
 	using BinaryBuffer = Array<uint8>;
 	using DWordBuffer  = Array<uint32>;
@@ -65,13 +66,20 @@ namespace vk
 		bool				Unrecord;
 	};
 
+	struct HwBindVboEboInfo
+	{
+		Handle<HFramePass> FramePassHandle;
+		Handle<HBuffer> Vbo;
+		Handle<HBuffer> Ebo;
+	};
+
 	struct HwDrawInfo
 	{
-		Handle<HFramePass>	FramePassHandle;
-		Handle<HBuffer>		Vbo;
-		Handle<HBuffer>		Ebo;
-		uint32				VertexOffset;
-		uint32				IndexOffset;
+		Handle<HFramePass> FramePassHandle;
+		uint32 VertexOffset;
+		uint32 IndexOffset;
+		uint32 VertexCount;
+		uint32 IndexCount;
 	};
 
 	struct HwBlitInfo
@@ -87,7 +95,7 @@ namespace vk
 		void*				Data;
 		size_t				Count;
 		size_t				Size;
-		BufferType			Type;
+		EBufferType			Type;
 	};
 
 	struct HwShaderCreateInfo
@@ -103,8 +111,8 @@ namespace vk
 	*/
 	struct HwAttachmentInfo
 	{
-		TextureUsage		Usage;
-		TextureType			Type;
+		ETextureUsage		Usage;
+		ETextureType		Type;
 		ImageUsageBits		UsageFlagBits;
 		Handle<HImage>*		Handle;
 	};
@@ -114,7 +122,7 @@ namespace vk
 		HwAttachmentInfo		Outputs[MAX_FRAMEBUFFER_OUTPUTS];
 		Handle<HImage>			DefaultOutputs[Default_Output_Max];
 		Handle<HFramePass>		Handle;
-		SampleCount				Samples;
+		ESampleCount			Samples;
 		float32					Width;
 		float32					Height;
 		float32					Depth;
@@ -127,7 +135,7 @@ namespace vk
 		Handle<HFramePass>* Handle;
 		BitSet<uint32>		DefaultOutputs;
 		BitSet<uint32>		Order;
-		SampleCount			Samples;
+		ESampleCount		Samples;
 		uint32				NumColorOutputs;
 		bool				HasDepthStencilAttachment;
 	};
@@ -138,19 +146,20 @@ namespace vk
 		struct ShaderInfo
 		{
 			Handle<HShader> Handle;
-			ShaderType		Type;
+			EShaderType		Type;
 			ShaderAttrib*	Attributes;
 			size_t			AttributeCount;
 		};
 
 		using ShaderArr = StaticArray<ShaderInfo, 4>;
+		using DescLayoutArr = StaticArray<Handle<HDescLayout>, 16>;
 
 		ShaderArr			Shaders;
-		//Array<ShaderInfo>	Shaders;
-		TopologyType		Topology;
-		PolygonMode			PolyMode;
-		FrontFaceDir		FrontFace;
-		CullingMode			CullMode;
+		DescLayoutArr		DescriptorLayouts;
+		ETopologyType		Topology;
+		EPolygonMode		PolyMode;
+		EFrontFaceDir		FrontFace;
+		ECullingMode		CullMode;
 		Handle<HFramePass>	FramePassHandle;
 		Handle<HPipeline>*	Handle;
 		uint32				VertexStride;
@@ -165,13 +174,71 @@ namespace vk
 		*/
 	};
 
+	struct HwDescriptorSetLayoutCreateInfo
+	{
+		uint32					Binding;
+		EDescriptorType			Type;
+		BitSet<uint32>			ShaderStages;
+		Handle<HDescLayout>*	Handle;
+	};
+
+	struct HwDescriptorPoolCreateInfo
+	{
+		uint32				Type;
+		uint32				NumDescriptorsOfType;
+		Handle<HDescPool>*	Handle;
+	};
+
+	struct HwDescriptorSetAllocateInfo
+	{
+		Handle<HDescPool>	Pool;
+		Handle<HDescLayout> Layout;
+		Handle<HDescSet>*	Handle;
+		uint32				Size;
+		uint32				Count;
+	};
+
+	struct HwDescriptorSetMapInfo
+	{
+		Handle<HDescSet>	DescriptorSetHandle;
+		Handle<HBuffer>		BufferHandle;
+		uint32				Binding;
+		uint32				Offset;
+		uint32				Range;
+		EDescriptorType		DescriptorType;
+	};
+
+	struct HwDescriptorSetBindInfo
+	{
+		Handle<HFramePass>	FramePassHandle;
+		Handle<HPipeline>	PipelineHandle;
+		Handle<HDescSet>	DescriptorSetHandle;
+		EDescriptorType		DescriptorType;
+		uint32				Offset;
+	};
+
+	struct HwDescriptorPoolFlushInfo
+	{
+		Handle<HDescPool>	Handle;
+		uint32				Frame;
+	};
+
 	struct HwImageCreateStruct : public HwAttachmentInfo
 	{
 		uint32			Width;
 		uint32			Height;
 		uint32			Depth;
 		uint32			MipLevels;
-		SampleCount		Samples;
+		ESampleCount	Samples;
+	};
+
+	struct HwDataToDescriptorSetMapInfo
+	{
+		Handle<HDescSet> DescriptorSetHandle;
+		Handle<HBuffer> BufferHandle;
+		void*	Data;
+		uint32	Size;
+		uint32	Offset;
 	};
 
 	/**
@@ -204,6 +271,32 @@ namespace vk
 	};
 
 	/**
+	* Buffer page for uniform buffers.
+	*/
+	//class BufferPage
+	//{
+	//private:
+
+	//	VkBuffer		Buffer;
+	//	VmaAllocation	Allocation;
+	//	size_t			Offset;
+	//	BufferPage*		Next;
+
+	//	static size_t	_BufferPageSize;
+
+	//public:
+
+	//	BufferPage();
+	//	~BufferPage();
+
+	//	DELETE_COPY_AND_MOVE(BufferPage)
+
+	//	void InitializePage();
+	//	void MapMemory(size_t Offset, void* Data);
+	//	void AllocateOntoBuffer(uint32 Size);
+	//};
+
+	/**
 	* Vulkan initialisation.
 	*/
 	struct VulkanCommon
@@ -220,6 +313,8 @@ namespace vk
 		VkSemaphore			Semaphores[MAX_FRAMES_IN_FLIGHT][Semaphore_Max];
 		VkFence				Fence[MAX_FRAMES_IN_FLIGHT];
 		Array<VkFence>		ImageFences;
+
+		VkPhysicalDeviceProperties GPUProperties;
 
 		bool CreateVulkanInstance();
 		bool ChoosePhysicalDevice();
@@ -298,14 +393,23 @@ namespace vk
 		bool CreateShader			(HwShaderCreateInfo& CreateInfo);
 		void DestroyShader			(Handle<HShader>& Hnd);
 
+		bool CreateDescriptorPool	(HwDescriptorPoolCreateInfo& CreateInfo);
+		void DestroyDescriptorPool	(Handle<HDescPool>& Hnd);
+
+		bool CreateDescriptorSetLayout	(HwDescriptorSetLayoutCreateInfo& CreateInfo);
+		void DestroyDescriptorSetLayout	(Handle<HDescLayout>& Hnd);
+
 		bool CreatePipeline			(HwPipelineCreateInfo& CreateInfo);
 		void DestroyPipeline		(Handle<HPipeline>& Hnd);
+		void ReleasePipeline		(Handle<HPipeline>& Hnd);
 
 		bool CreateFramebuffer		(HwFramebufferCreateInfo& CreateInfo);
 		void DestroyFramebuffer		(Handle<HFramePass>& Hnd);
 
 		bool CreateRenderPass		(HwRenderpassCreateInfo& CreateInfo);
 		void DestroyRenderPass		(Handle<HFramePass>& Hnd);
+
+		void ReleaseFramePass		(Handle<HFramePass>& Hnd);
 
 		/**
 		* Only adds a command buffer entry into the driver.
@@ -314,6 +418,7 @@ namespace vk
 		//bool AddCommandBufferEntry	(HwCmdBufferAllocInfo& AllocateInfo);
 		void RecordCommandBuffer	(HwCmdBufferRecordInfo& RecordInfo);
 		void UnrecordCommandBuffer	(HwCmdBufferUnrecordInfo& UnrecordInfo);
+		void BindVboAndEbo			(HwBindVboEboInfo& BindInfo);
 		void Draw					(HwDrawInfo& DrawInfo);
 		void BlitImage				(HwBlitInfo& BlitInfo);
 		void BlitImageToSwapchain	(HwBlitInfo& BlitInfo);
@@ -323,6 +428,16 @@ namespace vk
 
 		void PushCmdBufferForSubmit	(Handle<HFramePass>& Hnd);
 
+		bool AllocateDescriptorSet	(HwDescriptorSetAllocateInfo& AllocInfo);
+		void MapDescSetToBuffer		(HwDescriptorSetMapInfo& MapInfo);
+		void BindDescriptorSets		(HwDescriptorSetBindInfo& BindInfo);
+
+		void MapDataToDescriptorSet	(HwDataToDescriptorSetMapInfo& MapInfo);
+
+		//void FreeDescriptorSetBuffer(Handle<HDescSet>& Hnd);
+		//void FlushDescriptorPool	(HwDescriptorPoolFlushInfo& FlushInfo);
+
+		size_t PadDataSizeForUniform(size_t Size);
 	};
 
 }

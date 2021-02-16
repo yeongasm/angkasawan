@@ -10,7 +10,7 @@ template <typename Type>
 class Handle
 {
 public:
-	Handle()	= default;
+	Handle() : OffsetToResource(INVALID_HANDLE) {};
 	~Handle()	= default;
 	Handle(const Handle&)	= default;
 	Handle(Handle&&)		= default;

@@ -51,6 +51,9 @@
     <ClCompile Include="External\cgltf\cgltf.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="RenderAbstracts\DescriptorSets.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="API\Vk\VulkanFunctions.h">
@@ -128,13 +131,7 @@
     <ClInclude Include="Assets\GPUHandles.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="RenderAbstracts\CommandBuffer.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="API\Vk\vk_mem_alloc.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="API\ShaderAttribute.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="RenderAbstracts\RenderGroup.h">
@@ -153,6 +150,15 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Assets\ModelLoader.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderAbstracts\DescriptorSets.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="API\ShaderAttribute.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderAbstracts\DrawCommand.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

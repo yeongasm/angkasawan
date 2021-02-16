@@ -66,22 +66,7 @@
     <ClInclude Include="SubSystem\Time\SystemClock.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Library\Math\Vec2.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="Library\Math\Vec3.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="Library\Math\Vec4.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="Library\Math\Mat3.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="Library\Math\Math.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="Library\Math\Mat4.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="SubSystem\Thread\Thread.h">
@@ -114,9 +99,6 @@
     <ClInclude Include="Engine\Private\Prototype.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Library\Math\MatrixFuncs.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="Library\Math\Quaternion.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -132,9 +114,6 @@
     <ClInclude Include="Library\Templates\Types.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Engine\Private\System.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="SubSystem\Game\GameApp.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -148,6 +127,24 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Library\Containers\Bitset.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Private\System.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Library\Math\Vector.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Library\Math\Operations.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Library\Math\Matrix.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Library\Allocators\BaseAllocator.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Library\Containers\Node.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -173,9 +170,6 @@
     <ClCompile Include="Engine\Private\Abstraction.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Library\Math\Math.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="Library\Stream\Ifstream.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -194,42 +188,24 @@
     <ClCompile Include="dllmain.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Engine\Private\System.cpp">
+    <ClCompile Include="SubSystem\Game\GameAppManager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SubSystem\Game\GameAppManager.cpp">
+    <ClCompile Include="Library\Math\Matrix.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Library\Math\Operations.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Library\Math\Quaternion.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Library\Math\Vector.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="Library\Math\Vec2.inl">
-      <Filter>Header Files</Filter>
-    </None>
-    <None Include="Library\Math\Vec3.inl">
-      <Filter>Header Files</Filter>
-    </None>
-    <None Include="Library\Math\Vec4.inl">
-      <Filter>Header Files</Filter>
-    </None>
-    <None Include="Library\Math\Mat3.inl">
-      <Filter>Header Files</Filter>
-    </None>
-    <None Include="Library\Math\Math.inl">
-      <Filter>Header Files</Filter>
-    </None>
-    <None Include="Library\Math\Mat4.inl">
-      <Filter>Header Files</Filter>
-    </None>
-    <None Include="Library\Math\Quaternion.inl">
-      <Filter>Header Files</Filter>
-    </None>
-    <None Include="Library\Math\MatrixFuncs.inl">
-      <Filter>Header Files</Filter>
-    </None>
     <None Include="cpp.hint" />
-    <None Include="Engine\Private\System.inl">
-      <Filter>Header Files</Filter>
-    </None>
     <None Include="SubSystem\Game\GameAppManager.inl">
       <Filter>Header Files</Filter>
     </None>

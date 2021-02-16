@@ -7,9 +7,21 @@
 namespace vk
 {
 
-#define MAX_PIPELINE_SHADER_STAGE 4
-#define MAX_GPU_RESOURCE static_cast<size_t>(1024)
-#define MAX_GPU_RESOURCE_DBL static_cast<size_t>(2018)
+	/**
+	* FUTURE PLANS(Ygsm):
+	* We allocated buffer memory to buffer pages and try to allocate objects into it.
+	* A single buffer page will behave like a linear allocator.
+	* We'll probably use VMA for memory allocation needs.
+	*/
+
+	/**
+	* TODO(Ygsm):
+	* Each descriptor set should own a buffer.
+	*/
+
+#define MAX_PIPELINE_SHADER_STAGE	4
+#define MAX_GPU_RESOURCE			static_cast<size_t>(1024)
+#define MAX_GPU_RESOURCE_DBL		static_cast<size_t>(2018)
 
 	static Xoroshiro32 g_RandIdVk(OS::GetPerfCounter());
 
@@ -34,19 +46,41 @@ namespace vk
 		{
 			VkBuffer		Buffer;
 			VmaAllocation	Allocation;
+			VkDeviceSize	Offset;
 			uint32			DataCount;
+			uint8*			Data;
+		};
+
+		struct DescPoolParam
+		{
+			VkDescriptorPool	DescPool[MAX_FRAMES_IN_FLIGHT];
+			Handle<HDescPool>	Next;
+		};
+
+		struct DescSetParam
+		{
+			VkDescriptorSet DescSet[MAX_FRAMES_IN_FLIGHT];
+		};
+
+		struct PipelineParams
+		{
+			VkPipeline		 Pipeline;
+			VkPipelineLayout Layout;
 		};
 
 		struct Storage
 		{
 			template <typename ResourceType> 
-			using StoreContainer	= Map<uint32, ResourceType>;
+			using StoreContainer = Map<uint32, ResourceType>;
 
 			StoreContainer<VkShaderModule>	Shaders;
-			StoreContainer<VkPipeline>		Pipelines;
+			StoreContainer<PipelineParams>	Pipelines;
 			StoreContainer<BufferParam>		Buffers;
 			StoreContainer<FramePassParams>	FramePasses;
 			StoreContainer<ImageParam>		Images;
+			StoreContainer<DescPoolParam>	DescriptorPools;
+			StoreContainer<DescSetParam>	DescriptorSets;
+			StoreContainer<VkDescriptorSetLayout> DescriptorLayout;
 
 		} Store;
 
@@ -123,7 +157,15 @@ namespace vk
 
 			VkBufferUsageFlagBits BufferTypes[Buffer_Type_Max] = {
 				VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-				VK_BUFFER_USAGE_INDEX_BUFFER_BIT
+				VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+				VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT
+			};
+
+			VkDescriptorType DescriptorType[Descriptor_Type_Max] = {
+				VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+				VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+				VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+				VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT
 			};
 
 		} Flags;
@@ -535,8 +577,7 @@ namespace vk
 		uint32 extensionCount = 2;
 #endif
 
-		VkInstanceCreateInfo createInfo;
-		FMemory::InitializeObject(createInfo);
+		VkInstanceCreateInfo createInfo = {};
 
 		createInfo.sType					= VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
 		createInfo.pApplicationInfo			= &appInfo;
@@ -683,6 +724,8 @@ namespace vk
 		}
 
 		GPU = selectedDevice;
+		vkGetPhysicalDeviceProperties(GPU, &GPUProperties);
+
 		Queues[Queue_Type_Present].FamilyIndex = presentQueueFamilyIndex;
 		Queues[Queue_Type_Graphics].FamilyIndex = graphicsQueueFamilyIndex;
 
@@ -827,12 +870,12 @@ namespace vk
 		{
 			if ((Count == 1) && (SurfaceFormats[0].format == VK_FORMAT_UNDEFINED))
 			{
-				return { VK_FORMAT_R8G8B8A8_UNORM, VK_COLORSPACE_SRGB_NONLINEAR_KHR };
+				return { VK_FORMAT_R8G8B8A8_SRGB, VK_COLORSPACE_SRGB_NONLINEAR_KHR };
 			}
 
 			for (uint32 i = 0; i < Count; i++)
 			{
-				if (SurfaceFormats[i].format == VK_FORMAT_R8G8B8A8_UNORM)
+				if (SurfaceFormats[i].format == VK_FORMAT_B8G8R8A8_SRGB)
 				{
 					return SurfaceFormats[i];
 				}
@@ -1164,8 +1207,7 @@ namespace vk
 
 	bool VulkanDriver::AllocateCommandBuffers()
 	{
-		VkCommandBufferAllocateInfo cmdBufferAllocateInfo;
-		FMemory::InitializeObject(cmdBufferAllocateInfo);
+		VkCommandBufferAllocateInfo cmdBufferAllocateInfo = {};
 
 		cmdBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
 		cmdBufferAllocateInfo.commandPool = CommandPool;
@@ -1193,10 +1235,11 @@ namespace vk
 
 		auto& bufferParam = Ctx.Store.Buffers[id];
 
+		size_t totalSize = CreateInfo.Count * CreateInfo.Size;
 		VkBufferCreateInfo bufferCreateInfo = {};
 
 		bufferCreateInfo.sType	= VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		bufferCreateInfo.size	= CreateInfo.Count * CreateInfo.Size;
+		bufferCreateInfo.size	= totalSize;
 		bufferCreateInfo.usage	= Ctx.Flags.BufferTypes[CreateInfo.Type];
 
 		VmaAllocationCreateInfo allocInfo = {};
@@ -1211,10 +1254,15 @@ namespace vk
 
 		bufferParam.DataCount = static_cast<uint32>(CreateInfo.Count);
 
-		void* data = nullptr;
-		vmaMapMemory(Allocator, bufferParam.Allocation, &data);
-		FMemory::Memcpy(data, CreateInfo.Data, CreateInfo.Count * CreateInfo.Size);
+		vmaMapMemory(Allocator, bufferParam.Allocation, reinterpret_cast<void**>(&bufferParam.Data));
 		vmaUnmapMemory(Allocator, bufferParam.Allocation);
+
+		if (CreateInfo.Data)
+		{
+			//void* data = nullptr;
+			FMemory::Memcpy(bufferParam.Data, CreateInfo.Data, totalSize);
+			bufferParam.Offset = totalSize;
+		}
 
 		return true;
 	}
@@ -1256,6 +1304,109 @@ namespace vk
 		vkDestroyShaderModule(Device, shaderModule, nullptr);
 		Ctx.Store.Shaders.Remove(Hnd);
 		new (&Hnd) Handle<HShader>(INVALID_HANDLE);
+	}
+
+	bool VulkanDriver::CreateDescriptorPool(HwDescriptorPoolCreateInfo& CreateInfo)
+	{
+		VkDescriptorPoolSize poolSize;
+		poolSize.descriptorCount = CreateInfo.NumDescriptorsOfType;
+		poolSize.type = Ctx.Flags.DescriptorType[CreateInfo.Type];
+
+		VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {};
+		descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+		descriptorPoolCreateInfo.maxSets = CreateInfo.NumDescriptorsOfType;
+		descriptorPoolCreateInfo.pPoolSizes = &poolSize;
+		descriptorPoolCreateInfo.poolSizeCount = 1;
+
+		uint32 passCount = MAX_FRAMES_IN_FLIGHT;
+		VkDescriptorPool descPool[MAX_FRAMES_IN_FLIGHT];
+
+		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+		{
+			if (vkCreateDescriptorPool(Device, &descriptorPoolCreateInfo, nullptr, &descPool[i]) != VK_SUCCESS)
+			{
+				continue;
+			}
+			passCount--;
+		}
+
+		if (passCount)
+		{
+			return false;
+		}
+
+		uint32 id = g_RandIdVk();
+		*CreateInfo.Handle = id;
+		auto& descPoolParams = Ctx.Store.DescriptorPools.Insert(id, {});
+
+		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+		{
+			descPoolParams.DescPool[i] = descPool[i];
+		}
+
+		return true;
+	}
+
+	void VulkanDriver::DestroyDescriptorPool(Handle<HDescPool>& Hnd)
+	{
+		vkDeviceWaitIdle(Device);
+
+		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+		{
+			VkDescriptorPool& descPool = Ctx.Store.DescriptorPools[Hnd].DescPool[i];
+			vkDestroyDescriptorPool(Device, descPool, nullptr);
+		}
+
+		Ctx.Store.DescriptorPools.Remove(Hnd);
+		new (&Hnd) Handle<HDescPool>(INVALID_HANDLE);
+	}
+
+	bool VulkanDriver::CreateDescriptorSetLayout(HwDescriptorSetLayoutCreateInfo& CreateInfo)
+	{
+		VkDescriptorSetLayoutBinding descSetLayoutBinding = {};
+		descSetLayoutBinding.binding = CreateInfo.Binding;
+		descSetLayoutBinding.descriptorCount = 1;
+		descSetLayoutBinding.descriptorType = Ctx.Flags.DescriptorType[CreateInfo.Type];
+
+		uint32 stageFlags = 0;
+
+		if (CreateInfo.ShaderStages.Has(Shader_Type_Vertex))
+		{
+			stageFlags |= Ctx.Flags.ShaderStageFlags[Shader_Type_Vertex];
+		}
+
+		if (CreateInfo.ShaderStages.Has(Shader_Type_Fragment))
+		{
+			stageFlags |= Ctx.Flags.ShaderStageFlags[Shader_Type_Fragment];
+		}
+
+		descSetLayoutBinding.stageFlags = stageFlags;
+
+		VkDescriptorSetLayoutCreateInfo descLayoutCreateInfo = {};
+		descLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+		descLayoutCreateInfo.bindingCount = 1;
+		descLayoutCreateInfo.pBindings = &descSetLayoutBinding;
+
+		VkDescriptorSetLayout setLayout;
+
+		if (vkCreateDescriptorSetLayout(Device, &descLayoutCreateInfo, nullptr, &setLayout) != VK_SUCCESS)
+		{
+			return false;
+		}
+
+		uint32 id = g_RandIdVk();
+		*CreateInfo.Handle = id;
+		Ctx.Store.DescriptorLayout.Insert(id, setLayout);
+
+		return true;
+	}
+
+	void VulkanDriver::DestroyDescriptorSetLayout(Handle<HDescLayout>& Hnd)
+	{
+		vkDeviceWaitIdle(Device);
+		VkDescriptorSetLayout& layout = Ctx.Store.DescriptorLayout[Hnd];
+		vkDestroyDescriptorSetLayout(Device, layout, nullptr);
+		Ctx.Store.DescriptorLayout.Remove(Hnd);
 	}
 
 	bool VulkanDriver::CreatePipeline(HwPipelineCreateInfo& CreateInfo)
@@ -1345,13 +1496,12 @@ namespace vk
 		// Dynamic state description.
 		// TODO(Ygsm):
 		// Study more about this.
-		//VkDynamicState dynamicStates[1] = { VK_DYNAMIC_STATE_VIEWPORT };
-		//VkPipelineDynamicStateCreateInfo dynamicStateCreateInfo;
-		//FMemory::InitializeObject(dynamicStateCreateInfo);
+		VkDynamicState dynamicStates[1] = { VK_DYNAMIC_STATE_VIEWPORT };
+		VkPipelineDynamicStateCreateInfo dynamicStateCreateInfo = {};
 
-		//dynamicStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-		//dynamicStateCreateInfo.dynamicStateCount = 1;
-		//dynamicStateCreateInfo.pDynamicStates = dynamicStates;
+		dynamicStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+		dynamicStateCreateInfo.dynamicStateCount = 1;
+		dynamicStateCreateInfo.pDynamicStates = dynamicStates;
 
 		// Rasterization state.
 		VkPipelineRasterizationStateCreateInfo rasterStateCreateInfo = {};
@@ -1401,10 +1551,35 @@ namespace vk
 		colorBlendCreateInfo.logicOpEnable		= VK_FALSE;
 		colorBlendCreateInfo.logicOp			= VK_LOGIC_OP_COPY;
 
+		//
+		// NOTE(Ygsm):
+		// The code below is only a temporary solution .........
+		//
+
+		Array<VkDescriptorSetLayout> descriptorSetLayouts;
+
+		for (size_t i = 0; i < CreateInfo.DescriptorLayouts.Length(); i++)
+		{
+			Handle<HDescLayout> hnd = CreateInfo.DescriptorLayouts[i];
+			VkDescriptorSetLayout layout = Ctx.Store.DescriptorLayout[hnd];
+			descriptorSetLayouts.Push(layout);
+		}
+
 		// Pipeline layour description.
 		VkPipelineLayoutCreateInfo layoutCreateInfo = {};
 
 		layoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+
+		if (descriptorSetLayouts.Length())
+		{
+			layoutCreateInfo.setLayoutCount = static_cast<uint32>(descriptorSetLayouts.Length());
+			layoutCreateInfo.pSetLayouts = descriptorSetLayouts.First();
+		}
+
+		//
+		// NOTE(Ygsm):
+		// The code above is only a temporary solution .........
+		//
 
 		VkPipelineLayout pipelineLayout;
 		if (vkCreatePipelineLayout(Device, &layoutCreateInfo, nullptr, &pipelineLayout) != VK_SUCCESS)
@@ -1426,6 +1601,11 @@ namespace vk
 			depthStencilCreateInfo.depthTestEnable	= VK_TRUE;
 			depthStencilCreateInfo.depthWriteEnable = VK_TRUE;
 		}
+
+		//
+		// TODO(Ygsm):
+		// Need to revise depth stencil configuration in the pipeline.
+		//
 
 		if (CreateInfo.HasStencil)
 		{
@@ -1459,8 +1639,8 @@ namespace vk
 			pipelineCreateInfo.pDepthStencilState = &depthStencilCreateInfo;
 		}
 
-		VkPipeline graphicsPipeline;
-		if (vkCreateGraphicsPipelines(Device, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &graphicsPipeline) != VK_SUCCESS)
+		VkPipeline pipeline;
+		if (vkCreateGraphicsPipelines(Device, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &pipeline) != VK_SUCCESS)
 		{
 			Ctx.ColorBlendStates.Empty();
 			VKT_ASSERT("Could not create graphics pipeline!" && false);
@@ -1468,11 +1648,11 @@ namespace vk
 		}
 
 		*CreateInfo.Handle = g_RandIdVk();
-		Ctx.Store.Pipelines.Insert(*CreateInfo.Handle, graphicsPipeline);
-		
-		Ctx.ColorBlendStates.Empty();
+		auto& pipelineParam = Ctx.Store.Pipelines.Insert(*CreateInfo.Handle, {});
+		pipelineParam.Pipeline = pipeline;
+		pipelineParam.Layout = pipelineLayout;
 
-		vkDestroyPipelineLayout(Device, pipelineLayout, nullptr);
+		Ctx.ColorBlendStates.Empty();
 
 		return true;
 	}
@@ -1480,8 +1660,15 @@ namespace vk
 	void VulkanDriver::DestroyPipeline(Handle<HPipeline>& Hnd)
 	{
 		vkDeviceWaitIdle(Device);
-		VkPipeline& graphicsPipeline = Ctx.Store.Pipelines[Hnd];
-		vkDestroyPipeline(Device, graphicsPipeline, nullptr);
+		auto& pipelineParam = Ctx.Store.Pipelines[Hnd];
+		vkDestroyPipelineLayout(Device, pipelineParam.Layout, nullptr);
+		vkDestroyPipeline(Device, pipelineParam.Pipeline, nullptr);
+		//Ctx.Store.Pipelines.Remove(Hnd);
+		//new (&Hnd) Handle<HPipeline>(INVALID_HANDLE);
+	}
+
+	void VulkanDriver::ReleasePipeline(Handle<HPipeline>& Hnd)
+	{
 		Ctx.Store.Pipelines.Remove(Hnd);
 		new (&Hnd) Handle<HPipeline>(INVALID_HANDLE);
 	}
@@ -1582,7 +1769,7 @@ namespace vk
 			VkClearValue& clearValue = Ctx.ClearValues.Insert(VkClearValue());
 			clearValue.color = { color[Color_Channel_Red], color[Color_Channel_Green], color[Color_Channel_Blue], color[Color_Channel_Alpha] };
 
-			if (i == RecordInfo.NumOutputs && RecordInfo.HasDepthStencil)
+			if (i == RecordInfo.NumOutputs - 1 && RecordInfo.HasDepthStencil)
 			{
 				FMemory::Memzero(&clearValue, sizeof(VkClearValue));
 				clearValue.depthStencil = { 1.0f, 0 };
@@ -1634,10 +1821,20 @@ namespace vk
 
 		vkCmdBeginRenderPass(cmdBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 
+		//VkViewport viewport = {};
+		//viewport.x = 0.0f;
+		//viewport.y = 0.0f;
+		//viewport.width = static_cast<float32>(SwapChain.Extent.width);
+		//viewport.height = static_cast<float32>(SwapChain.Extent.height);
+		//viewport.minDepth = 0.0f;
+		//viewport.maxDepth = 1.0f;
+
+		//vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
+
 		if (RecordInfo.PipelineHandle != INVALID_HANDLE)
 		{
-			VkPipeline pipeline = Ctx.Store.Pipelines[RecordInfo.PipelineHandle];
-			vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+			auto& pipelineParam = Ctx.Store.Pipelines[RecordInfo.PipelineHandle];
+			vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineParam.Pipeline);
 		}
 
 		Ctx.ClearValues.Empty();
@@ -1659,31 +1856,37 @@ namespace vk
 		}
 	}
 
-	void VulkanDriver::Draw(HwDrawInfo& DrawInfo)
+	void VulkanDriver::BindVboAndEbo(HwBindVboEboInfo& BindInfo)
 	{
-		auto& frameParams	= Ctx.Store.FramePasses[DrawInfo.FramePassHandle];
-		auto& vboParams		= Ctx.Store.Buffers[DrawInfo.Vbo];
+		auto& frameParams = Ctx.Store.FramePasses[BindInfo.FramePassHandle];
+		auto& vboParams = Ctx.Store.Buffers[BindInfo.Vbo];
 
 		VkCommandBuffer& cmdBuffer = frameParams.CommandBuffers[CurrentFrame];
-		VkBuffer& vertexBuffer	= vboParams.Buffer;
+		VkBuffer& vbo = vboParams.Buffer;
 		VkDeviceSize offset = 0;
-		uint32 drawCount = vboParams.DataCount - DrawInfo.VertexOffset;
 
-		vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &vertexBuffer, &offset);
+		vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &vbo, &offset);
 
-		if (DrawInfo.Ebo != INVALID_HANDLE)
+		if (BindInfo.Ebo != INVALID_HANDLE)
 		{
-			auto& eboParams	= Ctx.Store.Buffers[DrawInfo.Ebo];
-			VkBuffer& indexBuffer = eboParams.Buffer;
+			auto& eboParams = Ctx.Store.Buffers[BindInfo.Ebo];
+			VkBuffer& ebo = eboParams.Buffer;
+			vkCmdBindIndexBuffer(cmdBuffer, ebo, 0, VK_INDEX_TYPE_UINT32);
+		}
+	}
 
-			drawCount = eboParams.DataCount - DrawInfo.IndexOffset;
+	void VulkanDriver::Draw(HwDrawInfo& DrawInfo)
+	{
+		auto& frameParams = Ctx.Store.FramePasses[DrawInfo.FramePassHandle];
+		VkCommandBuffer& cmdBuffer = frameParams.CommandBuffers[CurrentFrame];
 
-			vkCmdBindIndexBuffer(cmdBuffer, indexBuffer, DrawInfo.IndexOffset * sizeof(uint32), VK_INDEX_TYPE_UINT32);
-			vkCmdDrawIndexed(cmdBuffer, drawCount, 1, 0, DrawInfo.VertexOffset, 0);
+		if (DrawInfo.IndexCount)
+		{
+			vkCmdDrawIndexed(cmdBuffer, DrawInfo.IndexCount, 1, DrawInfo.IndexOffset, 0, 0);
 		}
 		else
 		{
-			vkCmdDraw(cmdBuffer, drawCount, 1, DrawInfo.VertexOffset, 0);
+			vkCmdDraw(cmdBuffer, DrawInfo.VertexCount, 1, DrawInfo.VertexOffset, 0);
 		}
 	}
 
@@ -2039,13 +2242,13 @@ namespace vk
 		auto& frameParams = Ctx.Store.FramePasses[Hnd];
 
 		vkDeviceWaitIdle(Device);
-		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+		for (size_t i = 0; i < MAX_SWAPCHAIN_IMAGE_ALLOWED; i++)
 		{
 			vkDestroyFramebuffer(Device, frameParams.Framebuffers[i], nullptr);
 			frameParams.Framebuffers[i] = VK_NULL_HANDLE;
 		}
 
-		Hnd = INVALID_HANDLE;
+		//Hnd = INVALID_HANDLE;
 	};
 
 	bool VulkanDriver::CreateRenderPass(HwRenderpassCreateInfo& CreateInfo)
@@ -2163,6 +2366,9 @@ namespace vk
 		// Since framebuffers only allow a single depth stencil attachment, we have to make a choice.
 		// By default the default output's depth attachment is used but if it has it's own depth stencil attachment,
 		// we set up that instead.
+
+		// TODO(Ygsm):
+		// The current set up does not include depth attachment that is used in subsequent passes as input.
 		if (CreateInfo.HasDepthStencilAttachment || !CreateInfo.DefaultOutputs.Has(RenderPass_Bit_No_DepthStencil_Render))
 		{
 			VkAttachmentDescription& desc = attachmentDescs[offset];
@@ -2173,7 +2379,7 @@ namespace vk
 			desc.loadOp			= VK_ATTACHMENT_LOAD_OP_CLEAR;
 			desc.storeOp		= VK_ATTACHMENT_STORE_OP_STORE;
 			desc.stencilLoadOp	= VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-			desc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
+			desc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 			desc.initialLayout	= VK_IMAGE_LAYOUT_UNDEFINED;
 			desc.finalLayout	= VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
@@ -2239,6 +2445,11 @@ namespace vk
 		frameParams.Renderpass = VK_NULL_HANDLE;
 	}
 
+	void VulkanDriver::ReleaseFramePass(Handle<HFramePass>& Hnd)
+	{
+		Ctx.Store.FramePasses.Remove(Hnd);
+	}
+
 	void VulkanDriver::PushCmdBufferForSubmit(Handle<HFramePass>& Hnd)
 	{
 		auto& frameParams = Ctx.Store.FramePasses[Hnd];
@@ -2246,4 +2457,131 @@ namespace vk
 		CommandBuffersForSubmit.Push(commandBuffer);
 	}
 
+	bool VulkanDriver::AllocateDescriptorSet(HwDescriptorSetAllocateInfo& AllocInfo)
+	{
+		auto& poolParams = Ctx.Store.DescriptorPools[AllocInfo.Pool];
+
+		VkDescriptorSetLayout& layout = Ctx.Store.DescriptorLayout[AllocInfo.Layout];
+
+		VkDescriptorSetAllocateInfo allocInfo = {};
+		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+		allocInfo.descriptorSetCount = 1;
+		allocInfo.pSetLayouts = &layout;
+
+		VkDescriptorSet descriptorSets[MAX_FRAMES_IN_FLIGHT];
+
+		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+		{
+			allocInfo.descriptorPool = poolParams.DescPool[i];
+			vkAllocateDescriptorSets(Device, &allocInfo, &descriptorSets[i]);
+		}
+
+		uint32 id = g_RandIdVk();
+		*AllocInfo.Handle = id;
+		auto& descSetParams = Ctx.Store.DescriptorSets.Insert(id, {});
+
+		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+		{
+			descSetParams.DescSet[i] = descriptorSets[i];
+		}
+
+		return true;
+	}
+
+	void VulkanDriver::MapDescSetToBuffer(HwDescriptorSetMapInfo& MapInfo)
+	{
+		auto& descSetParams = Ctx.Store.DescriptorSets[MapInfo.DescriptorSetHandle];
+		auto& bufferParams = Ctx.Store.Buffers[MapInfo.BufferHandle];
+
+		const uint32 maxDeviceRange = GPUProperties.limits.maxUniformBufferRange;
+		const uint32 mappingRange = MapInfo.Range * MAX_FRAMES_IN_FLIGHT;
+		uint32 remainingRange = mappingRange - maxDeviceRange;
+
+		if (remainingRange <= 0)
+		{
+			remainingRange = 0;
+		}
+
+		// NOTE(Ygsm):
+		// Not sure if this would work...
+		Array<VkDescriptorBufferInfo> bufferInfos;
+
+		VkDescriptorBufferInfo bufferInfo = {};
+		bufferInfo.buffer = bufferParams.Buffer;
+
+		bufferInfo.offset = MapInfo.Offset;
+		bufferInfo.range = mappingRange - remainingRange;
+		bufferInfos.Push(bufferInfo);
+
+		if (remainingRange > 0)
+		{
+			bufferInfo.offset = mappingRange - remainingRange;
+			bufferInfo.range = remainingRange;
+			bufferInfos.Push(bufferInfo);
+		}
+
+		VkWriteDescriptorSet descriptorWrite = {};
+		descriptorWrite.sType		= VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		descriptorWrite.dstBinding	= MapInfo.Binding;
+		descriptorWrite.descriptorType = Ctx.Flags.DescriptorType[MapInfo.DescriptorType];
+		descriptorWrite.descriptorCount = 1;
+		descriptorWrite.pBufferInfo		= bufferInfos.First();
+
+		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+		{
+			//bufferInfo.offset = i * MapInfo.Range;
+			descriptorWrite.dstSet = descSetParams.DescSet[i];
+			vkUpdateDescriptorSets(Device, 1, &descriptorWrite, 0, nullptr);
+		}
+	}
+
+	void VulkanDriver::BindDescriptorSets(HwDescriptorSetBindInfo& BindInfo)
+	{
+		auto& pipelineParam = Ctx.Store.Pipelines[BindInfo.PipelineHandle];
+		auto& descriptorSetParam = Ctx.Store.DescriptorSets[BindInfo.DescriptorSetHandle];
+		auto& framePassParams = Ctx.Store.FramePasses[BindInfo.FramePassHandle];
+
+		VkCommandBuffer commandBuffer = framePassParams.CommandBuffers[CurrentFrame];
+		VkDescriptorSet descriptorSet = descriptorSetParam.DescSet[CurrentFrame];
+
+		VkDescriptorType type = Ctx.Flags.DescriptorType[BindInfo.DescriptorType];
+
+		uint32 dynamicOffsetCount = 0;
+		uint32* dynamicOffset = nullptr;
+
+		if (type == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC)
+		{
+			dynamicOffsetCount = 1;
+			dynamicOffset = &BindInfo.Offset;
+		}
+
+		vkCmdBindDescriptorSets(
+			commandBuffer,
+			VK_PIPELINE_BIND_POINT_GRAPHICS,
+			pipelineParam.Layout,
+			0,
+			1,
+			&descriptorSet,
+			dynamicOffsetCount,
+			dynamicOffset);
+	}
+
+	void VulkanDriver::MapDataToDescriptorSet(HwDataToDescriptorSetMapInfo& MapInfo)
+	{
+		auto& descSetParam = Ctx.Store.DescriptorSets[MapInfo.DescriptorSetHandle];
+		auto& bufferParam = Ctx.Store.Buffers[MapInfo.BufferHandle];
+		uint8* ptr = reinterpret_cast<uint8*>(bufferParam.Data + MapInfo.Offset);
+		FMemory::Memcpy(ptr, MapInfo.Data, MapInfo.Size);
+	}
+
+	size_t VulkanDriver::PadDataSizeForUniform(size_t Size)
+	{
+		const size_t minUboAlignment = GPUProperties.limits.minUniformBufferOffsetAlignment;
+		size_t alignedSize = Size;
+		if (minUboAlignment)
+		{
+			alignedSize = (alignedSize + minUboAlignment - 1) & ~(minUboAlignment - 1);
+		}
+		return alignedSize;
+	}
 }

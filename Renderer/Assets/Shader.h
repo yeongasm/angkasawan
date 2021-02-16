@@ -12,9 +12,8 @@ struct ShaderCreateInfo
 {
 	FilePath	Path;
 	String128	Name;
-	ShaderType	Type;
+	EShaderType	Type;
 };
-
 
 /**
 * TODO(Ygsm):
@@ -26,7 +25,7 @@ struct Shader
 {
 	String				Code;
 	String128			Name;
-	ShaderType			Type;
+	EShaderType			Type;
 	Handle<HShader>		Handle;
 	Array<ShaderAttrib> Attributes;
 };

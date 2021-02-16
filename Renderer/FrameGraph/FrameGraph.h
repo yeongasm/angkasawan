@@ -10,14 +10,17 @@
 #include "API/RendererFlagBits.h"
 #include "Assets/Shader.h"
 
+#define MAX_FRAMES_IN_FLIGHT 2
+
 class RenderSystem;
-class FrameGraph;
+class IRFrameGraph;
 class RenderContext;
+struct DescriptorLayout;
 
 struct AttachmentCreateInfo
 {
-	TextureUsage	Usage;
-	TextureType		Type;
+	ETextureUsage	Usage;
+	ETextureType	Type;
 };
 
 /**
@@ -30,19 +33,36 @@ struct FrameImages
 };
 
 /**
+* TODO(Ygsm):
+* 30.12.2020 - Add subpass feature into renderpasses.
+*/
+
+/**
 * NOTE(Ygsm):
-* A render pass represents a single framebuffer / render-pass / graphics pipeline in the hardware.
+* 30.12.2020 - Should subpasses produce output attachments?
+* 04.01.2021 - No, subpasses should not produce output attachment. They will use the parent's renderpass.
+* 
+* A RenderPass represents a rendering pass in the program.
+* Is able to output textures that will be sampled by another pass.
+* Also able to receive input from other RenderPasses to be sampled.
+* By default, all RenderPasses will render to the color & depth stencil output owned by the FrameGraph unless any of the No* functions are called.
+* 
+* *** FUTURE FEATURE ***
+* 
+* RenderPasses can also be converted into subpasses.
+* Subpasses are RenderPasses that do not produce sampled outputs and instead writes to it's parent's output.
+* They are essentially just another pipeline within the main pass.
 */
 class RENDERER_API RenderPass
 {
 public:
 
-	RenderPass(FrameGraph& OwnerGraph, RenderPassType Type, uint32 Order);
+	RenderPass(IRFrameGraph& OwnerGraph, ERenderPassType Type, uint32 Order);
 	~RenderPass();
 
 	DELETE_COPY_AND_MOVE(RenderPass)
 
-	bool AddShader				(Shader* ShaderSrc, ShaderType Type);
+	bool AddShader				(Shader* ShaderSrc, EShaderType Type);
 	void AddColorInput			(const String32& Identifier, RenderPass& From);
 	void AddColorOutput			(const String32& Identifier, const AttachmentCreateInfo& Info);
 
@@ -55,18 +75,29 @@ public:
 	void AddDepthStencilInput	(const RenderPass& From);
 	void AddDepthStencilOutput	();
 
+	/**
+	* Feature not implemented yet!
+	*/
 	bool AddSubpass		(RenderPass& Subpass);
+
+	/**
+	* Feature not implemented yet!
+	*/
 	bool IsMainpass		() const;
+
+	/**
+	* Feature not implemented yet!
+	*/
 	bool IsSubpass		() const;
 
 	void SetWidth		(float32 Width);
 	void SetHeight		(float32 Height);
 	void SetDepth		(float32 Depth);
-	void SetSampleCount	(SampleCount Samples);
-	void SetTopology	(TopologyType Type);
-	void SetCullMode	(CullingMode Mode);
-	void SetPolygonMode	(PolygonMode Mode);
-	void SetFrontFace	(FrontFaceDir Face);
+	void SetSampleCount	(ESampleCount Samples);
+	void SetTopology	(ETopologyType Type);
+	void SetCullMode	(ECullingMode Mode);
+	void SetPolygonMode	(EPolygonMode Mode);
+	void SetFrontFace	(EFrontFaceDir Face);
 
 	void NoRender				();
 	void NoColorRender			();
@@ -79,20 +110,21 @@ private:
 		Handle<HImage> Handle;
 	};
 
-	friend class FrameGraph;
+	friend class IRFrameGraph;
 	friend class RenderContext;
 
 	using OutputAttachments = Map<String32, AttachmentInfo, MurmurHash<String32>, 1>;
 	using InputAttachments	= Map<String32, AttachmentInfo*, MurmurHash<String32>, 1>;
+	using ArrayOfDescLayouts = Array<DescriptorLayout*>;
 
-	FrameGraph&			Owner;
-	RenderPassType		Type;
+	IRFrameGraph&		Owner;
+	ERenderPassType		Type;
 
-	SampleCount			Samples;
-	TopologyType		Topology;
-	FrontFaceDir		FrontFace;
-	CullingMode			CullMode;
-	PolygonMode			PolygonalMode;
+	ESampleCount		Samples;
+	ETopologyType		Topology;
+	EFrontFaceDir		FrontFace;
+	ECullingMode		CullMode;
+	EPolygonMode		PolygonalMode;
 	BitSet<uint32>		Flags;
 	float32				Width;
 	float32				Height;
@@ -101,7 +133,7 @@ private:
 	uint32				PassType;
 
 	Array<Shader*>		Shaders;
-	RenderPassState		State;
+	ERenderPassState	State;
 	Handle<HPipeline>	PipelineHandle;
 	Handle<HFramePass>	FramePassHandle;
 
@@ -112,46 +144,45 @@ private:
 
 	RenderPass*			Parent;
 	Array<RenderPass*>	Childrens;
-
+	ArrayOfDescLayouts	BoundDescriptorLayouts;
 };
 
-class RENDERER_API FrameGraph
+
+class RENDERER_API IRFrameGraph
 {
 private:
-	using PassNameEnum = uint32;
+	using RenderPassEnum = uint32;
 public:
 
-	FrameGraph(RenderContext& Context, LinearAllocator& GraphAllocator);
-	~FrameGraph();
+	IRFrameGraph(RenderContext& Context, LinearAllocator& GraphAllocator);
+	~IRFrameGraph();
 
-	DELETE_COPY_AND_MOVE(FrameGraph)
+	DELETE_COPY_AND_MOVE(IRFrameGraph)
 
-	Handle<RenderPass>	AddPass				(PassNameEnum PassIdentity, RenderPassType Type);
+	Handle<RenderPass>	AddPass				(RenderPassEnum PassIdentity, ERenderPassType Type);
 	RenderPass&			GetRenderPass		(Handle<RenderPass> Handle);
-
 	Handle<HImage>		GetColorImage		()	const;
 	Handle<HImage>		GetDepthStencilImage()	const;
-
 	uint32				GetNumRenderPasses	()	const;
 
-	void Destroy();
-	bool Compile();
-	bool Compiled() const;
+	void OnWindowResize	();
+	void Destroy		();
+	bool Compile		();
+	bool Compiled		() const;
 
 private:			
 
 	friend class RenderSystem;
-	using RenderPassTable = Map<PassNameEnum, RenderPass*>;
+	using RenderPassTable	= Map<RenderPassEnum, RenderPass*>;
 
 	String128			Name;
-
 	RenderContext&		Context;
 	LinearAllocator&	Allocator;
-
 	FrameImages			Images;
 	RenderPassTable		RenderPasses;
 	bool				IsCompiled;
 
+	void BindLayoutToRenderPass(DescriptorLayout& Layout, Handle<RenderPass> PassHandle);
 };
 
 #endif // !LEARNVK_RENDERER_RENDERGRAPH_RENDER_GRAPH_H

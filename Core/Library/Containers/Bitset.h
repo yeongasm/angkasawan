@@ -80,6 +80,11 @@ public:
 	{
 		return Data;
 	}
+
+	void Assign(Type Value)
+	{
+		Data = Value;
+	}
 };
 
 #endif // !LEARNVK_CORE_LIBRARY_CONTAINERS_BITSET_H

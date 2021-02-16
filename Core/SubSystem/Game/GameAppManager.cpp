@@ -35,7 +35,7 @@ void GameManager::RunGame(float32 Timestep)
 	}
 
 	float32 timestep = Timestep;
-	if (!Paused)
+	if (Paused)
 	{
 		timestep = 0.0f;
 	}

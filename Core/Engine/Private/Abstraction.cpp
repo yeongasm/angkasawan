@@ -3,11 +3,97 @@
 //EngineImpl::EngineImpl()  {}
 //EngineImpl::~EngineImpl() {}
 
-void EngineImpl::UpdateIOStates()
+//void EngineImpl::UpdateIOStates()
+//{
+//	// For now this is fine because we only support a single window.
+//	// Don't do anything if window is not focused ...
+//	//if (Window.Handle != OS::GetFocused()) return;
+//	if (!IsWindowFocused()) return;
+//
+//	for (int32 i = 0; i < Io_MouseButton_Max; i++)
+//	{
+//		if (!Io.MouseButtons[i])
+//		{
+//			Io.MouseClickPos[i] = vec2(0.f);
+//			Io.MouseState[i] = Io_State_Released;
+//			continue;
+//		}
+//
+//		if (Io.MouseState[i] == Io_State_Pressed)
+//		{	
+//			if (Clock.FElapsedTime() - Io.MouseClickTime[i] >= Io.MinDurationForHold)
+//			{
+//				Io.MouseState[i] = Io_State_Held;
+//			}
+//			if (Io.MouseClickTime[i] - Io.MousePrevClickTime[i] < Io.MouseDoubleClickTime)
+//			{
+//				vec2 clickPosDelta = Io.MousePos - Io.MouseClickPos[i];
+//				float32 lengthSquared = clickPosDelta.x * clickPosDelta.x + clickPosDelta.y * clickPosDelta.y;
+//				if (lengthSquared < Io.MouseDoubleClickMaxDistance * Io.MouseDoubleClickMaxDistance)
+//				{
+//					Io.MouseState[i] = Io_State_Repeat;
+//				}
+//			}
+//		}
+//
+//		if (Io.MouseState[i] == Io_State_Held)
+//		{
+//			Io.MouseHoldDuration[i] = Clock.FElapsedTime() - Io.MouseClickTime[i];
+//		}
+//
+//		if (Io.MouseState[i] == Io_State_Released)
+//		{
+//			Io.MouseClickPos[i] = Io.MousePos;
+//			Io.MouseState[i] = Io_State_Pressed;
+//			Io.MousePrevClickTime[i] = Io.MouseClickTime[i];
+//			Io.MouseClickTime[i] = Clock.FElapsedTime();
+//		}
+//	}
+//
+//	for (int32 i = 0; i < Io_Key_Max; i++)
+//	{
+//		if (!Io.Keys[i])
+//		{
+//			Io.KeyState[i] = Io_State_Released;
+//			continue;
+//		}
+//
+//		if (Io.KeyState[i] == Io_State_Pressed)
+//		{
+//			if (Clock.ElapsedTime() - Io.KeyPressTime[i] >= Io.MinDurationForHold)
+//			{
+//				Io.KeyState[i] = Io_State_Held;
+//			}
+//			if (Io.KeyPressTime[i] - Io.KeyPrevPressTime[i] < Io.KeyDoubleTapTime)
+//			{
+//				Io.KeyState[i] = Io_State_Repeat;
+//			}
+//		}
+//
+//		if (Io.KeyState[i] == Io_State_Held)
+//		{
+//			Io.KeyHoldDuration[i] = Clock.FElapsedTime() - Io.KeyPressTime[i];
+//		}
+//
+//		if (Io.KeyState[i] == Io_State_Released)
+//		{
+//			Io.KeyState[i] = Io_State_Pressed;
+//			Io.KeyPrevPressTime[i] = Io.KeyPressTime[i];
+//			Io.KeyPressTime[i] = Clock.FElapsedTime();
+//		}
+//	}
+//}
+
+void EngineImpl::ReserveMemoryForSystems()
 {
-	// For now this is fine because we only support a single window.
-	// Don't do anything if window is not focused ...
-	if (Window.Handle != OS::GetFocused()) return;
+	SystemAllocator.Initialize(KILOBYTES(512));
+	EngineSystems.Reserve(16);
+	GameSystems.Reserve(16);
+}
+
+void EngineImpl::UpdateMouseStates()
+{
+	if (!IsWindowFocused()) return;
 
 	for (int32 i = 0; i < Io_MouseButton_Max; i++)
 	{
@@ -19,7 +105,7 @@ void EngineImpl::UpdateIOStates()
 		}
 
 		if (Io.MouseState[i] == Io_State_Pressed)
-		{	
+		{
 			if (Clock.FElapsedTime() - Io.MouseClickTime[i] >= Io.MinDurationForHold)
 			{
 				Io.MouseState[i] = Io_State_Held;
@@ -48,6 +134,11 @@ void EngineImpl::UpdateIOStates()
 			Io.MouseClickTime[i] = Clock.FElapsedTime();
 		}
 	}
+}
+
+void EngineImpl::UpdateKeyStates()
+{
+	if (!IsWindowFocused()) return;
 
 	for (int32 i = 0; i < Io_Key_Max; i++)
 	{
@@ -120,15 +211,16 @@ void EngineImpl::OnEvent(const OS::Event& e)
 			State = AppState::Exit;
 			break;
 		default:
-			break;
+			return;
 	}
-	Systems.OnEvent(e);
 }
 
 void EngineImpl::OnInit()
 {
 	OS::InitializeOSContext();
 	OS::SetApplicationInstance(*dynamic_cast<OS::Interface*>(this));
+	ReserveMemoryForSystems();
+
 	OS::WindowCreateInformation wndInfo;
 	wndInfo.Name = this->Name.C_Str();
 	wndInfo.FullScreen = Window.IsFullScreened;
@@ -138,6 +230,7 @@ void EngineImpl::OnInit()
 	wndInfo.Width = Window.Width;
 	wndInfo.Height = Window.Height;
 	Window.Handle = OS::CreateAppWindow(wndInfo);
+
 	if (Window.IsFullScreened)
 	{
 		OS::MaximizeWindow(Window.Handle);
@@ -161,7 +254,8 @@ void EngineImpl::BeginFrame()
 	// Delta time should be the average of 5 frames.
 	Clock.Tick();
 	OS::ProcessEvent();
-	UpdateIOStates();
+	UpdateMouseStates();
+	UpdateKeyStates();
 }
 
 void EngineImpl::EndFrame()
@@ -201,14 +295,22 @@ void EngineImpl::RegisterGame(const EngineCreationInfo& Info)
 	GameCoordinator.RegisterGameDll(Info.GameModule, false, hotReloadable);
 }
 
+void EngineImpl::RunGameAndUpdateSystems()
+{
+	const float32 deltaTime = Clock.FTimestep();
+
+	GameCoordinator.RunGame(deltaTime);
+
+	for (SystemInterface* gameSystem : GameSystems)		{ gameSystem->OnUpdate(); }
+	for (SystemInterface* engineSystem : EngineSystems) { engineSystem->OnUpdate(); }
+}
+
 void EngineImpl::Run()
 {
 	while (State != AppState::Exit)
 	{
-		const float32 deltaTime = Clock.FTimestep();
 		BeginFrame();
-		GameCoordinator.RunGame(deltaTime);
-		Systems.Update();
+		RunGameAndUpdateSystems();
 		EndFrame();
 	}
 }
@@ -218,7 +320,7 @@ void EngineImpl::TerminateEngine()
 	GameCoordinator.TerminateGame();
 	OnTerminate();
 	JobSystem.Shutdown();
-	Systems.UnregisterAndFreeAll();
+	FreeAllSystems();
 	Manager.FreeAllCaches();
 }
 
@@ -333,4 +435,52 @@ bool EngineImpl::DeleteResourceCacheForType(ResourceType Type)
 EngineImpl::CWndInfoRef EngineImpl::GetWindowInformation() const
 {
 	return Window;
+}
+
+bool EngineImpl::IsWindowFocused() const
+{
+	return Window.Handle == OS::GetFocused();
+}
+
+bool EngineImpl::HasWindowSizeChanged() const
+{
+	return Window.WindowSizeChanged;
+}
+
+void EngineImpl::ShowCursor(bool Show)
+{
+	OS::ShowCursor(Show);
+}
+
+void EngineImpl::SetMousePosition(float32 x, float32 y)
+{
+	OS::SetMousePos(Window.Handle, static_cast<int32>(x), static_cast<int32>(y));
+}
+
+void* EngineImpl::AllocateAndRegisterSystem(size_t Size, SystemType Type, Handle<ISystem>* Hnd)
+{
+	using SystemContainer = Array<SystemInterface*>*;
+	SystemInterface* system = reinterpret_cast<SystemInterface*>(SystemAllocator.Malloc(Size));
+	SystemContainer container = (Type == System_Engine_Type) ? &EngineSystems : &GameSystems;
+	*Hnd = container->Push(system);
+	return system;
+}
+
+void EngineImpl::FreeAllSystems()
+{
+	for (SystemInterface* engineSystem : EngineSystems) 
+	{ 
+		engineSystem->OnTerminate(); 
+	}
+
+	EngineSystems.Release();
+	GameSystems.Release();
+	SystemAllocator.Terminate();
+}
+
+SystemInterface* EngineImpl::GetRegisteredSystem(SystemType Type, Handle<ISystem> Hnd)
+{
+	using SystemContainer = Array<SystemInterface*>*;
+	SystemContainer container = (Type == System_Engine_Type) ? &EngineSystems : &GameSystems;
+	return (*container)[Hnd];
 }

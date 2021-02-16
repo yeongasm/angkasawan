@@ -3,39 +3,39 @@
 #include "Library/Stream/Ifstream.h"
 #include "Library/Algorithms/Tokenizer.h"
 
-RendererAssetManager::RendererAssetManager()  {}
-RendererAssetManager::~RendererAssetManager() {}
+IRAssetManager::IRAssetManager()  {}
+IRAssetManager::~IRAssetManager() {}
 
-void RendererAssetManager::Initialize()
+void IRAssetManager::Initialize()
 {
 	Manager = &ao::FetchEngineCtx().Manager;
-	Manager->AddCache(Renderer_Resource_Mesh);
-	Manager->AddCache(Renderer_Resource_Model);
-	Manager->AddCache(Renderer_Resource_Shader);
-	Manager->AddCache(Renderer_Resource_Texture);
-	Manager->AddCache(Renderer_Resource_Material);
+	Manager->AddCache(Renderer_Asset_Mesh);
+	Manager->AddCache(Renderer_Asset_Model);
+	Manager->AddCache(Renderer_Asset_Shader);
+	Manager->AddCache(Renderer_Asset_Texture);
+	Manager->AddCache(Renderer_Asset_Material);
 
 	ShaderStore.Reserve(512);
 	MeshStore.Reserve(512);
 	ModelStore.Reserve(128);
 }
 
-void RendererAssetManager::Terminate()
+void IRAssetManager::Terminate()
 {
 	ShaderStore.Release();
 	MeshStore.Release();
 	ModelStore.Release();
 
-	Manager->RemoveCache(Renderer_Resource_Mesh);
-	Manager->RemoveCache(Renderer_Resource_Model);
-	Manager->RemoveCache(Renderer_Resource_Shader);
-	Manager->RemoveCache(Renderer_Resource_Texture);
-	Manager->RemoveCache(Renderer_Resource_Material);
+	Manager->RemoveCache(Renderer_Asset_Mesh);
+	Manager->RemoveCache(Renderer_Asset_Model);
+	Manager->RemoveCache(Renderer_Asset_Shader);
+	Manager->RemoveCache(Renderer_Asset_Texture);
+	Manager->RemoveCache(Renderer_Asset_Material);
 }
 
-Handle<Shader> RendererAssetManager::CreateNewShader(const ShaderCreateInfo& CreateInfo)
+Handle<Shader> IRAssetManager::CreateNewShader(const ShaderCreateInfo& CreateInfo)
 {
-	ResourceCache* shaderCache = Manager->FetchCacheForType(Renderer_Resource_Shader);
+	ResourceCache* shaderCache = Manager->FetchCacheForType(Renderer_Asset_Shader);
 	
 	if (shaderCache->Find(CreateInfo.Path))
 	{
@@ -45,7 +45,7 @@ Handle<Shader> RendererAssetManager::CreateNewShader(const ShaderCreateInfo& Cre
 	uint32 id = shaderCache->Create();
 	Resource* resource = shaderCache->Get(id);
 	resource->Path = CreateInfo.Path;
-	resource->Type = Renderer_Resource_Shader;
+	resource->Type = Renderer_Asset_Shader;
 
 	Shader& shader = ShaderStore.Add(id, Shader()).Value;
 	shader.Type = CreateInfo.Type;
@@ -76,14 +76,14 @@ Handle<Shader> RendererAssetManager::CreateNewShader(const ShaderCreateInfo& Cre
 	return Handle<Shader>(static_cast<size_t>(id));
 }
 
-Shader* RendererAssetManager::GetShaderWithHandle(Handle<Shader> Hnd)
+Shader* IRAssetManager::GetShaderWithHandle(Handle<Shader> Hnd)
 {
 	return &ShaderStore[Hnd];
 }
 
-bool RendererAssetManager::DeleteShader(Handle<Shader> Hnd)
+bool IRAssetManager::DeleteShader(Handle<Shader> Hnd)
 {
-	ResourceCache* shaderCache = Manager->FetchCacheForType(Renderer_Resource_Shader);
+	ResourceCache* shaderCache = Manager->FetchCacheForType(Renderer_Asset_Shader);
 	Resource* shader = shaderCache->Get(Hnd);
 
 	if (shader->RefCount != 1)
@@ -97,9 +97,9 @@ bool RendererAssetManager::DeleteShader(Handle<Shader> Hnd)
 	return true;
 }
 
-Handle<Model> RendererAssetManager::CreateNewModel(const ModelCreateInfo& Info)
+Handle<Model> IRAssetManager::CreateNewModel(const ModelCreateInfo& Info)
 {
-	ResourceCache* modelCache = Manager->FetchCacheForType(Renderer_Resource_Model);
+	ResourceCache* modelCache = Manager->FetchCacheForType(Renderer_Asset_Model);
 	FilePath path = Info.Name.C_Str();
 
 	if (modelCache->Find(path))
@@ -110,7 +110,7 @@ Handle<Model> RendererAssetManager::CreateNewModel(const ModelCreateInfo& Info)
 	uint32 id = modelCache->Create();
 	Resource* resource = modelCache->Get(id);
 	resource->Path = path;
-	resource->Type = Renderer_Resource_Model;
+	resource->Type = Renderer_Asset_Model;
 
 	Model& model = ModelStore.Add(id, Model()).Value;
 	model.Name = Info.Name;
@@ -118,7 +118,7 @@ Handle<Model> RendererAssetManager::CreateNewModel(const ModelCreateInfo& Info)
 	return Handle<Model>(static_cast<size_t>(id));
 }
 
-Model* RendererAssetManager::GetModelWithName(const char* Identity)
+Model* IRAssetManager::GetModelWithName(const char* Identity)
 {
 	Model* queried = nullptr;
 	for (auto& pair : ModelStore)
@@ -131,14 +131,14 @@ Model* RendererAssetManager::GetModelWithName(const char* Identity)
 	return queried;
 }
 
-Model* RendererAssetManager::GetModelWithHandle(Handle<Model> Hnd)
+Model* IRAssetManager::GetModelWithHandle(Handle<Model> Hnd)
 {
 	return &ModelStore[Hnd];
 }
 
-bool RendererAssetManager::DeleteModel(Handle<Model> Hnd)
+bool IRAssetManager::DeleteModel(Handle<Model> Hnd)
 {
-	ResourceCache* modelCache = Manager->FetchCacheForType(Renderer_Resource_Model);
+	ResourceCache* modelCache = Manager->FetchCacheForType(Renderer_Asset_Model);
 	Resource* resource = modelCache->Get(Hnd);
 
 	if (resource->RefCount != 1)
@@ -159,13 +159,13 @@ bool RendererAssetManager::DeleteModel(Handle<Model> Hnd)
 	return true;
 }
 
-Handle<Mesh> RendererAssetManager::CreateNewMesh(const MeshCreateInfo& CreateInfo)
+Handle<Mesh> IRAssetManager::CreateNewMesh(const MeshCreateInfo& CreateInfo)
 {
-	ResourceCache* meshCache = Manager->FetchCacheForType(Renderer_Resource_Mesh);
+	ResourceCache* meshCache = Manager->FetchCacheForType(Renderer_Asset_Mesh);
 
 	uint32 id = meshCache->Create();
 	Resource* resource = meshCache->Get(id);
-	resource->Type = Renderer_Resource_Mesh;
+	resource->Type = Renderer_Asset_Mesh;
 
 	Mesh& mesh = MeshStore.Add(id, Mesh()).Value;
 	mesh.Vertices	= CreateInfo.Vertices;
@@ -175,14 +175,14 @@ Handle<Mesh> RendererAssetManager::CreateNewMesh(const MeshCreateInfo& CreateInf
 	return Handle<Mesh>(static_cast<size_t>(id));
 }
 
-Mesh* RendererAssetManager::GetMeshWithHandle(Handle<Mesh> Hnd)
+Mesh* IRAssetManager::GetMeshWithHandle(Handle<Mesh> Hnd)
 {
 	return &MeshStore[Hnd];
 }
 
-bool RendererAssetManager::DeleteMesh(Handle<Mesh> Hnd)
+bool IRAssetManager::DeleteMesh(Handle<Mesh> Hnd)
 {
-	ResourceCache* meshCache = Manager->FetchCacheForType(Renderer_Resource_Mesh);
+	ResourceCache* meshCache = Manager->FetchCacheForType(Renderer_Asset_Mesh);
 	Resource* resource = meshCache->Get(Hnd);
 
 	if (resource->RefCount != 1)
@@ -196,9 +196,9 @@ bool RendererAssetManager::DeleteMesh(Handle<Mesh> Hnd)
 	return true;
 }
 
-void RendererAssetManager::PushMeshIntoModel(Handle<Mesh> MeshHnd, Handle<Model> ModelHnd)
+void IRAssetManager::PushMeshIntoModel(Handle<Mesh> MeshHnd, Handle<Model> ModelHnd)
 {
-	ResourceCache* meshCache = Manager->FetchCacheForType(Renderer_Resource_Mesh);
+	ResourceCache* meshCache = Manager->FetchCacheForType(Renderer_Asset_Mesh);
 
 	meshCache->AddRef(MeshHnd);
 
@@ -208,9 +208,9 @@ void RendererAssetManager::PushMeshIntoModel(Handle<Mesh> MeshHnd, Handle<Model>
 	model.Push(&mesh);
 }
 
-bool RendererAssetManager::RemoveMeshFromModel(Handle<Mesh> MeshHnd, Handle<Model> ModelHnd)
+bool IRAssetManager::RemoveMeshFromModel(Handle<Mesh> MeshHnd, Handle<Model> ModelHnd)
 {
-	ResourceCache* meshCache = Manager->FetchCacheForType(Renderer_Resource_Mesh);
+	ResourceCache* meshCache = Manager->FetchCacheForType(Renderer_Asset_Mesh);
 
 	Mesh& toDelete	= MeshStore[MeshHnd];
 	Model& model	= ModelStore[ModelHnd];

@@ -1,14 +1,12 @@
 #include "Hash.h"
 
-
 void MurmurHash32(const void* Key, uint32 Len, void* Out, uint32 Seed)
 {
 	const uint8* Data = reinterpret_cast<const uint8*>(Key);
 	const int32 NumBlocks = Len / 4;
 
-	uint32 Hash = Seed;
-
 	const uint32* Blocks = reinterpret_cast<const uint32*>(Data + NumBlocks * 4);
+	uint32 Hash = Seed;
 
 	for (int32 i = -NumBlocks; i; i++)
 	{

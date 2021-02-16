@@ -9,13 +9,13 @@
 #include "Model.h"
 
 // Only the items below are considered as an asset to the graphics system.
-enum RendererResourceType : uint32
-{
-	Renderer_Resource_Mesh		= 0x00,
-	Renderer_Resource_Model		= 0x01,
-	Renderer_Resource_Shader	= 0x02,
-	Renderer_Resource_Texture	= 0x03,
-	Renderer_Resource_Material	= 0x04
+enum ERendererAsset : uint32
+{ 
+	Renderer_Asset_Mesh		= 0x00,
+	Renderer_Asset_Model	= 0x01,
+	Renderer_Asset_Shader	= 0x02,
+	Renderer_Asset_Texture	= 0x03,
+	Renderer_Asset_Material	= 0x04
 };
 
 /**
@@ -23,14 +23,14 @@ enum RendererResourceType : uint32
 * 
 * Does not create the resources on the GPU tho. Still figuring out how to streamline asset creation and deletion.
 */
-class RENDERER_API RendererAssetManager
+class RENDERER_API IRAssetManager
 {
 public:
 
-	RendererAssetManager();
-	~RendererAssetManager();
+	IRAssetManager();
+	~IRAssetManager();
 
-	DELETE_COPY_AND_MOVE(RendererAssetManager)
+	DELETE_COPY_AND_MOVE(IRAssetManager)
 
 	void Initialize();
 	void Terminate();

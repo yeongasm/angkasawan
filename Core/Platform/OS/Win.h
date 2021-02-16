@@ -81,6 +81,7 @@ namespace OS
 	{
 		enum class Type : uint32
 		{
+			NOEVENT,
 			QUIT,
 			KEY,
 			WINDOW_CLOSE,
@@ -156,7 +157,7 @@ namespace OS
 	void			ClipCursor			(int32 Screen_X, int32 Screen_Y, int32 Width, int32 Height);
 	void			UnclipCursor		();
 	Point			GetMouseScreenPos	();
-	void			SetMouseScreenPos	(int32 x, int32 y);
+	void			SetMousePos			(WindowHandle Wnd, int32 x, int32 y);
 	void			ShowCursor			(bool Show);
 	WindowHandle	CreateAppWindow		(const WindowCreateInformation& Info);
 	void			DestroyAppWindow	(WindowHandle Wnd);

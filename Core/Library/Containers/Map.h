@@ -232,6 +232,12 @@ private:
 	void RemoveElementWithKey(const KeyType& Key)
 	{
 		ElementNode& Element = FindObjectWithKey(Key, false);
+		
+		if (Last == &Element)
+		{
+			Last = Last->Previous;
+		}
+		
 		Element.Key.~KeyType();
 		Element.Value.~ValueType();
 
@@ -355,7 +361,6 @@ public:
 		Entries.Reserve(Size);
 		NumBuckets = Entries.Size();
 	}
-
 
 	/**
 	* Checks if the map is empty.

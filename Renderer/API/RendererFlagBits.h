@@ -4,7 +4,7 @@
 
 #include "Library/Templates/Types.h"
 
-enum BuildStatus
+enum EBuildStatus
 {
 	Build_Status_Failed,
 	Build_Status_Pending,
@@ -26,7 +26,7 @@ enum ESurfaceExtent : size_t
 	Surface_Extent_Max		= 2
 };
 
-enum ColorChannel : size_t
+enum EColorChannel : size_t
 {
 	Color_Channel_Red	= 0,
 	Color_Channel_Green = 1,
@@ -35,27 +35,27 @@ enum ColorChannel : size_t
 	Color_Channel_Max	= 4
 };
 
-enum RenderPassType : uint32
+enum ERenderPassType : uint32
 {
 	RenderPass_Type_Graphics	= 0,
 	RenderPass_Type_Compute		= 1,
 	RenderPass_Type_Max			= 2
 };
 
-enum RenderPassPassType : uint32
+enum ERenderPassPassType : uint32
 {
 	RenderPass_Pass_Main	= 0,
 	RenderPass_Pass_Sub		= 1
 };
 
-enum RenderPassOrder : uint32
+enum ERenderPassOrder : uint32
 {
 	RenderPass_Order_First		= 0,
 	RenderPass_Order_Last		= 1,
 	RenderPass_Order_InBetween	= 2
 };
 
-enum RenderPassOrderValue : uint32
+enum ERenderPassOrderValue : uint32
 {
 	RenderPass_Order_Value_First		= 1,
 	RenderPass_Order_Value_Last			= 2,
@@ -63,13 +63,13 @@ enum RenderPassOrderValue : uint32
 	RenderPass_Order_Value_InBetween	= 4
 };
 
-enum RenderPassState
+enum ERenderPassState
 {
 	RenderPass_State_New,
 	RenderPass_State_Built
 };
 
-enum RenderPassFlagBits : uint32
+enum ERenderPassFlagBits : uint32
 {
 	RenderPass_Bit_None						= 0,
 	RenderPass_Bit_Color_Input				= 1,
@@ -84,13 +84,13 @@ enum RenderPassFlagBits : uint32
 	RenderPass_Bit_Stencil_Output			= 10
 };
 
-enum CommandBufferLevel : uint32
+enum ECommandBufferLevel : uint32
 {
 	CommandBuffer_Level_Primary		= 0,
 	CommandBuffer_Level_Secondary	= 1
 };
 
-enum ShaderAttribFormat : uint32
+enum EShaderAttribFormat : uint32
 {
 	Shader_Attrib_Type_Float	= 3,
 	Shader_Attrib_Type_Vec2		= 4,
@@ -98,7 +98,7 @@ enum ShaderAttribFormat : uint32
 	Shader_Attrib_Type_Vec4		= 6
 };
 
-enum ShaderType : uint32
+enum EShaderType : uint32
 {
 	Shader_Type_Unspecified =  0xFF,	
 	Shader_Type_Vertex		=  0,
@@ -106,7 +106,22 @@ enum ShaderType : uint32
 	Shader_Type_Max			=  2
 };
 
-enum TopologyType : uint32
+enum EShaderVarType : uint32
+{
+	Shader_Var_Type_Char		= 0,
+	Shader_Var_Type_Int			= 1,
+	Shader_Var_Type_Float		= 2,
+	Shader_Var_Type_Vec2		= 3,
+	Shader_Var_Type_Vec3		= 4,
+	Shader_Var_Type_Vec4		= 5,
+	Shader_Var_Type_Mat2		= 6,
+	Shader_Var_Type_Mat3		= 7,
+	Shader_Var_Type_Mat4		= 8,
+	Shader_Var_Type_Sampler2D	= 9,
+	Shader_Var_Type_Sampler3D	= 10
+};
+
+enum ETopologyType : uint32
 {
 	Topology_Type_Point			 = 0,
 	Topology_Type_Line			 = 1,
@@ -117,7 +132,7 @@ enum TopologyType : uint32
 	Topology_Type_Max			 = 6
 };
 
-enum PolygonMode : uint32
+enum EPolygonMode : uint32
 {
 	Polygon_Mode_Fill	= 0,
 	Polygon_Mode_Line	= 1,
@@ -125,14 +140,14 @@ enum PolygonMode : uint32
 	Polygon_Mode_Max	= 3
 };
 
-enum FrontFaceDir : uint32
+enum EFrontFaceDir : uint32
 {
 	Front_Face_Counter_Clockwise = 0,
 	Front_Face_Clockwise		 = 1,
 	Front_Face_Max				 = 2
 };
 
-enum CullingMode : uint32
+enum ECullingMode : uint32
 {
 	Culling_Mode_None			= 0,
 	Culling_Mode_Front			= 1,
@@ -141,7 +156,7 @@ enum CullingMode : uint32
 	Culling_Mode_Max			= 4
 };
 
-enum SampleCount : uint32
+enum ESampleCount : uint32
 {
 	Sample_Count_1	 = 0,
 	Sample_Count_2	 = 1,
@@ -153,7 +168,7 @@ enum SampleCount : uint32
 	Sample_Count_Max = 7 // DO NOT USE!
 };
 
-enum TextureUsage : uint32
+enum ETextureUsage : uint32
 {
 	Texture_Usage_Color			= 0,
 	Texture_Usage_Color_HDR		= 1,
@@ -161,7 +176,7 @@ enum TextureUsage : uint32
 	Texture_Usage_Max			= 3
 };
 
-enum TextureType : uint32
+enum ETextureType : uint32
 {
 	Texture_Type_1D  = 0,
 	Texture_Type_2D  = 1,
@@ -169,7 +184,7 @@ enum TextureType : uint32
 	Texture_Type_Max = 3
 };
 
-enum ImageUsageFlags : uint32
+enum EImageUsageFlags : uint32
 {
 	Image_Usage_Transfer_Src	= 1,
 	Image_Usage_Transfer_Dst	= 2,
@@ -178,17 +193,34 @@ enum ImageUsageFlags : uint32
 	Image_Usage_Depth_Stencil_Attachment = 32
 };
 
-enum AttachmentType : uint32
+enum EAttachmentType : uint32
 {
 	Attachment_Type_Input,
 	Attachment_Type_Output
 };
 
-enum BufferType : uint32
+enum EBufferType : uint32
 {
 	Buffer_Type_Vertex	= 0,
 	Buffer_Type_Index	= 1,
-	Buffer_Type_Max		= 2
+	Buffer_Type_Uniform = 2,
+	Buffer_Type_Max		= 3
+};
+
+enum EDescriptorType : uint32
+{
+	Descriptor_Type_Uniform_Buffer			= 0,
+	Descriptor_Type_Dynamic_Uniform_Buffer	= 1,
+	Descriptor_Type_Sampled_Image			= 2,
+	Descriptor_Type_Input_Attachment		= 3,
+	Descriptor_Type_Max = 4
+};
+
+enum EDescriptorUsageType : uint32
+{
+	Descriptor_Usage_Global		= 0,
+	Descriptor_Usage_Per_Pass	= 1,
+	Descriptor_Usage_Per_Object = 2
 };
 
 // Depth testing
