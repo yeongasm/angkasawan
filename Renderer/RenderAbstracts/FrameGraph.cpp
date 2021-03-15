@@ -9,6 +9,7 @@ RenderPass::RenderPass(IRFrameGraph& OwnerGraph, ERenderPassType Type, uint32 Or
 	Order(Order),
 	PassType(RenderPass_Pass_Main),
 	Flags(RenderPass_Bit_None),
+	VertexStride(0),
 	Owner(OwnerGraph), 
 	Type(Type),
 	Topology(Topology_Type_Triangle),
@@ -30,40 +31,28 @@ RenderPass::RenderPass(IRFrameGraph& OwnerGraph, ERenderPassType Type, uint32 Or
 
 RenderPass::~RenderPass()
 {
-	Shaders.Release();
 }
 
-bool RenderPass::AddShader(Shader* ShaderSrc, EShaderType Type)
+bool RenderPass::AddShader(Shader* ShaderSrc)
 {
-	for (Shader* shader : Shaders)
+	if (ShaderSrc->Handle == INVALID_HANDLE)
 	{
-		if (shader->Type == Type)
-		{
-			return false;
-		}
-
-		if (shader == ShaderSrc)
-		{
-			return false;
-		}
+		return false;
 	}
-
-	Shaders.Push(ShaderSrc);
-
+	Shaders[ShaderSrc->Type] = ShaderSrc;
 	return true;
 }
 
 void RenderPass::AddColorInput(const String32& Identifier, RenderPass& From)
 {
-	AttachmentInfo* attachment = &From.ColorOutputs[Identifier];
+	AttachmentInfo& attachment = From.ColorOutputs[Identifier];
 	ColorInputs.Insert(Identifier, attachment);
 }
 
-void RenderPass::AddColorOutput(const String32& Identifier, const AttachmentCreateInfo& Info)
+void RenderPass::AddColorOutput(const String32& Identifier, const AttachmentCreateInfo& CreateInfo)
 {
 	AttachmentInfo attachment;
-	FMemory::Memzero(&attachment, sizeof(AttachmentInfo));
-	FMemory::Memcpy(&attachment, &Info, sizeof(AttachmentCreateInfo));
+	FMemory::Memcpy(&attachment, &CreateInfo, sizeof(AttachmentCreateInfo));
 	ColorOutputs.Insert(Identifier, Move(attachment));
 }
 
@@ -92,6 +81,11 @@ void RenderPass::AddDepthStencilOutput()
 	DepthStencilOutput.Handle = INVALID_HANDLE;
 
 	Flags.Set(RenderPass_Bit_DepthStencil_Output);
+}
+
+void RenderPass::SetVertexStride(uint32 Stride)
+{
+	this->VertexStride = Stride;
 }
 
 void RenderPass::SetWidth(float32 Width)
@@ -186,12 +180,14 @@ void RenderPass::NoDepthStencilRender()
 	Flags.Set(RenderPass_Bit_No_DepthStencil_Render);
 }
 
-IRFrameGraph::IRFrameGraph(RenderContext& Context, LinearAllocator& GraphAllocator) :
-	Context(Context),
+IRFrameGraph::IRFrameGraph(LinearAllocator& GraphAllocator) :
+	//Context(Context),
 	Allocator(GraphAllocator),
 	Name(),
 	RenderPasses(),
-	Images(),
+	ColorImage(),
+	DepthStencilImage(),
+	//Images(),
 	IsCompiled(false)
 {}
 
@@ -221,12 +217,12 @@ RenderPass& IRFrameGraph::GetRenderPass(Handle<RenderPass> Handle)
 
 Handle<HImage> IRFrameGraph::GetColorImage() const
 {
-	return Images.Color;
+	return ColorImage.Handle;
 }
 
 Handle<HImage> IRFrameGraph::GetDepthStencilImage() const
 {
-	return Images.DepthStencil;
+	return DepthStencilImage.Handle;
 }
 
 uint32 IRFrameGraph::GetNumRenderPasses() const
@@ -234,19 +230,39 @@ uint32 IRFrameGraph::GetNumRenderPasses() const
 	return static_cast<uint32>(RenderPasses.Length());
 }
 
+void IRFrameGraph::SetOutputExtent(uint32 Width, uint32 Height)
+{
+	uint32 width = (!Width) ? gpu::SwapchainWidth() : Width;
+	uint32 height = (!Height) ? gpu::SwapchainHeight() : Height;
+
+	ColorImage.Width = width;
+	ColorImage.Height = height;
+	DepthStencilImage.Width = width;
+	DepthStencilImage.Height = height;
+}
+
 void IRFrameGraph::OnWindowResize()
 {
-	Context.DestroyFrameImages(Images);
-	Context.NewFrameImages(Images);
+	gpu::DestroyTexture(ColorImage);
+	gpu::DestroyTexture(DepthStencilImage);
+	gpu::CreateTexture(ColorImage);
+	gpu::CreateTexture(DepthStencilImage);
+
+	//Context.DestroyFrameImages(Images);
+	//Context.NewFrameImages(Images);
 
 	RenderPass* renderPass = nullptr;
 	for (auto& pair : RenderPasses)
 	{
 		renderPass = pair.Value;
-		Context.DestroyRenderPassFramebuffer(*renderPass);
-		Context.NewRenderPassFramebuffer(*renderPass);
-		Context.DestroyGraphicsPipeline(*renderPass);
-		Context.NewGraphicsPipeline(*renderPass);
+		gpu::DestroyFramebuffer(*renderPass, false);
+		gpu::DestroyGraphicsPipeline(*renderPass);
+		gpu::CreateFramebuffer(*renderPass);
+		gpu::CreateGraphicsPipeline(*renderPass);
+		//Context.DestroyRenderPassFramebuffer(*renderPass);
+		//Context.NewRenderPassFramebuffer(*renderPass);
+		//Context.DestroyGraphicsPipeline(*renderPass);
+		//Context.NewGraphicsPipeline(*renderPass);
 	}
 }
 
@@ -255,18 +271,37 @@ void IRFrameGraph::Destroy()
 	for (auto& pair : RenderPasses)
 	{
 		RenderPass* renderPass = pair.Value;
-		Context.DestroyRenderPassRenderpass(*renderPass);
-		Context.DestroyRenderPassFramebuffer(*renderPass, true);
-		Context.DestroyGraphicsPipeline(*renderPass, true);
+		gpu::DestroyRenderpass(*renderPass);
+		gpu::DestroyFramebuffer(*renderPass);
+		gpu::DestroyGraphicsPipeline(*renderPass);
+		//Context.DestroyRenderPassRenderpass(*renderPass);
+		//Context.DestroyRenderPassFramebuffer(*renderPass, true);
+		//Context.DestroyGraphicsPipeline(*renderPass, true);
 	}
-	Context.DestroyFrameImages(Images);
+	gpu::DestroyTexture(ColorImage);
+	gpu::DestroyTexture(DepthStencilImage);
+
+	//Context.DestroyFrameImages(Images);
 }
 
 bool IRFrameGraph::Compile()
 {
 	if (Compiled()) { return false; }
 
-	Context.NewFrameImages(Images);
+	// TODO(Ygsm):
+	//	Create default color and depth stencil image.
+	ColorImage.Channels = 4;
+	ColorImage.Usage.Set(Image_Usage_Transfer_Src);
+	ColorImage.Usage.Set(Image_Usage_Sampled);
+
+	DepthStencilImage = ColorImage;
+
+	ColorImage.Usage.Set(Image_Usage_Color_Attachment);
+	DepthStencilImage.Usage.Set(Image_Usage_Depth_Stencil_Attachment);
+
+	gpu::CreateTexture(ColorImage);
+	gpu::CreateTexture(DepthStencilImage);
+	//Context.NewFrameImages(Images);
 
 	for (Pair<RenderPassEnum, RenderPass*>& pair : RenderPasses)
 	{
@@ -274,17 +309,16 @@ bool IRFrameGraph::Compile()
 
 		if (renderPass->IsMainpass() && (renderPass->FramePassHandle == INVALID_HANDLE))
 		{
-			if (!Context.NewRenderPassRenderpass(*renderPass))	{ return false; }
-			if (!Context.NewRenderPassFramebuffer(*renderPass)) { return false; }
+			if (!gpu::CreateRenderpass(*renderPass))	{ return false; }
+			if (!gpu::CreateFramebuffer(*renderPass))	{ return false; }
 		}
 
-		if (!Context.NewGraphicsPipeline(*renderPass)) 
+		if (!gpu::CreateGraphicsPipeline(*renderPass)) 
 		{ 
 			return false; 
 		}
 	}
 
-	Context.CreateCmdPoolAndBuffers();
 	IsCompiled = true;
 
 	return true;
@@ -299,4 +333,5 @@ void IRFrameGraph::BindLayoutToRenderPass(DescriptorLayout& Layout, Handle<Rende
 {
 	RenderPass& renderPass = GetRenderPass(PassHandle);
 	renderPass.BoundDescriptorLayouts.Push(&Layout);
+	Layout.Pipeline = &renderPass.PipelineHandle;
 }

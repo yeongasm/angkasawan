@@ -5,8 +5,12 @@
 #include "RenderPlatform/API.h"
 #include "Library/Containers/Map.h"
 #include "SubSystem/Resource/Handle.h"
-#include "Shader.h"
-#include "Model.h"
+
+#include "RenderAbstracts/Primitives.h"
+
+class RenderContext;
+class ResourceManager;
+class IRenderMemoryManager;
 
 // Only the items below are considered as an asset to the graphics system.
 enum ERendererAsset : uint32
@@ -19,21 +23,17 @@ enum ERendererAsset : uint32
 };
 
 /**
-* Renderer's resource manager class.
-* 
-* Does not create the resources on the GPU tho. Still figuring out how to streamline asset creation and deletion.
+* TODO(Ygsm):
+* [ ] Only return the handle to the resource if fetching my name.
 */
 class RENDERER_API IRAssetManager
 {
 public:
 
-	IRAssetManager();
+	IRAssetManager(IRenderMemoryManager& Memory, ResourceManager& Manager);
 	~IRAssetManager();
 
 	DELETE_COPY_AND_MOVE(IRAssetManager)
-
-	void Initialize();
-	void Terminate();
 
 	Handle<Shader>	CreateNewShader		(const ShaderCreateInfo& CreateInfo);
 	Shader*			GetShaderWithHandle	(Handle<Shader> Hnd);
@@ -51,13 +51,18 @@ public:
 	void			PushMeshIntoModel	(Handle<Mesh> MeshHnd, Handle<Model> ModelHnd);
 	bool			RemoveMeshFromModel	(Handle<Mesh> MeshHnd, Handle<Model> ModelHnd);
 
-	//Handle<Model>	ImportModel(const ModelImportInfo& ImportInfo);
+	Handle<Texture> CreateNewTexture		(const TextureCreateInfo& CreateInfo);
+	Handle<Texture> GetTextureHandleWithName(const char* Identity);
+	Texture*		GetTextureWithHandle	(Handle<Texture> Hnd);
+	bool			DeleteTexture			(Handle<Texture> Hnd);
 
 private:
 	Map<uint32, Shader> ShaderStore;
-	Map<uint32, Mesh>	MeshStore;
-	Map<uint32, Model>	ModelStore;
-	ResourceManager*	Manager;
+	Map<uint32, Mesh> MeshStore;
+	Map<uint32, Model> ModelStore;
+	Map<uint32, Texture> TextureStore;
+	ResourceManager& Manager;
+	IRenderMemoryManager& Memory;
 };
 
 #endif // !LEARNVK_RENDERER_ASSETS

@@ -8,13 +8,12 @@
 #include "SubSystem/Resource/Handle.h"
 #include "RenderPlatform/API.h"
 #include "API/RendererFlagBits.h"
-#include "Assets/Shader.h"
+#include "RenderAbstracts/Primitives.h"
 
 #define MAX_FRAMES_IN_FLIGHT 2
 
 class RenderSystem;
 class IRFrameGraph;
-class RenderContext;
 struct DescriptorLayout;
 
 struct AttachmentCreateInfo
@@ -33,11 +32,6 @@ struct FrameImages
 };
 
 /**
-* TODO(Ygsm):
-* 30.12.2020 - Add subpass feature into renderpasses.
-*/
-
-/**
 * NOTE(Ygsm):
 * 30.12.2020 - Should subpasses produce output attachments?
 * 04.01.2021 - No, subpasses should not produce output attachment. They will use the parent's renderpass.
@@ -53,18 +47,18 @@ struct FrameImages
 * Subpasses are RenderPasses that do not produce sampled outputs and instead writes to it's parent's output.
 * They are essentially just another pipeline within the main pass.
 */
-class RENDERER_API RenderPass
+struct RENDERER_API RenderPass
 {
-public:
+//public:
 
 	RenderPass(IRFrameGraph& OwnerGraph, ERenderPassType Type, uint32 Order);
 	~RenderPass();
 
 	DELETE_COPY_AND_MOVE(RenderPass)
 
-	bool AddShader				(Shader* ShaderSrc, EShaderType Type);
+	bool AddShader				(Shader* ShaderSrc);
 	void AddColorInput			(const String32& Identifier, RenderPass& From);
-	void AddColorOutput			(const String32& Identifier, const AttachmentCreateInfo& Info);
+	void AddColorOutput			(const String32& Identifier, const AttachmentCreateInfo& CreateInfo);
 
 	//void AddDepthInput			(const RenderPass& From);
 	//void AddDepthOutput			();
@@ -90,6 +84,7 @@ public:
 	*/
 	bool IsSubpass		() const;
 
+	void SetVertexStride(uint32 Stride);
 	void SetWidth		(float32 Width);
 	void SetHeight		(float32 Height);
 	void SetDepth		(float32 Depth);
@@ -103,18 +98,15 @@ public:
 	void NoColorRender			();
 	void NoDepthStencilRender	();
 
-private:
+//private:
 
 	struct AttachmentInfo : public AttachmentCreateInfo
 	{
 		Handle<HImage> Handle;
 	};
 
-	friend class IRFrameGraph;
-	friend class RenderContext;
-
 	using OutputAttachments = Map<String32, AttachmentInfo, MurmurHash<String32>, 1>;
-	using InputAttachments	= Map<String32, AttachmentInfo*, MurmurHash<String32>, 1>;
+	using InputAttachments	= Map<String32, AttachmentInfo, MurmurHash<String32>, 1>;
 	using ArrayOfDescLayouts = Array<DescriptorLayout*>;
 
 	IRFrameGraph&		Owner;
@@ -131,11 +123,12 @@ private:
 	float32				Depth;
 	uint32				Order;
 	uint32				PassType;
+	uint32				VertexStride;
 
-	Array<Shader*>		Shaders;
+	Shader*				Shaders[Shader_Type_Max];
 	ERenderPassState	State;
 	Handle<HPipeline>	PipelineHandle;
-	Handle<HFramePass>	FramePassHandle;
+	Handle<HFramepass>	FramePassHandle;
 
 	InputAttachments	ColorInputs;
 	OutputAttachments	ColorOutputs;
@@ -154,7 +147,7 @@ private:
 	using RenderPassEnum = uint32;
 public:
 
-	IRFrameGraph(RenderContext& Context, LinearAllocator& GraphAllocator);
+	IRFrameGraph(LinearAllocator& GraphAllocator);
 	~IRFrameGraph();
 
 	DELETE_COPY_AND_MOVE(IRFrameGraph)
@@ -164,6 +157,7 @@ public:
 	Handle<HImage>		GetColorImage		()	const;
 	Handle<HImage>		GetDepthStencilImage()	const;
 	uint32				GetNumRenderPasses	()	const;
+	void				SetOutputExtent		(uint32 Width = 0, uint32 Height = 0);
 
 	void OnWindowResize	();
 	void Destroy		();
@@ -176,9 +170,10 @@ private:
 	using RenderPassTable	= Map<RenderPassEnum, RenderPass*>;
 
 	String128			Name;
-	RenderContext&		Context;
 	LinearAllocator&	Allocator;
-	FrameImages			Images;
+	Texture				ColorImage;
+	Texture				DepthStencilImage;
+	//FrameImages			Images;
 	RenderPassTable		RenderPasses;
 	bool				IsCompiled;
 

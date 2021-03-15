@@ -6,11 +6,13 @@
 #include "RenderPlatform/API.h"
 #include "Engine/Interface.h"
 #include "Assets/Assets.h"
-#include "FrameGraph/FrameGraph.h"
 #include "Library/Containers/Node.h"
+#include "RenderAbstracts/FrameGraph.h"
 #include "RenderAbstracts/DrawCommand.h"
-#include "RenderAbstracts/RenderGroup.h"
+//#include "RenderAbstracts/RenderGroup.h"
 #include "RenderAbstracts/DescriptorSets.h"
+#include "RenderAbstracts/RenderMemory.h"
+#include "RenderAbstracts/GPUMemory.h"
 
 #define RENDERER_DRAWABLES_SLACK 16
 
@@ -41,19 +43,21 @@ private:
 	};
 
 	EngineImpl&				Engine;
-	RenderContext			Context;
-	IRAssetManager			AssetManager;
+	//RenderContext			Context;
+	IRAssetManager*			AssetManager;
 	IRFrameGraph*			FrameGraph;
 	IRDescriptorManager*	DescriptorManager;
-	IRVertexGroupManager*	VertexGroupManager;
+	//IRVertexGroupManager*	VertexGroupManager;
+	IRenderMemoryManager*	MemoryManager;
+	//IRStagingBuffer*		StagingBufferManager;
 	DrawCommandStore		DrawCommands;
 	DescriptorInstanceStore	DescriptorInstances;
 	Handle<ISystem>			Hnd;
 
 	void FlushRenderer				();
-	void BindVertexAndIndexBuffer	(DrawCommand& Command, RenderPass& Pass);
+	void BindVertexAndIndexBuffer	(DrawCommand& Command);
 	void BindPerPassDescriptors		(uint32 RenderPassId, RenderPass& Pass);
-	void BindPerObjectDescriptors	(uint32 DrawCommandId, RenderPass& Pass);
+	void BindPerObjectDescriptors	(DrawCommand& Command);
 
 public:
 
@@ -68,12 +72,15 @@ public:
 	void		FinalizeGraph	();
 
 	Handle<DrawCommand>		DrawModel				(Model& InModel, uint32 Pass);
-	bool					UpdateDescriptorSet		(uint32 DescriptorId, Handle<DrawCommand> DrawCmdHandle, void* Data, size_t Size);
+	bool					UpdateDescriptorSet		(uint32 DescriptorId, Handle<DrawCommand> DrawCmdHandle, uint32 Binding, void* Data, size_t Size);
 	bool					BindDescLayoutToPass	(uint32 DescriptorLayoutId, Handle<RenderPass> PassHandle);
+
 	IRFrameGraph&			GetFrameGraph			();
 	IRAssetManager&			GetAssetManager			();
 	IRDescriptorManager&	GetDescriptorManager	();
-	IRVertexGroupManager&	GetVertexGroupManager	();
+	IRenderMemoryManager&	GetRenderMemoryManager	();
+	//IRVertexGroupManager&	GetVertexGroupManager	();
+	//IRStagingBuffer&		GetStagingBufferManager	();
 
 	static Handle<ISystem> GetSystemHandle();
 };

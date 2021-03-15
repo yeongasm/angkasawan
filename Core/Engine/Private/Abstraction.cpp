@@ -260,6 +260,7 @@ void EngineImpl::BeginFrame()
 
 void EngineImpl::EndFrame()
 {
+	Io.MouseWheel = 0.0f;
 	Window.WindowSizeChanged = false;
 }
 

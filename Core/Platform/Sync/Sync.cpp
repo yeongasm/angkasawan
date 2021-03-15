@@ -1,3 +1,4 @@
+#include <new>
 #include "Sync.h"
 #include "Library/Memory/Memory.h"
 

@@ -18,10 +18,10 @@ IRVertexGroupManager::IRVertexGroupManager(RenderContext& Context, LinearAllocat
 
 IRVertexGroupManager::~IRVertexGroupManager() {}
 
-void IRVertexGroupManager::Initialize(const VertexGroupManagerConfiguration& Config)
-{
-	VertexGroups.Reserve(Config.GroupReserveCount);
-}
+//void IRVertexGroupManager::Initialize(const VertexGroupManagerConfiguration& Config)
+//{
+//	VertexGroups.Reserve(Config.GroupReserveCount);
+//}
 
 Handle<VertexGroup> IRVertexGroupManager::CreateVertexGroup(const VertexGroupCreateInfo& CreateInfo)
 {
@@ -76,10 +76,10 @@ bool IRVertexGroupManager::AddModelToVertexGroup(Model& InModel, Handle<VertexGr
 
 		if (mesh->Indices.Length())
 		{
-			mesh->IndexOffset = static_cast<uint32>(group->IndexPool.Length());
+			//mesh->IndexOffset = static_cast<uint32>(group->IndexPool.Length());
 			for (uint32& index : mesh->Indices)
 			{
-				index += mesh->IndexOffset;
+				index += mesh->VertexOffset;
 			}
 			group->IndexPool.Append(mesh->Indices.begin(), mesh->Indices.Length());
 		}
@@ -137,10 +137,10 @@ void IRVertexGroupManager::Build()
 {
 	for (VertexGroup* group : VertexGroups)
 	{
-		Context.NewVertexBuffer(group->Vbo, group->VertexPool.First(), group->VertexPool.Length());
+		//Context.NewBuffer(group->Vbo, group->VertexPool.First(), sizeof(Vertex), group->VertexPool.Length());
 		if (group->IndexPool.Length())
 		{
-			Context.NewIndexBuffer(group->Ebo, group->IndexPool.First(), group->IndexPool.Length());
+			//Context.NewIndexBuffer(group->Ebo, group->IndexPool.First(), group->IndexPool.Length());
 		}
 	}
 }

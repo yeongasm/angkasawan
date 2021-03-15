@@ -21,22 +21,27 @@
   <ItemGroup>
     <ClCompile Include="API\Context.cpp" />
     <ClCompile Include="API\Vk\ShaderToSPIRVCompiler.cpp" />
+    <ClCompile Include="API\Vk\Src\spirv_reflect.c" />
     <ClCompile Include="API\Vk\Vk.cpp" />
     <ClCompile Include="Assets\Assets.cpp" />
+    <ClCompile Include="Assets\Importer.cpp" />
     <ClCompile Include="External\cgltf\cgltf.cpp" />
     <ClCompile Include="External\stb\stb_image.cpp" />
     <ClCompile Include="RenderAbstracts\DescriptorSets.cpp" />
-    <ClCompile Include="RenderAbstracts\RenderGroup.cpp" />
+    <ClCompile Include="RenderAbstracts\GPUMemory.cpp" />
+    <ClCompile Include="RenderAbstracts\RenderMemory.cpp" />
     <ClCompile Include="Renderer.cpp" />
     <ClCompile Include="API\Vk\VulkanFunctions.cpp" />
     <ClCompile Include="API\Vk\VulkanDriver.cpp" />
     <ClCompile Include="dllmain.cpp" />
-    <ClCompile Include="FrameGraph\FrameGraph.cpp" />
+    <ClCompile Include="RenderAbstracts\FrameGraph.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="API\Context.h" />
-    <ClInclude Include="API\Driver.h" />
+    <ClInclude Include="API\Definitions.h" />
     <ClInclude Include="API\ShaderAttribute.h" />
+    <ClInclude Include="API\Vk\Src\spirv.h" />
+    <ClInclude Include="API\Vk\Src\spirv_reflect.h" />
     <ClInclude Include="API\Vk\vk_mem_alloc.h" />
     <ClInclude Include="Assets\GPUHandles.h" />
     <ClInclude Include="API\RendererFlagBits.h" />
@@ -48,17 +53,15 @@
     <ClInclude Include="API\Vk\Src\shaderc\visibility.h" />
     <ClInclude Include="API\Vk\Vk.h" />
     <ClInclude Include="Assets\Assets.h" />
-    <ClInclude Include="Assets\Image.h" />
-    <ClInclude Include="Assets\ImageLoader.h" />
-    <ClInclude Include="Assets\Model.h" />
-    <ClInclude Include="Assets\ModelLoader.h" />
-    <ClInclude Include="Assets\Shader.h" />
+    <ClInclude Include="Assets\Importer.h" />
     <ClInclude Include="External\cgltf\cgltf.h" />
     <ClInclude Include="External\stb\stb_image.h" />
-    <ClInclude Include="FrameGraph\FrameGraph.h" />
+    <ClInclude Include="RenderAbstracts\FrameGraph.h" />
     <ClInclude Include="RenderAbstracts\DescriptorSets.h" />
     <ClInclude Include="RenderAbstracts\DrawCommand.h" />
-    <ClInclude Include="RenderAbstracts\RenderGroup.h" />
+    <ClInclude Include="RenderAbstracts\GPUMemory.h" />
+    <ClInclude Include="RenderAbstracts\Primitives.h" />
+    <ClInclude Include="RenderAbstracts\RenderMemory.h" />
     <ClInclude Include="RenderPlatform\API.h" />
     <ClInclude Include="Renderer.h" />
     <ClInclude Include="API\Vk\Src\vk_layer.h" />
@@ -165,7 +168,7 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>RENDERER_EXPORT;VK_NO_PROTOTYPES;SHADERC_SHAREDLIB;VULKAN_RENDERER;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>RENDERER_EXPORT;VK_NO_PROTOTYPES;SHADERC_SHAREDLIB;VULKAN_RENDERER;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
@@ -180,7 +183,7 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
       <AdditionalLibraryDirectories>$(SolutionDir)Modules\Core;$(SolutionDir)ExternalLib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>Core.lib;shaderc_shared.lib;vulkan-1.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>Core.lib;shaderc_shared.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>xcopy "$(TargetDir)$(ProjectName).dll" "$(SolutionDir)Bin\$(Configuration)\" /y /q
@@ -195,7 +198,7 @@ xcopy "$(SolutionDir)ExternalDLL\shaderc_shared.dll" "$(SolutionDir)Bin\$(Config
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>RENDERER_EXPORT;VK_NO_PROTOTYPES;SHADERC_SHAREDLIB;VULKAN_RENDERER;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>RENDERER_EXPORT;VK_NO_PROTOTYPES;SHADERC_SHAREDLIB;VULKAN_RENDERER;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
@@ -212,7 +215,7 @@ xcopy "$(SolutionDir)ExternalDLL\shaderc_shared.dll" "$(SolutionDir)Bin\$(Config
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
       <AdditionalLibraryDirectories>$(SolutionDir)Modules\Core;$(SolutionDir)ExternalLib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>Core.lib;shaderc_shared.lib;vulkan-1.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>Core.lib;shaderc_shared.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>xcopy "$(TargetDir)$(ProjectName).dll" "$(SolutionDir)Bin\$(Configuration)\" /y /q
@@ -225,7 +228,7 @@ xcopy "$(SolutionDir)ExternalDLL\shaderc_shared.dll" "$(SolutionDir)Bin\$(Config
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>RENDERER_EXPORT;VK_NO_PROTOTYPES;SHADERC_SHAREDLIB;VULKAN_RENDERER;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>RENDERER_EXPORT;VK_NO_PROTOTYPES;SHADERC_SHAREDLIB;VULKAN_RENDERER;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
@@ -240,7 +243,7 @@ xcopy "$(SolutionDir)ExternalDLL\shaderc_shared.dll" "$(SolutionDir)Bin\$(Config
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
       <AdditionalLibraryDirectories>$(SolutionDir)Modules\Core;$(SolutionDir)ExternalLib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>Core.lib;shaderc_shared.lib;vulkan-1.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>Core.lib;shaderc_shared.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>xcopy "$(TargetDir)$(ProjectName).dll" "$(SolutionDir)Bin\$(Configuration)\" /y /q
@@ -255,7 +258,7 @@ xcopy "$(SolutionDir)ExternalDLL\shaderc_shared.dll" "$(SolutionDir)Bin\$(Config
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>RENDERER_EXPORT;VK_NO_PROTOTYPES;SHADERC_SHAREDLIB;VULKAN_RENDERER;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>RENDERER_EXPORT;VK_NO_PROTOTYPES;SHADERC_SHAREDLIB;VULKAN_RENDERER;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
@@ -272,7 +275,7 @@ xcopy "$(SolutionDir)ExternalDLL\shaderc_shared.dll" "$(SolutionDir)Bin\$(Config
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
       <AdditionalLibraryDirectories>$(SolutionDir)Modules\Core;$(SolutionDir)ExternalLib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>Core.lib;shaderc_shared.lib;vulkan-1.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>Core.lib;shaderc_shared.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>xcopy "$(TargetDir)$(ProjectName).dll" "$(SolutionDir)Bin\$(Configuration)\" /y /q

@@ -28,10 +28,10 @@ struct VertexGroup
 	bool			IsCompiled;
 };
 
-struct VertexGroupManagerConfiguration
-{
-	size_t GroupReserveCount;
-};
+//struct VertexGroupManagerConfiguration
+//{
+//	size_t GroupReserveCount;
+//};
 
 class RENDERER_API IRVertexGroupManager
 {
@@ -57,7 +57,7 @@ public:
 
 	DELETE_COPY_AND_MOVE(IRVertexGroupManager)
 
-	void Initialize(const VertexGroupManagerConfiguration& Config);
+	//void Initialize(const VertexGroupManagerConfiguration& Config);
 
 	Handle<VertexGroup> CreateVertexGroup			(const VertexGroupCreateInfo& CreateInfo);
 	Handle<VertexGroup> GetVertexGroupHandleWithId	(uint32 Id);

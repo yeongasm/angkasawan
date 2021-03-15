@@ -79,7 +79,7 @@ enum ERenderPassFlagBits : uint32
 	RenderPass_Bit_No_Color_Render			= 5,
 	RenderPass_Bit_No_DepthStencil_Render	= 6,
 	RenderPass_Bit_Depth_Input				= 7,
-	RenderPass_Bit_Depth_OUtput				= 8,
+	RenderPass_Bit_Depth_Output				= 8,
 	RenderPass_Bit_Stencil_Input			= 9,
 	RenderPass_Bit_Stencil_Output			= 10
 };
@@ -94,16 +94,17 @@ enum EShaderAttribFormat : uint32
 {
 	Shader_Attrib_Type_Float	= 3,
 	Shader_Attrib_Type_Vec2		= 4,
-	Shader_Attrib_Type_vec3		= 5,
+	Shader_Attrib_Type_Vec3		= 5,
 	Shader_Attrib_Type_Vec4		= 6
 };
 
 enum EShaderType : uint32
 {
-	Shader_Type_Unspecified =  0xFF,	
-	Shader_Type_Vertex		=  0,
-	Shader_Type_Fragment	=  1,
-	Shader_Type_Max			=  2
+	Shader_Type_Vertex		= 0,
+	Shader_Type_Fragment	= 1,
+	Shader_Type_Geometry	= 2,
+	Shader_Type_Compute		= 3,
+	Shader_Type_Max			= 4
 };
 
 enum EShaderVarType : uint32
@@ -186,11 +187,12 @@ enum ETextureType : uint32
 
 enum EImageUsageFlags : uint32
 {
-	Image_Usage_Transfer_Src	= 1,
-	Image_Usage_Transfer_Dst	= 2,
-	Image_Usage_Sampled			= 4,
-	Image_Usage_Color_Attachment		 = 16,
-	Image_Usage_Depth_Stencil_Attachment = 32
+	Image_Usage_Transfer_Src	= 0,
+	Image_Usage_Transfer_Dst	= 1,
+	Image_Usage_Sampled			= 2,
+	Image_Usage_Color_Attachment		 = 3,
+	Image_Usage_Depth_Stencil_Attachment = 4,
+	Image_Usage_Max = 5
 };
 
 enum EAttachmentType : uint32
@@ -204,7 +206,17 @@ enum EBufferType : uint32
 	Buffer_Type_Vertex	= 0,
 	Buffer_Type_Index	= 1,
 	Buffer_Type_Uniform = 2,
-	Buffer_Type_Max		= 3
+	Buffer_Type_Transfer_Src = 3,
+	Buffer_Type_Transfer_Dst = 4,
+	Buffer_Type_Max		= 5
+};
+
+enum EBufferLocality : uint32
+{
+	Buffer_Locality_Cpu = 0,
+	Buffer_Locality_Gpu = 1,
+	Buffer_Locality_Cpu_To_Gpu = 2,
+	Buffer_Locality_Max = 3
 };
 
 enum EDescriptorType : uint32

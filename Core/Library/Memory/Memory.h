@@ -2,6 +2,7 @@
 #ifndef LEARNVK_MEMORY
 #define LEARNVK_MEMORY
 
+#include <new>
 #include "Platform/EngineAPI.h"
 #include "Library/Templates/Types.h"
 #include "Library/Templates/Templates.h"

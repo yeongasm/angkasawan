@@ -216,7 +216,7 @@ private:
 			Index = ProbeForIndex(Hash, ++Constant);
 			Element = &Entries[Index];
 
-			VKT_ASSERT(Element->Status != Bucket_IsEmpty && Element->Status != Bucket_WasDeleted);
+			//VKT_ASSERT(Element->Status != Bucket_IsEmpty && Element->Status != Bucket_WasDeleted);
 		}
 
 		if (TombStone != -1 && ShiftToTombStone)
@@ -238,6 +238,11 @@ private:
 			Last = Last->Previous;
 		}
 		
+		if (First == &Element)
+		{
+			First = First->Next;
+		}
+
 		Element.Key.~KeyType();
 		Element.Value.~ValueType();
 

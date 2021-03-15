@@ -2,6 +2,7 @@
 #ifndef LEARNVK_LIBRARY_CONTAINERS_PATH
 #define LEARNVK_LIBRARY_CONTAINERS_PATH
 
+#include <new>
 #include "Library/Memory/Memory.h"
 #include "Library/Algorithms/Hash.h"
 #include "Library/Templates/Templates.h"
@@ -60,6 +61,21 @@ public:
 	size_t		Length	()	const { return Len; }
 	uint32		GetHash	()	const { return Hash; }
 	const char* C_Str	()	const { return Path; }
+
+	FilePath Directory() const
+	{
+		constexpr char slash = '/';
+		size_t i = Len - 1;
+		while (Path[i] != slash)
+		{
+			i--;
+		}
+		char directory[256];
+		FMemory::Memcpy(directory, Path, ++i * sizeof(int8));
+		directory[i] = '\0';
+		return FilePath(directory);
+	}
+
 	const char* Filename()	const
 	{
 		char slash = '/';

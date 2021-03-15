@@ -4,7 +4,7 @@
 
 #include "Library/Templates/Types.h"
 
-#define INVALID_HANDLE static_cast<size_t>(-1)
+#define INVALID_HANDLE -1
 
 template <typename Type>
 class Handle
@@ -23,12 +23,14 @@ public:
 	//size_t operator+ (size_t i) const { return OffsetToResource + i; }
 	operator uint32() const { return static_cast<uint32>(OffsetToResource); }
 
-	bool operator== (size_t Val)	{ return OffsetToResource == Val; }
-	bool operator== (uint32 Val)	{ return static_cast<uint32>(OffsetToResource) == Val; }
-	bool operator== (int32	Val)	{ return static_cast<int32>(OffsetToResource) == Val; }
-	bool operator!= (size_t Val)	{ return OffsetToResource != Val; }
-	bool operator!= (uint32 Val)	{ return static_cast<uint32>(OffsetToResource) != Val; }
-	bool operator!= (int32	Val)	{ return static_cast<int32>(OffsetToResource) != Val; }
+	bool operator== (Handle Hnd) { return OffsetToResource == Hnd.OffsetToResource; }
+	bool operator== (size_t Val) { return OffsetToResource == Val; }
+	bool operator== (uint32 Val) { return static_cast<uint32>(OffsetToResource) == Val; }
+	bool operator== (int32	Val) { return static_cast<int32>(OffsetToResource) == Val; }
+	bool operator!= (Handle Hnd) { return OffsetToResource != Hnd.OffsetToResource; }
+	bool operator!= (size_t Val) { return OffsetToResource != Val; }
+	bool operator!= (uint32 Val) { return static_cast<uint32>(OffsetToResource) != Val; }
+	bool operator!= (int32	Val) { return static_cast<int32>(OffsetToResource) != Val; }
 
 	using ResourceType = Type;
 private:

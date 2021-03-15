@@ -204,10 +204,12 @@ xcopy "$(TargetDir)$(ProjectName).ilk" "$(SolutionDir)Bin\$(Configuration)\" /y 
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="Engine\Private\System.h" />
+    <ClInclude Include="Library\Algorithms\QuickSort.h" />
     <ClInclude Include="Library\Algorithms\Tokenizer.h" />
     <ClInclude Include="Library\Allocators\BaseAllocator.h" />
     <ClInclude Include="Library\Allocators\LinearAllocator.h" />
     <ClInclude Include="Library\Containers\Bitset.h" />
+    <ClInclude Include="Library\Containers\Buffer.h" />
     <ClInclude Include="Library\Containers\Node.h" />
     <ClInclude Include="Library\Math\Matrix.h" />
     <ClInclude Include="Library\Math\Operations.h" />

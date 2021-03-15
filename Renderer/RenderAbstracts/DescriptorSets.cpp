@@ -1,8 +1,7 @@
 #include "DescriptorSets.h"
 #include "API/Context.h"
 
-IRDescriptorManager::IRDescriptorManager(RenderContext& Context, LinearAllocator& InAllocator) :
-	Context(Context), 
+IRDescriptorManager::IRDescriptorManager(LinearAllocator& InAllocator) :
 	Allocator(InAllocator),
 	Sets{},
 	Pools{},
@@ -17,36 +16,24 @@ IRDescriptorManager::~IRDescriptorManager()
 	Layouts.Release();
 }
 
-void IRDescriptorManager::Initialize(const DescriptorManagerConfiguration& Config)
+Handle<UniformBuffer> IRDescriptorManager::AllocateUniformBuffer(const UniformBufferCreateInfo& AllocInfo)
 {
-	if (!Pools.Size())
-	{
-		Pools.Reserve(Config.PoolReserveCount);
-	}
-
-	if (!Layouts.Size())
-	{
-		Layouts.Reserve(Config.LayoutReserveCount);
-	}
-
-	if (!Sets.Size())
-	{
-		Sets.Reserve(Config.SetReserveCount);
-	}
-}
-
-Handle<UniformBuffer> IRDescriptorManager::CreateUniformBuffer(const UniformBufferCreateInfo& CreateInfo)
-{
-	if (DoesUniformBufferExist(CreateInfo.Id) != Resource_Not_Exist)
+	if (DoesUniformBufferExist(AllocInfo.Id) != Resource_Not_Exist)
 	{
 		return INVALID_HANDLE;
 	}
 
 	UniformBuffer* buffer = reinterpret_cast<UniformBuffer*>(Allocator.Malloc(sizeof(UniformBuffer)));
 	FMemory::InitializeObject(buffer);
-	FMemory::Memcpy(buffer, &CreateInfo, sizeof(UniformBufferCreateInfo));
+	FMemory::Memcpy(buffer, &AllocInfo, sizeof(SRMemoryBufferBase));
 
+	buffer->Locality = Buffer_Locality_Cpu_To_Gpu;
 	size_t index = Buffers.Push(buffer);
+
+	if (!AllocInfo.DeferAllocation)
+	{
+		BuildUniformBuffers();
+	}
 
 	return Handle<UniformBuffer>(index);
 }
@@ -77,8 +64,8 @@ Handle<DescriptorPool> IRDescriptorManager::CreateDescriptorPool(const Descripto
 	FMemory::InitializeObject(pool);
 	FMemory::Memcpy(pool, &CreateInfo, sizeof(DescriptorPoolBase));
 
-	pool->Slots = pool->Capacity;
-	pool->DescriptorTypes.Assign(CreateInfo.DescriptorTypes);
+	//pool->Slots = pool->Capacity;
+	//pool->DescriptorTypes.Assign(CreateInfo.DescriptorTypes);
 
 	size_t index = Pools.Push(pool);
 
@@ -88,6 +75,17 @@ Handle<DescriptorPool> IRDescriptorManager::CreateDescriptorPool(const Descripto
 Handle<DescriptorPool> IRDescriptorManager::GetDescriptorPoolHandleWithId(uint32 Id)
 {
 	return Handle<DescriptorPool>(DoesDescriptorPoolExist(Id));
+}
+
+bool IRDescriptorManager::AddSizeTypeToDescriptorPool(Handle<DescriptorPool> Hnd, EDescriptorType Type, uint32 Size)
+{
+	DescriptorPool* descriptorPool = GetDescriptorPool(Hnd);
+
+	VKT_ASSERT(descriptorPool);
+	if (!descriptorPool) { return false; }
+
+	descriptorPool->Sizes.Push({ Type, Size });
+	return true;
 }
 
 DescriptorPool* IRDescriptorManager::GetDescriptorPool(Handle<DescriptorPool> Hnd)
@@ -138,9 +136,8 @@ Handle<DescriptorLayout> IRDescriptorManager::CreateDescriptorLayout(const Descr
 
 	DescriptorLayout* layout = reinterpret_cast<DescriptorLayout*>(Allocator.Malloc(sizeof(DescriptorLayout)));
 	FMemory::InitializeObject(layout);
-	FMemory::Memcpy(layout, &CreateInfo, sizeof(DescriptorLayoutBase));
+	FMemory::Memcpy(layout, &CreateInfo, sizeof(DescriptorLayoutCreateInfo));
 
-	layout->ShaderStages.Assign(CreateInfo.ShaderStages);
 	size_t index = Layouts.Push(layout);
 
 	return Handle<DescriptorLayout>(index);
@@ -149,6 +146,21 @@ Handle<DescriptorLayout> IRDescriptorManager::CreateDescriptorLayout(const Descr
 Handle<DescriptorLayout> IRDescriptorManager::GetDescriptorLayoutHandleWithId(uint32 Id)
 {
 	return Handle<DescriptorLayout>(DoesDescriptorLayoutExist(Id));
+}
+
+bool IRDescriptorManager::AddDescriptorSetLayoutBinding(Handle<DescriptorLayout> Hnd, uint32 Binding, size_t Size, size_t Count, EDescriptorType Type, EShaderTypeFlagBits ShaderStages)
+{
+	if (Hnd == INVALID_HANDLE) { return false; }
+	DescriptorLayout* layout = GetDescriptorLayout(Hnd);
+	if (!layout) { return false; }
+
+	DescriptorBinding& binding = layout->Bindings.Insert(DescriptorBinding());
+	binding.Binding = Binding;
+	binding.Size	= gpu::PadSizeToAlignedSize(Size) * Count;
+	binding.Type	= Type;
+	binding.ShaderStages.Set(ShaderStages);
+
+	return true;
 }
 
 DescriptorLayout* IRDescriptorManager::GetDescriptorLayout(Handle<DescriptorLayout> Hnd)
@@ -177,12 +189,9 @@ Handle<DescriptorSet> IRDescriptorManager::CreateDescriptorSet(const DescriptorS
 {
 	DescriptorPool* descriptorPool = GetDescriptorPool(CreateInfo.DescriptorPoolHandle);
 	DescriptorLayout* descriptorLayout = GetDescriptorLayout(CreateInfo.DescriptorLayoutHandle);
-	UniformBuffer* uniformBuffer = GetUniformBuffer(CreateInfo.UniformBufferHandle);
 
 	if (!descriptorPool			||
 		!descriptorLayout		||
-		!uniformBuffer			||
-		!descriptorPool->Slots	||
 		(DoesDescriptorSetExist(CreateInfo.Id) != Resource_Not_Exist))
 	{
 		return INVALID_HANDLE;
@@ -194,12 +203,12 @@ Handle<DescriptorSet> IRDescriptorManager::CreateDescriptorSet(const DescriptorS
 	//	return INVALID_HANDLE;
 	//}
 
-	uint32 remainingSize = uniformBuffer->Capacity - uniformBuffer->Offset;
+	//size_t remainingSize = uniformBuffer->Size - uniformBuffer->Offset;
 
-	if (remainingSize < (CreateInfo.NumOfData * CreateInfo.TypeSize))
-	{
-		return INVALID_HANDLE;
-	}
+	//if (remainingSize < (CreateInfo.NumOfData * CreateInfo.TypeSize))
+	//{
+	//	return INVALID_HANDLE;
+	//}
 
 	DescriptorSet* set = reinterpret_cast<DescriptorSet*>(Allocator.Malloc(sizeof(DescriptorSet)));
 	FMemory::InitializeObject(set);
@@ -207,14 +216,12 @@ Handle<DescriptorSet> IRDescriptorManager::CreateDescriptorSet(const DescriptorS
 
 	set->Pool = descriptorPool;
 	set->Layout = descriptorLayout;
-	set->Buffer = uniformBuffer;
-	set->Base = uniformBuffer->Offset;
-
-	descriptorPool->Slots--;
+	//set->Buffer = uniformBuffer;
+	//set->Base = uniformBuffer->Offset;
 
 	// Padded alongside the maximum number of frames in flights.
-	uint32 paddedSize = Context.PadSizeToAlignedSize(set->NumOfData * set->TypeSize * MAX_FRAMES_IN_FLIGHT);
-	uniformBuffer->Offset += paddedSize;
+	//size_t paddedSize = gpu::PadSizeToAlignedSize(set->NumOfData * set->TypeSize * MAX_FRAMES_IN_FLIGHT);
+	//uniformBuffer->Offset += paddedSize;
 
 	size_t index = Sets.Push(set);
 
@@ -224,6 +231,37 @@ Handle<DescriptorSet> IRDescriptorManager::CreateDescriptorSet(const DescriptorS
 Handle<DescriptorSet> IRDescriptorManager::GetDescriptorSetHandleWithId(uint32 Id)
 {
 	return Handle<DescriptorSet>(DoesDescriptorSetExist(Id));
+}
+
+bool IRDescriptorManager::UpdateDescriptorSetForBinding(Handle<DescriptorSet> SetHnd, Handle<UniformBuffer> BufferHnd, uint32 Binding)
+{
+	if (SetHnd == INVALID_HANDLE || BufferHnd == INVALID_HANDLE)
+	{
+		return false;
+	}
+
+	DescriptorSet* set = GetDescriptorSet(SetHnd);
+	UniformBuffer* buffer = GetUniformBuffer(BufferHnd);
+
+	if (!set || !buffer)
+	{
+		return false;
+	}
+
+	DescriptorBinding* binding = nullptr;
+	for (DescriptorBinding& b : set->Layout->Bindings)
+	{
+		if (b.Binding != Binding) { continue; }
+		binding = &b;
+		break;
+	}
+
+	if (!binding) { return false; }
+
+	gpu::UpdateDescriptorSet(*set, *binding, *buffer);
+	binding->Buffer = buffer;
+
+	return true;
 }
 
 DescriptorSet* IRDescriptorManager::GetDescriptorSet(Handle<DescriptorSet> Hnd)
@@ -272,34 +310,34 @@ DescriptorSet* IRDescriptorManager::GetDescriptorSet(Handle<DescriptorSet> Hnd)
 //	return true;
 //}
 
-void IRDescriptorManager::Build()
+void IRDescriptorManager::BuildAll()
 {
 	BuildUniformBuffers();
 	BuildDescriptorPools();
 	BuildDescriptorLayouts();
 	BuildDescriptorSets();
 
-	for (DescriptorSet* descriptorSet : Sets)
-	{
-		Context.MapDescriptorSetToBuffer(*descriptorSet);
-	}
+	//for (DescriptorSet* descriptorSet : Sets)
+	//{
+	//	Context.MapDescriptorSetToBuffer(*descriptorSet);
+	//}
 }
 
 void IRDescriptorManager::Destroy()
 {
 	for (DescriptorLayout* layout : Layouts)
 	{
-		Context.DestroyDescriptorSetLayout(layout->Handle);
+		gpu::DestroyDescriptorSetLayout(*layout);
 	}
 
 	for (DescriptorPool* pool : Pools)
 	{
-		Context.DestroyDescriptorPool(pool->Handle);
+		gpu::DestroyDescriptorPool(*pool);
 	}
 
 	for (UniformBuffer* buffer : Buffers)
 	{
-		Context.DestroyBuffer(buffer->Handle);
+		gpu::DestroyBuffer(*buffer);
 	}
 
 	Sets.Release();
@@ -312,7 +350,10 @@ void IRDescriptorManager::FlushDescriptorSetsOffsets()
 {
 	for (DescriptorSet* set : Sets)
 	{
-		set->Offset = 0;
+		for (DescriptorBinding& binding : set->Layout->Bindings)
+		{
+			binding.Allocated = 0;
+		}
 	}
 }
 
@@ -320,7 +361,9 @@ void IRDescriptorManager::BuildUniformBuffers()
 {
 	for (UniformBuffer* buffer : Buffers)
 	{
-		Context.NewUniformBuffer(buffer->Handle, nullptr, buffer->Capacity);
+		if (buffer->Handle != INVALID_HANDLE) { continue; }
+		gpu::CreateBuffer(*buffer, nullptr, buffer->Size);
+		//Context.NewBuffer(*buffer, nullptr, buffer->Size, 1);
 	}
 }
 
@@ -328,7 +371,9 @@ void IRDescriptorManager::BuildDescriptorPools()
 {
 	for (DescriptorPool* pool : Pools)
 	{
-		Context.NewDescriptorPool(*pool);
+		if (pool->Handle != INVALID_HANDLE) { continue; }
+		gpu::CreateDescriptorPool(*pool);
+		//Context.NewDescriptorPool(*pool);
 	}
 }
 
@@ -336,7 +381,9 @@ void IRDescriptorManager::BuildDescriptorLayouts()
 {
 	for (DescriptorLayout* layout : Layouts)
 	{
-		Context.NewDestriptorSetLayout(*layout);
+		if (layout->Handle != INVALID_HANDLE) { continue; }
+		gpu::CreateDescriptorSetLayout(*layout);
+		//Context.NewDestriptorSetLayout(*layout);
 	}
 }
 
@@ -344,11 +391,13 @@ void IRDescriptorManager::BuildDescriptorSets()
 {
 	for (DescriptorSet* set : Sets)
 	{
-		Context.NewDescriptorSet(*set);
+		if (set->Handle != INVALID_HANDLE) { continue; }
+		gpu::AllocateDescriptorSet(*set);
+		//Context.NewDescriptorSet(*set);
 	}
 }
 
-size_t IRDescriptorManager::DoesUniformBufferExist(uint32 Id)
+size_t IRDescriptorManager::DoesUniformBufferExist(size_t Id)
 {
 	UniformBuffer* buffer = nullptr;
 	for (size_t i = 0; i < Buffers.Length(); i++)
@@ -359,7 +408,7 @@ size_t IRDescriptorManager::DoesUniformBufferExist(uint32 Id)
 	return Resource_Not_Exist;
 }
 
-size_t IRDescriptorManager::DoesDescriptorPoolExist(uint32 Id)
+size_t IRDescriptorManager::DoesDescriptorPoolExist(size_t Id)
 {
 	DescriptorPool* pool = nullptr;
 	for (size_t i = 0; i < Pools.Length(); i++)
@@ -370,7 +419,7 @@ size_t IRDescriptorManager::DoesDescriptorPoolExist(uint32 Id)
 	return Resource_Not_Exist;
 }
 
-size_t IRDescriptorManager::DoesDescriptorLayoutExist(uint32 Id)
+size_t IRDescriptorManager::DoesDescriptorLayoutExist(size_t Id)
 {
 	DescriptorLayout* layout = nullptr;
 	for (size_t i = 0; i < Layouts.Length(); i++)
@@ -381,7 +430,7 @@ size_t IRDescriptorManager::DoesDescriptorLayoutExist(uint32 Id)
 	return Resource_Not_Exist;
 }
 
-size_t IRDescriptorManager::DoesDescriptorSetExist(uint32 Id)
+size_t IRDescriptorManager::DoesDescriptorSetExist(size_t Id)
 {
 	DescriptorSet* set = nullptr;
 	for (size_t i = 0; i < Sets.Length(); i++)

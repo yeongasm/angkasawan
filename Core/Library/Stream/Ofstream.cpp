@@ -1,3 +1,4 @@
+#include <new>
 #include "Ofstream.h"
 #include "Library/Templates/Templates.h"
 

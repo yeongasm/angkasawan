@@ -7,11 +7,11 @@ size_t previousVbo = -1;
 
 RenderSystem::RenderSystem(EngineImpl& InEngine, Handle<ISystem> Hnd) :
 	Engine(InEngine),
-	AssetManager(),
-	Context(),
+	AssetManager(nullptr),
+	//Context(),
 	FrameGraph(nullptr),
 	DescriptorManager(nullptr),
-	VertexGroupManager(nullptr),
+	MemoryManager(nullptr),
 	DrawCommands(),
 	DescriptorInstances(),
 	Hnd(Hnd)
@@ -22,30 +22,35 @@ RenderSystem::~RenderSystem() {}
 void RenderSystem::OnInit()
 {
 	g_RenderSystemHandle = Hnd;
-	Context.InitializeContext();
-	AssetManager.Initialize();
+	gpu::Initialize();
+	//Context.InitializeContext();
 	g_RenderSystemAllocator.Initialize(MEGABYTES(16));
 	g_DescriptorInstancePool.Reserve(2048);
 
+	MemoryManager = reinterpret_cast<IRenderMemoryManager*>(g_RenderSystemAllocator.Malloc(sizeof(IRenderMemoryManager)));
+	FMemory::InitializeObject(MemoryManager, g_RenderSystemAllocator);
+
+	AssetManager = reinterpret_cast<IRAssetManager*>(g_RenderSystemAllocator.Malloc(sizeof(IRAssetManager)));
+	FMemory::InitializeObject(AssetManager, *MemoryManager, Engine.Manager);
+
 	FrameGraph = reinterpret_cast<IRFrameGraph*>(g_RenderSystemAllocator.Malloc(sizeof(IRFrameGraph)));
-	FMemory::InitializeObject(FrameGraph, Context, g_RenderSystemAllocator);
+	FMemory::InitializeObject(FrameGraph, g_RenderSystemAllocator);
 
 	DescriptorManager = reinterpret_cast<IRDescriptorManager*>(g_RenderSystemAllocator.Malloc(sizeof(IRDescriptorManager)));
-	FMemory::InitializeObject(DescriptorManager, Context, g_RenderSystemAllocator);
+	FMemory::InitializeObject(DescriptorManager, g_RenderSystemAllocator);
 
-	VertexGroupManager = reinterpret_cast<IRVertexGroupManager*>(g_RenderSystemAllocator.Malloc(sizeof(IRVertexGroupManager)));
-	FMemory::InitializeObject(VertexGroupManager, Context, g_RenderSystemAllocator);
 }
 
 void RenderSystem::OnUpdate()
 {
 	if (Engine.Window.WindowSizeChanged)
 	{
-		Context.OnWindowResize();
+		gpu::OnWindowResize();
 		FrameGraph->OnWindowResize();
 	}
 
-	Context.Clear();
+	gpu::Clear();
+	gpu::BeginFrame();
 
 	//
 	// TODO(Ygsm):
@@ -62,21 +67,28 @@ void RenderSystem::OnUpdate()
 
 		auto& drawCommands = DrawCommands[passId];
 
-		Context.BindRenderPass(*renderPass);
-		BindPerPassDescriptors(passId, *renderPass);
+		gpu::BindRenderpass(*renderPass);
+		gpu::BindPipeline(*renderPass);
+		//Context.BindRenderPass(*renderPass);
+		//BindPerPassDescriptors(passId, *renderPass);
 
 		for (DrawCommand& command : drawCommands)
 		{
-			BindPerObjectDescriptors(command.Id, *renderPass);
-			BindVertexAndIndexBuffer(command, *renderPass);
-			Context.SubmitForRender(command, *renderPass);
+			BindPerObjectDescriptors(command);
+			BindVertexAndIndexBuffer(command);
+			gpu::Draw(command);
+			//Context.SubmitForRender(command, *renderPass);
 		}
 
-		Context.UnbindRenderPass(*renderPass);
+		gpu::UnbindRenderpass(*renderPass);
+		//Context.UnbindRenderPass(*renderPass);
 	}
 
-	Context.BlitToDefault(*FrameGraph);
-	Context.SwapBuffers();
+	gpu::BlitToDefault(*FrameGraph);
+	gpu::EndFrame();
+	gpu::SwapBuffers();
+	//Context.BlitToDefault(*FrameGraph);
+	//Context.SwapBuffers();
 
 	FlushRenderer();
 }
@@ -84,14 +96,13 @@ void RenderSystem::OnUpdate()
 void RenderSystem::OnTerminate()
 {
 	DrawCommands.Release();
-	
+
 	FrameGraph->Destroy();
 	DescriptorManager->Destroy();
-	VertexGroupManager->Destroy();
+	MemoryManager->Destroy();
 
 	g_RenderSystemAllocator.Terminate();
-	Context.TerminateContext();
-	AssetManager.Terminate();
+	gpu::Terminate();
 }
 
 IRFrameGraph& RenderSystem::GetFrameGraph()
@@ -109,7 +120,6 @@ void RenderSystem::FinalizeGraph()
 	for (auto& pair : FrameGraph->RenderPasses)
 	{
 		if (pair.Value->IsSubpass()) { continue; }
-
 		auto& commandContainer = DrawCommands.Insert(pair.Key, {});
 		commandContainer.Reserve(1024);
 	}
@@ -117,16 +127,11 @@ void RenderSystem::FinalizeGraph()
 
 Handle<DrawCommand> RenderSystem::DrawModel(Model& InModel, uint32 Pass)
 {
+	DrawCommand command;
 	size_t id = -1;
 	Mesh* mesh = nullptr;
-	VertexGroup* group = nullptr;
 
-	if (!InModel.Length())
-	{
-		return INVALID_HANDLE;
-	}
-
-	DrawCommand command;
+	if (!InModel.Length()) { return INVALID_HANDLE; }
 
 	for (size_t i = 0; i < InModel.Length(); i++)
 	{
@@ -137,15 +142,12 @@ Handle<DrawCommand> RenderSystem::DrawModel(Model& InModel, uint32 Pass)
 
 		mesh = InModel[i];
 
-		Handle<VertexGroup> vgHandle = VertexGroupManager->GetVertexGroupHandleWithId(mesh->Group);
-		group = VertexGroupManager->GetVertexGroup(vgHandle);
-
 		command.Id = static_cast<uint32>(id);
-		command.Vbo = group->Vbo;
-		command.Ebo = group->Ebo;
-		command.VertexOffset = mesh->VertexOffset;
+		command.Vbo = mesh->Vbo;
+		command.Ebo = mesh->Ebo;
+		command.VertexOffset = mesh->VtxOffset;
 		command.NumVertices = mesh->NumOfVertices;
-		command.IndexOffset = mesh->IndexOffset;
+		command.IndexOffset = mesh->IdxOffset;
 		command.NumIndices = mesh->NumOfIndices;
 
 		DrawCommands[Pass].Push(Move(command));
@@ -156,30 +158,47 @@ Handle<DrawCommand> RenderSystem::DrawModel(Model& InModel, uint32 Pass)
 	return Handle<DrawCommand>(id);
 }
 
-bool RenderSystem::UpdateDescriptorSet(uint32 DescriptorId, Handle<DrawCommand> DrawCmdHandle, void* Data, size_t Size)
+bool RenderSystem::UpdateDescriptorSet(uint32 DescriptorId, Handle<DrawCommand> DrawCmdHandle, uint32 Binding, void* Data, size_t Size)
 {
 	if (DrawCmdHandle == INVALID_HANDLE)
 	{
 		return false;
 	}
 
+	const uint32 currentFrameIndex = gpu::CurrentFrameIndex();
 	BindingDescriptors& bindings = DescriptorInstances.PerObject[DrawCmdHandle];
 
+	DescriptorBinding* binding = nullptr;
 	Handle<DescriptorSet> setHandle = DescriptorManager->GetDescriptorSetHandleWithId(DescriptorId);
 	DescriptorSet* descriptorSet = DescriptorManager->GetDescriptorSet(setHandle);
 
-	if (!descriptorSet)
+	if (!descriptorSet) { return false; }
+
+	for (DescriptorBinding& b : descriptorSet->Layout->Bindings)
 	{
-		return false;
+		if (b.Binding != Binding)
+		{
+			continue;
+		}
+		binding = &b;
+		break;
 	}
 
-	uint32 instanceOffset = descriptorSet->Offset;
+	if (!binding) { return false; }
+	if (binding->Allocated >= binding->Size) 
+	{
+		VKT_ASSERT(false && "Insufficient memory to allocate more descriptor set instances");
+		return false; 
+	}
+
 	auto& node = g_DescriptorInstancePool.Insert(ForwardNode<DescriptorSetInstance>());
 
-	node.Data.Offset = instanceOffset;
+	node.Data.Binding = Binding;
 	node.Data.Owner = descriptorSet;
+	node.Data.Offset = binding->Allocated;
+	binding->Allocated += gpu::PadSizeToAlignedSize(Size);
 
-	Context.BindDataToDescriptorSet(Data, Size, *descriptorSet);
+	gpu::CopyToBuffer(*binding->Buffer, Data, Size, binding->Offset[currentFrameIndex] + node.Data.Offset);
 
 	if (!bindings.Count)
 	{
@@ -211,7 +230,7 @@ bool RenderSystem::BindDescLayoutToPass(uint32 DescriptorLayoutId, Handle<Render
 
 IRAssetManager& RenderSystem::GetAssetManager()
 {
-	return AssetManager;
+	return *AssetManager;
 }
 
 void RenderSystem::FlushRenderer()
@@ -230,13 +249,15 @@ void RenderSystem::FlushRenderer()
 	g_DescriptorInstancePool.Empty();
 }
 
-void RenderSystem::BindVertexAndIndexBuffer(DrawCommand& Command, RenderPass& Pass)
+void RenderSystem::BindVertexAndIndexBuffer(DrawCommand& Command)
 {
 	if (Command.Vbo == previousVbo)
 	{
 		return;
 	}
-	Context.BindVertexAndIndexBuffer(Command, Pass);
+	gpu::BindVertexBuffer(Command);
+	gpu::BindIndexBuffer(Command);
+	//Context.BindVertexAndIndexBuffer(Command, Pass);
 	previousVbo = Command.Vbo;
 }
 
@@ -252,25 +273,27 @@ void RenderSystem::BindPerPassDescriptors(uint32 RenderPassId, RenderPass& Pass)
 
 	while (descriptorInstances.Count)
 	{
-		Context.BindDescriptorSetInstance(node->Data, Pass);
+		gpu::BindDescriptorSetInstance(node->Data);
+		//Context.BindDescriptorSetInstance(node->Data, Pass);
 		descriptorInstances.Count--;
 		node = node->Next;
 	}
 }
 
-void RenderSystem::BindPerObjectDescriptors(uint32 DrawCommandId, RenderPass& Pass)
+void RenderSystem::BindPerObjectDescriptors(DrawCommand& Command)
 {
 	if (!DescriptorInstances.PerObject.Length())
 	{
 		return;
 	}
 
-	BindingDescriptors& descriptorInstances = DescriptorInstances.PerObject[DrawCommandId];
+	BindingDescriptors& descriptorInstances = DescriptorInstances.PerObject[Command.Id];
 	ForwardNode<DescriptorSetInstance>* node = descriptorInstances.Base;
 
 	while (descriptorInstances.Count)
 	{
-		Context.BindDescriptorSetInstance(node->Data, Pass);
+		gpu::BindDescriptorSetInstance(node->Data);
+		//Context.BindDescriptorSetInstance(node->Data, Pass);
 		descriptorInstances.Count--;
 		node = node->Next;
 	}
@@ -281,10 +304,20 @@ IRDescriptorManager& RenderSystem::GetDescriptorManager()
 	return *DescriptorManager;
 }
 
-IRVertexGroupManager& RenderSystem::GetVertexGroupManager()
+IRenderMemoryManager& RenderSystem::GetRenderMemoryManager()
 {
-	return *VertexGroupManager;
+	return *MemoryManager;
 }
+
+//IRVertexGroupManager& RenderSystem::GetVertexGroupManager()
+//{
+//	return *VertexGroupManager;
+//}
+
+//IRStagingBuffer& RenderSystem::GetStagingBufferManager()
+//{
+//	return *StagingBufferManager;
+//}
 
 Handle<ISystem> RenderSystem::GetSystemHandle()
 {

@@ -5,16 +5,15 @@
 #include "Library/Containers/Map.h"
 #include "Assets/GPUHandles.h"
 
-class RenderContext;
 class Model;
 
 struct DrawCommand
 {
 	uint32 Id;
-	uint32 VertexOffset;
 	uint32 NumVertices;
-	uint32 IndexOffset;
 	uint32 NumIndices;
+	uint32 VertexOffset;
+	uint32 IndexOffset;
 	Handle<HBuffer> Vbo;
 	Handle<HBuffer> Ebo;
 };

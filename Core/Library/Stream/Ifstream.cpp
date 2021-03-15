@@ -1,3 +1,4 @@
+#include <new>
 #include "Ifstream.h"
 #include "Library/Templates/Templates.h"
 
