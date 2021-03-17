@@ -95,7 +95,7 @@ class Model : Array<Mesh*>
 private:
 	using Super = Array<Mesh*>;
 public:
-	String128 Name;
+	uint32 Id;
 
 	using Super::Push;
 	using Super::PopAt;

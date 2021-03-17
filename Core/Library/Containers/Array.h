@@ -320,7 +320,7 @@ public:
 	* @param Begin	- Foreign container's beginning pointer.
 	* @param Length	- Foreign container's end pointer.
 	*/
-	size_t Append(Iterator Begin, size_t Length)
+	size_t Append(ConstIterator Begin, size_t Length)
 	{
 		for (size_t i = 0; i < Length; i++)
 		{

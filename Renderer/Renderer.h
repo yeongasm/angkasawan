@@ -9,12 +9,9 @@
 #include "Library/Containers/Node.h"
 #include "RenderAbstracts/FrameGraph.h"
 #include "RenderAbstracts/DrawCommand.h"
-//#include "RenderAbstracts/RenderGroup.h"
 #include "RenderAbstracts/DescriptorSets.h"
 #include "RenderAbstracts/RenderMemory.h"
 #include "RenderAbstracts/GPUMemory.h"
-
-#define RENDERER_DRAWABLES_SLACK 16
 
 /**
 *
@@ -26,7 +23,7 @@ class RENDERER_API RenderSystem : public SystemInterface
 {
 private:
 
-	using DrawCommandStore = Map<uint32, Array<DrawCommand, RENDERER_DRAWABLES_SLACK>>;
+	//using DrawCommandStore = Map<uint32, Array<DrawCommand, RENDERER_DRAWABLES_SLACK>>;
 
 	struct BindingDescriptors
 	{
@@ -43,21 +40,17 @@ private:
 	};
 
 	EngineImpl&				Engine;
-	//RenderContext			Context;
 	IRAssetManager*			AssetManager;
 	IRFrameGraph*			FrameGraph;
 	IRDescriptorManager*	DescriptorManager;
-	//IRVertexGroupManager*	VertexGroupManager;
 	IRenderMemoryManager*	MemoryManager;
-	//IRStagingBuffer*		StagingBufferManager;
-	DrawCommandStore		DrawCommands;
+	IRDrawManager*			DrawCmdManager;
 	DescriptorInstanceStore	DescriptorInstances;
 	Handle<ISystem>			Hnd;
 
 	void FlushRenderer				();
-	void BindVertexAndIndexBuffer	(DrawCommand& Command);
-	void BindPerPassDescriptors		(uint32 RenderPassId, RenderPass& Pass);
-	void BindPerObjectDescriptors	(DrawCommand& Command);
+	//void BindPerPassDescriptors		(uint32 RenderPassId, RenderPass& Pass);
+	//void BindPerObjectDescriptors	(DrawCommand& Command);
 
 public:
 
@@ -71,14 +64,14 @@ public:
 	void		OnTerminate		() override;
 	void		FinalizeGraph	();
 
-	Handle<DrawCommand>		DrawModel				(Model& InModel, uint32 Pass);
-	bool					UpdateDescriptorSet		(uint32 DescriptorId, Handle<DrawCommand> DrawCmdHandle, uint32 Binding, void* Data, size_t Size);
+	//bool					UpdateDescriptorSet		(uint32 DescriptorId, Handle<DrawCommand> DrawCmdHandle, uint32 Binding, void* Data, size_t Size);
 	bool					BindDescLayoutToPass	(uint32 DescriptorLayoutId, Handle<RenderPass> PassHandle);
 
 	IRFrameGraph&			GetFrameGraph			();
 	IRAssetManager&			GetAssetManager			();
 	IRDescriptorManager&	GetDescriptorManager	();
 	IRenderMemoryManager&	GetRenderMemoryManager	();
+	IRDrawManager&			GetDrawManager			();
 	//IRVertexGroupManager&	GetVertexGroupManager	();
 	//IRStagingBuffer&		GetStagingBufferManager	();
 

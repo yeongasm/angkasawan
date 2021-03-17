@@ -40,7 +40,7 @@ public:
 	bool			DeleteShader		(Handle<Shader> Hnd);
 
 	Handle<Model>	CreateNewModel		(const ModelCreateInfo& CreateInfo);
-	Model*			GetModelWithName	(const char* Identity);
+	Model*			GetModelWithName	(const String128& Identity);
 	Model*			GetModelWithHandle	(Handle<Model> Hnd);
 	bool			DeleteModel			(Handle<Model> Hnd);
 
@@ -52,9 +52,11 @@ public:
 	bool			RemoveMeshFromModel	(Handle<Mesh> MeshHnd, Handle<Model> ModelHnd);
 
 	Handle<Texture> CreateNewTexture		(const TextureCreateInfo& CreateInfo);
-	Handle<Texture> GetTextureHandleWithName(const char* Identity);
+	Handle<Texture> GetTextureHandleWithName(const String128& Identity);
 	Texture*		GetTextureWithHandle	(Handle<Texture> Hnd);
 	bool			DeleteTexture			(Handle<Texture> Hnd);
+
+	void			Destroy();
 
 private:
 	Map<uint32, Shader> ShaderStore;

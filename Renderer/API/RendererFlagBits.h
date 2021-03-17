@@ -26,6 +26,13 @@ enum ESurfaceExtent : size_t
 	Surface_Extent_Max		= 2
 };
 
+enum EVertexInputRateType : uint32
+{
+	Vertex_Input_Rate_Vertex = 0,
+	Vertex_Input_Rate_Instance = 1,
+	Vertex_Input_Rate_Max = 2
+};
+
 enum EColorChannel : size_t
 {
 	Color_Channel_Red	= 0,
@@ -95,7 +102,8 @@ enum EShaderAttribFormat : uint32
 	Shader_Attrib_Type_Float	= 3,
 	Shader_Attrib_Type_Vec2		= 4,
 	Shader_Attrib_Type_Vec3		= 5,
-	Shader_Attrib_Type_Vec4		= 6
+	Shader_Attrib_Type_Vec4		= 6,
+	Shader_Attrib_Type_Mat4		= 7
 };
 
 enum EShaderType : uint32

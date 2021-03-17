@@ -7,17 +7,17 @@
 
 struct ShaderAttrib
 {
-	uint32 Binding;
+	//uint32 Binding;
 	uint32 Location;
 	uint32 Offset;
 	EShaderAttribFormat Format;
 
 	ShaderAttrib() :
-		Binding(0), Location(0), Offset(0), Format(Shader_Attrib_Type_Float)
+		/*Binding(0), */Location(0), Offset(0), Format(Shader_Attrib_Type_Float)
 	{};
 
-	ShaderAttrib(uint32 InBinding, uint32 InLocation, uint32 InOffset, EShaderAttribFormat InFormat) :
-		Binding(InBinding), Location(InLocation), Offset(InOffset), Format(InFormat)
+	ShaderAttrib(/*uint32 InBinding, */uint32 InLocation, uint32 InOffset, EShaderAttribFormat InFormat) :
+		/*Binding(InBinding), */Location(InLocation), Offset(InOffset), Format(InFormat)
 	{};
 
 	~ShaderAttrib() {};
@@ -29,7 +29,7 @@ struct ShaderAttrib
 	{
 		if (this != &Rhs)
 		{
-			Binding = Rhs.Binding;
+			//Binding = Rhs.Binding;
 			Location = Rhs.Location;
 			Offset = Rhs.Offset;
 			Format = Rhs.Format;
@@ -41,7 +41,7 @@ struct ShaderAttrib
 	{
 		if (this != &Rhs)
 		{
-			Binding = Rhs.Binding;
+			//Binding = Rhs.Binding;
 			Location = Rhs.Location;
 			Offset = Rhs.Offset;
 			Format = Rhs.Format;

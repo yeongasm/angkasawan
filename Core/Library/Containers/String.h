@@ -134,7 +134,12 @@ private:
 		Type* Ptr = PointerToString();
 		size_t Count = To - From;
 		FMemory::Memzero(&Ptr[From], Count);
-		FMemory::Memmove(Ptr, &Ptr[To + 1], Count);
+
+		if (Count != Capacity)
+		{
+			FMemory::Memmove(Ptr, &Ptr[To + 1], Count);
+		}
+
 		Len -= static_cast<uint32>(Count);
 		//FMemory::Memzero(Ptr, To);
 	}

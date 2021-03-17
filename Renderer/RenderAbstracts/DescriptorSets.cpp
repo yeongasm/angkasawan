@@ -64,9 +64,6 @@ Handle<DescriptorPool> IRDescriptorManager::CreateDescriptorPool(const Descripto
 	FMemory::InitializeObject(pool);
 	FMemory::Memcpy(pool, &CreateInfo, sizeof(DescriptorPoolBase));
 
-	//pool->Slots = pool->Capacity;
-	//pool->DescriptorTypes.Assign(CreateInfo.DescriptorTypes);
-
 	size_t index = Pools.Push(pool);
 
 	return Handle<DescriptorPool>(index);
@@ -264,6 +261,46 @@ bool IRDescriptorManager::UpdateDescriptorSetForBinding(Handle<DescriptorSet> Se
 	return true;
 }
 
+bool IRDescriptorManager::UpdateDescriptorSetData(Handle<DescriptorSet> SetHnd, uint32 Binding, void* Data, size_t Size)
+{
+	if (SetHnd == INVALID_HANDLE) { return false; }
+	if (!Data || !Size) { return false; }
+
+	const uint32 currentFrame = gpu::CurrentFrameIndex();
+	DescriptorBinding* binding = nullptr;
+	DescriptorSet* set = GetDescriptorSet(SetHnd);
+
+	if (!set) { return false; }
+
+	for (DescriptorBinding& b : set->Layout->Bindings)
+	{
+		if (b.Binding != Binding) { continue; }
+		binding = &b;
+		break;
+	}
+
+	if (!binding) { return false; }
+	if (binding->Allocated == binding->Size)
+	{
+		VKT_ASSERT(false && "Insufficient memory to allocate more descriptor set instances");
+		return false;
+	}
+
+	size_t typeSize = gpu::PadSizeToAlignedSize(Size);
+	gpu::CopyToBuffer(*binding->Buffer, Data, typeSize, binding->Offset[currentFrame] + binding->Allocated);
+	binding->Allocated += typeSize;
+
+	return true;
+}
+
+void IRDescriptorManager::BindDescriptorSets()
+{
+	for (DescriptorSet* set : Sets)
+	{
+		gpu::BindDescriptorSet(*set);
+	}
+}
+
 DescriptorSet* IRDescriptorManager::GetDescriptorSet(Handle<DescriptorSet> Hnd)
 {
 	VKT_ASSERT(Hnd != INVALID_HANDLE);
@@ -274,53 +311,12 @@ DescriptorSet* IRDescriptorManager::GetDescriptorSet(Handle<DescriptorSet> Hnd)
 	return Sets[Hnd];
 }
 
-//bool IRDescriptorManager::DestroyDescriptorSet(Handle<DescriptorSet> Hnd)
-//{
-//	DescriptorSet* set = GetDescriptorSet(Hnd);
-//	VKT_ASSERT(set, "Invalid handle provided to function");
-//	if (!set)
-//	{
-//		return false;
-//	}
-//	Sets.PopAt(Hnd, false);
-//	return true;
-//}
-
-//bool IRDescriptorManager::MapDescriptorSetToBuffer(Handle<DescriptorSet> DescriptorSetHandle, Handle<UniformBuffer> BufferHandle)
-//{
-//	DescriptorSet* descriptorSet = GetDescriptorSet(DescriptorSetHandle);
-//	UniformBuffer* uniformBuffer = GetUniformBuffer(BufferHandle);
-//
-//	if (!descriptorSet || !uniformBuffer)
-//	{
-//		return false;
-//	}
-//
-//	uint32 remainingSize = uniformBuffer->Capacity - uniformBuffer->Offset;
-//
-//	if (remainingSize < (descriptorSet->NumOfData * descriptorSet->TypeSize))
-//	{
-//		return false;
-//	}
-//
-//	descriptorSet->Base = uniformBuffer->Offset;
-//	uint32 paddedSize = Context.MapDescriptorSetToBuffer(*descriptorSet, *uniformBuffer);
-//	uniformBuffer->Offset += paddedSize;
-//
-//	return true;
-//}
-
 void IRDescriptorManager::BuildAll()
 {
 	BuildUniformBuffers();
 	BuildDescriptorPools();
 	BuildDescriptorLayouts();
 	BuildDescriptorSets();
-
-	//for (DescriptorSet* descriptorSet : Sets)
-	//{
-	//	Context.MapDescriptorSetToBuffer(*descriptorSet);
-	//}
 }
 
 void IRDescriptorManager::Destroy()
@@ -363,7 +359,6 @@ void IRDescriptorManager::BuildUniformBuffers()
 	{
 		if (buffer->Handle != INVALID_HANDLE) { continue; }
 		gpu::CreateBuffer(*buffer, nullptr, buffer->Size);
-		//Context.NewBuffer(*buffer, nullptr, buffer->Size, 1);
 	}
 }
 
@@ -373,7 +368,6 @@ void IRDescriptorManager::BuildDescriptorPools()
 	{
 		if (pool->Handle != INVALID_HANDLE) { continue; }
 		gpu::CreateDescriptorPool(*pool);
-		//Context.NewDescriptorPool(*pool);
 	}
 }
 
@@ -383,7 +377,6 @@ void IRDescriptorManager::BuildDescriptorLayouts()
 	{
 		if (layout->Handle != INVALID_HANDLE) { continue; }
 		gpu::CreateDescriptorSetLayout(*layout);
-		//Context.NewDestriptorSetLayout(*layout);
 	}
 }
 
@@ -393,7 +386,6 @@ void IRDescriptorManager::BuildDescriptorSets()
 	{
 		if (set->Handle != INVALID_HANDLE) { continue; }
 		gpu::AllocateDescriptorSet(*set);
-		//Context.NewDescriptorSet(*set);
 	}
 }
 

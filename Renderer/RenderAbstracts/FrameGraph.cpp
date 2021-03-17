@@ -9,7 +9,7 @@ RenderPass::RenderPass(IRFrameGraph& OwnerGraph, ERenderPassType Type, uint32 Or
 	Order(Order),
 	PassType(RenderPass_Pass_Main),
 	Flags(RenderPass_Bit_None),
-	VertexStride(0),
+	//VertexStride(0),
 	Owner(OwnerGraph), 
 	Type(Type),
 	Topology(Topology_Type_Triangle),
@@ -19,12 +19,14 @@ RenderPass::RenderPass(IRFrameGraph& OwnerGraph, ERenderPassType Type, uint32 Or
 	Shaders(), 
 	State(RenderPass_State_New),
 	PipelineHandle(INVALID_HANDLE),
-	FramePassHandle(INVALID_HANDLE),
+	RenderpassHandle(INVALID_HANDLE),
+	FramebufferHandle(INVALID_HANDLE),
 	ColorInputs(),
 	ColorOutputs(),
 	DepthStencilInput(),
 	DepthStencilOutput(),
 	Parent(nullptr),
+	VertexBindings(),
 	Childrens(),
 	BoundDescriptorLayouts()
 {}
@@ -33,13 +35,45 @@ RenderPass::~RenderPass()
 {
 }
 
-bool RenderPass::AddShader(Shader* ShaderSrc)
+//bool RenderPass::AddShader(Shader* ShaderSrc)
+//{
+//	if (ShaderSrc->Handle == INVALID_HANDLE)
+//	{
+//		return false;
+//	}
+//	Shaders[ShaderSrc->Type] = ShaderSrc;
+//	return true;
+//}
+
+bool RenderPass::AddPipeline(Shader* VertexShader, Shader* FragmentShader)
 {
-	if (ShaderSrc->Handle == INVALID_HANDLE)
+	if (!VertexShader || !FragmentShader)
 	{
 		return false;
 	}
-	Shaders[ShaderSrc->Type] = ShaderSrc;
+
+	if (VertexShader->Handle == INVALID_HANDLE ||
+		FragmentShader->Handle == INVALID_HANDLE)
+	{
+		return false;
+	}
+
+	Shaders[Shader_Type_Vertex] = VertexShader;
+	Shaders[Shader_Type_Fragment] = FragmentShader;
+
+	return true;
+}
+
+bool RenderPass::AddVertexInputBinding(uint32 Binding, uint32 From, uint32 To, uint32 Stride, EVertexInputRateType Type)
+{
+	for (const VertexInputBinding& vtxInputBinding : VertexBindings)
+	{
+		if (vtxInputBinding.Binding == Binding)
+		{
+			return false;
+		}
+	}
+	VertexBindings.Push({ Binding, From, To, Stride, Type });
 	return true;
 }
 
@@ -83,10 +117,10 @@ void RenderPass::AddDepthStencilOutput()
 	Flags.Set(RenderPass_Bit_DepthStencil_Output);
 }
 
-void RenderPass::SetVertexStride(uint32 Stride)
-{
-	this->VertexStride = Stride;
-}
+//void RenderPass::SetVertexStride(uint32 Stride)
+//{
+//	this->VertexStride = Stride;
+//}
 
 void RenderPass::SetWidth(float32 Width)
 {
@@ -255,7 +289,7 @@ void IRFrameGraph::OnWindowResize()
 	for (auto& pair : RenderPasses)
 	{
 		renderPass = pair.Value;
-		gpu::DestroyFramebuffer(*renderPass, false);
+		gpu::DestroyFramebuffer(*renderPass);
 		gpu::DestroyGraphicsPipeline(*renderPass);
 		gpu::CreateFramebuffer(*renderPass);
 		gpu::CreateGraphicsPipeline(*renderPass);
@@ -307,7 +341,7 @@ bool IRFrameGraph::Compile()
 	{
 		RenderPass* renderPass = pair.Value;
 
-		if (renderPass->IsMainpass() && (renderPass->FramePassHandle == INVALID_HANDLE))
+		if (renderPass->IsMainpass()/* && (renderPass->FramePassHandle == INVALID_HANDLE)*/)
 		{
 			if (!gpu::CreateRenderpass(*renderPass))	{ return false; }
 			if (!gpu::CreateFramebuffer(*renderPass))	{ return false; }

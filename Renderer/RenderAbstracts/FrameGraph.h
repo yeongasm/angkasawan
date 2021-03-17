@@ -23,15 +23,6 @@ struct AttachmentCreateInfo
 };
 
 /**
-* Render output images that the framegraph owns.
-*/
-struct FrameImages
-{
-	Handle<HImage> Color;
-	Handle<HImage> DepthStencil;
-};
-
-/**
 * NOTE(Ygsm):
 * 30.12.2020 - Should subpasses produce output attachments?
 * 04.01.2021 - No, subpasses should not produce output attachment. They will use the parent's renderpass.
@@ -56,7 +47,9 @@ struct RENDERER_API RenderPass
 
 	DELETE_COPY_AND_MOVE(RenderPass)
 
-	bool AddShader				(Shader* ShaderSrc);
+	//bool AddShader				(Shader* ShaderSrc);
+	bool AddPipeline			(Shader* VertexShader, Shader* FragmentShader);
+	bool AddVertexInputBinding	(uint32 Binding, uint32 From, uint32 To, uint32 Stride, EVertexInputRateType Type);
 	void AddColorInput			(const String32& Identifier, RenderPass& From);
 	void AddColorOutput			(const String32& Identifier, const AttachmentCreateInfo& CreateInfo);
 
@@ -84,7 +77,6 @@ struct RENDERER_API RenderPass
 	*/
 	bool IsSubpass		() const;
 
-	void SetVertexStride(uint32 Stride);
 	void SetWidth		(float32 Width);
 	void SetHeight		(float32 Height);
 	void SetDepth		(float32 Depth);
@@ -99,6 +91,17 @@ struct RENDERER_API RenderPass
 	void NoDepthStencilRender	();
 
 //private:
+
+	struct VertexInputBinding
+	{
+		uint32 Binding;
+		uint32 From;
+		uint32 To;
+		uint32 Stride;
+		EVertexInputRateType Type;
+	};
+
+	using VertexInputBindings = Array<VertexInputBinding>;
 
 	struct AttachmentInfo : public AttachmentCreateInfo
 	{
@@ -123,12 +126,13 @@ struct RENDERER_API RenderPass
 	float32				Depth;
 	uint32				Order;
 	uint32				PassType;
-	uint32				VertexStride;
 
 	Shader*				Shaders[Shader_Type_Max];
 	ERenderPassState	State;
 	Handle<HPipeline>	PipelineHandle;
-	Handle<HFramepass>	FramePassHandle;
+	Handle<HRenderpass> RenderpassHandle;
+	Handle<HFramebuffer>FramebufferHandle;
+	//Handle<HFramepass>	FramePassHandle;
 
 	InputAttachments	ColorInputs;
 	OutputAttachments	ColorOutputs;
@@ -136,6 +140,7 @@ struct RENDERER_API RenderPass
 	AttachmentInfo		DepthStencilOutput;
 
 	RenderPass*			Parent;
+	VertexInputBindings	VertexBindings;
 	Array<RenderPass*>	Childrens;
 	ArrayOfDescLayouts	BoundDescriptorLayouts;
 };

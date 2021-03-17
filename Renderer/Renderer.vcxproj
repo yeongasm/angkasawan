@@ -28,7 +28,7 @@
     <ClCompile Include="External\cgltf\cgltf.cpp" />
     <ClCompile Include="External\stb\stb_image.cpp" />
     <ClCompile Include="RenderAbstracts\DescriptorSets.cpp" />
-    <ClCompile Include="RenderAbstracts\GPUMemory.cpp" />
+    <ClCompile Include="RenderAbstracts\DrawCommand.cpp" />
     <ClCompile Include="RenderAbstracts\RenderMemory.cpp" />
     <ClCompile Include="Renderer.cpp" />
     <ClCompile Include="API\Vk\VulkanFunctions.cpp" />
@@ -59,7 +59,6 @@
     <ClInclude Include="RenderAbstracts\FrameGraph.h" />
     <ClInclude Include="RenderAbstracts\DescriptorSets.h" />
     <ClInclude Include="RenderAbstracts\DrawCommand.h" />
-    <ClInclude Include="RenderAbstracts\GPUMemory.h" />
     <ClInclude Include="RenderAbstracts\Primitives.h" />
     <ClInclude Include="RenderAbstracts\RenderMemory.h" />
     <ClInclude Include="RenderPlatform\API.h" />

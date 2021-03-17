@@ -52,11 +52,11 @@ namespace gpu
 		VulkanQueue Queue;
 	};
 
-	struct VulkanFramepass
+	struct VulkanFramebuffer
 	{
 		VkFramebuffer Framebuffers[MAX_SWAPCHAIN_IMAGE_ALLOWED];
 		//VkCommandBuffer CmdBuffers[MAX_FRAMES_IN_FLIGHT];
-		VkRenderPass Renderpass;
+		//VkRenderPass Renderpass;
 	};
 
 	struct VulkanImage
@@ -101,7 +101,8 @@ namespace gpu
 		VulkanQueue GraphicsQueue;
 		VulkanQueue PresentQueue;
 		VulkanTransfer TransferOp;
-		VulkanFramepass DefaultPass;
+		VulkanFramebuffer DefautltFramebuffer;
+		VkRenderPass DefaultRenderPass;
 		VkSemaphore Semaphores[MAX_FRAMES_IN_FLIGHT][Semaphore_Type_Max];
 		VkFence Fences[MAX_FRAMES_IN_FLIGHT];
 		VkFence ImageFences[MAX_SWAPCHAIN_IMAGE_ALLOWED];
@@ -124,8 +125,9 @@ namespace gpu
 	void BindRenderpass(RenderPass& Pass);
 	void BindPipeline(RenderPass& Pass);
 	void UnbindRenderpass(RenderPass& Pass);
-	void BindVertexBuffer(const DrawCommand& Cmd);
-	void BindIndexBuffer(const DrawCommand& Cmd);
+	void BindVertexBuffer(SRMemoryBuffer& Buffer, uint32 FirstBinding, size_t Offset);
+	void BindIndexBuffer(SRMemoryBuffer& Buffer, size_t Offset);
+	void BindInstanceBuffer(SRMemoryBuffer& Buffer, uint32 FirstBinding, size_t Offset);
 	void Draw(const DrawCommand& Command);
 	//bool CreateFrameImage(FrameImages& Images);
 	//void DestroyFrameImage(FrameImages& Images);
@@ -134,7 +136,7 @@ namespace gpu
 	bool CreateGraphicsPipeline(RenderPass& Pass);
 	void DestroyGraphicsPipeline(RenderPass& Pass);
 	bool CreateFramebuffer(RenderPass& Pass);
-	void DestroyFramebuffer(RenderPass& Pass, bool Release = true);
+	void DestroyFramebuffer(RenderPass& Pass);
 	bool CreateRenderpass(RenderPass& Pass);
 	void DestroyRenderpass(RenderPass& Pass);
 	void CreateDescriptorPool(DescriptorPool& Pool);
@@ -144,7 +146,8 @@ namespace gpu
 	bool AllocateDescriptorSet(DescriptorSet& Set);
 	void UpdateDescriptorSet(DescriptorSet& Set, DescriptorBinding& Binding, SRMemoryBuffer& Buffer);
 	//void UpdateDescriptorSet(DescriptorSet& Set, DescriptorBinding& Binding);
-	void BindDescriptorSetInstance(DescriptorSetInstance& Instance);
+	//void BindDescriptorSetInstance(DescriptorSetInstance& Instance);
+	void BindDescriptorSet(DescriptorSet& Set);
 	bool CreateTexture(Texture& InTexture);
 	void DestroyTexture(Texture& InTexture);
 

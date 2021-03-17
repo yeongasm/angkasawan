@@ -13,7 +13,8 @@ namespace gpu
 
 	static Xoroshiro32 g_RandIdVk(OS::GetPerfCounter());
 	static VulkanContext Ctx;
-	static Map<uint32, VulkanFramepass> g_Framepass;
+	static Map<uint32, VulkanFramebuffer> g_Framebuffer;
+	static Map<uint32, VkRenderPass> g_RenderPass;
 	static Map<uint32, VulkanBuffer> g_Buffers;
 	static Map<uint32, VulkanPipeline> g_Pipelines;
 	static Map<uint32, VulkanDescriptorSet> g_DescriptorSets;
@@ -739,7 +740,7 @@ namespace gpu
 
 	bool CreateDefaultRenderPass()
 	{
-		auto& passParams = Ctx.DefaultPass;
+		VkRenderPass& renderPass = Ctx.DefaultRenderPass;
 
 		VkAttachmentDescription attachmentDesc = {};
 		attachmentDesc.format = Ctx.Swapchain.Format.format;
@@ -780,7 +781,7 @@ namespace gpu
 		renderpassCreateInfo.dependencyCount = 1;
 		renderpassCreateInfo.pDependencies = &subpassDependency;
 
-		if (vkCreateRenderPass(Ctx.Device, &renderpassCreateInfo, nullptr, &passParams.Renderpass) != VK_SUCCESS)
+		if (vkCreateRenderPass(Ctx.Device, &renderpassCreateInfo, nullptr, &renderPass) != VK_SUCCESS)
 		{
 			VKT_ASSERT("Could not create render pass!" && false);
 			return false;
@@ -791,11 +792,11 @@ namespace gpu
 
 	bool CreateDefaultFramebuffer()
 	{
-		auto& passParams = Ctx.DefaultPass;
+		VulkanFramebuffer& framebuffer = Ctx.DefautltFramebuffer;
 
 		VkFramebufferCreateInfo createInfo = {};
 		createInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-		createInfo.renderPass = passParams.Renderpass;
+		createInfo.renderPass = Ctx.DefaultRenderPass;
 		createInfo.attachmentCount = 1;
 		createInfo.width = Ctx.Swapchain.Extent.width;
 		createInfo.height = Ctx.Swapchain.Extent.height;
@@ -804,7 +805,7 @@ namespace gpu
 		for (uint32 i = 0; i < MAX_SWAPCHAIN_IMAGE_ALLOWED; i++)
 		{
 			createInfo.pAttachments = &Ctx.Swapchain.ImageViews[i];
-			if (vkCreateFramebuffer(Ctx.Device, &createInfo, nullptr, &passParams.Framebuffers[i]) != VK_SUCCESS)
+			if (vkCreateFramebuffer(Ctx.Device, &createInfo, nullptr, &framebuffer.Framebuffers[i]) != VK_SUCCESS)
 			{
 				VKT_ASSERT("Could not create a framebuffer!" && false);
 				return false;
@@ -918,15 +919,13 @@ namespace gpu
 	void Terminate()
 	{
 		Flush();
-		auto& passParams = Ctx.DefaultPass;
-		vkDestroyRenderPass(Ctx.Device, passParams.Renderpass, nullptr);
+		vkDestroyRenderPass(Ctx.Device, Ctx.DefaultRenderPass, nullptr);
 
 		vmaDestroyAllocator(Ctx.Allocator);
 
 		for (size_t i = 0; i < Ctx.Swapchain.NumOfImages; i++)
 		{
 			vkDestroyImageView(Ctx.Device, Ctx.Swapchain.ImageViews[i], nullptr);
-			vkDestroyFramebuffer(Ctx.Device, passParams.Framebuffers[i], nullptr);
 		}
 		
 		//vkDestroyCommandPool(Ctx.Device, Ctx.CommandPool, nullptr);
@@ -1041,7 +1040,8 @@ namespace gpu
 	void BindRenderpass(RenderPass& Pass)
 	{
 		GET_CURR_CMD_BUFFER();
-		VulkanFramepass& framepass = g_Framepass[Pass.FramePassHandle];
+		VkRenderPass& renderPass = g_RenderPass[Pass.RenderpassHandle];
+		VulkanFramebuffer& framebuffer = g_Framebuffer[Pass.FramebufferHandle];
 
 		static Array<VkClearValue> clearValues;
 		bool hasDepthStencil = false;
@@ -1077,8 +1077,8 @@ namespace gpu
 
 		VkRenderPassBeginInfo beginInfo = {};
 		beginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-		beginInfo.renderPass = framepass.Renderpass;
-		beginInfo.framebuffer = framepass.Framebuffers[Ctx.NextSwapchainImageIndex];
+		beginInfo.renderPass = renderPass;
+		beginInfo.framebuffer = framebuffer.Framebuffers[Ctx.NextSwapchainImageIndex];
 		beginInfo.renderArea.offset = { 0, 0 };
 		beginInfo.renderArea.extent = { Ctx.Swapchain.Extent.width, Ctx.Swapchain.Extent.height };
 		beginInfo.clearValueCount = static_cast<uint32>(clearValues.Length());
@@ -1101,19 +1101,26 @@ namespace gpu
 		vkCmdEndRenderPass(cmd);
 	}
 
-	void BindVertexBuffer(const DrawCommand& Cmd)
+	void BindVertexBuffer(SRMemoryBuffer& Buffer, uint32 FirstBinding, size_t Offset)
 	{
 		GET_CURR_CMD_BUFFER();
-		VkBuffer vbo = g_Buffers[Cmd.Vbo].Handle;
+		VkBuffer vbo = g_Buffers[Buffer.Handle].Handle;
 		VkDeviceSize offset = 0;
-		vkCmdBindVertexBuffers(cmd, 0, 1, &vbo, &offset);
+		vkCmdBindVertexBuffers(cmd, FirstBinding, 1, &vbo, &offset);
 	}
 
-	void BindIndexBuffer(const DrawCommand& Cmd)
+	void BindIndexBuffer(SRMemoryBuffer& Buffer, size_t Offset)
 	{
 		GET_CURR_CMD_BUFFER();
-		VkBuffer ebo = g_Buffers[Cmd.Ebo].Handle;
-		vkCmdBindIndexBuffer(cmd, ebo, 0, VK_INDEX_TYPE_UINT32);
+		VkBuffer ebo = g_Buffers[Buffer.Handle].Handle;
+		vkCmdBindIndexBuffer(cmd, ebo, Offset, VK_INDEX_TYPE_UINT32);
+	}
+
+	void BindInstanceBuffer(SRMemoryBuffer& Buffer, uint32 FirstBinding, size_t Offset)
+	{
+		GET_CURR_CMD_BUFFER();
+		VkBuffer ibo = g_Buffers[Buffer.Handle].Handle;
+		vkCmdBindVertexBuffers(cmd, FirstBinding, 1, &ibo, &Offset);
 	}
 
 	void Draw(const DrawCommand& Command)
@@ -1121,31 +1128,14 @@ namespace gpu
 		GET_CURR_CMD_BUFFER();
 		if (Command.NumIndices)
 		{
-			vkCmdDrawIndexed(cmd, Command.NumIndices, 1, Command.IndexOffset, 0, 0);
+			vkCmdDrawIndexed(cmd, Command.NumIndices, Command.InstanceCount, Command.IndexOffset, 0, Command.InstanceOffset);
 			return;
 		}
-		vkCmdDraw(cmd, Command.NumVertices, 1, Command.VertexOffset, 0);
+		vkCmdDraw(cmd, Command.NumVertices, Command.InstanceCount, Command.VertexOffset, Command.InstanceOffset);
 	}
 
 	bool CreateShader(Shader& InShader, String& Code)
 	{
-		static auto getTypeStride = [](EShaderAttribFormat Format) -> uint32 {
-			switch (Format)
-			{
-			case Shader_Attrib_Type_Float:
-				return 4;
-			case Shader_Attrib_Type_Vec2:
-				return 8;
-			case Shader_Attrib_Type_Vec3:
-				return 12;
-			case Shader_Attrib_Type_Vec4:
-				return 16;
-			default:
-				break;
-			}
-			return 0;
-		};
-
 		constexpr shaderc_shader_kind shaderType[Shader_Type_Max] = {
 			shaderc_vertex_shader, 
 			shaderc_fragment_shader, 
@@ -1175,26 +1165,40 @@ namespace gpu
 			Array<SpvReflectInterfaceVariable*> variables(count + 1);
 			reflection.EnumerateInputVariables(&count, variables.First());
 			variables[count] = {};
+
 			for (auto var : variables)
 			{
 				if (!var) continue;
 
-				switch (var->format)
+				if (var->type_description->op == SpvOpTypeMatrix)
 				{
-				case SPV_REFLECT_FORMAT_R32_SFLOAT:
-					attribute.Format = Shader_Attrib_Type_Float;
-					break;
-				case SPV_REFLECT_FORMAT_R32G32_SFLOAT:
-					attribute.Format = Shader_Attrib_Type_Vec2;
-					break;
-				case SPV_REFLECT_FORMAT_R32G32B32_SFLOAT:
-					attribute.Format = Shader_Attrib_Type_Vec3;
-					break;
-				case SPV_REFLECT_FORMAT_R32G32B32A32_SFLOAT:
-					attribute.Format = Shader_Attrib_Type_Vec4;
-					break;
+					for (uint32 i = 0; i < 4; i++)
+					{
+						attribute.Format = Shader_Attrib_Type_Vec4;
+						attribute.Location = var->location + i;
+						attribute.Offset = 0;
+						InShader.Attributes.Push(Move(attribute));
+					}
+					continue;
 				}
-				attribute.Binding = 0;
+				else
+				{
+					switch (var->format)
+					{
+					case SPV_REFLECT_FORMAT_R32_SFLOAT:
+						attribute.Format = Shader_Attrib_Type_Float;
+						break;
+					case SPV_REFLECT_FORMAT_R32G32_SFLOAT:
+						attribute.Format = Shader_Attrib_Type_Vec2;
+						break;
+					case SPV_REFLECT_FORMAT_R32G32B32_SFLOAT:
+						attribute.Format = Shader_Attrib_Type_Vec3;
+						break;
+					case SPV_REFLECT_FORMAT_R32G32B32A32_SFLOAT:
+						attribute.Format = Shader_Attrib_Type_Vec4;
+						break;
+					}
+				}
 				attribute.Location = var->location;
 				attribute.Offset = 0;
 				InShader.Attributes.Push(Move(attribute));
@@ -1202,12 +1206,12 @@ namespace gpu
 
 			QuickSort(InShader.Attributes, sortLambda);
 
-			uint32 stride = 0;
-			for (ShaderAttrib& attrib : InShader.Attributes)
-			{
-				attrib.Offset = stride;
-				stride += getTypeStride(attrib.Format);
-			}
+			//uint32 stride = 0;
+			//for (ShaderAttrib& attrib : InShader.Attributes)
+			//{
+			//	attrib.Offset = stride;
+			//	stride += getTypeStride(attrib.Format);
+			//}
 		}
 
 		VkShaderModuleCreateInfo shaderCreateInfo = {};
@@ -1239,11 +1243,33 @@ namespace gpu
 
 	bool CreateGraphicsPipeline(RenderPass& Pass)
 	{
+		static auto getTypeStride = [](EShaderAttribFormat Format) -> uint32 {
+			switch (Format)
+			{
+				case Shader_Attrib_Type_Float:
+					return 4;
+				case Shader_Attrib_Type_Vec2:
+					return 8;
+				case Shader_Attrib_Type_Vec3:
+					return 12;
+				case Shader_Attrib_Type_Vec4:
+					return 16;
+				default:
+					break;
+			}
+			return 0;
+		};
+
 		if ((Pass.Shaders[Shader_Type_Fragment]->Handle == INVALID_HANDLE) ||
 			(Pass.Shaders[Shader_Type_Vertex]->Handle == INVALID_HANDLE))
 		{
 			return false;
 		}
+
+		constexpr VkVertexInputRate inputRate[Vertex_Input_Rate_Max] = {
+			VK_VERTEX_INPUT_RATE_VERTEX,
+			VK_VERTEX_INPUT_RATE_INSTANCE,
+		};
 
 		Array<VkPipelineShaderStageCreateInfo> pipelineStages = {};
 
@@ -1257,40 +1283,54 @@ namespace gpu
 		pipelineStages.Push(Move(vertexStage));
 
 		// Vertex bindings ...
-		VkVertexInputBindingDescription bindingDescription = {};
-		bindingDescription.binding = 0;
-		bindingDescription.stride = Pass.VertexStride;
-		bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+		Array<VkVertexInputBindingDescription> bindingDescriptions;
+		//VkVertexInputBindingDescription bindingDescription = {};
+		//bindingDescription.binding = 0;
+		//bindingDescription.stride = Pass.VertexStride;
+		//bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
 		// Vertex attributes ...
+		uint32 binding = 0;
 		VkFormat format;
 		Shader* vertexShader = Pass.Shaders[Shader_Type_Vertex];
 		ShaderAttrib* attribute = nullptr;
 		Array<VkVertexInputAttributeDescription> vertexAttributes(vertexShader->Attributes.Length());
 
-		for (size_t i = 0; i < vertexShader->Attributes.Length(); i++)
+		for (auto& vtxInBind : Pass.VertexBindings)
 		{
-			attribute = &vertexShader->Attributes[i];
-			
-			switch (attribute->Format)
-			{
-			case Shader_Attrib_Type_Vec2:
-				format = VK_FORMAT_R32G32_SFLOAT;
-				break;
-			case Shader_Attrib_Type_Vec3:
-				format = VK_FORMAT_R32G32B32_SFLOAT;
-				break;
-			default:
-				format = VK_FORMAT_R32G32B32A32_SFLOAT;
-				break;
-			}
-
-			vertexAttributes.Push({
-				attribute->Location,
-				attribute->Binding,
-				format,
-				attribute->Offset
+			bindingDescriptions.Push({
+				vtxInBind.Binding,
+				vtxInBind.Stride,
+				inputRate[vtxInBind.Type]
 			});
+		}
+
+
+		for (auto& vtxInBind : Pass.VertexBindings)
+		{
+			uint32 stride = 0;
+			for (size_t i = vtxInBind.From; i <= vtxInBind.To; i++)
+			{
+				attribute = &vertexShader->Attributes[i];
+				
+				switch (attribute->Format)
+				{
+				case Shader_Attrib_Type_Vec2:
+					format = VK_FORMAT_R32G32_SFLOAT;
+					break;
+				case Shader_Attrib_Type_Vec3:
+					format = VK_FORMAT_R32G32B32_SFLOAT;
+					break;
+				default:
+					format = VK_FORMAT_R32G32B32A32_SFLOAT;
+					break;
+				}
+
+				attribute->Offset = stride;
+				stride += getTypeStride(attribute->Format);
+				binding = vtxInBind.Binding;
+				vertexAttributes.Push({ attribute->Location, binding, format, attribute->Offset });
+			}
 		}
 
 		// Fragment ...
@@ -1303,9 +1343,9 @@ namespace gpu
 
 		VkPipelineVertexInputStateCreateInfo vertexStateCreateInfo = {};
 		vertexStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-		vertexStateCreateInfo.pVertexBindingDescriptions = &bindingDescription;
+		vertexStateCreateInfo.pVertexBindingDescriptions = bindingDescriptions.First();
 		vertexStateCreateInfo.pVertexAttributeDescriptions = vertexAttributes.First();
-		vertexStateCreateInfo.vertexBindingDescriptionCount = 1;
+		vertexStateCreateInfo.vertexBindingDescriptionCount = static_cast<uint32>(bindingDescriptions.Length());
 		vertexStateCreateInfo.vertexAttributeDescriptionCount = static_cast<uint32>(vertexShader->Attributes.Length());
 
 		constexpr VkPrimitiveTopology topology[Topology_Type_Max] = {
@@ -1480,7 +1520,7 @@ namespace gpu
 		pipelineCreateInfo.pColorBlendState = &colorBlendCreateInfo;
 		//pipelineCreateInfo.pDynamicState = &dynamicStateCreateInfo;
 		pipelineCreateInfo.layout = pipelineLayout;
-		pipelineCreateInfo.renderPass = g_Framepass[Pass.FramePassHandle].Renderpass;
+		pipelineCreateInfo.renderPass = g_RenderPass[Pass.RenderpassHandle];
 		pipelineCreateInfo.subpass = 0;							// TODO(Ygsm): Study more about this!
 		pipelineCreateInfo.basePipelineHandle = VK_NULL_HANDLE;	// TODO(Ygsm): Study more about this!
 		pipelineCreateInfo.basePipelineIndex = -1;				// TODO(Ygsm): Study more about this!
@@ -1521,7 +1561,7 @@ namespace gpu
 
 	bool CreateFramebuffer(RenderPass& Pass)
 	{
-		auto& frameParams = g_Framepass[Pass.FramePassHandle];
+		VkRenderPass& renderPass = g_RenderPass[Pass.RenderpassHandle];
 
 		const uint32 width	= (!Pass.Width)  ? Ctx.Swapchain.Extent.width  : static_cast<uint32>(Pass.Width);
 		const uint32 height = (!Pass.Height) ? Ctx.Swapchain.Extent.height : static_cast<uint32>(Pass.Height);
@@ -1584,35 +1624,37 @@ namespace gpu
 		framebufferInfo.layers = 1;
 		framebufferInfo.pAttachments = imageViews.First();
 		framebufferInfo.attachmentCount = static_cast<uint32>(imageViews.Length());
-		framebufferInfo.renderPass = frameParams.Renderpass;
+		framebufferInfo.renderPass = renderPass;
 
+		VulkanFramebuffer framebuffer = {};
 		for (size_t i = 0; i < MAX_SWAPCHAIN_IMAGE_ALLOWED; i++)
 		{
-			if (vkCreateFramebuffer(Ctx.Device, &framebufferInfo, nullptr, &frameParams.Framebuffers[i]) != VK_SUCCESS)
+			if (vkCreateFramebuffer(Ctx.Device, &framebufferInfo, nullptr, &framebuffer.Framebuffers[i]) != VK_SUCCESS)
 			{
 				VKT_ASSERT("Unable to create framebuffer" && false);
 				return false;
 			}
 		}
 
+		uint32 id = g_RandIdVk();
+		Pass.FramebufferHandle = id;
+		g_Framebuffer.Insert(id, framebuffer);
+
 		return true;
 	}
 
-	void DestroyFramebuffer(RenderPass& Pass, bool Release)
+	void DestroyFramebuffer(RenderPass& Pass)
 	{
-		VulkanFramepass& framePass = g_Framepass[Pass.FramePassHandle];
+		VulkanFramebuffer& framebuffer = g_Framebuffer[Pass.FramebufferHandle];
+
 		vkDeviceWaitIdle(Ctx.Device);
 		for (size_t i = 0; i < MAX_SWAPCHAIN_IMAGE_ALLOWED; i++)
 		{
-			vkDestroyFramebuffer(Ctx.Device, framePass.Framebuffers[i], nullptr);
-			framePass.Framebuffers[i] = VK_NULL_HANDLE;
+			vkDestroyFramebuffer(Ctx.Device, framebuffer.Framebuffers[i], nullptr);
+			framebuffer.Framebuffers[i] = VK_NULL_HANDLE;
 		}
-
-		if (Release)
-		{
-			g_Framepass.Remove(Pass.FramePassHandle);
-			Pass.FramePassHandle = INVALID_HANDLE;
-		}
+		g_Framebuffer.Remove(Pass.FramebufferHandle);
+		Pass.FramebufferHandle = INVALID_HANDLE;
 	}
 
 	bool CreateRenderpass(RenderPass& Pass)
@@ -1779,20 +1821,20 @@ namespace gpu
 			return false;
 		}
 
-		uint32 key = g_RandIdVk();
-		VulkanFramepass& framePass = g_Framepass.Insert(key, {});
-		framePass.Renderpass = renderPass;
-
-		Pass.FramePassHandle = Handle<HFramepass>(key);
+		uint32 id = g_RandIdVk();
+		Pass.RenderpassHandle = id;
+		g_RenderPass.Insert(id, renderPass);
 
 		return true;
 	}
 
 	void DestroyRenderpass(RenderPass& Pass)
 	{
-		VulkanFramepass& framePass = g_Framepass[Pass.FramePassHandle];
+		VkRenderPass& renderPass = g_RenderPass[Pass.RenderpassHandle];
 		vkDeviceWaitIdle(Ctx.Device);
-		vkDestroyRenderPass(Ctx.Device, framePass.Renderpass, nullptr);
+		vkDestroyRenderPass(Ctx.Device, renderPass, nullptr);
+		g_RenderPass.Remove(Pass.RenderpassHandle);
+		Pass.RenderpassHandle = INVALID_HANDLE;
 	}
 
 	void CreateDescriptorPool(DescriptorPool& Pool)
@@ -1990,28 +2032,55 @@ namespace gpu
 		}
 	}
 
-	void BindDescriptorSetInstance(DescriptorSetInstance& Instance)
+	//void BindDescriptorSetInstance(DescriptorSetInstance& Instance)
+	//{
+	//	const uint32 currFrameIdx = CurrentFrameIndex();
+	//	VulkanPipeline& pipeline = g_Pipelines[*Instance.Owner->Layout->Pipeline];
+	//	VulkanDescriptorSet& descriptorSet = g_DescriptorSets[Instance.Owner->Handle];
+	//	static Array<uint32> offsets;
+
+	//	for (DescriptorBinding& b : Instance.Owner->Layout->Bindings)
+	//	{
+	//		if (b.Binding == Instance.Binding)
+	//		{
+	//			offsets.Push(static_cast<uint32>(b.Offset[currFrameIdx] + Instance.Offset));
+	//			continue;
+	//		}
+	//		offsets.Push(static_cast<uint32>(b.Offset[currFrameIdx]));
+	//	}
+
+	//	vkCmdBindDescriptorSets(
+	//		Ctx.CommandBuffers[CurrentFrameIndex()],
+	//		VK_PIPELINE_BIND_POINT_GRAPHICS,
+	//		pipeline.Layout,
+	//		Instance.Owner->Slot,
+	//		1,
+	//		&descriptorSet.Set[CurrentFrameIndex()],
+	//		static_cast<uint32>(offsets.Length()),
+	//		offsets.First()
+	//	);
+
+	//	offsets.Empty();
+	//}
+
+	void BindDescriptorSet(DescriptorSet& Set)
 	{
+		GET_CURR_CMD_BUFFER();
 		const uint32 currFrameIdx = CurrentFrameIndex();
-		VulkanPipeline& pipeline = g_Pipelines[*Instance.Owner->Layout->Pipeline];
-		VulkanDescriptorSet& descriptorSet = g_DescriptorSets[Instance.Owner->Handle];
+		VulkanPipeline& pipeline = g_Pipelines[*Set.Layout->Pipeline];
+		VulkanDescriptorSet& descriptorSet = g_DescriptorSets[Set.Handle];
 		static Array<uint32> offsets;
 
-		for (DescriptorBinding& b : Instance.Owner->Layout->Bindings)
+		for (DescriptorBinding& b : Set.Layout->Bindings)
 		{
-			if (b.Binding == Instance.Binding)
-			{
-				offsets.Push(static_cast<uint32>(b.Offset[currFrameIdx] + Instance.Offset));
-				continue;
-			}
 			offsets.Push(static_cast<uint32>(b.Offset[currFrameIdx]));
 		}
 
 		vkCmdBindDescriptorSets(
-			Ctx.CommandBuffers[CurrentFrameIndex()],
+			cmd,
 			VK_PIPELINE_BIND_POINT_GRAPHICS,
 			pipeline.Layout,
-			Instance.Owner->Slot,
+			Set.Slot,
 			1,
 			&descriptorSet.Set[CurrentFrameIndex()],
 			static_cast<uint32>(offsets.Length()),
@@ -2405,6 +2474,13 @@ namespace gpu
 		vkDeviceWaitIdle(Ctx.Device);
 		vkDestroyCommandPool(Ctx.Device, Ctx.CommandPool, nullptr);
 		Ctx.CommandPool = VK_NULL_HANDLE;
+
+		VulkanFramebuffer& framebuffer = Ctx.DefautltFramebuffer;
+		for (size_t i = 0; i < MAX_SWAPCHAIN_IMAGE_ALLOWED; i++)
+		{
+			vkDestroyFramebuffer(Ctx.Device, framebuffer.Framebuffers[i], nullptr);
+			framebuffer.Framebuffers[i] = VK_NULL_HANDLE;
+		}
 	}
 
 	void SwapBuffers()

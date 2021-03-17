@@ -4,6 +4,9 @@
 #include "Library/Algorithms/Tokenizer.h"
 #include "SubSystem/Resource/ResourceManager.h"
 #include "API/Context.h"
+#include "Library/Algorithms/Hash.h"
+
+static uint32 g_HashSeed = static_cast<uint32>(OS::GetPerfCounter());
 
 IRAssetManager::IRAssetManager(IRenderMemoryManager& Memory, ResourceManager& Manager) :
 	ShaderStore(),
@@ -29,6 +32,7 @@ IRAssetManager::~IRAssetManager()
 	ShaderStore.Release();
 	MeshStore.Release();
 	ModelStore.Release();
+	TextureStore.Release();
 
 	Manager.RemoveCache(Renderer_Asset_Model);
 	Manager.RemoveCache(Renderer_Asset_Mesh);
@@ -127,18 +131,21 @@ Handle<Model> IRAssetManager::CreateNewModel(const ModelCreateInfo& Info)
 	resource->Type = Renderer_Asset_Model;
 
 	Model& model = ModelStore.Add(id, Model()).Value;
-	model.Name = Info.Name;
+	const uint32 nameLength = static_cast<uint32>(Info.Name.Length());
+	MurmurHash32(Info.Name.C_Str(), nameLength, &model.Id, g_HashSeed);
 
 	return Handle<Model>(static_cast<size_t>(id));
 }
 
-Model* IRAssetManager::GetModelWithName(const char* Identity)
+Model* IRAssetManager::GetModelWithName(const String128& Identity)
 {
+	uint32 id = 0;
+	MurmurHash32(Identity.C_Str(), static_cast<uint32>(Identity.Length()), &id, g_HashSeed);
 	Model* queried = nullptr;
 	for (auto& pair : ModelStore)
 	{
 		Model* theModel = &pair.Value;
-		if (theModel->Name != Identity) { continue; }
+		if (theModel->Id != id) { continue; }
 		queried = theModel;
 		break;
 	}
@@ -334,7 +341,7 @@ Handle<Texture> IRAssetManager::CreateNewTexture(const TextureCreateInfo& Create
 	return Handle<Texture>(static_cast<size_t>(id));
 }
 
-Handle<Texture> IRAssetManager::GetTextureHandleWithName(const char* Identity)
+Handle<Texture> IRAssetManager::GetTextureHandleWithName(const String128& Identity)
 {
 	size_t key = INVALID_HANDLE;
 	Texture* texture = nullptr;
@@ -373,4 +380,25 @@ bool IRAssetManager::DeleteTexture(Handle<Texture> Hnd)
 	MeshStore.Remove(Hnd);
 
 	return false;
+}
+
+void IRAssetManager::Destroy()
+{
+	// Meshes and models are not required to go through this since their data is uploaded to the GPU.
+
+	Shader* shader = nullptr;
+	Texture* texture = nullptr;
+
+	for (auto& pair : ShaderStore)
+	{
+		shader = &pair.Value;
+		shader->Attributes.Release();
+		gpu::DestroyShader(*shader);
+	}
+
+	for (auto& pair : TextureStore)
+	{
+		texture = &pair.Value;
+		gpu::DestroyTexture(*texture);
+	}
 }

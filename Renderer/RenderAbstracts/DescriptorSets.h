@@ -175,9 +175,9 @@ public:
 	Handle<DescriptorSet>	GetDescriptorSetHandleWithId	(uint32 Id);
 	bool					UpdateDescriptorSetForBinding	(Handle<DescriptorSet> SetHnd, Handle<UniformBuffer> BufferHnd, uint32 Binding);
 
-	//bool DestroyDescriptorSet(Handle<DescriptorSet> Hnd);
+	bool					UpdateDescriptorSetData			(Handle<DescriptorSet> SetHnd, uint32 Binding, void* Data, size_t Size);
+	void					BindDescriptorSets();
 
-	//bool MapDescriptorSetToBuffer(Handle<DescriptorSet> DescriptorSetHandle, Handle<UniformBuffer> BufferHandle);
 	void BuildAll();
 	void Destroy();
 	void FlushDescriptorSetsOffsets();
