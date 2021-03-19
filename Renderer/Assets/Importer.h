@@ -67,7 +67,7 @@ public:
 class RENDERER_API TextureImporter
 {
 private:
-	Buffer<uint8> Buf;
+	//Buffer<uint8> Buf;
 	int32 Width;
 	int32 Height;
 	int32 Channels;

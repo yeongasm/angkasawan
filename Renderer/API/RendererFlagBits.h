@@ -233,7 +233,10 @@ enum EDescriptorType : uint32
 	Descriptor_Type_Dynamic_Uniform_Buffer	= 1,
 	Descriptor_Type_Sampled_Image			= 2,
 	Descriptor_Type_Input_Attachment		= 3,
-	Descriptor_Type_Max = 4
+	Descriptor_Type_Storage_Buffer			= 4,
+	Descriptor_Type_Dynamic_Storage_Buffer  = 5,
+	Descriptor_Type_Sampler					= 6,
+	Descriptor_Type_Max = 7
 };
 
 enum EDescriptorUsageType : uint32
@@ -241,6 +244,37 @@ enum EDescriptorUsageType : uint32
 	Descriptor_Usage_Global		= 0,
 	Descriptor_Usage_Per_Pass	= 1,
 	Descriptor_Usage_Per_Object = 2
+};
+
+enum ESamplerFilter : uint32
+{
+	Sampler_Filter_Nearest = 0,
+	Sampler_Filter_Linear = 1,
+	Sampler_Filter_Cubic_Image = 2,
+	Sampler_Filter_Max = 3
+};
+
+enum ESamplerAddressMode : uint32
+{
+	Sampler_Address_Mode_Repeat = 0,
+	Sampler_Address_Mode_Mirrored_Repeat = 1,
+	Sampler_Address_Mode_Clamp_To_Edge = 2,
+	Sampler_Address_Mode_Clamp_To_Border = 3,
+	Sampler_Address_Mode_Mirror_Clamp_To_Edge = 4,
+	Sampler_Address_Mode_Max = 5
+};
+
+enum ECompareOp : uint32
+{
+	Compare_Op_Never = 0,
+	Compare_Op_Less = 1,
+	Compare_Op_Equal = 2,
+	Compare_Op_Less_Or_Equal = 3,
+	Compare_Op_Greater = 4,
+	Compare_Op_Not_Equal = 5,
+	Compare_Op_Greater_Or_Equal = 6,
+	Compare_Op_Always = 7,
+	Compare_Op_Max = 8
 };
 
 // Depth testing

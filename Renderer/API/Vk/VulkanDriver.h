@@ -16,7 +16,6 @@
 #include "RenderAbstracts/DrawCommand.h"
 #include "RenderAbstracts/DescriptorSets.h"
 #include "RenderAbstracts/RenderMemory.h"
-#include "RenderAbstracts/GPUMemory.h"
 
 namespace gpu
 {
@@ -63,7 +62,7 @@ namespace gpu
 	{
 		VkImage Handle;
 		VkImageView View;
-		VkSampler Sampler;
+		//VkSampler Sampler;
 		VmaAllocation Allocation;
 	};
 
@@ -145,11 +144,15 @@ namespace gpu
 	void DestroyDescriptorSetLayout(DescriptorLayout& Layout);
 	bool AllocateDescriptorSet(DescriptorSet& Set);
 	void UpdateDescriptorSet(DescriptorSet& Set, DescriptorBinding& Binding, SRMemoryBuffer& Buffer);
+	//void UpdateDescriptorSetImage(DescriptorSet& Set, DescriptorBinding& Binding, Texture* Textures, uint32 Count);
+	//void UpdateDescriptorSetSampler(DescriptorSet& Set, DescriptorBinding& Binding);
 	//void UpdateDescriptorSet(DescriptorSet& Set, DescriptorBinding& Binding);
 	//void BindDescriptorSetInstance(DescriptorSetInstance& Instance);
 	void BindDescriptorSet(DescriptorSet& Set);
 	bool CreateTexture(Texture& InTexture);
 	void DestroyTexture(Texture& InTexture);
+	bool CreateSampler(ImageSampler& Sampler);
+	void DestroySampler(ImageSampler& Sampler);
 
 	/**
 	* Creates a new buffer.
@@ -190,7 +193,7 @@ namespace gpu
 
 	namespace vk
 	{
-		Handle<HImage> CreateImage(VkImageCreateInfo& Img, VkImageViewCreateInfo& ImgView, VkSamplerCreateInfo& Sampler);
+		Handle<HImage> CreateImage(VkImageCreateInfo& Img, VkImageViewCreateInfo& ImgView/*, VkSamplerCreateInfo& Sampler*/);
 	}
 }
 

@@ -120,7 +120,7 @@ void ModelImporter::LoadGLTFNodeMeshData(cgltf_mesh* InMesh, Handle<Model>& Mode
 			for (size_t j = 0; j < indices->count; j++)
 			{
 				uint32 index = 0;
-				cgltf_accessor_read_uint(indices, j, &index, sizeof(uint32));
+				cgltf_accessor_read_uint(indices, j, &index, 1);
 				createInfo.Indices.Push(index);
 			}
 		}
@@ -307,7 +307,7 @@ size_t ModelImporter::PathsToTextures(Array<FilePath>* Out)
 //}
 
 TextureImporter::TextureImporter() :
-	Buf(),
+	//Buf(),
 	Width(0), 
 	Height(0),
 	Channels(0)
@@ -364,7 +364,7 @@ Handle<Texture> TextureImporter::ImportTextureFromPath(const TextureImportInfo& 
 	//Texture* texture = assetManager->GetTextureWithHandle(textureHandle);
 
 	stbi_image_free(data);
-	Buf.Flush();
+	//Buf.Flush();
 	//new (this) TextureImporter();
 
 	return textureHandle;
@@ -372,11 +372,11 @@ Handle<Texture> TextureImporter::ImportTextureFromPath(const TextureImportInfo& 
 
 void TextureImporter::Release()
 {
-	if (Buf.Size())
-	{
-		Buf.Release();
-		new (this) TextureImporter();
-	}
+	//if (Buf.Size())
+	//{
+	//	Buf.Release();
+	//	new (this) TextureImporter();
+	//}
 }
 
 ShaderImporter::ShaderImporter()

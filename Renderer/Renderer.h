@@ -11,7 +11,6 @@
 #include "RenderAbstracts/DrawCommand.h"
 #include "RenderAbstracts/DescriptorSets.h"
 #include "RenderAbstracts/RenderMemory.h"
-#include "RenderAbstracts/GPUMemory.h"
 
 /**
 *

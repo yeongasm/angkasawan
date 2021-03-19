@@ -174,6 +174,7 @@ public:
 	Handle<DescriptorSet>	CreateDescriptorSet				(const DescriptorSetCreateInfo& CreateInfo);
 	Handle<DescriptorSet>	GetDescriptorSetHandleWithId	(uint32 Id);
 	bool					UpdateDescriptorSetForBinding	(Handle<DescriptorSet> SetHnd, Handle<UniformBuffer> BufferHnd, uint32 Binding);
+	bool					UpdateDescriptorSetForBinding	(Handle<DescriptorSet> SetHnd, Texture* Textures, uint32 Count, uint32 Binding);
 
 	bool					UpdateDescriptorSetData			(Handle<DescriptorSet> SetHnd, uint32 Binding, void* Data, size_t Size);
 	void					BindDescriptorSets();

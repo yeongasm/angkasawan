@@ -162,10 +162,10 @@ void IRDrawManager::FinalizeInstances()
 	uint32 baseOffset = MaxDrawables * currentFrame;
 	uint32 firstInstance = 0;
 
-	for (auto& pair : InstanceDraws)
+	for (auto& [key, entry] : InstanceDraws)
 	{
-		DrawCommands* finalDrawCmds = &FinalDrawCommands[pair.Key];
-		for (SInstanceEntry& entry : pair.Value)
+		DrawCommands* finalDrawCmds = &FinalDrawCommands[key];
+		for (SInstanceEntry& entry : entry)
 		{
 			for (DrawCommand& command : entry.DrawCommands)
 			{
@@ -176,11 +176,11 @@ void IRDrawManager::FinalizeInstances()
 		}
 	}
 
-	for (auto& pair : NonInstanceDraws)
+	for (auto& [key, entry] : NonInstanceDraws)
 	{
-		for (SInstanceEntry& entry : pair.Value)
+		for (SInstanceEntry& entry : entry)
 		{
-			DrawCommands* finalDrawCmds = &FinalDrawCommands[pair.Key];
+			DrawCommands* finalDrawCmds = &FinalDrawCommands[key];
 			for (DrawCommand& command : entry.DrawCommands)
 			{
 				command.InstanceOffset = baseOffset + firstInstance;

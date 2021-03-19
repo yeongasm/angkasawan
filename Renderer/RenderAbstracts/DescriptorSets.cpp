@@ -194,31 +194,12 @@ Handle<DescriptorSet> IRDescriptorManager::CreateDescriptorSet(const DescriptorS
 		return INVALID_HANDLE;
 	}
 
-	// Problem here ... think about it later
-	//if (!descriptorPool->DescriptorTypes.Has(CreateInfo.Type))
-	//{
-	//	return INVALID_HANDLE;
-	//}
-
-	//size_t remainingSize = uniformBuffer->Size - uniformBuffer->Offset;
-
-	//if (remainingSize < (CreateInfo.NumOfData * CreateInfo.TypeSize))
-	//{
-	//	return INVALID_HANDLE;
-	//}
-
 	DescriptorSet* set = reinterpret_cast<DescriptorSet*>(Allocator.Malloc(sizeof(DescriptorSet)));
 	FMemory::InitializeObject(set);
 	FMemory::Memcpy(set, &CreateInfo, sizeof(DescriptorSetBase));
 
 	set->Pool = descriptorPool;
 	set->Layout = descriptorLayout;
-	//set->Buffer = uniformBuffer;
-	//set->Base = uniformBuffer->Offset;
-
-	// Padded alongside the maximum number of frames in flights.
-	//size_t paddedSize = gpu::PadSizeToAlignedSize(set->NumOfData * set->TypeSize * MAX_FRAMES_IN_FLIGHT);
-	//uniformBuffer->Offset += paddedSize;
 
 	size_t index = Sets.Push(set);
 

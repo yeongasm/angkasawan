@@ -70,7 +70,6 @@ struct ModelImportInfo : public ModelCreateInfo
 	Handle<SRMemoryBuffer> IdxMemHandle;
 };
 
-
 struct MeshCreateInfo : public ModelCreateInfo
 {
 	Array<SRVertex> Vertices;
@@ -89,7 +88,6 @@ struct Mesh : public ModelCreateInfo
 	Handle<HBuffer> Ebo;
 };
 
-
 class Model : Array<Mesh*>
 {
 private:
@@ -106,6 +104,27 @@ public:
 	using Super::Reserve;
 };
 
+struct ImageSamplerBase
+{
+	ESamplerFilter MinFilter;
+	ESamplerFilter MagFilter;
+	ESamplerAddressMode AddressModeU;
+	ESamplerAddressMode AddressModeV;
+	ESamplerAddressMode AddressModeW;
+	ECompareOp CompareOp;
+	float32 AnisotropyLvl;
+};
+
+struct ImageSamplerCreateInfo : public ImageSamplerBase
+{
+	String128 Name;
+};
+
+struct ImageSampler : public ImageSamplerBase
+{
+	uint32 Id;
+	Handle<HSampler> Handle;
+};
 
 struct TextureBase
 {
@@ -117,12 +136,10 @@ struct TextureBase
 	BitSet<uint32> Usage; // EImageUsageFlags;
 };
 
-
 struct TextureCreateInfo : public TextureBase
 {
 	Buffer<uint8> TextureData;
 };
-
 
 struct TextureImportInfo
 {
@@ -130,7 +147,6 @@ struct TextureImportInfo
 	FilePath Path;
 	IRAssetManager* AssetManager;
 };
-
 
 struct Texture : public TextureBase
 {

@@ -4,7 +4,6 @@
 
 #include "Library/Containers/Map.h"
 #include "Assets/GPUHandles.h"
-#include "RenderAbstracts/GPUMemory.h"
 #include "RenderAbstracts/RenderMemory.h"
 #include "RenderAbstracts/Primitives.h"
 #include "Library/Math/Math.h"

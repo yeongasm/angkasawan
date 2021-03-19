@@ -22,6 +22,7 @@ namespace gpu
 	static Map<uint32, VkDescriptorSetLayout> g_DescriptorSetLayout;
 	static Map<uint32, VulkanImage> g_Textures;
 	static Map<uint32, VkShaderModule> g_Shaders;
+	static Map<uint32, VkSampler> g_Samplers;
 
 	static VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT Severity,
 		VkDebugUtilsMessageTypeFlagsEXT Type,
@@ -1466,9 +1467,16 @@ namespace gpu
 			descriptorSetLayouts.Push(g_DescriptorSetLayout[layout->Handle]);
 		}
 
+		VkPushConstantRange pushConstant = {};
+		pushConstant.offset = 0;
+		pushConstant.size = Ctx.Properties.limits.maxPushConstantsSize;
+		pushConstant.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+
 		// Pipeline layour description.
 		VkPipelineLayoutCreateInfo layoutCreateInfo = {};
 		layoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+		layoutCreateInfo.pPushConstantRanges = &pushConstant;
+		layoutCreateInfo.pushConstantRangeCount = 1;
 
 		if (descriptorSetLayouts.Length())
 		{
@@ -1844,7 +1852,10 @@ namespace gpu
 			VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
 			VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
 			VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-			VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT
+			VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
+			VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+			VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC,
+			VK_DESCRIPTOR_TYPE_SAMPLER
 		};
 
 		Array<VkDescriptorPoolSize> poolSizes(Pool.Sizes.Length());
@@ -1897,7 +1908,10 @@ namespace gpu
 			VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
 			VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
 			VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-			VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT
+			VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
+			VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+			VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC,
+			VK_DESCRIPTOR_TYPE_SAMPLER
 		};
 
 		Array<VkDescriptorSetLayoutBinding> layoutBindings(Layout.Bindings.Length());
@@ -1956,7 +1970,10 @@ namespace gpu
 			VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
 			VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
 			VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-			VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT
+			VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
+			VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+			VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC,
+			VK_DESCRIPTOR_TYPE_SAMPLER
 		};
 
 		VulkanDescriptorPool& poolParams = g_DescriptorPools[Set.Pool->Handle];
@@ -1995,7 +2012,10 @@ namespace gpu
 			VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
 			VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
 			VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-			VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT
+			VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
+			VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+			VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC,
+			VK_DESCRIPTOR_TYPE_SAMPLER
 		};
 
 		VulkanDescriptorSet& descriptorSet = g_DescriptorSets[Set.Handle];
@@ -2021,6 +2041,7 @@ namespace gpu
 		VkWriteDescriptorSet write = {};
 		write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 		write.dstBinding = Binding.Binding;
+		// descriptorCount specifies the number of elements for a single binding.
 		write.descriptorCount = 1;
 		write.descriptorType = types[Binding.Type];
 		write.pBufferInfo = &info;
@@ -2161,15 +2182,15 @@ namespace gpu
 			imgView.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
 		}
 
-		VkSamplerCreateInfo sampler = {};
-		sampler.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-		sampler.magFilter = VK_FILTER_NEAREST;
-		sampler.minFilter = VK_FILTER_NEAREST;
-		sampler.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-		sampler.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-		sampler.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+		//VkSamplerCreateInfo sampler = {};
+		//sampler.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+		//sampler.magFilter = VK_FILTER_NEAREST;
+		//sampler.minFilter = VK_FILTER_NEAREST;
+		//sampler.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+		//sampler.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+		//sampler.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
 
-		Handle<HImage> imgHandle = vk::CreateImage(img, imgView, sampler);
+		Handle<HImage> imgHandle = vk::CreateImage(img, imgView/*, sampler*/);
 
 		if (imgHandle == INVALID_HANDLE)
 		{
@@ -2300,11 +2321,87 @@ namespace gpu
 	{
 		VulkanImage& img = g_Textures[InTexture.Handle];
 		vkDeviceWaitIdle(Ctx.Device);
-		vkDestroySampler(Ctx.Device, img.Sampler, nullptr);
+		//vkDestroySampler(Ctx.Device, img.Sampler, nullptr);
 		vkDestroyImageView(Ctx.Device, img.View, nullptr);
 		vmaDestroyImage(Ctx.Allocator, img.Handle, img.Allocation);
 		g_Textures.Remove(InTexture.Handle);
 		InTexture.Handle = INVALID_HANDLE;
+	}
+
+	bool CreateSampler(ImageSampler& Sampler)
+	{
+		// TODO(Ygsm):
+		// Figure out mip maps...
+		//
+
+		constexpr VkFilter imageFilters[] = {
+			VK_FILTER_NEAREST,
+			VK_FILTER_LINEAR,
+			VK_FILTER_CUBIC_IMG
+		};
+
+		constexpr VkSamplerAddressMode addressMode[] = {
+			VK_SAMPLER_ADDRESS_MODE_REPEAT,
+			VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT,
+			VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+			VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
+			VK_SAMPLER_ADDRESS_MODE_MIRROR_CLAMP_TO_EDGE
+		};
+
+		constexpr VkCompareOp compareOps[] = {
+			VK_COMPARE_OP_NEVER,
+			VK_COMPARE_OP_LESS,
+			VK_COMPARE_OP_EQUAL,
+			VK_COMPARE_OP_LESS_OR_EQUAL,
+			VK_COMPARE_OP_GREATER,
+			VK_COMPARE_OP_NOT_EQUAL,
+			VK_COMPARE_OP_GREATER_OR_EQUAL,
+			VK_COMPARE_OP_ALWAYS
+		};
+
+		VkSamplerCreateInfo createInfo = {};
+		createInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+		createInfo.minFilter = imageFilters[Sampler.MinFilter];
+		createInfo.magFilter = imageFilters[Sampler.MagFilter];
+		createInfo.addressModeU = addressMode[Sampler.AddressModeU];
+		createInfo.addressModeV = addressMode[Sampler.AddressModeV];
+		createInfo.addressModeW = addressMode[Sampler.AddressModeW];
+		createInfo.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
+
+		if (!Sampler.AnisotropyLvl)
+		{
+			const float32 hardwareAnisotropyLimit = Ctx.Properties.limits.maxSamplerAnisotropy;
+			createInfo.anisotropyEnable = VK_TRUE;
+			createInfo.maxAnisotropy = (Sampler.AnisotropyLvl > hardwareAnisotropyLimit) ? hardwareAnisotropyLimit : Sampler.AnisotropyLvl;
+		}
+
+		if (Sampler.CompareOp)
+		{
+			createInfo.compareEnable = VK_TRUE;
+			createInfo.compareOp = compareOps[Sampler.CompareOp];
+		}
+
+		VkSampler sampler;
+		if (vkCreateSampler(Ctx.Device, &createInfo, nullptr, &sampler) != VK_SUCCESS)
+		{
+			return false;
+		}
+
+		uint32 id = g_RandIdVk();
+		Sampler.Handle = id;
+		g_Samplers.Insert(id, sampler);
+
+		return true;
+	}
+
+	void DestroySampler(ImageSampler& Sampler)
+	{
+		VkSampler& sampler = g_Samplers[Sampler.Handle];
+
+		vkDeviceWaitIdle(Ctx.Device);
+		vkDestroySampler(Ctx.Device, sampler, nullptr);
+		g_Samplers.Remove(Sampler.Handle);
+		Sampler.Handle = INVALID_HANDLE;
 	}
 
 	bool CreateBuffer(SRMemoryBuffer& Buffer, void* Data, size_t Size)
@@ -2584,11 +2681,11 @@ namespace gpu
 
 	namespace vk
 	{
-		Handle<HImage> CreateImage(VkImageCreateInfo& Img, VkImageViewCreateInfo& ImgView, VkSamplerCreateInfo& Sampler)
+		Handle<HImage> CreateImage(VkImageCreateInfo& Img, VkImageViewCreateInfo& ImgView/*, VkSamplerCreateInfo& Sampler*/)
 		{
 			VkImage imgHandle;
 			VkImageView imgViewHandle;
-			VkSampler samplerHandle;
+			//VkSampler samplerHandle;
 			VmaAllocation allocation;
 
 			VmaAllocationCreateInfo allocInfo = {};
@@ -2614,19 +2711,19 @@ namespace gpu
 				return INVALID_HANDLE;
 			}
 
-			if (vkCreateSampler(Ctx.Device, &Sampler, nullptr, &samplerHandle) != VK_SUCCESS)
-			{
-				vkDestroyImageView(Ctx.Device, imgViewHandle, nullptr);
-				vmaDestroyImage(Ctx.Allocator, imgHandle, allocation);
-				return INVALID_HANDLE;
-			}
+			//if (vkCreateSampler(Ctx.Device, &Sampler, nullptr, &samplerHandle) != VK_SUCCESS)
+			//{
+			//	vkDestroyImageView(Ctx.Device, imgViewHandle, nullptr);
+			//	vmaDestroyImage(Ctx.Allocator, imgHandle, allocation);
+			//	return INVALID_HANDLE;
+			//}
 
 			uint32 id = g_RandIdVk();
 			VulkanImage& img = g_Textures.Insert(id, {});
 			img.Allocation = allocation;
 			img.Handle = imgHandle;
 			img.View = imgViewHandle;
-			img.Sampler = samplerHandle;
+			//img.Sampler = samplerHandle;
 
 			return Handle<HImage>(id);
 		}
