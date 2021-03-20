@@ -1306,7 +1306,6 @@ namespace gpu
 			});
 		}
 
-
 		for (auto& vtxInBind : Pass.VertexBindings)
 		{
 			uint32 stride = 0;

@@ -132,7 +132,6 @@ struct RENDERER_API RenderPass
 	Handle<HPipeline>	PipelineHandle;
 	Handle<HRenderpass> RenderpassHandle;
 	Handle<HFramebuffer>FramebufferHandle;
-	//Handle<HFramepass>	FramePassHandle;
 
 	InputAttachments	ColorInputs;
 	OutputAttachments	ColorOutputs;
