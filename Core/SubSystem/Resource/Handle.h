@@ -23,6 +23,15 @@ public:
 	//size_t operator+ (size_t i) const { return OffsetToResource + i; }
 	operator uint32() const { return static_cast<uint32>(OffsetToResource); }
 
+	const bool operator== (const Handle Hnd) const { return OffsetToResource == Hnd.OffsetToResource; }
+	const bool operator== (const size_t Val) const { return OffsetToResource == Val; }
+	const bool operator== (const uint32 Val) const { return static_cast<uint32>(OffsetToResource) == Val; }
+	const bool operator== (const int32  Val) const { return static_cast<int32>(OffsetToResource)  == Val; }
+	const bool operator!= (const Handle Hnd) const { return OffsetToResource != Hnd.OffsetToResource; }
+	const bool operator!= (const size_t Val) const { return OffsetToResource != Val; }
+	const bool operator!= (const uint32 Val) const { return static_cast<uint32>(OffsetToResource) != Val; }
+	const bool operator!= (const int32  Val) const { return static_cast<int32>(OffsetToResource)  != Val; }
+
 	bool operator== (Handle Hnd) { return OffsetToResource == Hnd.OffsetToResource; }
 	bool operator== (size_t Val) { return OffsetToResource == Val; }
 	bool operator== (uint32 Val) { return static_cast<uint32>(OffsetToResource) == Val; }

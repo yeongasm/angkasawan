@@ -14,7 +14,7 @@
 
 class RenderSystem;
 class IRFrameGraph;
-struct DescriptorLayout;
+//struct DescriptorLayout;
 
 struct AttachmentCreateInfo
 {
@@ -48,8 +48,8 @@ struct RENDERER_API RenderPass
 	DELETE_COPY_AND_MOVE(RenderPass)
 
 	//bool AddShader				(Shader* ShaderSrc);
-	bool AddPipeline			(Shader* VertexShader, Shader* FragmentShader);
-	bool AddVertexInputBinding	(uint32 Binding, uint32 From, uint32 To, uint32 Stride, EVertexInputRateType Type);
+	//bool AddPipeline			(Shader* VertexShader, Shader* FragmentShader);
+	//bool AddVertexInputBinding	(uint32 Binding, uint32 From, uint32 To, uint32 Stride, EVertexInputRateType Type);
 	void AddColorInput			(const String32& Identifier, RenderPass& From);
 	void AddColorOutput			(const String32& Identifier, const AttachmentCreateInfo& CreateInfo);
 
@@ -65,26 +65,26 @@ struct RENDERER_API RenderPass
 	/**
 	* Feature not implemented yet!
 	*/
-	bool AddSubpass		(RenderPass& Subpass);
+	//bool AddSubpass		(RenderPass& Subpass);
 
 	/**
 	* Feature not implemented yet!
 	*/
-	bool IsMainpass		() const;
+	//bool IsMainpass		() const;
 
 	/**
 	* Feature not implemented yet!
 	*/
-	bool IsSubpass		() const;
+	//bool IsSubpass		() const;
 
 	void SetWidth		(float32 Width);
 	void SetHeight		(float32 Height);
 	void SetDepth		(float32 Depth);
-	void SetSampleCount	(ESampleCount Samples);
-	void SetTopology	(ETopologyType Type);
-	void SetCullMode	(ECullingMode Mode);
-	void SetPolygonMode	(EPolygonMode Mode);
-	void SetFrontFace	(EFrontFaceDir Face);
+	//void SetSampleCount	(ESampleCount Samples);
+	//void SetTopology	(ETopologyType Type);
+	//void SetCullMode	(ECullingMode Mode);
+	//void SetPolygonMode	(EPolygonMode Mode);
+	//void SetFrontFace	(EFrontFaceDir Face);
 
 	void NoRender				();
 	void NoColorRender			();
@@ -92,16 +92,16 @@ struct RENDERER_API RenderPass
 
 //private:
 
-	struct VertexInputBinding
-	{
-		uint32 Binding;
-		uint32 From;
-		uint32 To;
-		uint32 Stride;
-		EVertexInputRateType Type;
-	};
+	//struct VertexInputBinding
+	//{
+	//	uint32 Binding;
+	//	uint32 From;
+	//	uint32 To;
+	//	uint32 Stride;
+	//	EVertexInputRateType Type;
+	//};
 
-	using VertexInputBindings = Array<VertexInputBinding>;
+	//using VertexInputBindings = Array<VertexInputBinding>;
 
 	struct AttachmentInfo : public AttachmentCreateInfo
 	{
@@ -110,16 +110,16 @@ struct RENDERER_API RenderPass
 
 	using OutputAttachments = Map<String32, AttachmentInfo, MurmurHash<String32>, 1>;
 	using InputAttachments	= Map<String32, AttachmentInfo, MurmurHash<String32>, 1>;
-	using ArrayOfDescLayouts = Array<DescriptorLayout*>;
+	//using ArrayOfDescLayouts = Array<DescriptorLayout*>;
 
 	IRFrameGraph&		Owner;
 	ERenderPassType		Type;
 
-	ESampleCount		Samples;
-	ETopologyType		Topology;
-	EFrontFaceDir		FrontFace;
-	ECullingMode		CullMode;
-	EPolygonMode		PolygonalMode;
+	//ESampleCount		Samples;
+	//ETopologyType		Topology;
+	//EFrontFaceDir		FrontFace;
+	//ECullingMode		CullMode;
+	//EPolygonMode		PolygonalMode;
 	BitSet<uint32>		Flags;
 	float32				Width;
 	float32				Height;
@@ -127,9 +127,9 @@ struct RENDERER_API RenderPass
 	uint32				Order;
 	uint32				PassType;
 
-	Shader*				Shaders[Shader_Type_Max];
+	//Shader*				Shaders[Shader_Type_Max];
 	ERenderPassState	State;
-	Handle<HPipeline>	PipelineHandle;
+	//Handle<HPipeline>	PipelineHandle;
 	Handle<HRenderpass> RenderpassHandle;
 	Handle<HFramebuffer>FramebufferHandle;
 
@@ -138,10 +138,10 @@ struct RENDERER_API RenderPass
 	AttachmentInfo		DepthStencilInput;
 	AttachmentInfo		DepthStencilOutput;
 
-	RenderPass*			Parent;
-	VertexInputBindings	VertexBindings;
-	Array<RenderPass*>	Childrens;
-	ArrayOfDescLayouts	BoundDescriptorLayouts;
+	//RenderPass*			Parent;
+	//VertexInputBindings	VertexBindings;
+	//Array<RenderPass*>	Childrens;
+	//ArrayOfDescLayouts	BoundDescriptorLayouts;
 };
 
 
@@ -181,7 +181,7 @@ private:
 	RenderPassTable		RenderPasses;
 	bool				IsCompiled;
 
-	void BindLayoutToRenderPass(DescriptorLayout& Layout, Handle<RenderPass> PassHandle);
+	//void BindLayoutToRenderPass(DescriptorLayout& Layout, Handle<RenderPass> PassHandle);
 };
 
 #endif // !LEARNVK_RENDERER_RENDERGRAPH_RENDER_GRAPH_H

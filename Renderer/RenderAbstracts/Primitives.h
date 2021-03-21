@@ -20,6 +20,8 @@
 
 class IRAssetManager;
 class IRenderMemoryManager;
+struct RenderPass;
+struct DescriptorLayout;
 
 struct SRMemoryBufferLocality
 {
@@ -175,6 +177,44 @@ struct Shader : public ShaderBase
 {
 	Handle<HShader> Handle;
 	Array<ShaderAttrib> Attributes;
+};
+
+struct VertexInputBinding
+{
+	uint32 Binding;
+	uint32 From;
+	uint32 To;
+	uint32 Stride;
+	EVertexInputRateType Type;
+};
+
+struct PipelineBase
+{
+	ESampleCount Samples;
+	ETopologyType Topology;
+	EFrontFaceDir FrontFace;
+	ECullingMode CullMode;
+	EPolygonMode PolygonalMode;
+	Array<VertexInputBinding> VertexInputBindings;
+};
+
+struct GfxPipelineCreateInfo : public PipelineBase
+{
+	Handle<RenderPass> RenderPassHandle;
+	Handle<Shader> VertexShaderHandle;
+	Handle<Shader> FragmentShaderHandle;
+};
+
+struct GraphicsPipeline : public PipelineBase
+{
+	Array<DescriptorLayout*> DescriptorLayouts;
+	Handle<HPipeline> Handle;
+	RenderPass* Renderpass;
+	Shader* VertexShader;
+	Shader* FragmentShader;
+	uint32 ColorOutputCount;
+	bool HasDefaultColorOutput;
+	bool HasDepthStencil;
 };
 
 #endif // !LEARNVK_RENDERER_RENDER_ABSTRACT_PRIMITIVES_H

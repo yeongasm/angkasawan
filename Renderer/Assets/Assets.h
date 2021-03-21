@@ -23,6 +23,9 @@ enum ERendererAsset : uint32
 };
 
 /**
+* Definition of an asset in Angkasawan:
+*	- External resource required by the engine and is streamable into the engine.
+* 
 * TODO(Ygsm):
 * [ ] Only return the handle to the resource if fetching my name.
 */

@@ -29,7 +29,7 @@ IRAssetManager::IRAssetManager(IRenderMemoryManager& Memory, ResourceManager& Ma
 
 IRAssetManager::~IRAssetManager() 
 {
-	ShaderStore.Release();
+	//ShaderStore.Release();
 	MeshStore.Release();
 	ModelStore.Release();
 	TextureStore.Release();

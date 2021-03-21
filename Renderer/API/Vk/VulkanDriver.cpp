@@ -1089,10 +1089,10 @@ namespace gpu
 		clearValues.Empty();
 	}
 
-	void BindPipeline(RenderPass& Pass)
+	void BindPipeline(GraphicsPipeline& Pipeline)
 	{
 		GET_CURR_CMD_BUFFER();
-		VulkanPipeline& pipeline = g_Pipelines[Pass.PipelineHandle];
+		VulkanPipeline& pipeline = g_Pipelines[Pipeline.Handle];
 		vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.Handle);
 	}
 
@@ -1242,7 +1242,7 @@ namespace gpu
 		InShader.Handle = INVALID_HANDLE;
 	}
 
-	bool CreateGraphicsPipeline(RenderPass& Pass)
+	bool CreateGraphicsPipeline(GraphicsPipeline& Pipeline)
 	{
 		static auto getTypeStride = [](EShaderAttribFormat Format) -> uint32 {
 			switch (Format)
@@ -1261,8 +1261,8 @@ namespace gpu
 			return 0;
 		};
 
-		if ((Pass.Shaders[Shader_Type_Fragment]->Handle == INVALID_HANDLE) ||
-			(Pass.Shaders[Shader_Type_Vertex]->Handle == INVALID_HANDLE))
+		if ((Pipeline.VertexShader->Handle   == INVALID_HANDLE) ||
+			(Pipeline.FragmentShader->Handle == INVALID_HANDLE))
 		{
 			return false;
 		}
@@ -1279,7 +1279,7 @@ namespace gpu
 		VkPipelineShaderStageCreateInfo vertexStage = {};
 		vertexStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 		vertexStage.stage = VK_SHADER_STAGE_VERTEX_BIT;
-		vertexStage.module = g_Shaders[Pass.Shaders[Shader_Type_Vertex]->Handle];
+		vertexStage.module = g_Shaders[Pipeline.VertexShader->Handle];
 		vertexStage.pName = "main";
 		pipelineStages.Push(Move(vertexStage));
 
@@ -1293,11 +1293,11 @@ namespace gpu
 		// Vertex attributes ...
 		uint32 binding = 0;
 		VkFormat format;
-		Shader* vertexShader = Pass.Shaders[Shader_Type_Vertex];
+		Shader* vertexShader = Pipeline.VertexShader;
 		ShaderAttrib* attribute = nullptr;
 		Array<VkVertexInputAttributeDescription> vertexAttributes(vertexShader->Attributes.Length());
 
-		for (auto& vtxInBind : Pass.VertexBindings)
+		for (auto& vtxInBind : Pipeline.VertexInputBindings)
 		{
 			bindingDescriptions.Push({
 				vtxInBind.Binding,
@@ -1306,7 +1306,7 @@ namespace gpu
 			});
 		}
 
-		for (auto& vtxInBind : Pass.VertexBindings)
+		for (auto& vtxInBind : Pipeline.VertexInputBindings)
 		{
 			uint32 stride = 0;
 			for (size_t i = vtxInBind.From; i <= vtxInBind.To; i++)
@@ -1337,7 +1337,7 @@ namespace gpu
 		VkPipelineShaderStageCreateInfo fragmentStage = {};
 		fragmentStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 		fragmentStage.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-		fragmentStage.module = g_Shaders[Pass.Shaders[Shader_Type_Fragment]->Handle];
+		fragmentStage.module = g_Shaders[Pipeline.FragmentShader->Handle];
 		fragmentStage.pName = "main";
 		pipelineStages.Push(Move(fragmentStage));
 
@@ -1359,7 +1359,7 @@ namespace gpu
 
 		VkPipelineInputAssemblyStateCreateInfo inputAssemblyCreateInfo = {};
 		inputAssemblyCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-		inputAssemblyCreateInfo.topology = topology[Pass.Topology];
+		inputAssemblyCreateInfo.topology = topology[Pipeline.Topology];
 		inputAssemblyCreateInfo.primitiveRestartEnable = VK_FALSE;
 
 		// Viewport and scissoring.
@@ -1412,9 +1412,9 @@ namespace gpu
 		// Rasterization state.
 		VkPipelineRasterizationStateCreateInfo rasterStateCreateInfo = {};
 		rasterStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-		rasterStateCreateInfo.polygonMode = polyMode[Pass.PolygonalMode];
-		rasterStateCreateInfo.cullMode = cullMode[Pass.CullMode];
-		rasterStateCreateInfo.frontFace = frontFace[Pass.FrontFace];
+		rasterStateCreateInfo.polygonMode = polyMode[Pipeline.PolygonalMode];
+		rasterStateCreateInfo.cullMode = cullMode[Pipeline.CullMode];
+		rasterStateCreateInfo.frontFace = frontFace[Pipeline.FrontFace];
 		rasterStateCreateInfo.lineWidth = 1.0f;
 		//rasterStateCreateInfo.depthClampEnable = VK_FALSE; // Will be true for shadow rendering for some reason I do not know yet...
 
@@ -1441,12 +1441,12 @@ namespace gpu
 		blendState.alphaBlendOp = VK_BLEND_OP_ADD;
 		blendState.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 
-		for (uint32 i = 0; i < Pass.ColorOutputs.Length(); i++)
+		for (uint32 i = 0; i < Pipeline.ColorOutputCount; i++)
 		{
 			colorBlendStates.Push(blendState);
 		}
 
-		if (!Pass.Flags.Has(RenderPass_Bit_No_Color_Render))
+		if (Pipeline.HasDefaultColorOutput)
 		{
 			colorBlendStates.Push(blendState);
 		}
@@ -1460,9 +1460,9 @@ namespace gpu
 
 		DescriptorLayout* layout = nullptr;
 		Array<VkDescriptorSetLayout> descriptorSetLayouts;
-		for (size_t i = 0; i < Pass.BoundDescriptorLayouts.Length(); i++)
+
+		for (DescriptorLayout* layout : Pipeline.DescriptorLayouts)
 		{
-			layout = Pass.BoundDescriptorLayouts[i];
 			descriptorSetLayouts.Push(g_DescriptorSetLayout[layout->Handle]);
 		}
 
@@ -1497,8 +1497,7 @@ namespace gpu
 		depthStencilCreateInfo.maxDepthBounds = 1.0f;
 		depthStencilCreateInfo.depthBoundsTestEnable = VK_FALSE;
 
-		if (Pass.Flags.Has(RenderPass_Bit_DepthStencil_Output) || 
-			!Pass.Flags.Has(RenderPass_Bit_No_DepthStencil_Render))
+		if (Pipeline.HasDepthStencil)
 		{
 			depthStencilCreateInfo.depthTestEnable = VK_TRUE;
 			depthStencilCreateInfo.depthWriteEnable = VK_TRUE;
@@ -1527,13 +1526,12 @@ namespace gpu
 		pipelineCreateInfo.pColorBlendState = &colorBlendCreateInfo;
 		//pipelineCreateInfo.pDynamicState = &dynamicStateCreateInfo;
 		pipelineCreateInfo.layout = pipelineLayout;
-		pipelineCreateInfo.renderPass = g_RenderPass[Pass.RenderpassHandle];
+		pipelineCreateInfo.renderPass = g_RenderPass[Pipeline.Renderpass->RenderpassHandle];
 		pipelineCreateInfo.subpass = 0;							// TODO(Ygsm): Study more about this!
 		pipelineCreateInfo.basePipelineHandle = VK_NULL_HANDLE;	// TODO(Ygsm): Study more about this!
 		pipelineCreateInfo.basePipelineIndex = -1;				// TODO(Ygsm): Study more about this!
 
-		if (Pass.Flags.Has(RenderPass_Bit_DepthStencil_Output) ||
-			!Pass.Flags.Has(RenderPass_Bit_No_DepthStencil_Render))
+		if (Pipeline.HasDepthStencil)
 		{
 			pipelineCreateInfo.pDepthStencilState = &depthStencilCreateInfo;
 		}
@@ -1546,7 +1544,7 @@ namespace gpu
 		}
 
 		uint32 key = g_RandIdVk();
-		Pass.PipelineHandle = Handle<HPipeline>(key);
+		Pipeline.Handle = Handle<HPipeline>(key);
 		auto& pipelineParam = g_Pipelines.Insert(key, {});
 		pipelineParam.Handle = pipeline;
 		pipelineParam.Layout = pipelineLayout;
@@ -1554,16 +1552,16 @@ namespace gpu
 		return true;
 	}
 
-	void DestroyGraphicsPipeline(RenderPass& Pass)
+	void DestroyGraphicsPipeline(GraphicsPipeline& Pipeline)
 	{
-		VulkanPipeline& pipeline = g_Pipelines[Pass.PipelineHandle];
+		VulkanPipeline& pipeline = g_Pipelines[Pipeline.Handle];
 
 		vkDeviceWaitIdle(Ctx.Device);
 		vkDestroyPipelineLayout(Ctx.Device, pipeline.Layout, nullptr);
 		vkDestroyPipeline(Ctx.Device, pipeline.Handle, nullptr);
 
-		g_Pipelines.Remove(Pass.PipelineHandle);
-		Pass.PipelineHandle = INVALID_HANDLE;
+		g_Pipelines.Remove(Pipeline.Handle);
+		Pipeline.Handle = INVALID_HANDLE;
 	}
 
 	bool CreateFramebuffer(RenderPass& Pass)
@@ -1733,7 +1731,7 @@ namespace gpu
 		{
 			VkAttachmentDescription& desc = descriptions.Insert(VkAttachmentDescription());
 			desc.format = VK_FORMAT_R8G8B8A8_SRGB;
-			desc.samples = sampleBits[Pass.Samples];
+			desc.samples = VK_SAMPLE_COUNT_1_BIT;
 			desc.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 			desc.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 			desc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
@@ -1770,7 +1768,7 @@ namespace gpu
 		{
 			VkAttachmentDescription& desc = descriptions.Insert(VkAttachmentDescription());
 			desc.format = VK_FORMAT_D24_UNORM_S8_UINT;
-			desc.samples = sampleBits[Pass.Samples];
+			desc.samples = VK_SAMPLE_COUNT_1_BIT;
 			desc.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 			desc.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 			desc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;

@@ -122,7 +122,7 @@ namespace gpu
 	void Terminate();
 	void BlitToDefault(const IRFrameGraph& Graph);
 	void BindRenderpass(RenderPass& Pass);
-	void BindPipeline(RenderPass& Pass);
+	void BindPipeline(GraphicsPipeline& Pipeline);
 	void UnbindRenderpass(RenderPass& Pass);
 	void BindVertexBuffer(SRMemoryBuffer& Buffer, uint32 FirstBinding, size_t Offset);
 	void BindIndexBuffer(SRMemoryBuffer& Buffer, size_t Offset);
@@ -132,8 +132,8 @@ namespace gpu
 	//void DestroyFrameImage(FrameImages& Images);
 	bool CreateShader(Shader& InShader, String& Code);
 	void DestroyShader(Shader& InShader);
-	bool CreateGraphicsPipeline(RenderPass& Pass);
-	void DestroyGraphicsPipeline(RenderPass& Pass);
+	bool CreateGraphicsPipeline(GraphicsPipeline& Pipeline);
+	void DestroyGraphicsPipeline(GraphicsPipeline& Pipeline);
 	bool CreateFramebuffer(RenderPass& Pass);
 	void DestroyFramebuffer(RenderPass& Pass);
 	bool CreateRenderpass(RenderPass& Pass);

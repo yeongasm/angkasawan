@@ -12,7 +12,8 @@ RenderSystem::RenderSystem(EngineImpl& InEngine, Handle<ISystem> Hnd) :
 	DescriptorManager(nullptr),
 	MemoryManager(nullptr),
 	DrawCmdManager(nullptr),
-	DescriptorInstances(),
+	PipelineManager(nullptr),
+	//DescriptorInstances(),
 	Hnd(Hnd)
 {}
 
@@ -39,6 +40,9 @@ void RenderSystem::OnInit()
 
 	DrawCmdManager = reinterpret_cast<IRDrawManager*>(g_RenderSystemAllocator.Malloc(sizeof(IRDrawManager)));
 	FMemory::InitializeObject(DrawCmdManager, g_RenderSystemAllocator, *FrameGraph);
+
+	PipelineManager = reinterpret_cast<IRPipelineManager*>(g_RenderSystemAllocator.Malloc(sizeof(IRPipelineManager)));
+	FMemory::InitializeObject(PipelineManager, g_RenderSystemAllocator, *AssetManager, *FrameGraph);
 }
 
 void RenderSystem::OnUpdate()
@@ -64,9 +68,10 @@ void RenderSystem::OnUpdate()
 		drawCommands = &DrawCmdManager->FinalDrawCommands[pair.Key];
 
 		gpu::BindRenderpass(*renderPass);
-		gpu::BindPipeline(*renderPass);
+		//gpu::BindPipeline(*renderPass);
 		for (DrawCommand& command : *drawCommands)
 		{
+			// Pipelines should be on a per call basis.
 			gpu::Draw(command);
 		}
 		gpu::UnbindRenderpass(*renderPass);
@@ -86,6 +91,7 @@ void RenderSystem::OnTerminate()
 	FrameGraph->Destroy();
 	DescriptorManager->Destroy();
 	MemoryManager->Destroy();
+	PipelineManager->Destroy();
 	g_RenderSystemAllocator.Terminate();
 	gpu::Terminate();
 }
@@ -105,7 +111,7 @@ void RenderSystem::FinalizeGraph()
 	DrawCmdManager->NonInstanceDraws.Reserve(numPasses);
 	for (auto& pair : FrameGraph->RenderPasses)
 	{
-		if (pair.Value->IsSubpass()) { continue; }
+		//if (pair.Value->IsSubpass()) { continue; }
 		DrawCmdManager->AddDrawCommandList(pair.Key);
 	}
 }
@@ -168,17 +174,17 @@ void RenderSystem::FinalizeGraph()
 //	return true;
 //}
 
-bool RenderSystem::BindDescLayoutToPass(uint32 DescriptorLayoutId, Handle<RenderPass> PassHandle)
-{
-	Handle<DescriptorLayout> layoutHandle = DescriptorManager->GetDescriptorLayoutHandleWithId(DescriptorLayoutId);
-	DescriptorLayout* descriptorLayout = DescriptorManager->GetDescriptorLayout(layoutHandle);
-	if (!descriptorLayout)
-	{
-		return false;
-	}
-	FrameGraph->BindLayoutToRenderPass(*descriptorLayout, PassHandle);
-	return true;
-}
+//bool RenderSystem::BindDescLayoutToPass(uint32 DescriptorLayoutId, Handle<RenderPass> PassHandle)
+//{
+//	Handle<DescriptorLayout> layoutHandle = DescriptorManager->GetDescriptorLayoutHandleWithId(DescriptorLayoutId);
+//	DescriptorLayout* descriptorLayout = DescriptorManager->GetDescriptorLayout(layoutHandle);
+//	if (!descriptorLayout)
+//	{
+//		return false;
+//	}
+//	FrameGraph->BindLayoutToRenderPass(*descriptorLayout, PassHandle);
+//	return true;
+//}
 
 IRAssetManager& RenderSystem::GetAssetManager()
 {
@@ -248,6 +254,11 @@ IRenderMemoryManager& RenderSystem::GetRenderMemoryManager()
 IRDrawManager& RenderSystem::GetDrawManager()
 {
 	return *DrawCmdManager;
+}
+
+IRPipelineManager& RenderSystem::GetPipelineManager()
+{
+	return *PipelineManager;
 }
 
 Handle<ISystem> RenderSystem::GetSystemHandle()

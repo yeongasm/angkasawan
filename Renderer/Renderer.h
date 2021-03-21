@@ -11,6 +11,7 @@
 #include "RenderAbstracts/DrawCommand.h"
 #include "RenderAbstracts/DescriptorSets.h"
 #include "RenderAbstracts/RenderMemory.h"
+#include "RenderAbstracts/PipelineManager.h"
 
 /**
 *
@@ -24,19 +25,19 @@ private:
 
 	//using DrawCommandStore = Map<uint32, Array<DrawCommand, RENDERER_DRAWABLES_SLACK>>;
 
-	struct BindingDescriptors
-	{
-		ForwardNode<DescriptorSetInstance>* Base;
-		ForwardNode<DescriptorSetInstance>* Current;
-		uint32 Count;
-	};
+	//struct BindingDescriptors
+	//{
+	//	ForwardNode<DescriptorSetInstance>* Base;
+	//	ForwardNode<DescriptorSetInstance>* Current;
+	//	uint32 Count;
+	//};
 
-	struct DescriptorInstanceStore
-	{
-		Array<DescriptorSetInstance>	Global;
-		Map<size_t, BindingDescriptors> PerPass;
-		Map<size_t, BindingDescriptors> PerObject;
-	};
+	//struct DescriptorInstanceStore
+	//{
+	//	Array<DescriptorSetInstance>	Global;
+	//	Map<size_t, BindingDescriptors> PerPass;
+	//	Map<size_t, BindingDescriptors> PerObject;
+	//};
 
 	EngineImpl&				Engine;
 	IRAssetManager*			AssetManager;
@@ -44,7 +45,8 @@ private:
 	IRDescriptorManager*	DescriptorManager;
 	IRenderMemoryManager*	MemoryManager;
 	IRDrawManager*			DrawCmdManager;
-	DescriptorInstanceStore	DescriptorInstances;
+	IRPipelineManager*		PipelineManager;
+	//DescriptorInstanceStore	DescriptorInstances;
 	Handle<ISystem>			Hnd;
 
 	void FlushRenderer				();
@@ -64,13 +66,14 @@ public:
 	void		FinalizeGraph	();
 
 	//bool					UpdateDescriptorSet		(uint32 DescriptorId, Handle<DrawCommand> DrawCmdHandle, uint32 Binding, void* Data, size_t Size);
-	bool					BindDescLayoutToPass	(uint32 DescriptorLayoutId, Handle<RenderPass> PassHandle);
+	//bool					BindDescLayoutToPass	(uint32 DescriptorLayoutId, Handle<RenderPass> PassHandle);
 
 	IRFrameGraph&			GetFrameGraph			();
 	IRAssetManager&			GetAssetManager			();
 	IRDescriptorManager&	GetDescriptorManager	();
 	IRenderMemoryManager&	GetRenderMemoryManager	();
 	IRDrawManager&			GetDrawManager			();
+	IRPipelineManager&		GetPipelineManager		();
 	//IRVertexGroupManager&	GetVertexGroupManager	();
 	//IRStagingBuffer&		GetStagingBufferManager	();
 

@@ -2,7 +2,7 @@
 #include "Renderer.h"
 
 RenderPass::RenderPass(IRFrameGraph& OwnerGraph, ERenderPassType Type, uint32 Order) :
-	Samples(Sample_Count_Max),
+	//Samples(Sample_Count_Max),
 	Width(0.0f),
 	Height(0.0f),
 	Depth(0.0f),
@@ -12,23 +12,23 @@ RenderPass::RenderPass(IRFrameGraph& OwnerGraph, ERenderPassType Type, uint32 Or
 	//VertexStride(0),
 	Owner(OwnerGraph), 
 	Type(Type),
-	Topology(Topology_Type_Triangle),
-	FrontFace(Front_Face_Clockwise),
-	CullMode(Culling_Mode_None),
-	PolygonalMode(Polygon_Mode_Fill),
-	Shaders(), 
+	//Topology(Topology_Type_Triangle),
+	//FrontFace(Front_Face_Clockwise),
+	//CullMode(Culling_Mode_None),
+	//PolygonalMode(Polygon_Mode_Fill),
+	//Shaders(), 
 	State(RenderPass_State_New),
-	PipelineHandle(INVALID_HANDLE),
+	//PipelineHandle(INVALID_HANDLE),
 	RenderpassHandle(INVALID_HANDLE),
 	FramebufferHandle(INVALID_HANDLE),
 	ColorInputs(),
 	ColorOutputs(),
 	DepthStencilInput(),
-	DepthStencilOutput(),
-	Parent(nullptr),
-	VertexBindings(),
-	Childrens(),
-	BoundDescriptorLayouts()
+	DepthStencilOutput()//,
+	//Parent(nullptr),
+	//VertexBindings(),
+	//Childrens(),
+	//BoundDescriptorLayouts()
 {}
 
 RenderPass::~RenderPass()
@@ -45,37 +45,37 @@ RenderPass::~RenderPass()
 //	return true;
 //}
 
-bool RenderPass::AddPipeline(Shader* VertexShader, Shader* FragmentShader)
-{
-	if (!VertexShader || !FragmentShader)
-	{
-		return false;
-	}
+//bool RenderPass::AddPipeline(Shader* VertexShader, Shader* FragmentShader)
+//{
+//	if (!VertexShader || !FragmentShader)
+//	{
+//		return false;
+//	}
+//
+//	if (VertexShader->Handle == INVALID_HANDLE ||
+//		FragmentShader->Handle == INVALID_HANDLE)
+//	{
+//		return false;
+//	}
+//
+//	Shaders[Shader_Type_Vertex] = VertexShader;
+//	Shaders[Shader_Type_Fragment] = FragmentShader;
+//
+//	return true;
+//}
 
-	if (VertexShader->Handle == INVALID_HANDLE ||
-		FragmentShader->Handle == INVALID_HANDLE)
-	{
-		return false;
-	}
-
-	Shaders[Shader_Type_Vertex] = VertexShader;
-	Shaders[Shader_Type_Fragment] = FragmentShader;
-
-	return true;
-}
-
-bool RenderPass::AddVertexInputBinding(uint32 Binding, uint32 From, uint32 To, uint32 Stride, EVertexInputRateType Type)
-{
-	for (const VertexInputBinding& vtxInputBinding : VertexBindings)
-	{
-		if (vtxInputBinding.Binding == Binding)
-		{
-			return false;
-		}
-	}
-	VertexBindings.Push({ Binding, From, To, Stride, Type });
-	return true;
-}
+//bool RenderPass::AddVertexInputBinding(uint32 Binding, uint32 From, uint32 To, uint32 Stride, EVertexInputRateType Type)
+//{
+//	for (const VertexInputBinding& vtxInputBinding : VertexBindings)
+//	{
+//		if (vtxInputBinding.Binding == Binding)
+//		{
+//			return false;
+//		}
+//	}
+//	VertexBindings.Push({ Binding, From, To, Stride, Type });
+//	return true;
+//}
 
 void RenderPass::AddColorInput(const String32& Identifier, RenderPass& From)
 {
@@ -137,66 +137,66 @@ void RenderPass::SetDepth(float32 Depth)
 	this->Depth = Depth;
 }
 
-void RenderPass::SetSampleCount(ESampleCount Samples)
-{
-	this->Samples = Samples;
-}
+//void RenderPass::SetSampleCount(ESampleCount Samples)
+//{
+//	this->Samples = Samples;
+//}
 
-void RenderPass::SetTopology(ETopologyType Type)
-{
-	Topology = Type;
-}
+//void RenderPass::SetTopology(ETopologyType Type)
+//{
+//	Topology = Type;
+//}
 
-void RenderPass::SetCullMode(ECullingMode Mode)
-{
-	CullMode = Mode;
-}
+//void RenderPass::SetCullMode(ECullingMode Mode)
+//{
+//	CullMode = Mode;
+//}
 
-void RenderPass::SetPolygonMode(EPolygonMode Mode)
-{
-	PolygonalMode = Mode;
-}
+//void RenderPass::SetPolygonMode(EPolygonMode Mode)
+//{
+//	PolygonalMode = Mode;
+//}
 
-void RenderPass::SetFrontFace(EFrontFaceDir Face)
-{
-	FrontFace = Face;
-}
+//void RenderPass::SetFrontFace(EFrontFaceDir Face)
+//{
+//	FrontFace = Face;
+//}
 
-bool RenderPass::AddSubpass(RenderPass& Subpass)
-{
-	if (Subpass.IsSubpass())
-	{
-		return false;
-	}
-	
-	if (!Childrens.Length())
-	{
-		Childrens.Reserve(8);
-	}
+//bool RenderPass::AddSubpass(RenderPass& Subpass)
+//{
+//	if (Subpass.IsSubpass())
+//	{
+//		return false;
+//	}
+//	
+//	if (!Childrens.Length())
+//	{
+//		Childrens.Reserve(8);
+//	}
+//
+//	for (RenderPass* subpasses : Childrens)
+//	{
+//		if (subpasses == &Subpass)
+//		{
+//			return false;
+//		}
+//	}
+//
+//	Childrens.Push(&Subpass);
+//	Subpass.PassType = RenderPass_Pass_Sub;
+//
+//	return true;
+//}
 
-	for (RenderPass* subpasses : Childrens)
-	{
-		if (subpasses == &Subpass)
-		{
-			return false;
-		}
-	}
+//bool RenderPass::IsMainpass() const
+//{
+//	return PassType == RenderPass_Pass_Main;
+//}
 
-	Childrens.Push(&Subpass);
-	Subpass.PassType = RenderPass_Pass_Sub;
-
-	return true;
-}
-
-bool RenderPass::IsMainpass() const
-{
-	return PassType == RenderPass_Pass_Main;
-}
-
-bool RenderPass::IsSubpass() const
-{
-	return PassType == RenderPass_Pass_Sub;
-}
+//bool RenderPass::IsSubpass() const
+//{
+//	return PassType == RenderPass_Pass_Sub;
+//}
 
 void RenderPass::NoRender()
 {
@@ -290,9 +290,9 @@ void IRFrameGraph::OnWindowResize()
 	{
 		renderPass = pair.Value;
 		gpu::DestroyFramebuffer(*renderPass);
-		gpu::DestroyGraphicsPipeline(*renderPass);
+		//gpu::DestroyGraphicsPipeline(*renderPass);
 		gpu::CreateFramebuffer(*renderPass);
-		gpu::CreateGraphicsPipeline(*renderPass);
+		//gpu::CreateGraphicsPipeline(*renderPass);
 		//Context.DestroyRenderPassFramebuffer(*renderPass);
 		//Context.NewRenderPassFramebuffer(*renderPass);
 		//Context.DestroyGraphicsPipeline(*renderPass);
@@ -307,7 +307,7 @@ void IRFrameGraph::Destroy()
 		RenderPass* renderPass = pair.Value;
 		gpu::DestroyRenderpass(*renderPass);
 		gpu::DestroyFramebuffer(*renderPass);
-		gpu::DestroyGraphicsPipeline(*renderPass);
+		//gpu::DestroyGraphicsPipeline(*renderPass);
 		//Context.DestroyRenderPassRenderpass(*renderPass);
 		//Context.DestroyRenderPassFramebuffer(*renderPass, true);
 		//Context.DestroyGraphicsPipeline(*renderPass, true);
@@ -320,7 +320,7 @@ void IRFrameGraph::Destroy()
 
 bool IRFrameGraph::Compile()
 {
-	if (Compiled()) { return false; }
+	//if (Compiled()) { return false; }
 
 	// TODO(Ygsm):
 	//	Create default color and depth stencil image.
@@ -335,25 +335,27 @@ bool IRFrameGraph::Compile()
 
 	gpu::CreateTexture(ColorImage);
 	gpu::CreateTexture(DepthStencilImage);
-	//Context.NewFrameImages(Images);
 
 	for (Pair<RenderPassEnum, RenderPass*>& pair : RenderPasses)
 	{
 		RenderPass* renderPass = pair.Value;
 
-		if (renderPass->IsMainpass()/* && (renderPass->FramePassHandle == INVALID_HANDLE)*/)
-		{
-			if (!gpu::CreateRenderpass(*renderPass))	{ return false; }
-			if (!gpu::CreateFramebuffer(*renderPass))	{ return false; }
-		}
+		if (!gpu::CreateRenderpass(*renderPass))  { return false; }
+		if (!gpu::CreateFramebuffer(*renderPass)) { return false; }
 
-		if (!gpu::CreateGraphicsPipeline(*renderPass)) 
-		{ 
-			return false; 
-		}
+		//if (renderPass->IsMainpass()/* && (renderPass->FramePassHandle == INVALID_HANDLE)*/)
+		//{
+		//	if (!gpu::CreateRenderpass(*renderPass))	{ return false; }
+		//	if (!gpu::CreateFramebuffer(*renderPass))	{ return false; }
+		//}
+
+		//if (!gpu::CreateGraphicsPipeline(*renderPass)) 
+		//{ 
+		//	return false; 
+		//}
 	}
 
-	IsCompiled = true;
+	//IsCompiled = true;
 
 	return true;
 }
@@ -363,9 +365,9 @@ bool IRFrameGraph::Compiled() const
 	return IsCompiled;
 }
 
-void IRFrameGraph::BindLayoutToRenderPass(DescriptorLayout& Layout, Handle<RenderPass> PassHandle)
-{
-	RenderPass& renderPass = GetRenderPass(PassHandle);
-	renderPass.BoundDescriptorLayouts.Push(&Layout);
-	Layout.Pipeline = &renderPass.PipelineHandle;
-}
+//void IRFrameGraph::BindLayoutToRenderPass(DescriptorLayout& Layout, Handle<RenderPass> PassHandle)
+//{
+//	RenderPass& renderPass = GetRenderPass(PassHandle);
+//	renderPass.BoundDescriptorLayouts.Push(&Layout);
+//	Layout.Pipeline = &renderPass.PipelineHandle;
+//}
