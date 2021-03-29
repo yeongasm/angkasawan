@@ -11,13 +11,6 @@
 #include "API/ShaderAttribute.h"
 #include "Assets/GPUHandles.h"
 
-/**
-* TODO(Ygsm):
-* [x] Move models and meshes into this file.
-* [x] Move textures into this file.
-* [x] Move shaders into this file.
-*/
-
 class IRAssetManager;
 class IRenderMemoryManager;
 struct RenderPass;
@@ -152,6 +145,7 @@ struct TextureImportInfo
 
 struct Texture : public TextureBase
 {
+	ImageSampler* Sampler;
 	Handle<HImage> Handle;
 };
 
@@ -190,22 +184,16 @@ struct VertexInputBinding
 
 struct PipelineBase
 {
+	Array<VertexInputBinding> VertexInputBindings;
 	ESampleCount Samples;
 	ETopologyType Topology;
 	EFrontFaceDir FrontFace;
 	ECullingMode CullMode;
 	EPolygonMode PolygonalMode;
-	Array<VertexInputBinding> VertexInputBindings;
+	uint32 Id;
 };
 
-struct GfxPipelineCreateInfo : public PipelineBase
-{
-	Handle<RenderPass> RenderPassHandle;
-	Handle<Shader> VertexShaderHandle;
-	Handle<Shader> FragmentShaderHandle;
-};
-
-struct GraphicsPipeline : public PipelineBase
+struct SRPipeline : public PipelineBase
 {
 	Array<DescriptorLayout*> DescriptorLayouts;
 	Handle<HPipeline> Handle;
@@ -215,6 +203,13 @@ struct GraphicsPipeline : public PipelineBase
 	uint32 ColorOutputCount;
 	bool HasDefaultColorOutput;
 	bool HasDepthStencil;
+};
+
+struct SRPushConstant
+{
+	uint8 Data[Push_Constant_Size];
+	size_t Offset;
+	SRPipeline* Pipeline;
 };
 
 #endif // !LEARNVK_RENDERER_RENDER_ABSTRACT_PRIMITIVES_H

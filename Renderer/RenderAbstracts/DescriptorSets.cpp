@@ -6,14 +6,17 @@ IRDescriptorManager::IRDescriptorManager(LinearAllocator& InAllocator) :
 	Sets{},
 	Pools{},
 	Layouts{},
-	Buffers{}
+	Buffers{},
+	UpdateQueue{}
 {}
 
 IRDescriptorManager::~IRDescriptorManager()
 {
+	Buffers.Release();
 	Sets.Release();
 	Pools.Release();
 	Layouts.Release();
+	UpdateQueue.Release();
 }
 
 Handle<UniformBuffer> IRDescriptorManager::AllocateUniformBuffer(const UniformBufferCreateInfo& AllocInfo)
@@ -145,20 +148,79 @@ Handle<DescriptorLayout> IRDescriptorManager::GetDescriptorLayoutHandleWithId(ui
 	return Handle<DescriptorLayout>(DoesDescriptorLayoutExist(Id));
 }
 
-bool IRDescriptorManager::AddDescriptorSetLayoutBinding(Handle<DescriptorLayout> Hnd, uint32 Binding, size_t Size, size_t Count, EDescriptorType Type, EShaderTypeFlagBits ShaderStages)
+bool IRDescriptorManager::AddDescriptorSetLayoutBinding(const DescriptorLayoutBindingCreateInfo& CreateInfo)
 {
-	if (Hnd == INVALID_HANDLE) { return false; }
-	DescriptorLayout* layout = GetDescriptorLayout(Hnd);
+	if (CreateInfo.LayoutHandle == INVALID_HANDLE) { return false; }
+	DescriptorLayout* layout = GetDescriptorLayout(CreateInfo.LayoutHandle);
 	if (!layout) { return false; }
 
 	DescriptorBinding& binding = layout->Bindings.Insert(DescriptorBinding());
-	binding.Binding = Binding;
-	binding.Size	= gpu::PadSizeToAlignedSize(Size) * Count;
-	binding.Type	= Type;
-	binding.ShaderStages.Set(ShaderStages);
+	binding.Binding = CreateInfo.Binding;
+	binding.Size	= gpu::PadSizeToAlignedSize(CreateInfo.Size) * CreateInfo.Count;
+	binding.Type	= CreateInfo.Type;
+	binding.ShaderStages.Set(CreateInfo.ShaderStages);
+	binding.DescriptorCount = CreateInfo.DescriptorCount;
+
+	if (CreateInfo.BufferHnd != INVALID_HANDLE)
+	{
+		UniformBuffer* buffer = GetUniformBuffer(CreateInfo.BufferHnd);
+		binding.Buffer = buffer;
+	}
 
 	return true;
 }
+
+bool IRDescriptorManager::QueueBufferForUpdate(Handle<DescriptorSet> SetHnd, uint32 Binding, Handle<UniformBuffer> BufferHnd)
+{
+	if (SetHnd == INVALID_HANDLE ||
+		BufferHnd == INVALID_HANDLE)
+	{
+		return false;
+	}
+
+	DescriptorSet* set = GetDescriptorSet(SetHnd);
+	UniformBuffer* buffer = GetUniformBuffer(BufferHnd);
+
+	if (!set || !buffer) { return false; }
+
+	UpdateQueue.Push({ set, Binding, &buffer, 1, nullptr, 0 });
+
+	return true;
+}
+
+bool IRDescriptorManager::QueueTexturesForUpdate(Handle<DescriptorSet> SetHnd, uint32 Binding, Texture** Textures, uint32 Count)
+{
+	if (SetHnd == INVALID_HANDLE ||
+		!Textures ||
+		!Count)
+	{
+		return false;
+	}
+
+	DescriptorSet* set = GetDescriptorSet(SetHnd);
+
+	if (!set) { return false; }
+
+	UpdateQueue.Push({ set, Binding, nullptr, 0, Textures, Count });
+
+	return true;
+}
+
+//DescriptorBinding* IRDescriptorManager::GetDescriptorBindingAt(Handle<DescriptorLayout> Hnd, uint32 Binding)
+//{
+//	DescriptorBinding* binding = nullptr;
+//	DescriptorLayout* layout = GetDescriptorLayout(Hnd);
+//	if (!layout) { return nullptr; }
+//
+//	for (DescriptorBinding& b : layout->Bindings)
+//	{
+//		if (b.Binding != Binding) { continue; }
+//		binding = &b;
+//		break;
+//	}
+//
+//	return binding;
+//}
 
 DescriptorLayout* IRDescriptorManager::GetDescriptorLayout(Handle<DescriptorLayout> Hnd)
 {
@@ -211,23 +273,12 @@ Handle<DescriptorSet> IRDescriptorManager::GetDescriptorSetHandleWithId(uint32 I
 	return Handle<DescriptorSet>(DoesDescriptorSetExist(Id));
 }
 
-bool IRDescriptorManager::UpdateDescriptorSetForBinding(Handle<DescriptorSet> SetHnd, Handle<UniformBuffer> BufferHnd, uint32 Binding)
+bool IRDescriptorManager::UpdateDescriptorSetForBinding(DescriptorSet* Set, uint32 Binding, UniformBuffer** Buffer)
 {
-	if (SetHnd == INVALID_HANDLE || BufferHnd == INVALID_HANDLE)
-	{
-		return false;
-	}
-
-	DescriptorSet* set = GetDescriptorSet(SetHnd);
-	UniformBuffer* buffer = GetUniformBuffer(BufferHnd);
-
-	if (!set || !buffer)
-	{
-		return false;
-	}
+	if (!Set) { return false; }
 
 	DescriptorBinding* binding = nullptr;
-	for (DescriptorBinding& b : set->Layout->Bindings)
+	for (DescriptorBinding& b : Set->Layout->Bindings)
 	{
 		if (b.Binding != Binding) { continue; }
 		binding = &b;
@@ -236,8 +287,7 @@ bool IRDescriptorManager::UpdateDescriptorSetForBinding(Handle<DescriptorSet> Se
 
 	if (!binding) { return false; }
 
-	gpu::UpdateDescriptorSet(*set, *binding, *buffer);
-	binding->Buffer = buffer;
+	gpu::UpdateDescriptorSet(*Set, *binding, *binding->Buffer);
 
 	return true;
 }
@@ -274,13 +324,43 @@ bool IRDescriptorManager::UpdateDescriptorSetData(Handle<DescriptorSet> SetHnd, 
 	return true;
 }
 
-void IRDescriptorManager::BindDescriptorSets()
+void IRDescriptorManager::BindDescriptorSet(Handle<DescriptorSet> Hnd)
 {
-	for (DescriptorSet* set : Sets)
-	{
-		gpu::BindDescriptorSet(*set);
-	}
+	if (PreviousHandle == Hnd) { return; }
+	DescriptorSet* set = GetDescriptorSet(Hnd);
+	if (!set) { return; }
+	gpu::BindDescriptorSet(*set);
+	PreviousHandle = Hnd;
 }
+
+bool IRDescriptorManager::UpdateDescriptorSetImages(DescriptorSet* Set, uint32 Binding, Texture** Textures, size_t Count)
+{
+	if (!Set) { return false; }
+	if (!Textures || !Count) { return false; }
+
+	DescriptorBinding* binding = nullptr;
+
+	for (DescriptorBinding& b : Set->Layout->Bindings)
+	{
+		if (b.Binding != Binding) { continue; }
+		binding = &b;
+		break;
+	}
+
+	if (!binding) { return false; }
+
+	gpu::UpdateDescriptorSetImage(*Set, *binding, Textures, static_cast<uint32>(Count));
+
+	return true;
+}
+
+//void IRDescriptorManager::BindDescriptorSets()
+//{
+//	for (DescriptorSet* set : Sets)
+//	{
+//		gpu::BindDescriptorSet(*set);
+//	}
+//}
 
 DescriptorSet* IRDescriptorManager::GetDescriptorSet(Handle<DescriptorSet> Hnd)
 {
@@ -298,6 +378,23 @@ void IRDescriptorManager::BuildAll()
 	BuildDescriptorPools();
 	BuildDescriptorLayouts();
 	BuildDescriptorSets();
+}
+
+void IRDescriptorManager::Update()
+{
+	for (auto& update : UpdateQueue)
+	{
+		if (update.pBuffers)
+		{
+			UpdateDescriptorSetForBinding(update.pSet, update.Binding, update.pBuffers);
+		}
+		
+		if (update.pTextures)
+		{
+			UpdateDescriptorSetImages(update.pSet, update.Binding, update.pTextures, update.NumOfTextures);
+		}
+	}
+	UpdateQueue.Empty();
 }
 
 void IRDescriptorManager::Destroy()

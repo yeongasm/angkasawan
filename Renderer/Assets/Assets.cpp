@@ -131,8 +131,7 @@ Handle<Model> IRAssetManager::CreateNewModel(const ModelCreateInfo& Info)
 	resource->Type = Renderer_Asset_Model;
 
 	Model& model = ModelStore.Add(id, Model()).Value;
-	const uint32 nameLength = static_cast<uint32>(Info.Name.Length());
-	MurmurHash32(Info.Name.C_Str(), nameLength, &model.Id, g_HashSeed);
+	XXHash32(Info.Name.C_Str(), Info.Name.Length(), &model.Id, g_HashSeed);
 
 	return Handle<Model>(static_cast<size_t>(id));
 }
@@ -140,7 +139,7 @@ Handle<Model> IRAssetManager::CreateNewModel(const ModelCreateInfo& Info)
 Model* IRAssetManager::GetModelWithName(const String128& Identity)
 {
 	uint32 id = 0;
-	MurmurHash32(Identity.C_Str(), static_cast<uint32>(Identity.Length()), &id, g_HashSeed);
+	XXHash32(Identity.C_Str(), Identity.Length(), &id, g_HashSeed);
 	Model* queried = nullptr;
 	for (auto& pair : ModelStore)
 	{
@@ -327,6 +326,9 @@ Handle<Texture> IRAssetManager::CreateNewTexture(const TextureCreateInfo& Create
 	textureBuffer.Size = texture.Size;
 	textureBuffer.Locality = Buffer_Locality_Cpu;
 	textureBuffer.Type.Set(Buffer_Type_Transfer_Src);
+	
+	texture.Usage.Set(Image_Usage_Sampled);
+	texture.Usage.Set(Image_Usage_Transfer_Dst);
 
 	gpu::CreateBuffer(textureBuffer, data, CreateInfo.Size);
 	gpu::CreateTexture(texture);
@@ -334,6 +336,7 @@ Handle<Texture> IRAssetManager::CreateNewTexture(const TextureCreateInfo& Create
 	gpu::BeginTransfer();
 	gpu::TransferTexture(texture, textureBuffer);
 	gpu::EndTransfer();
+	gpu::DestroyBuffer(textureBuffer);
 	//Context.NewBuffer(textureBuffer, data, CreateInfo.Size, 1);
 	//Context.NewImage(texture);
 	//Context.TransferImageToGPU(texture, textureBuffer);

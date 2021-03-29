@@ -1,6 +1,8 @@
 #include "DrawCommand.h"
 #include "API/Context.h"
 #include "RenderAbstracts/FrameGraph.h"
+#include "Assets/Assets.h"
+#include "MaterialManager.h"
 
 void IRDrawManager::AddDrawCommandList(uint32 PassId)
 {
@@ -20,12 +22,13 @@ void IRDrawManager::BindBuffers()
 	gpu::BindIndexBuffer(*IndexBuffer, 0);
 }
 
-IRDrawManager::IRDrawManager(LinearAllocator& InAllocator, IRFrameGraph& InFrameGraph) :
+IRDrawManager::IRDrawManager(LinearAllocator& InAllocator, IRFrameGraph& InFrameGraph, IRAssetManager& InAssetManager) :
 	InstanceDraws(),
 	NonInstanceDraws(),
 	FinalDrawCommands(),
 	Allocator(InAllocator),
 	FrameGraph(InFrameGraph),
+	AssetManager(InAssetManager),
 	InstanceBuffer(nullptr),
 	Offsets{0},
 	NumOfDrawables(0),
@@ -74,16 +77,25 @@ bool IRDrawManager::InitializeDrawManager(const DrawManagerInitInfo& AllocInfo)
 
 	VertexBuffer = AllocInfo.pMemManager->GetBuffer(AllocInfo.VtxBufHnd);
 	IndexBuffer = AllocInfo.pMemManager->GetBuffer(AllocInfo.IdxBufHnd);
+	VertexFirstBinding = AllocInfo.VertexInputBinding;
+	InstanceFirstBinding = AllocInfo.InstanceInputBinding;
 
 	return true;
 }
 
-bool IRDrawManager::DrawModel(Model& ToDraw, const math::mat4& Transform, uint32 PassId, bool Instanced)
+bool IRDrawManager::DrawModel(const ModelDrawInfo& DrawInfo)
 {
-	if (!ToDraw.Length())
+	if (!DrawInfo.pModel /*||
+		DrawInfo.PipelineHnd == INVALID_HANDLE*/)
 	{
 		return false;
 	}
+
+	//Model* model = AssetManager.GetModelWithHandle(DrawInfo.ModelHnd);
+	Model* model = DrawInfo.pModel;
+
+	if (!model) { return false; }
+	if (!model->Length()) { return false; }
 
 	if (NumOfDrawables >= MaxDrawables)
 	{
@@ -92,25 +104,25 @@ bool IRDrawManager::DrawModel(Model& ToDraw, const math::mat4& Transform, uint32
 	}
 
 	// Will throw an assertion if render pass with id does not exist.
-	FrameGraph.GetRenderPass(PassId);
+	FrameGraph.GetRenderPass(DrawInfo.RenderpassId);
 
 	// Drawables represent the total number of model transforms in this manager.
 	NumOfDrawables++;
-	InstanceEntries* entries = (Instanced) ? &InstanceDraws[PassId] : &NonInstanceDraws[PassId];
+	InstanceEntries* entries = (DrawInfo.Instanced) ? &InstanceDraws[DrawInfo.RenderpassId] : &NonInstanceDraws[DrawInfo.RenderpassId];
 
-	if (Instanced)
+	if (DrawInfo.Instanced)
 	{
 		SInstanceEntry* e = nullptr;
 		for (SInstanceEntry& entry : *entries)
 		{
-			if (entry.Id != ToDraw.Id) { continue; }
+			if (entry.Id != model->Id) { continue; }
 			e = &entry;
 			break;
 		}
 
 		if (e)
 		{
-			e->ModelTransform.Push(Transform);
+			e->ModelTransform.Push(DrawInfo.Transform);
 			for (DrawCommand& cmd : e->DrawCommands)
 			{
 				cmd.InstanceCount++;
@@ -121,18 +133,29 @@ bool IRDrawManager::DrawModel(Model& ToDraw, const math::mat4& Transform, uint32
 
 	SInstanceEntry& entry = entries->Insert(SInstanceEntry());
 
-	entry.ModelTransform.Push(Transform);
-	entry.Id = ToDraw.Id;
+	entry.ModelTransform.Push(DrawInfo.Transform);
+	entry.Id = model->Id;
 	
-	for (Mesh* mesh : ToDraw)
+	uint32 i = 0;
+
+	for (Mesh* mesh : *model)
 	{
 		DrawCommand& cmd = entry.DrawCommands.Insert(DrawCommand());
-		//cmd.Id = PassId;
 		cmd.VertexOffset = mesh->VtxOffset;
 		cmd.IndexOffset = mesh->IdxOffset;
 		cmd.NumVertices = mesh->NumOfVertices;
 		cmd.NumIndices = mesh->NumOfIndices;
 		cmd.InstanceCount = 1;
+		cmd.PipelineHandle = DrawInfo.PipelineHandle;
+		cmd.DescriptorSetHandle = DrawInfo.DescriptorSetHandle;
+
+		// TODO(Ygsm):
+		// Short fix ... need to figure out a better way.
+		if (i != DrawInfo.NumMaterials)
+		{
+			cmd.PushConstantHandle = DrawInfo.pMaterial[i]->PushConstantHandle;
+			i++;
+		}
 	}
 
 	return true;
@@ -143,18 +166,13 @@ uint32 IRDrawManager::GetMaxDrawableCount() const
 	return MaxDrawables;
 }
 
-void IRDrawManager::SetVertexInputFirstBinding(uint32 Binding)
-{
-	VertexFirstBinding = Binding;
-}
-
-void IRDrawManager::SetInstanceInputFirstBinding(uint32 Binding)
-{
-	InstanceFirstBinding = Binding;
-}
-
 void IRDrawManager::FinalizeInstances()
 {
+	if (!InstanceDraws.Length() && !NonInstanceDraws.Length())
+	{
+		return;
+	}
+
 	const size_t mat4Size = gpu::PadSizeToAlignedSize(sizeof(math::mat4));
 	const uint32 currentFrame = gpu::CurrentFrameIndex();
 	static Array<math::mat4> modelTransforms;
@@ -191,7 +209,6 @@ void IRDrawManager::FinalizeInstances()
 	}
 
 	gpu::CopyToBuffer(*InstanceBuffer, modelTransforms.First(), NumOfDrawables * mat4Size, Offsets[currentFrame]);
-
 	modelTransforms.Empty();
 }
 
@@ -200,21 +217,11 @@ void IRDrawManager::Flush()
 	for (auto& pair : InstanceDraws)
 	{
 		pair.Value.Empty();
-		//for (SInstanceEntry& entry : pair.Value)
-		//{
-		//	entry.ModelTransform.Empty();
-		//	entry.DrawCommands.Empty();
-		//}
 	}
 
 	for (auto& pair : NonInstanceDraws)
 	{
 		pair.Value.Empty();
-		//for (SInstanceEntry& entry : pair.Value)
-		//{
-		//	entry.ModelTransform.Empty();
-		//	entry.DrawCommands.Empty();
-		//}
 	}
 
 	for (auto& pair : FinalDrawCommands)

@@ -13,7 +13,6 @@ RenderSystem::RenderSystem(EngineImpl& InEngine, Handle<ISystem> Hnd) :
 	MemoryManager(nullptr),
 	DrawCmdManager(nullptr),
 	PipelineManager(nullptr),
-	//DescriptorInstances(),
 	Hnd(Hnd)
 {}
 
@@ -39,10 +38,16 @@ void RenderSystem::OnInit()
 	FMemory::InitializeObject(DescriptorManager, g_RenderSystemAllocator);
 
 	DrawCmdManager = reinterpret_cast<IRDrawManager*>(g_RenderSystemAllocator.Malloc(sizeof(IRDrawManager)));
-	FMemory::InitializeObject(DrawCmdManager, g_RenderSystemAllocator, *FrameGraph);
+	FMemory::InitializeObject(DrawCmdManager, g_RenderSystemAllocator, *FrameGraph, *AssetManager);
 
 	PipelineManager = reinterpret_cast<IRPipelineManager*>(g_RenderSystemAllocator.Malloc(sizeof(IRPipelineManager)));
-	FMemory::InitializeObject(PipelineManager, g_RenderSystemAllocator, *AssetManager, *FrameGraph);
+	FMemory::InitializeObject(PipelineManager, g_RenderSystemAllocator, *DescriptorManager, *FrameGraph, *AssetManager);
+
+	PushConstantManager = reinterpret_cast<IRPushConstantManager*>(g_RenderSystemAllocator.Malloc(sizeof(IRPushConstantManager)));
+	FMemory::InitializeObject(PushConstantManager, g_RenderSystemAllocator, *PipelineManager);
+
+	MaterialManager = reinterpret_cast<IRMaterialManager*>(g_RenderSystemAllocator.Malloc(sizeof(IRMaterialManager)));
+	FMemory::InitializeObject(MaterialManager, g_RenderSystemAllocator, *PipelineManager, *DescriptorManager, *AssetManager, *PushConstantManager);
 }
 
 void RenderSystem::OnUpdate()
@@ -58,9 +63,7 @@ void RenderSystem::OnUpdate()
 
 	gpu::Clear();
 	gpu::BeginFrame();
-
 	DrawCmdManager->BindBuffers();
-	DescriptorManager->BindDescriptorSets();
 
 	for (auto& pair : FrameGraph->RenderPasses)
 	{
@@ -68,12 +71,16 @@ void RenderSystem::OnUpdate()
 		drawCommands = &DrawCmdManager->FinalDrawCommands[pair.Key];
 
 		gpu::BindRenderpass(*renderPass);
-		//gpu::BindPipeline(*renderPass);
+
 		for (DrawCommand& command : *drawCommands)
 		{
-			// Pipelines should be on a per call basis.
+			PipelineManager->BindPipeline(command.PipelineHandle);
+			DescriptorManager->BindDescriptorSet(command.DescriptorSetHandle);
+			PushConstantManager->BindPushConstant(command.PushConstantHandle);
+
 			gpu::Draw(command);
 		}
+
 		gpu::UnbindRenderpass(*renderPass);
 	}
 
@@ -92,6 +99,7 @@ void RenderSystem::OnTerminate()
 	DescriptorManager->Destroy();
 	MemoryManager->Destroy();
 	PipelineManager->Destroy();
+	MaterialManager->Destroy();
 	g_RenderSystemAllocator.Terminate();
 	gpu::Terminate();
 }
@@ -194,6 +202,9 @@ IRAssetManager& RenderSystem::GetAssetManager()
 void RenderSystem::FlushRenderer()
 {
 	//previousVbo = -1;
+	PushConstantManager->PreviousHandle = INVALID_HANDLE;
+	PipelineManager->PreviousHandle = INVALID_HANDLE;
+	DescriptorManager->PreviousHandle = INVALID_HANDLE;
 	DescriptorManager->FlushDescriptorSetsOffsets();
 	DrawCmdManager->Flush();
 	
@@ -259,6 +270,11 @@ IRDrawManager& RenderSystem::GetDrawManager()
 IRPipelineManager& RenderSystem::GetPipelineManager()
 {
 	return *PipelineManager;
+}
+
+IRMaterialManager& RenderSystem::GetMaterialManager()
+{
+	return *MaterialManager;
 }
 
 Handle<ISystem> RenderSystem::GetSystemHandle()

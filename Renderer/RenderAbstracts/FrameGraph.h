@@ -14,7 +14,6 @@
 
 class RenderSystem;
 class IRFrameGraph;
-//struct DescriptorLayout;
 
 struct AttachmentCreateInfo
 {
@@ -24,19 +23,12 @@ struct AttachmentCreateInfo
 
 /**
 * NOTE(Ygsm):
-* 30.12.2020 - Should subpasses produce output attachments?
-* 04.01.2021 - No, subpasses should not produce output attachment. They will use the parent's renderpass.
-* 
 * A RenderPass represents a rendering pass in the program.
 * Is able to output textures that will be sampled by another pass.
 * Also able to receive input from other RenderPasses to be sampled.
 * By default, all RenderPasses will render to the color & depth stencil output owned by the FrameGraph unless any of the No* functions are called.
 * 
-* *** FUTURE FEATURE ***
-* 
-* RenderPasses can also be converted into subpasses.
-* Subpasses are RenderPasses that do not produce sampled outputs and instead writes to it's parent's output.
-* They are essentially just another pipeline within the main pass.
+*
 */
 struct RENDERER_API RenderPass
 {

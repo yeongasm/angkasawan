@@ -47,20 +47,20 @@ void ModelImporter::LoadGLTFNodeMeshData(cgltf_mesh* InMesh, Handle<Model>& Mode
 
 			switch (attribute->type)
 			{
-				case cgltf_attribute_type_position:
-					LoadBufferData(attribute, PosCount, Position);
-					break;
-				case cgltf_attribute_type_normal:
-					LoadBufferData(attribute, NormalsCount, Normals);
-					break;
-				case cgltf_attribute_type_tangent:
-					LoadBufferData(attribute, TangentCount, Tangent);
-					break;
-				case cgltf_attribute_type_texcoord:
-					LoadBufferData(attribute, TexCoordsCount, TexCoords);
-					break;
-				default:
-					break;
+			case cgltf_attribute_type_position:
+				LoadBufferData(attribute, PosCount, Position);
+				break;
+			case cgltf_attribute_type_normal:
+				LoadBufferData(attribute, NormalsCount, Normals);
+				break;
+			case cgltf_attribute_type_tangent:
+				LoadBufferData(attribute, TangentCount, Tangent);
+				break;
+			case cgltf_attribute_type_texcoord:
+				LoadBufferData(attribute, TexCoordsCount, TexCoords);
+				break;
+			default:
+				break;
 			}
 		}
 

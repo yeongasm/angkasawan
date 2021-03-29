@@ -2,14 +2,11 @@
 #ifndef LEARNVK_RENDERER_RENDER_ABSTRACTS_DESCRIPTOR_SETS_H
 #define LEARNVK_RENDERER_RENDER_ABSTRACTS_DESCRIPTOR_SETS_H
 
-#include "Library/Containers/Bitset.h"
+#include "Library/Containers/Map.h"
 #include "Library/Containers/Pair.h"
-#include "Library/Containers/Array.h"
 #include "Library/Allocators/LinearAllocator.h"
-#include "Assets/GPUHandles.h"
 #include "RenderPlatform/API.h"
 #include "API/Definitions.h"
-#include "API/RendererFlagBits.h"
 #include "Primitives.h"
 
 class RenderSystem;
@@ -55,6 +52,7 @@ using EShaderTypeFlagBits = uint32;
 struct DescriptorBinding
 {
 	uint32 Binding;
+	uint32 DescriptorCount;
 	size_t Size;
 	size_t Allocated;
 	size_t Offset[MAX_FRAMES_IN_FLIGHT];
@@ -112,10 +110,17 @@ struct DescriptorSetInstance
 	uint32 Binding;
 };
 
-/**
-* NOTE(Ygsm):
-* Buffer is irrelevant until we actually update the descriptor set!!! <-------- IMPORTANT!!!!
-*/
+struct DescriptorLayoutBindingCreateInfo
+{
+	size_t Size;
+	size_t Count;
+	uint32 DescriptorCount;
+	uint32 Binding;
+	Handle<DescriptorLayout> LayoutHandle;
+	EDescriptorType Type;
+	EShaderTypeFlagBits ShaderStages;
+	Handle<UniformBuffer> BufferHnd = static_cast<size_t>(INVALID_HANDLE);
+};
 
 /**
 * Manages descriptor pools, layouts and sets.
@@ -126,14 +131,26 @@ class RENDERER_API IRDescriptorManager
 private:
 
 	friend class RenderSystem;
+	friend class IRPipelineManager;
 
 	enum EExistEnum : size_t { Resource_Not_Exist = -1 };
 
-	LinearAllocator& Allocator;
-	Array<UniformBuffer*> Buffers;
-	Array<DescriptorSet*> Sets;
-	Array<DescriptorPool*> Pools;
-	Array<DescriptorLayout*> Layouts;
+	struct DescriptorUpdateParam
+	{
+		DescriptorSet* pSet;
+		uint32 Binding;
+		UniformBuffer** pBuffers;
+		uint32 NumOfBuffers;
+		Texture** pTextures;
+		uint32 NumOfTextures;
+	};
+
+	LinearAllocator&					Allocator;
+	Array<UniformBuffer*>				Buffers;
+	Array<DescriptorSet*>				Sets;
+	Array<DescriptorPool*>				Pools;
+	Array<DescriptorLayout*>			Layouts;
+	Array<DescriptorUpdateParam>		UpdateQueue;
 
 	void	BuildUniformBuffers			();
 	void	BuildDescriptorPools		();
@@ -149,14 +166,17 @@ private:
 	DescriptorLayout*	GetDescriptorLayout	(Handle<DescriptorLayout> Hnd);
 	DescriptorSet*		GetDescriptorSet	(Handle<DescriptorSet> Hnd);
 
+	bool UpdateDescriptorSetForBinding(DescriptorSet* Set, uint32 Binding, UniformBuffer** Buffer);
+	bool UpdateDescriptorSetImages(DescriptorSet* Set, uint32 Binding, Texture** Textures, size_t Count);
+
 public:
+
+	Handle<DescriptorSet> PreviousHandle = INVALID_HANDLE;
 
 	IRDescriptorManager(LinearAllocator& InAllocator);
 	~IRDescriptorManager();
 
 	DELETE_COPY_AND_MOVE(IRDescriptorManager)
-
-	//void Initialize(const DescriptorManagerConfiguration& Config);
 
 	Handle<UniformBuffer>	AllocateUniformBuffer			(const UniformBufferCreateInfo& AllocInfo);
 	Handle<UniformBuffer>	GetUniformBufferHandleWithId	(uint32 Id);
@@ -168,18 +188,19 @@ public:
 
 	Handle<DescriptorLayout> CreateDescriptorLayout			(const DescriptorLayoutCreateInfo& CreateInfo);
 	Handle<DescriptorLayout> GetDescriptorLayoutHandleWithId(uint32 Id);
-	bool					 AddDescriptorSetLayoutBinding	(Handle<DescriptorLayout> Hnd, uint32 Binding, size_t Size, size_t Count, EDescriptorType Type, EShaderTypeFlagBits ShaderStages);
-	//bool DestroyDescriptorLayout(Handle<DescriptorLayout> Hnd);
+	bool					 AddDescriptorSetLayoutBinding	(const DescriptorLayoutBindingCreateInfo& CreateInfo);
+	
+	bool QueueBufferForUpdate	(Handle<DescriptorSet> SetHnd, uint32 Binding, Handle<UniformBuffer> BufferHnd);
+	bool QueueTexturesForUpdate	(Handle<DescriptorSet> SetHnd, uint32 Binding, Texture** Textures, uint32 Count);
 
 	Handle<DescriptorSet>	CreateDescriptorSet				(const DescriptorSetCreateInfo& CreateInfo);
 	Handle<DescriptorSet>	GetDescriptorSetHandleWithId	(uint32 Id);
-	bool					UpdateDescriptorSetForBinding	(Handle<DescriptorSet> SetHnd, Handle<UniformBuffer> BufferHnd, uint32 Binding);
-	bool					UpdateDescriptorSetForBinding	(Handle<DescriptorSet> SetHnd, Texture* Textures, uint32 Count, uint32 Binding);
-
 	bool					UpdateDescriptorSetData			(Handle<DescriptorSet> SetHnd, uint32 Binding, void* Data, size_t Size);
-	void					BindDescriptorSets();
+
+	void BindDescriptorSet(Handle<DescriptorSet> Hnd);
 
 	void BuildAll();
+	void Update();
 	void Destroy();
 	void FlushDescriptorSetsOffsets();
 };

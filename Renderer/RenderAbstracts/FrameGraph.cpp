@@ -215,13 +215,11 @@ void RenderPass::NoDepthStencilRender()
 }
 
 IRFrameGraph::IRFrameGraph(LinearAllocator& GraphAllocator) :
-	//Context(Context),
 	Allocator(GraphAllocator),
 	Name(),
 	RenderPasses(),
 	ColorImage(),
 	DepthStencilImage(),
-	//Images(),
 	IsCompiled(false)
 {}
 
@@ -282,21 +280,12 @@ void IRFrameGraph::OnWindowResize()
 	gpu::CreateTexture(ColorImage);
 	gpu::CreateTexture(DepthStencilImage);
 
-	//Context.DestroyFrameImages(Images);
-	//Context.NewFrameImages(Images);
-
 	RenderPass* renderPass = nullptr;
 	for (auto& pair : RenderPasses)
 	{
 		renderPass = pair.Value;
 		gpu::DestroyFramebuffer(*renderPass);
-		//gpu::DestroyGraphicsPipeline(*renderPass);
 		gpu::CreateFramebuffer(*renderPass);
-		//gpu::CreateGraphicsPipeline(*renderPass);
-		//Context.DestroyRenderPassFramebuffer(*renderPass);
-		//Context.NewRenderPassFramebuffer(*renderPass);
-		//Context.DestroyGraphicsPipeline(*renderPass);
-		//Context.NewGraphicsPipeline(*renderPass);
 	}
 }
 
@@ -307,23 +296,16 @@ void IRFrameGraph::Destroy()
 		RenderPass* renderPass = pair.Value;
 		gpu::DestroyRenderpass(*renderPass);
 		gpu::DestroyFramebuffer(*renderPass);
-		//gpu::DestroyGraphicsPipeline(*renderPass);
-		//Context.DestroyRenderPassRenderpass(*renderPass);
-		//Context.DestroyRenderPassFramebuffer(*renderPass, true);
-		//Context.DestroyGraphicsPipeline(*renderPass, true);
 	}
 	gpu::DestroyTexture(ColorImage);
 	gpu::DestroyTexture(DepthStencilImage);
-
-	//Context.DestroyFrameImages(Images);
 }
 
 bool IRFrameGraph::Compile()
 {
-	//if (Compiled()) { return false; }
+	if (!RenderPasses.Length()) { return false; }
+	if (Compiled()) { return false; }
 
-	// TODO(Ygsm):
-	//	Create default color and depth stencil image.
 	ColorImage.Channels = 4;
 	ColorImage.Usage.Set(Image_Usage_Transfer_Src);
 	ColorImage.Usage.Set(Image_Usage_Sampled);
@@ -342,20 +324,9 @@ bool IRFrameGraph::Compile()
 
 		if (!gpu::CreateRenderpass(*renderPass))  { return false; }
 		if (!gpu::CreateFramebuffer(*renderPass)) { return false; }
-
-		//if (renderPass->IsMainpass()/* && (renderPass->FramePassHandle == INVALID_HANDLE)*/)
-		//{
-		//	if (!gpu::CreateRenderpass(*renderPass))	{ return false; }
-		//	if (!gpu::CreateFramebuffer(*renderPass))	{ return false; }
-		//}
-
-		//if (!gpu::CreateGraphicsPipeline(*renderPass)) 
-		//{ 
-		//	return false; 
-		//}
 	}
 
-	//IsCompiled = true;
+	IsCompiled = true;
 
 	return true;
 }

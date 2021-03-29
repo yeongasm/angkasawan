@@ -7,6 +7,8 @@
 
 
 ENGINE_API void MurmurHash32(const void* Key, uint32 Len, void* Out, uint32 Seed = 0);
+ENGINE_API void XXHash32(const void* Input, size_t Len, uint32* Out, uint32 Seed = 0);
+ENGINE_API void XXHash64(const void* Input, size_t Len, uint64* Out, uint64 Seed = 0);
 
 /**
 * Default MurmurHash functor.

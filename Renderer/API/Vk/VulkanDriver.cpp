@@ -847,6 +847,11 @@ namespace gpu
 			return false;
 		}
 
+		VkSemaphoreCreateInfo semaphoreCreateInfo = {};
+		semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+		vkCreateSemaphore(Ctx.Device, &semaphoreCreateInfo, nullptr, &Ctx.TransferOp.Semaphore);
+
 		return true;
 	}
 
@@ -974,8 +979,8 @@ namespace gpu
 		barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
 		barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 		barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-		barrier.srcQueueFamilyIndex = Ctx.PresentQueue.FamilyIndex;
-		barrier.dstQueueFamilyIndex = Ctx.GraphicsQueue.FamilyIndex;
+		barrier.srcQueueFamilyIndex = Ctx.GraphicsQueue.FamilyIndex;
+		barrier.dstQueueFamilyIndex = Ctx.PresentQueue.FamilyIndex;
 		barrier.image = dst;
 		barrier.subresourceRange = range;
 
@@ -1089,7 +1094,7 @@ namespace gpu
 		clearValues.Empty();
 	}
 
-	void BindPipeline(GraphicsPipeline& Pipeline)
+	void BindPipeline(SRPipeline& Pipeline)
 	{
 		GET_CURR_CMD_BUFFER();
 		VulkanPipeline& pipeline = g_Pipelines[Pipeline.Handle];
@@ -1242,7 +1247,7 @@ namespace gpu
 		InShader.Handle = INVALID_HANDLE;
 	}
 
-	bool CreateGraphicsPipeline(GraphicsPipeline& Pipeline)
+	bool CreateGraphicsPipeline(SRPipeline& Pipeline)
 	{
 		static auto getTypeStride = [](EShaderAttribFormat Format) -> uint32 {
 			switch (Format)
@@ -1552,7 +1557,7 @@ namespace gpu
 		return true;
 	}
 
-	void DestroyGraphicsPipeline(GraphicsPipeline& Pipeline)
+	void DestroyGraphicsPipeline(SRPipeline& Pipeline)
 	{
 		VulkanPipeline& pipeline = g_Pipelines[Pipeline.Handle];
 
@@ -1917,7 +1922,7 @@ namespace gpu
 		{
 			VkDescriptorSetLayoutBinding binding = {};
 			binding.binding = b.Binding;
-			binding.descriptorCount = 1;
+			binding.descriptorCount = b.DescriptorCount;
 			binding.descriptorType = types[b.Type];
 
 			if (b.ShaderStages.Has(Shader_Type_Vertex))
@@ -2040,6 +2045,7 @@ namespace gpu
 		write.dstBinding = Binding.Binding;
 		// descriptorCount specifies the number of elements for a single binding.
 		write.descriptorCount = 1;
+		//write.descriptorCount = Binding.DescriptorCount;
 		write.descriptorType = types[Binding.Type];
 		write.pBufferInfo = &info;
 
@@ -2050,36 +2056,80 @@ namespace gpu
 		}
 	}
 
-	//void BindDescriptorSetInstance(DescriptorSetInstance& Instance)
-	//{
-	//	const uint32 currFrameIdx = CurrentFrameIndex();
-	//	VulkanPipeline& pipeline = g_Pipelines[*Instance.Owner->Layout->Pipeline];
-	//	VulkanDescriptorSet& descriptorSet = g_DescriptorSets[Instance.Owner->Handle];
-	//	static Array<uint32> offsets;
+	void UpdateDescriptorSetImage(DescriptorSet& Set, DescriptorBinding& Binding, Texture** Textures, uint32 Count)
+	{
+		constexpr VkDescriptorType types[Descriptor_Type_Max] = {
+			VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+			VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+			VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+			VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
+			VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+			VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC,
+			VK_DESCRIPTOR_TYPE_SAMPLER
+		};
 
-	//	for (DescriptorBinding& b : Instance.Owner->Layout->Bindings)
-	//	{
-	//		if (b.Binding == Instance.Binding)
-	//		{
-	//			offsets.Push(static_cast<uint32>(b.Offset[currFrameIdx] + Instance.Offset));
-	//			continue;
-	//		}
-	//		offsets.Push(static_cast<uint32>(b.Offset[currFrameIdx]));
-	//	}
+		Array<VkDescriptorImageInfo> imageInfos;
+		VulkanImage* image = nullptr;
+		VkSampler* sampler = nullptr;
 
-	//	vkCmdBindDescriptorSets(
-	//		Ctx.CommandBuffers[CurrentFrameIndex()],
-	//		VK_PIPELINE_BIND_POINT_GRAPHICS,
-	//		pipeline.Layout,
-	//		Instance.Owner->Slot,
-	//		1,
-	//		&descriptorSet.Set[CurrentFrameIndex()],
-	//		static_cast<uint32>(offsets.Length()),
-	//		offsets.First()
-	//	);
+		for (uint32 i = 0; i < Count; i++)
+		{
+			image = &g_Textures[Textures[i]->Handle];
+			sampler = &g_Samplers[Textures[i]->Sampler->Handle];
 
-	//	offsets.Empty();
-	//}
+			imageInfos.Push({
+				*sampler,
+				image->View,
+				VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+			});
+		}
+
+		VulkanDescriptorSet& descriptorSet = g_DescriptorSets[Set.Handle];
+
+		VkWriteDescriptorSet write = {};
+		write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		write.dstBinding = Binding.Binding;
+		write.descriptorCount = Count;
+		write.descriptorType = types[Binding.Type];
+		write.pImageInfo = imageInfos.First();
+
+		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+		{
+			write.dstSet = descriptorSet.Set[i];
+			vkUpdateDescriptorSets(Ctx.Device, 1, &write, 0, nullptr);
+		}
+	}
+
+	void UpdateDescriptorSetSampler(DescriptorSet& Set, DescriptorBinding& Binding, ImageSampler& Sampler)
+	{
+		constexpr VkDescriptorType types[Descriptor_Type_Max] = {
+			VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+			VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+			VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+			VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
+			VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+			VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC,
+			VK_DESCRIPTOR_TYPE_SAMPLER
+		};
+
+		VkDescriptorImageInfo samplerInfo = {};
+		samplerInfo.sampler = g_Samplers[Sampler.Handle];
+
+		VulkanDescriptorSet& descriptorSet = g_DescriptorSets[Set.Handle];
+
+		VkWriteDescriptorSet write = {};
+		write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		write.dstBinding = Binding.Binding;
+		write.descriptorCount = 1;
+		write.descriptorType = types[Binding.Type];
+		write.pImageInfo = &samplerInfo;
+
+		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+		{
+			write.dstSet = descriptorSet.Set[i];
+			vkUpdateDescriptorSets(Ctx.Device, 1, &write, 0, nullptr);
+		}
+	}
 
 	void BindDescriptorSet(DescriptorSet& Set)
 	{
@@ -2091,6 +2141,7 @@ namespace gpu
 
 		for (DescriptorBinding& b : Set.Layout->Bindings)
 		{
+			if (b.Type != Descriptor_Type_Dynamic_Uniform_Buffer) { continue; }
 			offsets.Push(static_cast<uint32>(b.Offset[currFrameIdx]));
 		}
 
@@ -2127,9 +2178,9 @@ namespace gpu
 		case 2:
 			format = VK_FORMAT_R8G8_SRGB;
 			break;
-		case 3:
-			format = VK_FORMAT_R8G8B8_SRGB;
-			break;
+		//case 3:
+		//	format = VK_FORMAT_R8G8B8_SRGB;
+		//	break;
 		default:
 			break;
 		}
@@ -2163,16 +2214,17 @@ namespace gpu
 		VkImageViewCreateInfo imgView = {};
 		imgView.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
 		imgView.format = format;
+		imgView.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 		imgView.subresourceRange.baseMipLevel = 0;
 		imgView.subresourceRange.levelCount = 1;
 		imgView.subresourceRange.baseArrayLayer = 0;
 		imgView.subresourceRange.layerCount = 1;
 		imgView.viewType = VK_IMAGE_VIEW_TYPE_2D;
 
-		if (InTexture.Usage.Has(Image_Usage_Color_Attachment))
-		{
-			imgView.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		}
+		//if (InTexture.Usage.Has(Image_Usage_Color_Attachment))
+		//{
+		//	imgView.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		//}
 
 		if (InTexture.Usage.Has(Image_Usage_Depth_Stencil_Attachment))
 		{
@@ -2261,6 +2313,8 @@ namespace gpu
 		transferBarrier.subresourceRange = subresourceRange;
 		transferBarrier.srcAccessMask = 0;
 		transferBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+		transferBarrier.srcQueueFamilyIndex = Ctx.TransferOp.Queue.FamilyIndex;
+		transferBarrier.dstQueueFamilyIndex = Ctx.TransferOp.Queue.FamilyIndex;
 
 		vkCmdPipelineBarrier(
 			Ctx.TransferOp.CommandBuffer,
@@ -2295,10 +2349,12 @@ namespace gpu
 		);
 
 		VkImageMemoryBarrier readBarrier = transferBarrier;
-		transferBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-		transferBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		transferBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-		transferBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+		readBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+		readBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		readBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+		readBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+		readBarrier.srcQueueFamilyIndex = Ctx.TransferOp.Queue.FamilyIndex;
+		readBarrier.dstQueueFamilyIndex = Ctx.GraphicsQueue.FamilyIndex;
 
 		vkCmdPipelineBarrier(
 			Ctx.TransferOp.CommandBuffer,
@@ -2401,6 +2457,20 @@ namespace gpu
 		Sampler.Handle = INVALID_HANDLE;
 	}
 
+	void SubmitPushConstant(SRPushConstant& PushConstant)
+	{
+		GET_CURR_CMD_BUFFER();
+		VulkanPipeline& pipeline = g_Pipelines[PushConstant.Pipeline->Handle];
+		vkCmdPushConstants(
+			cmd, 
+			pipeline.Layout, 
+			VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 
+			0, 
+			Push_Constant_Size, 
+			&PushConstant.Data
+		);
+	}
+
 	bool CreateBuffer(SRMemoryBuffer& Buffer, void* Data, size_t Size)
 	{
 		constexpr VkBufferUsageFlagBits bufferTypes[Buffer_Type_Max] = {
@@ -2420,6 +2490,7 @@ namespace gpu
 		VkBufferCreateInfo bufferCreateInfo = {};
 		bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 		bufferCreateInfo.size = Buffer.Size;
+		bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
 		for (uint32 i = 0; i < Buffer_Type_Max; i++)
 		{
@@ -2593,10 +2664,14 @@ namespace gpu
 
 		VkPipelineStageFlags waitDstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 
+		//VkSemaphore semaphore[2] = { Ctx.Semaphores[currentFrame][Semaphore_Type_Image_Available], Ctx.TransferOp.Semaphore };
+
 		VkSubmitInfo submitInfo = {};
 		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 		submitInfo.waitSemaphoreCount = 1;
 		submitInfo.pWaitSemaphores = &Ctx.Semaphores[currentFrame][Semaphore_Type_Image_Available];
+		//submitInfo.waitSemaphoreCount = 2;
+		//submitInfo.pWaitSemaphores = semaphore;
 		submitInfo.pWaitDstStageMask = &waitDstStageMask;
 		submitInfo.pCommandBuffers = &Ctx.CommandBuffers[currentFrame];
 		submitInfo.commandBufferCount = 1;

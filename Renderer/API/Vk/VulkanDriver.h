@@ -49,6 +49,7 @@ namespace gpu
 		VkCommandPool CommandPool;
 		VkCommandBuffer CommandBuffer;
 		VulkanQueue Queue;
+		VkSemaphore Semaphore;
 	};
 
 	struct VulkanFramebuffer
@@ -122,7 +123,7 @@ namespace gpu
 	void Terminate();
 	void BlitToDefault(const IRFrameGraph& Graph);
 	void BindRenderpass(RenderPass& Pass);
-	void BindPipeline(GraphicsPipeline& Pipeline);
+	void BindPipeline(SRPipeline& Pipeline);
 	void UnbindRenderpass(RenderPass& Pass);
 	void BindVertexBuffer(SRMemoryBuffer& Buffer, uint32 FirstBinding, size_t Offset);
 	void BindIndexBuffer(SRMemoryBuffer& Buffer, size_t Offset);
@@ -132,8 +133,8 @@ namespace gpu
 	//void DestroyFrameImage(FrameImages& Images);
 	bool CreateShader(Shader& InShader, String& Code);
 	void DestroyShader(Shader& InShader);
-	bool CreateGraphicsPipeline(GraphicsPipeline& Pipeline);
-	void DestroyGraphicsPipeline(GraphicsPipeline& Pipeline);
+	bool CreateGraphicsPipeline(SRPipeline& Pipeline);
+	void DestroyGraphicsPipeline(SRPipeline& Pipeline);
 	bool CreateFramebuffer(RenderPass& Pass);
 	void DestroyFramebuffer(RenderPass& Pass);
 	bool CreateRenderpass(RenderPass& Pass);
@@ -144,15 +145,14 @@ namespace gpu
 	void DestroyDescriptorSetLayout(DescriptorLayout& Layout);
 	bool AllocateDescriptorSet(DescriptorSet& Set);
 	void UpdateDescriptorSet(DescriptorSet& Set, DescriptorBinding& Binding, SRMemoryBuffer& Buffer);
-	//void UpdateDescriptorSetImage(DescriptorSet& Set, DescriptorBinding& Binding, Texture* Textures, uint32 Count);
-	//void UpdateDescriptorSetSampler(DescriptorSet& Set, DescriptorBinding& Binding);
-	//void UpdateDescriptorSet(DescriptorSet& Set, DescriptorBinding& Binding);
-	//void BindDescriptorSetInstance(DescriptorSetInstance& Instance);
+	void UpdateDescriptorSetImage(DescriptorSet& Set, DescriptorBinding& Binding, Texture** Textures, uint32 Count);
+	void UpdateDescriptorSetSampler(DescriptorSet& Set, DescriptorBinding& Binding, ImageSampler& Sampler);
 	void BindDescriptorSet(DescriptorSet& Set);
 	bool CreateTexture(Texture& InTexture);
 	void DestroyTexture(Texture& InTexture);
 	bool CreateSampler(ImageSampler& Sampler);
 	void DestroySampler(ImageSampler& Sampler);
+	void SubmitPushConstant(SRPushConstant& PushConstant);
 
 	/**
 	* Creates a new buffer.

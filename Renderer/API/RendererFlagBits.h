@@ -277,6 +277,11 @@ enum ECompareOp : uint32
 	Compare_Op_Max = 8
 };
 
+enum EPushConstantSize : size_t
+{
+	Push_Constant_Size = 128
+};
+
 // Depth testing
 // Blending
 // Front facing

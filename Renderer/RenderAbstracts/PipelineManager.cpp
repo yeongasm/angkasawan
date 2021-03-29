@@ -1,39 +1,28 @@
 #include "PipelineManager.h"
 #include "API/Context.h"
 #include "FrameGraph.h"
+#include "DescriptorSets.h"
 #include "Assets/Assets.h"
 
-Array<GraphicsPipeline*>* IRPipelineManager::GetPipelineContainer(uint32 RenderpassId)
-{
-	Array<GraphicsPipeline*>* pipelineContainer = nullptr;
-	for (auto& [pass, container] : PipelineContainer)
-	{
-		if (pass != RenderpassId) { continue; }
-		pipelineContainer = &container;
-		break;
-	}
-	return pipelineContainer;
-}
-
-IRPipelineManager::IRPipelineManager(LinearAllocator& InAllocator, 
-									 IRAssetManager& InAssetManager,
-									 IRFrameGraph& InFrameGraph) :
+IRPipelineManager::IRPipelineManager(
+	LinearAllocator& InAllocator, 
+	IRDescriptorManager& InDescriptorManager,
+	IRFrameGraph& InFrameGraph,
+	IRAssetManager& InAssetManager
+) :
 	Allocator(InAllocator),
-	AssetManager(InAssetManager),
+	DescriptorManager(InDescriptorManager),
 	FrameGraph(InFrameGraph),
+	AssetManager(InAssetManager),
 	PipelineContainer()
 {}
 
 IRPipelineManager::~IRPipelineManager()
 {
-	for (auto& [passHnd, pipelines] : PipelineContainer)
-	{
-		pipelines.Release();
-	}
 	PipelineContainer.Release();
 }
 
-Handle<GraphicsPipeline> IRPipelineManager::CreateNewGraphicsPipline(const GfxPipelineCreateInfo& CreateInfo)
+Handle<SRPipeline> IRPipelineManager::CreateNewGraphicsPipline(const PipelineCreateInfo& CreateInfo)
 {
 	if (CreateInfo.RenderPassHandle		== INVALID_HANDLE ||
 		CreateInfo.VertexShaderHandle	== INVALID_HANDLE ||
@@ -42,16 +31,16 @@ Handle<GraphicsPipeline> IRPipelineManager::CreateNewGraphicsPipline(const GfxPi
 		return INVALID_HANDLE;
 	}
 
-	RenderPass& renderPass = FrameGraph.GetRenderPass(CreateInfo.RenderPassHandle);
-	Shader* vertexShader = AssetManager.GetShaderWithHandle(CreateInfo.VertexShaderHandle);
-	Shader* fragmentShader = AssetManager.GetShaderWithHandle(CreateInfo.FragmentShaderHandle);
+	RenderPass& renderPass	= FrameGraph.GetRenderPass(CreateInfo.RenderPassHandle);
+	Shader* vertexShader	= AssetManager.GetShaderWithHandle(CreateInfo.VertexShaderHandle);
+	Shader* fragmentShader	= AssetManager.GetShaderWithHandle(CreateInfo.FragmentShaderHandle);
 
 	if (!vertexShader || !fragmentShader)
 	{
 		return INVALID_HANDLE;
 	}
 
-	GraphicsPipeline* pipeline = reinterpret_cast<GraphicsPipeline*>(Allocator.Malloc(sizeof(GraphicsPipeline)));
+	SRPipeline* pipeline = reinterpret_cast<SRPipeline*>(Allocator.Malloc(sizeof(SRPipeline)));
 	FMemory::InitializeObject(pipeline);
 
 	pipeline->CullMode = CreateInfo.CullMode;
@@ -62,9 +51,19 @@ Handle<GraphicsPipeline> IRPipelineManager::CreateNewGraphicsPipline(const GfxPi
 	pipeline->VertexInputBindings = Move(const_cast<Array<VertexInputBinding>&>(CreateInfo.VertexInputBindings));
 	pipeline->VertexShader = vertexShader;
 	pipeline->FragmentShader = fragmentShader;
+	pipeline->Renderpass = &renderPass;
 
 	pipeline->ColorOutputCount = static_cast<uint32>(renderPass.ColorOutputs.Length());
 	pipeline->HasDefaultColorOutput = !renderPass.Flags.Has(RenderPass_Bit_No_Color_Render);
+
+	Handle<DescriptorLayout>* dlHnd = nullptr;
+	for (uint32 i = 0; i < CreateInfo.NumLayouts; i++)
+	{
+		dlHnd = &CreateInfo.pDescriptorLayouts[i];
+		DescriptorLayout* layout = DescriptorManager.GetDescriptorLayout(*dlHnd);
+		layout->Pipeline = &pipeline->Handle;
+		pipeline->DescriptorLayouts.Push(layout);
+	}
 
 	if (renderPass.Flags.Has(RenderPass_Bit_DepthStencil_Output) ||
 		!renderPass.Flags.Has(RenderPass_Bit_No_DepthStencil_Render))
@@ -72,60 +71,80 @@ Handle<GraphicsPipeline> IRPipelineManager::CreateNewGraphicsPipline(const GfxPi
 		pipeline->HasDepthStencil = true;
 	}
 
-	size_t idx = PipelineContainer[CreateInfo.RenderPassHandle].Push(pipeline);
+	size_t idx = PipelineContainer.Push(pipeline);
 
-	return Handle<GraphicsPipeline>(idx);
+	return Handle<SRPipeline>(idx);
 }
 
-GraphicsPipeline* IRPipelineManager::GetGraphicsPipelineWithHandle(uint32 RenderpassId, Handle<GraphicsPipeline> Hnd)
+Handle<SRPipeline> IRPipelineManager::GetPipelineHandleWithId(uint32 Id)
 {
-	auto* pipelineContainer = GetPipelineContainer(RenderpassId);
-	if (!pipelineContainer) { return nullptr; }
-	auto& container = *pipelineContainer;
-	return container[Hnd];
+	size_t index = INVALID_HANDLE;
+	SRPipeline* pipeline = nullptr;
+	for (size_t i = 0; i < PipelineContainer.Length(); i++)
+	{
+		pipeline = PipelineContainer[i];
+		if (pipeline->Id != Id) { continue; }
+		index = i;
+		break;
+	}
+	return Handle<SRPipeline>(index);
 }
 
-bool IRPipelineManager::AddDescriptorSetLayoutToPipeline(uint32 RenderpassId, Handle<GraphicsPipeline> Hnd, DescriptorLayout* SetLayout)
+SRPipeline* IRPipelineManager::GetGraphicsPipelineWithHandle(Handle<SRPipeline> Hnd)
 {
-	GraphicsPipeline* pipeline = GetGraphicsPipelineWithHandle(RenderpassId, Hnd);
-	if (!pipeline) { return false; }
-	pipeline->DescriptorLayouts.Push(SetLayout);
-	return true;
+	if (Hnd == INVALID_HANDLE) { return nullptr; }
+	return PipelineContainer[Hnd];
 }
 
-bool IRPipelineManager::BuildGraphicsPipeline(uint32 RenderpassId, Handle<GraphicsPipeline> Hnd)
+//bool IRPipelineManager::AddDescriptorSetLayoutToPipeline(Handle<SRPipeline> Hnd, DescriptorLayout* SetLayout)
+//{
+//	SRPipeline* pipeline = GetGraphicsPipelineWithHandle(Hnd);
+//	if (!pipeline) { return false; }
+//	pipeline->DescriptorLayouts.Push(SetLayout);
+//	return true;
+//}
+
+bool IRPipelineManager::BuildGraphicsPipeline(Handle<SRPipeline> Hnd)
 {
-	GraphicsPipeline* pipeline = GetGraphicsPipelineWithHandle(RenderpassId, Hnd);
+	SRPipeline* pipeline = GetGraphicsPipelineWithHandle(Hnd);
 	if (!pipeline) { return false; }
 	gpu::CreateGraphicsPipeline(*pipeline);
 	return true;
 }
 
-bool IRPipelineManager::AddRenderpassToTable(uint32 PassId)
+void IRPipelineManager::BuildAll()
 {
-	for (auto& [pass, container] : PipelineContainer)
+	for (SRPipeline* pipeline : PipelineContainer)
 	{
-		if (pass == PassId) { return false; }
+		gpu::CreateGraphicsPipeline(*pipeline);
 	}
-	PipelineContainer.Insert(PassId, {});
-	return true;
 }
 
-void IRPipelineManager::BindPipeline(uint32 PassId, Handle<GraphicsPipeline> PipelineHandle)
+//bool IRPipelineManager::AddRenderpassToTable(uint32 PassId)
+//{
+//	for (auto& [pass, container] : Table)
+//	{
+//		if (pass == PassId) { return false; }
+//	}
+//	Table.Insert(PassId, {});
+//	return true;
+//}
+
+void IRPipelineManager::BindPipeline(Handle<SRPipeline> PipelineHandle)
 {
-	auto& container = *GetPipelineContainer(PassId);
-	GraphicsPipeline* pipeline = container[PipelineHandle];
+	if (PreviousHandle == PipelineHandle) { return; }
+
+	SRPipeline* pipeline = PipelineContainer[PipelineHandle];
+	VKT_ASSERT(pipeline && "Pipeline does not exist!");
 	gpu::BindPipeline(*pipeline);
+	PreviousHandle = PipelineHandle;
 }
 
 void IRPipelineManager::Destroy()
 {
-	for (auto& [passId, container] : PipelineContainer)
+	for (SRPipeline* pipeline : PipelineContainer)
 	{
-		for (GraphicsPipeline* pipeline : container)
-		{
-			gpu::DestroyGraphicsPipeline(*pipeline);
-		}
+		gpu::DestroyGraphicsPipeline(*pipeline);
 	}
 }
 

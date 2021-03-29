@@ -13,27 +13,48 @@
 
 class IRFrameGraph;
 class IRenderMemoryManager;
+class IRAssetManager;
+struct SRPipeline;
+struct DescriptorSet;
+struct SRPushConstant;
+struct SRMaterial;
 
 // Draw command represent a single entity that will be drawn.
 // In the case of models, it represents a single mesh.
 struct DrawCommand
 {
-	//uint32 Id;
 	uint32 NumVertices;
 	uint32 NumIndices;
 	uint32 VertexOffset;
 	uint32 IndexOffset;
 	uint32 InstanceOffset;
 	uint32 InstanceCount;
+	Handle<DescriptorSet> DescriptorSetHandle;
+	Handle<SRPushConstant> PushConstantHandle;
+	Handle<SRPipeline> PipelineHandle;
 };
 
 struct DrawManagerInitInfo
 {
 	uint32 MaxDrawCount;
+	uint32 VertexInputBinding;
+	uint32 InstanceInputBinding;
 	Handle<SRMemoryBuffer> VtxBufHnd;
 	Handle<SRMemoryBuffer> IdxBufHnd;
 	MemoryAllocateInfo* pMemAllocInfo;
 	IRenderMemoryManager* pMemManager;
+};
+
+struct ModelDrawInfo
+{
+	math::mat4 Transform;
+	Model* pModel;
+	SRMaterial** pMaterial;
+	uint32 NumMaterials;
+	uint32 RenderpassId;
+	Handle<SRPipeline> PipelineHandle;
+	Handle<DescriptorSet> DescriptorSetHandle;
+	bool Instanced;
 };
 
 // It is decided that this will handle everything related to drawing.
@@ -58,6 +79,7 @@ private:
 	Map<uint32, DrawCommands> FinalDrawCommands;
 	LinearAllocator& Allocator;
 	IRFrameGraph& FrameGraph;
+	IRAssetManager& AssetManager;
 	SRMemoryBuffer* VertexBuffer;
 	SRMemoryBuffer* IndexBuffer;
 	SRMemoryBuffer* InstanceBuffer;
@@ -72,16 +94,14 @@ private:
 
 public:
 
-	IRDrawManager(LinearAllocator& InAllocator, IRFrameGraph& InFrameGraph);
+	IRDrawManager(LinearAllocator& InAllocator, IRFrameGraph& InFrameGraph, IRAssetManager& InAssetManager);
 	~IRDrawManager();
 
 	DELETE_COPY_AND_MOVE(IRDrawManager)
 
 	bool InitializeDrawManager(const DrawManagerInitInfo& AllocInfo);
-	bool DrawModel(Model& ToDraw, const math::mat4& Transform, uint32 PassId, bool Instanced = true);
+	bool DrawModel(const ModelDrawInfo& DrawInfo);
 	uint32 GetMaxDrawableCount() const;
-	void SetVertexInputFirstBinding(uint32 Binding);
-	void SetInstanceInputFirstBinding(uint32 Binding);
 	void FinalizeInstances();
 	void Flush();
 	void Destroy();

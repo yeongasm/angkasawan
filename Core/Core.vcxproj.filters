@@ -153,6 +153,9 @@
     <ClInclude Include="Library\Algorithms\QuickSort.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Library\Algorithms\Private\xxhash.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Library\Algorithms\Hash.cpp">
@@ -207,6 +210,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="Library\Math\Vector.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Library\Algorithms\Private\xxhash.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

@@ -29,7 +29,9 @@
     <ClCompile Include="External\stb\stb_image.cpp" />
     <ClCompile Include="RenderAbstracts\DescriptorSets.cpp" />
     <ClCompile Include="RenderAbstracts\DrawCommand.cpp" />
+    <ClCompile Include="RenderAbstracts\MaterialManager.cpp" />
     <ClCompile Include="RenderAbstracts\PipelineManager.cpp" />
+    <ClCompile Include="RenderAbstracts\PushConstant.cpp" />
     <ClCompile Include="RenderAbstracts\RenderMemory.cpp" />
     <ClCompile Include="Renderer.cpp" />
     <ClCompile Include="API\Vk\VulkanFunctions.cpp" />
@@ -63,6 +65,7 @@
     <ClInclude Include="RenderAbstracts\MaterialManager.h" />
     <ClInclude Include="RenderAbstracts\PipelineManager.h" />
     <ClInclude Include="RenderAbstracts\Primitives.h" />
+    <ClInclude Include="RenderAbstracts\PushConstant.h" />
     <ClInclude Include="RenderAbstracts\RenderMemory.h" />
     <ClInclude Include="RenderPlatform\API.h" />
     <ClInclude Include="Renderer.h" />

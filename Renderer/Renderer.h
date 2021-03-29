@@ -12,6 +12,8 @@
 #include "RenderAbstracts/DescriptorSets.h"
 #include "RenderAbstracts/RenderMemory.h"
 #include "RenderAbstracts/PipelineManager.h"
+#include "RenderAbstracts/MaterialManager.h"
+#include "RenderAbstracts/PushConstant.h"
 
 /**
 *
@@ -23,22 +25,6 @@ class RENDERER_API RenderSystem : public SystemInterface
 {
 private:
 
-	//using DrawCommandStore = Map<uint32, Array<DrawCommand, RENDERER_DRAWABLES_SLACK>>;
-
-	//struct BindingDescriptors
-	//{
-	//	ForwardNode<DescriptorSetInstance>* Base;
-	//	ForwardNode<DescriptorSetInstance>* Current;
-	//	uint32 Count;
-	//};
-
-	//struct DescriptorInstanceStore
-	//{
-	//	Array<DescriptorSetInstance>	Global;
-	//	Map<size_t, BindingDescriptors> PerPass;
-	//	Map<size_t, BindingDescriptors> PerObject;
-	//};
-
 	EngineImpl&				Engine;
 	IRAssetManager*			AssetManager;
 	IRFrameGraph*			FrameGraph;
@@ -46,12 +32,11 @@ private:
 	IRenderMemoryManager*	MemoryManager;
 	IRDrawManager*			DrawCmdManager;
 	IRPipelineManager*		PipelineManager;
-	//DescriptorInstanceStore	DescriptorInstances;
+	IRPushConstantManager*	PushConstantManager;
+	IRMaterialManager*		MaterialManager;
 	Handle<ISystem>			Hnd;
 
-	void FlushRenderer				();
-	//void BindPerPassDescriptors		(uint32 RenderPassId, RenderPass& Pass);
-	//void BindPerObjectDescriptors	(DrawCommand& Command);
+	void FlushRenderer();
 
 public:
 
@@ -65,17 +50,13 @@ public:
 	void		OnTerminate		() override;
 	void		FinalizeGraph	();
 
-	//bool					UpdateDescriptorSet		(uint32 DescriptorId, Handle<DrawCommand> DrawCmdHandle, uint32 Binding, void* Data, size_t Size);
-	//bool					BindDescLayoutToPass	(uint32 DescriptorLayoutId, Handle<RenderPass> PassHandle);
-
 	IRFrameGraph&			GetFrameGraph			();
 	IRAssetManager&			GetAssetManager			();
 	IRDescriptorManager&	GetDescriptorManager	();
 	IRenderMemoryManager&	GetRenderMemoryManager	();
 	IRDrawManager&			GetDrawManager			();
 	IRPipelineManager&		GetPipelineManager		();
-	//IRVertexGroupManager&	GetVertexGroupManager	();
-	//IRStagingBuffer&		GetStagingBufferManager	();
+	IRMaterialManager&		GetMaterialManager		();
 
 	static Handle<ISystem> GetSystemHandle();
 };
