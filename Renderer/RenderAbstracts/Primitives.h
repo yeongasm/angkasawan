@@ -149,6 +149,12 @@ struct Texture : public TextureBase
 	Handle<HImage> Handle;
 };
 
+struct SRTextureTransferContext
+{
+	SRMemoryBuffer Buffer;
+	Texture* Texture;
+};
+
 struct ShaderBase
 {
 	EShaderType Type;

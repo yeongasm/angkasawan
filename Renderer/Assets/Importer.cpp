@@ -355,17 +355,18 @@ Handle<Texture> TextureImporter::ImportTextureFromPath(const TextureImportInfo& 
 	createInfo.Size = static_cast<size_t>(Width) * static_cast<size_t>(Height) * 4;
 	createInfo.TextureData.Alloc(createInfo.Size);
 
-	for (size_t i = 0; i < createInfo.Size; i++)
-	{
-		createInfo.TextureData[i] = data[i];
-	}
+	// TODO:
+	// Rewrite buffer class to take an external pointer
+
+	FMemory::Memcpy(createInfo.TextureData.Data(), data, createInfo.Size);
+	//for (size_t i = 0; i < createInfo.Size; i++)
+	//{
+	//	createInfo.TextureData[i] = data[i];
+	//}
 
 	Handle<Texture> textureHandle = assetManager->CreateNewTexture(createInfo);
-	//Texture* texture = assetManager->GetTextureWithHandle(textureHandle);
 
-	stbi_image_free(data);
-	//Buf.Flush();
-	//new (this) TextureImporter();
+	//stbi_image_free(data);
 
 	return textureHandle;
 }

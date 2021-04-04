@@ -834,7 +834,14 @@ namespace gpu
 		cmdBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 		cmdBufferAllocateInfo.commandBufferCount = 1;
 
-		if (vkAllocateCommandBuffers(Ctx.Device, &cmdBufferAllocateInfo, &Ctx.TransferOp.CommandBuffer) != VK_SUCCESS)
+		if (vkAllocateCommandBuffers(Ctx.Device, &cmdBufferAllocateInfo, &Ctx.TransferOp.TransferCmdBuffer) != VK_SUCCESS)
+		{
+			return false;
+		}
+
+		cmdBufferAllocateInfo.commandPool = Ctx.CommandPool;
+
+		if (vkAllocateCommandBuffers(Ctx.Device, &cmdBufferAllocateInfo, &Ctx.TransferOp.GraphicsCmdBuffer) != VK_SUCCESS)
 		{
 			return false;
 		}
@@ -912,9 +919,9 @@ namespace gpu
 		if (!CreateDefaultRenderPass())				return false;
 		if (!CreateDefaultFramebuffer())			return false;
 		if (!CreateVmAllocator())					return false;
-		if (!CreateTransferOperation())				return false;
 		if (!CreateCommandPool())					return false;
 		if (!AllocateCommandBuffers())				return false;
+		if (!CreateTransferOperation())				return false;
 
 		Ctx.NextSwapchainImageIndex = 0;
 		Ctx.CurrentFrameIndex = 0;
@@ -2257,21 +2264,55 @@ namespace gpu
 		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 		beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 
-		return vkBeginCommandBuffer(Ctx.TransferOp.CommandBuffer, &beginInfo) == VK_SUCCESS;
+		return vkBeginCommandBuffer(Ctx.TransferOp.TransferCmdBuffer, &beginInfo) == VK_SUCCESS;
 	}
 
-	void EndTransfer()
+	bool BeginOwnershipTransfer()
+	{
+		VkCommandBufferBeginInfo beginInfo = {};
+		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+		beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+		return vkBeginCommandBuffer(Ctx.TransferOp.GraphicsCmdBuffer, &beginInfo) == VK_SUCCESS;
+	}
+
+	void EndTransfer(bool Signal)
 	{
 		VkSubmitInfo submitInfo = {};
 		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 		submitInfo.commandBufferCount = 1;
-		submitInfo.pCommandBuffers = &Ctx.TransferOp.CommandBuffer;
+		submitInfo.pCommandBuffers = &Ctx.TransferOp.TransferCmdBuffer;
 
-		vkEndCommandBuffer(Ctx.TransferOp.CommandBuffer);
-		vkQueueSubmit(Ctx.TransferOp.Queue.Handle, 1, &submitInfo, Ctx.TransferOp.Fence);
-		vkWaitForFences(Ctx.Device, 1, &Ctx.TransferOp.Fence, VK_TRUE, UINT64_MAX);
-		vkResetFences(Ctx.Device, 1, &Ctx.TransferOp.Fence);
-		vkResetCommandBuffer(Ctx.TransferOp.CommandBuffer, 0);
+		if (Signal)
+		{
+			submitInfo.signalSemaphoreCount = 1;
+			submitInfo.pSignalSemaphores = &Ctx.TransferOp.Semaphore;
+		}
+
+		vkEndCommandBuffer(Ctx.TransferOp.TransferCmdBuffer);
+		vkQueueSubmit(Ctx.TransferOp.Queue.Handle, 1, &submitInfo, VK_NULL_HANDLE);
+		//vkQueueSubmit(Ctx.TransferOp.Queue.Handle, 1, &submitInfo, Ctx.TransferOp.Fence);
+		//vkWaitForFences(Ctx.Device, 1, &Ctx.TransferOp.Fence, VK_TRUE, UINT64_MAX);
+		//vkResetFences(Ctx.Device, 1, &Ctx.TransferOp.Fence);
+	}
+
+	void EndOwnershipTransfer()
+	{
+		VkPipelineStageFlags waitDstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+
+		VkSubmitInfo submitInfo = {};
+		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+		submitInfo.commandBufferCount = 1;
+		submitInfo.pCommandBuffers = &Ctx.TransferOp.GraphicsCmdBuffer;
+		submitInfo.waitSemaphoreCount = 1;
+		submitInfo.pWaitSemaphores = &Ctx.TransferOp.Semaphore;
+		submitInfo.pWaitDstStageMask = &waitDstStageMask;
+
+		vkEndCommandBuffer(Ctx.TransferOp.GraphicsCmdBuffer);
+		vkQueueSubmit(Ctx.GraphicsQueue.Handle, 1, &submitInfo, VK_NULL_HANDLE);
+		//vkQueueSubmit(Ctx.GraphicsQueue.Handle, 1, &submitInfo, Ctx.TransferOp.Fence);
+		//vkWaitForFences(Ctx.Device, 1, &Ctx.TransferOp.Fence, VK_TRUE, UINT64_MAX);
+		//vkResetFences(Ctx.Device, 1, &Ctx.TransferOp.Fence);
 	}
 
 	void TransferBuffer(SRMemoryTransferContext& TransferContext)
@@ -2285,18 +2326,42 @@ namespace gpu
 		copy.dstOffset = TransferContext.DstOffset;
 
 		vkCmdCopyBuffer(
-			Ctx.TransferOp.CommandBuffer,
+			Ctx.TransferOp.TransferCmdBuffer,
 			src.Handle,
 			dst.Handle,
 			1,
 			&copy
 		);
+
+		VkBufferMemoryBarrier transferBarrier = {};
+
+		transferBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+		transferBarrier.buffer = dst.Handle;
+		transferBarrier.size = TransferContext.SrcSize;
+		transferBarrier.offset = TransferContext.DstOffset;
+		transferBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+		transferBarrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+		transferBarrier.srcQueueFamilyIndex = Ctx.TransferOp.Queue.FamilyIndex;
+		transferBarrier.dstQueueFamilyIndex = Ctx.GraphicsQueue.FamilyIndex;
+		
+		vkCmdPipelineBarrier(
+			Ctx.TransferOp.TransferCmdBuffer,
+			VK_PIPELINE_STAGE_TRANSFER_BIT,
+			VK_PIPELINE_STAGE_TRANSFER_BIT,
+			0,
+			0,
+			nullptr,
+			1,
+			&transferBarrier,
+			0,
+			nullptr
+		);
 	}
 
-	void TransferTexture(Texture& InTexture, SRMemoryBuffer& Buffer)
+	void TransferTexture(SRTextureTransferContext& TransferContext)
 	{
-		VulkanBuffer& buffer = g_Buffers[Buffer.Handle];
-		VulkanImage& img = g_Textures[InTexture.Handle];
+		VulkanBuffer& buffer = g_Buffers[TransferContext.Buffer.Handle];
+		VulkanImage& img = g_Textures[TransferContext.Texture->Handle];
 
 		VkImageSubresourceRange subresourceRange = {};
 		subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -2317,7 +2382,7 @@ namespace gpu
 		transferBarrier.dstQueueFamilyIndex = Ctx.TransferOp.Queue.FamilyIndex;
 
 		vkCmdPipelineBarrier(
-			Ctx.TransferOp.CommandBuffer,
+			Ctx.TransferOp.TransferCmdBuffer,
 			VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
 			VK_PIPELINE_STAGE_TRANSFER_BIT,
 			0,
@@ -2329,6 +2394,9 @@ namespace gpu
 			&transferBarrier
 		);
 
+		uint32 width = TransferContext.Texture->Width;
+		uint32 height = TransferContext.Texture->Height;
+
 		VkBufferImageCopy copyRegion = {};
 		copyRegion.bufferOffset = 0;
 		copyRegion.bufferRowLength = 0;
@@ -2337,10 +2405,10 @@ namespace gpu
 		copyRegion.imageSubresource.mipLevel = 0;
 		copyRegion.imageSubresource.baseArrayLayer = 0;
 		copyRegion.imageSubresource.layerCount = 1;
-		copyRegion.imageExtent = { InTexture.Width, InTexture.Height, 1 };
+		copyRegion.imageExtent = { width, height, 1 };
 
 		vkCmdCopyBufferToImage(
-			Ctx.TransferOp.CommandBuffer,
+			Ctx.TransferOp.TransferCmdBuffer,
 			buffer.Handle,
 			img.Handle,
 			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
@@ -2350,14 +2418,50 @@ namespace gpu
 
 		VkImageMemoryBarrier readBarrier = transferBarrier;
 		readBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-		readBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		readBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
 		readBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-		readBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+		readBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
 		readBarrier.srcQueueFamilyIndex = Ctx.TransferOp.Queue.FamilyIndex;
 		readBarrier.dstQueueFamilyIndex = Ctx.GraphicsQueue.FamilyIndex;
 
 		vkCmdPipelineBarrier(
-			Ctx.TransferOp.CommandBuffer,
+			Ctx.TransferOp.TransferCmdBuffer,
+			VK_PIPELINE_STAGE_TRANSFER_BIT,
+			VK_PIPELINE_STAGE_TRANSFER_BIT,
+			0,
+			0,
+			nullptr,
+			0,
+			nullptr,
+			1,
+			&readBarrier
+		);
+	}
+
+	void TransferTextureOwnership(Texture& InTexture)
+	{
+		VulkanImage& img = g_Textures[InTexture.Handle];
+
+		VkImageSubresourceRange subresourceRange = {};
+		subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		subresourceRange.baseMipLevel = 0;
+		subresourceRange.baseArrayLayer = 0;
+		subresourceRange.levelCount = 1;
+		subresourceRange.layerCount = 1;
+
+		VkImageMemoryBarrier ownershipTransfer = {};
+		ownershipTransfer.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+		ownershipTransfer.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+		ownershipTransfer.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		ownershipTransfer.image = img.Handle;
+		ownershipTransfer.subresourceRange = subresourceRange;
+		ownershipTransfer.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+		ownershipTransfer.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+		ownershipTransfer.srcQueueFamilyIndex = Ctx.GraphicsQueue.FamilyIndex;
+		ownershipTransfer.dstQueueFamilyIndex = Ctx.GraphicsQueue.FamilyIndex;
+
+		vkCmdPipelineBarrier(
+			Ctx.TransferOp.GraphicsCmdBuffer,
 			VK_PIPELINE_STAGE_TRANSFER_BIT,
 			VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
 			0,
@@ -2366,7 +2470,46 @@ namespace gpu
 			0,
 			nullptr,
 			1,
-			&readBarrier
+			&ownershipTransfer
+		);
+	}
+
+	void TransferBufferOwnership(SRMemoryBuffer& InBuffer)
+	{
+		VulkanBuffer& buffer = g_Buffers[InBuffer.Handle];
+
+		VkBufferMemoryBarrier ownershipTransfer = {};
+
+		ownershipTransfer.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+		ownershipTransfer.buffer = buffer.Handle;
+		ownershipTransfer.srcQueueFamilyIndex = Ctx.TransferOp.Queue.FamilyIndex;
+		ownershipTransfer.dstQueueFamilyIndex = Ctx.GraphicsQueue.FamilyIndex;
+		ownershipTransfer.offset = 0;
+		ownershipTransfer.size = InBuffer.Size;
+		ownershipTransfer.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+		ownershipTransfer.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+
+		if (InBuffer.Type.Has(Buffer_Type_Vertex))
+		{
+			ownershipTransfer.dstAccessMask = VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT;
+		}
+
+		if (InBuffer.Type.Has(Buffer_Type_Index))
+		{
+			ownershipTransfer.dstAccessMask = VK_ACCESS_INDEX_READ_BIT;
+		}
+
+		vkCmdPipelineBarrier(
+			Ctx.TransferOp.GraphicsCmdBuffer,
+			VK_PIPELINE_STAGE_TRANSFER_BIT,
+			VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
+			0,
+			0,
+			nullptr,
+			1,
+			&ownershipTransfer,
+			0,
+			nullptr
 		);
 	}
 

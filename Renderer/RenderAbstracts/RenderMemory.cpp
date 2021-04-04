@@ -74,7 +74,6 @@ bool IRenderMemoryManager::UploadData(SRMemoryBuffer& Buffer, Handle<SRMemoryBuf
 	tx.DstOffset = gpuMemory->Offset;
 
 	gpuMemory->Offset += Buffer.Size;
-	//gpuMemory->Offset += Context.PadSizeToAlignedSize(Buffer.Size);
 
 	Transfers.Push(Move(tx));
 
@@ -83,80 +82,27 @@ bool IRenderMemoryManager::UploadData(SRMemoryBuffer& Buffer, Handle<SRMemoryBuf
 	return true;
 }
 
-//bool IRenderMemoryManager::UploadModel(Model& InModel, Handle<SRMemoryBuffer> Hnd, bool Immediate)
-//{
-//	if (Hnd == INVALID_HANDLE) { return false; }
-//	SRMemoryBuffer* buffer = GetBuffer(Hnd);
-//	if (!buffer) { return false; }
-//	if (buffer->Handle == INVALID_HANDLE) { return false; }
-//
-//	SRMemoryTransferContext tx = {};
-//	tx.DstBuffer = buffer->Handle;
-//
-//	for (Mesh* mesh : InModel)
-//	{
-//
-//		tx.SrcBuffer = mesh->Buffer.Handle;
-//		tx.SrcOffset = 0;
-//		tx.SrcSize = mesh->Buffer.Size;
-//		tx.DstOffset = buffer->Offset;
-//		Transfers.Push(Move(tx));
-//
-//		mesh->Buffer.Offset = buffer->Offset;
-//		buffer->Offset += Context.PadSizeToAlignedSize(mesh->Buffer.Size);
-//		//Context.DestroyBuffer(mesh->Buffer.Handle);
-//
-//		mesh->Buffer.Id = buffer->Id;
-//		mesh->Buffer.Handle = buffer->Handle;
-//		mesh->Buffer.Locality = Buffer_Locality_Gpu;
-//	}
-//
-//	if (Immediate) { TransferToGPU(); }
-//
-//	return true;
-//}
-
-//bool IRenderMemoryManager::TransferBufferToGPU(Handle<SRMemoryBuffer> Hnd)
-//{
-//	SRMemoryBuffer* bufferObj = GetBufferObj(Hnd);
-//	if (!bufferObj) { return false; }
-//	if ((bufferObj->Cpu.Handle == INVALID_HANDLE) ||
-//		(bufferObj->Gpu.Handle == INVALID_HANDLE))
-//	{
-//		return false;
-//	}
-//
-//	const size_t copySize = (TransferInfo.SrcSize) ? TransferInfo.SrcSize : bufferObj->Cpu.Size;
-//	size_t paddedSize = Context.PadSizeToAlignedSize(copySize);
-//
-//	SRMemoryTransferContext tx = {};
-//	tx.SrcBuffer	= bufferObj->Cpu.Handle;
-//	tx.SrcOffset	= TransferInfo.SrcOffset;
-//	tx.SrcSize		= paddedSize;
-//	tx.DstBuffer	= bufferObj->Gpu.Handle;
-//	tx.DstOffset	= (!TransferInfo.DstOffset) ? bufferObj->Gpu.Offset : TransferInfo.DstOffset;
-//
-//	bufferObj->Gpu.Offset += paddedSize;
-//
-//	Context.TransferToGPU(&tx, 1);
-//
-//	return true;
-//}
-
 void IRenderMemoryManager::TransferToGPU()
 {
 	gpu::BeginTransfer();
-	//Context.TransferToGPU(Transfers.First(), Transfers.Length());
 	for (SRMemoryTransferContext& transfer : Transfers)
 	{
 		gpu::TransferBuffer(transfer);
+		// We need to include another phase here to transfer ownership to the graphics queue.
 	}
 	gpu::EndTransfer();
+	gpu::BeginOwnershipTransfer();
+	for (SRMemoryBuffer* buffer : Buffers)
+	{
+		gpu::TransferBufferOwnership(*buffer);
+	}
+	gpu::EndOwnershipTransfer();
+
 	for (SRMemoryTransferContext& txCtx : Transfers)
 	{
 		gpu::DestroyBuffer(txCtx.SrcBuffer);
-		//Context.DestroyBuffer(txCtx.SrcBuffer);
 	}
+
 	Transfers.Empty();
 }
 
@@ -184,7 +130,6 @@ bool IRenderMemoryManager::BuildBuffer(Handle<SRMemoryBuffer> Hnd)
 	if (!buffer) { return false; }
 	if (buffer->Handle != INVALID_HANDLE) { return false; }
 	gpu::CreateBuffer(*buffer, nullptr, buffer->Size);
-	//Context.NewBuffer(*buffer, nullptr, buffer->Size, 1);
 	return true;
 }
 
@@ -193,7 +138,6 @@ void IRenderMemoryManager::Destroy()
 	for (SRMemoryBuffer* buffer : Buffers)
 	{
 		gpu::DestroyBuffer(*buffer);
-		//Context.DestroyBuffer(buffer->Handle);
 	}
 	Buffers.Release();
 }

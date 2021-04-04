@@ -47,7 +47,8 @@ namespace gpu
 	{
 		VkFence Fence;
 		VkCommandPool CommandPool;
-		VkCommandBuffer CommandBuffer;
+		VkCommandBuffer TransferCmdBuffer;
+		VkCommandBuffer GraphicsCmdBuffer;
 		VulkanQueue Queue;
 		VkSemaphore Semaphore;
 	};
@@ -175,9 +176,14 @@ namespace gpu
 	void DestroyBuffer(SRMemoryBuffer& Buffer);
 
 	bool BeginTransfer();
-	void EndTransfer();
+	bool BeginOwnershipTransfer();
+	void EndTransfer(bool Signal = false);
+	void EndOwnershipTransfer();
 	void TransferBuffer(SRMemoryTransferContext& TransferContext);
-	void TransferTexture(Texture& InTexture, SRMemoryBuffer& Buffer);
+	void TransferTexture(SRTextureTransferContext& TransferContext);
+	void TransferTextureOwnership(Texture& InTexture);
+	void TransferBufferOwnership(SRMemoryBuffer& InBuffer);
+	//void TransferTexture(Texture& InTexture, SRMemoryBuffer& Buffer);
 
 	void BeginFrame();
 	void EndFrame();

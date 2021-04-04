@@ -148,3 +148,12 @@ void IRPipelineManager::Destroy()
 	}
 }
 
+void IRPipelineManager::OnWindowResize()
+{
+	for (SRPipeline* pipeline : PipelineContainer)
+	{
+		gpu::DestroyGraphicsPipeline(*pipeline);
+		gpu::CreateGraphicsPipeline(*pipeline);
+	}
+}
+

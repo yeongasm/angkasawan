@@ -11,6 +11,7 @@ RenderSystem::RenderSystem(EngineImpl& InEngine, Handle<ISystem> Hnd) :
 	FrameGraph(nullptr),
 	DescriptorManager(nullptr),
 	MemoryManager(nullptr),
+	TextureMemoryManager(nullptr),
 	DrawCmdManager(nullptr),
 	PipelineManager(nullptr),
 	Hnd(Hnd)
@@ -28,8 +29,11 @@ void RenderSystem::OnInit()
 	MemoryManager = reinterpret_cast<IRenderMemoryManager*>(g_RenderSystemAllocator.Malloc(sizeof(IRenderMemoryManager)));
 	FMemory::InitializeObject(MemoryManager, g_RenderSystemAllocator);
 
+	TextureMemoryManager = reinterpret_cast<IRTextureMemoryManager*>(g_RenderSystemAllocator.Malloc(sizeof(IRTextureMemoryManager)));
+	FMemory::InitializeObject(TextureMemoryManager);
+
 	AssetManager = reinterpret_cast<IRAssetManager*>(g_RenderSystemAllocator.Malloc(sizeof(IRAssetManager)));
-	FMemory::InitializeObject(AssetManager, *MemoryManager, Engine.Manager);
+	FMemory::InitializeObject(AssetManager, *MemoryManager, *TextureMemoryManager, Engine.Manager);
 
 	FrameGraph = reinterpret_cast<IRFrameGraph*>(g_RenderSystemAllocator.Malloc(sizeof(IRFrameGraph)));
 	FMemory::InitializeObject(FrameGraph, g_RenderSystemAllocator);
@@ -59,6 +63,7 @@ void RenderSystem::OnUpdate()
 	{
 		gpu::OnWindowResize();
 		FrameGraph->OnWindowResize();
+		PipelineManager->OnWindowResize();
 	}
 
 	gpu::Clear();
@@ -275,6 +280,11 @@ IRPipelineManager& RenderSystem::GetPipelineManager()
 IRMaterialManager& RenderSystem::GetMaterialManager()
 {
 	return *MaterialManager;
+}
+
+IRTextureMemoryManager& RenderSystem::GetTextureMemoryManager()
+{
+	return *TextureMemoryManager;
 }
 
 Handle<ISystem> RenderSystem::GetSystemHandle()

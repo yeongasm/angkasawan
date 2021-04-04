@@ -5,12 +5,12 @@
 #include "RenderPlatform/API.h"
 #include "Library/Containers/Map.h"
 #include "SubSystem/Resource/Handle.h"
-
 #include "RenderAbstracts/Primitives.h"
 
 class RenderContext;
 class ResourceManager;
 class IRenderMemoryManager;
+class IRTextureMemoryManager;
 
 // Only the items below are considered as an asset to the graphics system.
 enum ERendererAsset : uint32
@@ -33,7 +33,7 @@ class RENDERER_API IRAssetManager
 {
 public:
 
-	IRAssetManager(IRenderMemoryManager& Memory, ResourceManager& Manager);
+	IRAssetManager(IRenderMemoryManager& Memory, IRTextureMemoryManager& TextureMemory, ResourceManager& Manager);
 	~IRAssetManager();
 
 	DELETE_COPY_AND_MOVE(IRAssetManager)
@@ -68,6 +68,7 @@ private:
 	Map<uint32, Texture> TextureStore;
 	ResourceManager& Manager;
 	IRenderMemoryManager& Memory;
+	IRTextureMemoryManager& TextureMemory;
 };
 
 #endif // !LEARNVK_RENDERER_ASSETS

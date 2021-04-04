@@ -53,6 +53,7 @@ public:
 	bool				BuildGraphicsPipeline			(Handle<SRPipeline> Hnd);
 	//bool				DeleteGraphicsPipeline			(Handle<GraphicsPipeline> Hnd);
 
+	void OnWindowResize			();
 	void BuildAll				();
 	void BindPipeline			(Handle<SRPipeline> PipelineHandle);
 	void Destroy				();

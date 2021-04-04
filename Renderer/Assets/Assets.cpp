@@ -1,20 +1,23 @@
 #include "Engine/Interface.h"
 #include "Assets.h"
 #include "Library/Stream/Ifstream.h"
-#include "Library/Algorithms/Tokenizer.h"
+#include "Library/Containers/Buffer.h"
 #include "SubSystem/Resource/ResourceManager.h"
+#include "RenderAbstracts/RenderMemory.h"
+#include "RenderAbstracts/TextureMemory.h"
 #include "API/Context.h"
 #include "Library/Algorithms/Hash.h"
 
 static uint32 g_HashSeed = static_cast<uint32>(OS::GetPerfCounter());
 
-IRAssetManager::IRAssetManager(IRenderMemoryManager& Memory, ResourceManager& Manager) :
+IRAssetManager::IRAssetManager(IRenderMemoryManager& Memory, IRTextureMemoryManager& TextureMemory, ResourceManager& Manager) :
 	ShaderStore(),
 	MeshStore(),
 	ModelStore(),
 	TextureStore(),
 	Manager(Manager),
-	Memory(Memory)
+	Memory(Memory),
+	TextureMemory(TextureMemory)
 {
 	this->Manager.AddCache(Renderer_Asset_Mesh);
 	this->Manager.AddCache(Renderer_Asset_Model);
@@ -70,22 +73,6 @@ Handle<Shader> IRAssetManager::CreateNewShader(const ShaderCreateInfo& CreateInf
 	shader.Type = CreateInfo.Type;
 	shader.Handle = -1;
 	shader.Name = CreateInfo.Name;
-
-	//Ifstream ifstream;
-	//if (!ifstream.Open(resource->Path.C_Str()))
-	//{
-	//	VKT_ASSERT("Unable to open shader at specified path!" && false);
-	//	return -1;
-	//}
-
-	//shader.Code.Reserve(ifstream.Size());
-	//if (!ifstream.Read(shader.Code.First(), shader.Code.Size()))
-	//{
-	//	VKT_ASSERT("Unable to read stream contents into buffer!" && false);
-	//	return -1;
-	//}
-	//shader.Code[ifstream.Size()] = '\0';
-	//ifstream.Close();
 
 	gpu::CreateShader(shader, const_cast<String&>(CreateInfo.Code));
 
@@ -217,7 +204,6 @@ Handle<Mesh> IRAssetManager::CreateNewMesh(const MeshCreateInfo& CreateInfo)
 	uint32* indices = const_cast<uint32*>(CreateInfo.Indices.First());
 
 	gpu::CreateBuffer(vtxBuffer, vertices, sizeOfVertex * vertexCount);
-	//Context.NewBuffer(vtxBuffer, vertices, sizeOfVertex, vertexCount);
 	Memory.UploadData(vtxBuffer, CreateInfo.VtxMemHandle, false);
 
 	for (size_t i = 0; i < indexCount; i++)
@@ -234,7 +220,6 @@ Handle<Mesh> IRAssetManager::CreateNewMesh(const MeshCreateInfo& CreateInfo)
 	idxBuffer.Type.Set(Buffer_Type_Index);
 
 	gpu::CreateBuffer(idxBuffer, indices, sizeOfUint32 * indexCount);
-	//Context.NewBuffer(idxBuffer, indices, sizeOfUint32, indexCount);
 	Memory.UploadData(idxBuffer, CreateInfo.IdxMemHandle, false);
 
 	mesh.Vbo = vtxBuf->Handle;
@@ -320,26 +305,28 @@ Handle<Texture> IRAssetManager::CreateNewTexture(const TextureCreateInfo& Create
 	Texture& texture = TextureStore.Add(id, Texture()).Value;
 	FMemory::Memcpy(&texture, &CreateInfo, sizeof(TextureBase));
 
-	uint8* data = const_cast<uint8*>(CreateInfo.TextureData.ConstData());
-
-	SRMemoryBuffer textureBuffer = {};
-	textureBuffer.Size = texture.Size;
-	textureBuffer.Locality = Buffer_Locality_Cpu;
-	textureBuffer.Type.Set(Buffer_Type_Transfer_Src);
-	
 	texture.Usage.Set(Image_Usage_Sampled);
 	texture.Usage.Set(Image_Usage_Transfer_Dst);
-
-	gpu::CreateBuffer(textureBuffer, data, CreateInfo.Size);
 	gpu::CreateTexture(texture);
 
-	gpu::BeginTransfer();
-	gpu::TransferTexture(texture, textureBuffer);
-	gpu::EndTransfer();
-	gpu::DestroyBuffer(textureBuffer);
-	//Context.NewBuffer(textureBuffer, data, CreateInfo.Size, 1);
-	//Context.NewImage(texture);
-	//Context.TransferImageToGPU(texture, textureBuffer);
+	const uint8* data = CreateInfo.TextureData.ConstData();
+	
+	TextureMemory.UploadTexture(&texture, const_cast<uint8*>(data), false);
+
+	auto& buffer = const_cast<Buffer<uint8>&>(CreateInfo.TextureData);
+	buffer.Release();
+
+	//SRMemoryBuffer textureBuffer = {};
+	//textureBuffer.Size = texture.Size;
+	//textureBuffer.Locality = Buffer_Locality_Cpu;
+	//textureBuffer.Type.Set(Buffer_Type_Transfer_Src);
+
+	//gpu::CreateBuffer(textureBuffer, data, texture.Size);
+
+	//gpu::BeginTransfer();
+	//gpu::TransferTexture(texture, textureBuffer);
+	//gpu::EndTransfer();
+	//gpu::DestroyBuffer(textureBuffer);
 
 	return Handle<Texture>(static_cast<size_t>(id));
 }

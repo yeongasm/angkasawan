@@ -14,6 +14,7 @@
 #include "RenderAbstracts/PipelineManager.h"
 #include "RenderAbstracts/MaterialManager.h"
 #include "RenderAbstracts/PushConstant.h"
+#include "RenderAbstracts/TextureMemory.h"
 
 /**
 *
@@ -30,6 +31,7 @@ private:
 	IRFrameGraph*			FrameGraph;
 	IRDescriptorManager*	DescriptorManager;
 	IRenderMemoryManager*	MemoryManager;
+	IRTextureMemoryManager* TextureMemoryManager;
 	IRDrawManager*			DrawCmdManager;
 	IRPipelineManager*		PipelineManager;
 	IRPushConstantManager*	PushConstantManager;
@@ -57,6 +59,7 @@ public:
 	IRDrawManager&			GetDrawManager			();
 	IRPipelineManager&		GetPipelineManager		();
 	IRMaterialManager&		GetMaterialManager		();
+	IRTextureMemoryManager& GetTextureMemoryManager	();
 
 	static Handle<ISystem> GetSystemHandle();
 };

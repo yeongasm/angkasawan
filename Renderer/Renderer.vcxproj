@@ -33,6 +33,7 @@
     <ClCompile Include="RenderAbstracts\PipelineManager.cpp" />
     <ClCompile Include="RenderAbstracts\PushConstant.cpp" />
     <ClCompile Include="RenderAbstracts\RenderMemory.cpp" />
+    <ClCompile Include="RenderAbstracts\TextureMemory.cpp" />
     <ClCompile Include="Renderer.cpp" />
     <ClCompile Include="API\Vk\VulkanFunctions.cpp" />
     <ClCompile Include="API\Vk\VulkanDriver.cpp" />
@@ -67,6 +68,7 @@
     <ClInclude Include="RenderAbstracts\Primitives.h" />
     <ClInclude Include="RenderAbstracts\PushConstant.h" />
     <ClInclude Include="RenderAbstracts\RenderMemory.h" />
+    <ClInclude Include="RenderAbstracts\TextureMemory.h" />
     <ClInclude Include="RenderPlatform\API.h" />
     <ClInclude Include="Renderer.h" />
     <ClInclude Include="API\Vk\Src\vk_layer.h" />
