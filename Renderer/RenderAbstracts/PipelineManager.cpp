@@ -116,6 +116,7 @@ void IRPipelineManager::BuildAll()
 {
 	for (SRPipeline* pipeline : PipelineContainer)
 	{
+		if (pipeline->Handle != INVALID_HANDLE) { continue; }
 		gpu::CreateGraphicsPipeline(*pipeline);
 	}
 }

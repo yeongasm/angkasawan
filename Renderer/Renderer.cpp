@@ -7,6 +7,7 @@ size_t previousVbo = -1;
 
 RenderSystem::RenderSystem(EngineImpl& InEngine, Handle<ISystem> Hnd) :
 	Engine(InEngine),
+	DeviceStore(nullptr),
 	AssetManager(nullptr),
 	FrameGraph(nullptr),
 	DescriptorManager(nullptr),
@@ -25,6 +26,9 @@ void RenderSystem::OnInit()
 	gpu::Initialize();
 	g_RenderSystemAllocator.Initialize(MEGABYTES(16));
 	g_DescriptorInstancePool.Reserve(2048);
+
+	DeviceStore = reinterpret_cast<SRDeviceStore*>(g_RenderSystemAllocator.Malloc(sizeof(SRDeviceStore)));
+	FMemory::InitializeObject(DeviceStore, g_RenderSystemAllocator);
 
 	MemoryManager = reinterpret_cast<IRenderMemoryManager*>(g_RenderSystemAllocator.Malloc(sizeof(IRenderMemoryManager)));
 	FMemory::InitializeObject(MemoryManager, g_RenderSystemAllocator);

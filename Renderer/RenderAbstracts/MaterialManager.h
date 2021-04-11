@@ -53,7 +53,11 @@ struct MaterialDefinitionCreateInfo : public SRMaterialId
 struct SRMaterial : public SRMaterialId
 {
 	using Type = uint32;
-	Array<Pair<Type, uint32>> TextureIndices;
+	using TextureType = Pair<Type, uint32>;
+	using TextureTypeArr = StaticArray<TextureType, 8>;
+
+	TextureTypeArr TextureIndices;
+	//Array<Pair<Type, uint32>> TextureIndices;
 	Handle<SRPushConstant> PushConstantHandle;
 };
 

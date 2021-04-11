@@ -27,6 +27,7 @@ class RENDERER_API RenderSystem : public SystemInterface
 private:
 
 	EngineImpl&				Engine;
+	SRDeviceStore*			DeviceStore;
 	IRAssetManager*			AssetManager;
 	IRFrameGraph*			FrameGraph;
 	IRDescriptorManager*	DescriptorManager;

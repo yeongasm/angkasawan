@@ -10,6 +10,17 @@ ENGINE_API void MurmurHash32(const void* Key, uint32 Len, void* Out, uint32 Seed
 ENGINE_API void XXHash32(const void* Input, size_t Len, uint32* Out, uint32 Seed = 0);
 ENGINE_API void XXHash64(const void* Input, size_t Len, uint64* Out, uint64 Seed = 0);
 
+template <typename Type, uint32 Seed = 0>
+struct XxHash
+{
+	uint32 operator() (const uint32 Source) const
+	{
+		uint32 Hash = 0;
+		XXHash32(&Source, sizeof(uint32), &Hash, Seed);
+		return Hash;
+	}
+};
+
 /**
 * Default MurmurHash functor.
 * Supplied type must contain these 2 functions:

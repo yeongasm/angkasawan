@@ -19,7 +19,6 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="API\Context.cpp" />
     <ClCompile Include="API\Vk\ShaderToSPIRVCompiler.cpp" />
     <ClCompile Include="API\Vk\Src\spirv_reflect.c" />
     <ClCompile Include="API\Vk\Vk.cpp" />
@@ -33,6 +32,7 @@
     <ClCompile Include="RenderAbstracts\PipelineManager.cpp" />
     <ClCompile Include="RenderAbstracts\PushConstant.cpp" />
     <ClCompile Include="RenderAbstracts\RenderMemory.cpp" />
+    <ClCompile Include="RenderAbstracts\StagingManager.cpp" />
     <ClCompile Include="RenderAbstracts\TextureMemory.cpp" />
     <ClCompile Include="Renderer.cpp" />
     <ClCompile Include="API\Vk\VulkanFunctions.cpp" />
@@ -68,6 +68,7 @@
     <ClInclude Include="RenderAbstracts\Primitives.h" />
     <ClInclude Include="RenderAbstracts\PushConstant.h" />
     <ClInclude Include="RenderAbstracts\RenderMemory.h" />
+    <ClInclude Include="RenderAbstracts\StagingManager.h" />
     <ClInclude Include="RenderAbstracts\TextureMemory.h" />
     <ClInclude Include="RenderPlatform\API.h" />
     <ClInclude Include="Renderer.h" />

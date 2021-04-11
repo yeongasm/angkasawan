@@ -173,9 +173,9 @@ namespace gpu
 		createInfo.enabledExtensionCount = extensionCount;
 
 #if RENDERER_DEBUG_RENDER_DEVICE
-		const char* layers[] = { "VK_LAYER_KHRONOS_validation" };
+		const char* layers[] = { "VK_LAYER_LUNARG_monitor", "VK_LAYER_KHRONOS_validation" };
 		createInfo.ppEnabledLayerNames = layers;
-		createInfo.enabledLayerCount = 1;
+		createInfo.enabledLayerCount = 2;
 
 		VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo;
 		PopulateDebugMessengerCreateInfo(debugCreateInfo);
