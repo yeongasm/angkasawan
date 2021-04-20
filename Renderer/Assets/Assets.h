@@ -7,10 +7,8 @@
 #include "SubSystem/Resource/Handle.h"
 #include "RenderAbstracts/Primitives.h"
 
-class RenderContext;
 class ResourceManager;
-class IRenderMemoryManager;
-class IRTextureMemoryManager;
+struct SRDeviceStore;
 
 // Only the items below are considered as an asset to the graphics system.
 enum ERendererAsset : uint32
@@ -25,22 +23,19 @@ enum ERendererAsset : uint32
 /**
 * Definition of an asset in Angkasawan:
 *	- External resource required by the engine and is streamable into the engine.
-* 
-* TODO(Ygsm):
-* [ ] Only return the handle to the resource if fetching my name.
 */
 class RENDERER_API IRAssetManager
 {
 public:
 
-	IRAssetManager(IRenderMemoryManager& Memory, IRTextureMemoryManager& TextureMemory, ResourceManager& Manager);
+	IRAssetManager(ResourceManager& Manager, SRDeviceStore& InDeviceStore);
 	~IRAssetManager();
 
 	DELETE_COPY_AND_MOVE(IRAssetManager)
 
-	Handle<Shader>	CreateNewShader		(const ShaderCreateInfo& CreateInfo);
-	Shader*			GetShaderWithHandle	(Handle<Shader> Hnd);
-	bool			DeleteShader		(Handle<Shader> Hnd);
+	Handle<SRShader>	CreateNewShader		(const ShaderCreateInfo& CreateInfo);
+	//Shader*			GetShaderWithHandle	(Handle<Shader> Hnd);
+	bool			DeleteShader		(Handle<SRShader> Hnd);
 
 	Handle<Model>	CreateNewModel		(const ModelCreateInfo& CreateInfo);
 	Model*			GetModelWithName	(const String128& Identity);
@@ -54,21 +49,21 @@ public:
 	void			PushMeshIntoModel	(Handle<Mesh> MeshHnd, Handle<Model> ModelHnd);
 	bool			RemoveMeshFromModel	(Handle<Mesh> MeshHnd, Handle<Model> ModelHnd);
 
-	Handle<Texture> CreateNewTexture		(const TextureCreateInfo& CreateInfo);
-	Handle<Texture> GetTextureHandleWithName(const String128& Identity);
-	Texture*		GetTextureWithHandle	(Handle<Texture> Hnd);
-	bool			DeleteTexture			(Handle<Texture> Hnd);
+	Handle<SRTexture> CreateNewTexture		(const TextureCreateInfo& CreateInfo);
+	Handle<SRTexture> GetTextureHandleWithName(const String128& Identity);
+	//Texture*		GetTextureWithHandle	(Handle<Texture> Hnd);
+	bool			DeleteTexture			(Handle<SRTexture> Hnd);
 
 	void			Destroy();
 
 private:
-	Map<uint32, Shader> ShaderStore;
+	//Map<uint32, Shader> ShaderStore;
 	Map<uint32, Mesh> MeshStore;
 	Map<uint32, Model> ModelStore;
-	Map<uint32, Texture> TextureStore;
+	//Map<uint32, Texture> TextureStore;
 	ResourceManager& Manager;
-	IRenderMemoryManager& Memory;
-	IRTextureMemoryManager& TextureMemory;
+	SRDeviceStore& Device;
+	
 };
 
 #endif // !LEARNVK_RENDERER_ASSETS

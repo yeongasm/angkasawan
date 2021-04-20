@@ -10,14 +10,13 @@
 
 static uint32 g_HashSeed = static_cast<uint32>(OS::GetPerfCounter());
 
-IRAssetManager::IRAssetManager(IRenderMemoryManager& Memory, IRTextureMemoryManager& TextureMemory, ResourceManager& Manager) :
-	ShaderStore(),
+IRAssetManager::IRAssetManager(ResourceManager& Manager, SRDeviceStore& InDeviceStore) :
+	//ShaderStore(),
 	MeshStore(),
 	ModelStore(),
-	TextureStore(),
+	//TextureStore(),
 	Manager(Manager),
-	Memory(Memory),
-	TextureMemory(TextureMemory)
+	Device(InDeviceStore)
 {
 	this->Manager.AddCache(Renderer_Asset_Mesh);
 	this->Manager.AddCache(Renderer_Asset_Model);
@@ -32,10 +31,10 @@ IRAssetManager::IRAssetManager(IRenderMemoryManager& Memory, IRTextureMemoryMana
 
 IRAssetManager::~IRAssetManager() 
 {
-	//ShaderStore.Release();
 	MeshStore.Release();
 	ModelStore.Release();
-	TextureStore.Release();
+
+	
 
 	Manager.RemoveCache(Renderer_Asset_Model);
 	Manager.RemoveCache(Renderer_Asset_Mesh);
@@ -72,7 +71,7 @@ Handle<Shader> IRAssetManager::CreateNewShader(const ShaderCreateInfo& CreateInf
 	Shader& shader = ShaderStore.Add(id, Shader()).Value;
 	shader.Type = CreateInfo.Type;
 	shader.Handle = -1;
-	shader.Name = CreateInfo.Name;
+	//shader.Name = CreateInfo.Name;
 
 	gpu::CreateShader(shader, const_cast<String&>(CreateInfo.Code));
 

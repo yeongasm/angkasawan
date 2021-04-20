@@ -19,6 +19,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="API\Context.cpp" />
     <ClCompile Include="API\Vk\ShaderToSPIRVCompiler.cpp" />
     <ClCompile Include="API\Vk\Src\spirv_reflect.c" />
     <ClCompile Include="API\Vk\Vk.cpp" />

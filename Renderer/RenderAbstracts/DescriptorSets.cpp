@@ -1,90 +1,97 @@
 #include "DescriptorSets.h"
 #include "API/Context.h"
 
-IRDescriptorManager::IRDescriptorManager(LinearAllocator& InAllocator) :
+IRDescriptorManager::IRDescriptorManager(LinearAllocator& InAllocator, SRDeviceStore& InDeviceStore) :
 	Allocator(InAllocator),
-	Sets{},
-	Pools{},
-	Layouts{},
-	Buffers{},
+	Device(InDeviceStore),
+	//Sets{},
+	//Pools{},
+	//Layouts{},
+	//Buffers{},
 	UpdateQueue{}
 {}
 
 IRDescriptorManager::~IRDescriptorManager()
 {
-	Buffers.Release();
-	Sets.Release();
-	Pools.Release();
-	Layouts.Release();
+	//Buffers.Release();
+	//Sets.Release();
+	//Pools.Release();
+	//Layouts.Release();
 	UpdateQueue.Release();
 }
 
-Handle<UniformBuffer> IRDescriptorManager::AllocateUniformBuffer(const UniformBufferCreateInfo& AllocInfo)
-{
-	if (DoesUniformBufferExist(AllocInfo.Id) != Resource_Not_Exist)
-	{
-		return INVALID_HANDLE;
-	}
+//Handle<UniformBuffer> IRDescriptorManager::AllocateUniformBuffer(const MemoryAllocateInfo& AllocInfo)
+//{
+//	if (DoesUniformBufferExist(AllocInfo.Name) != INVALID_HANDLE)
+//	{
+//		return INVALID_HANDLE;
+//	}
+//
+//	size_t id = Device.GenerateId(AllocInfo.Name);
+//	SRMemoryBuffer* buffer = Device.NewBuffer(id);
+//
+//	VKT_ASSERT(buffer);
+//	if (!buffer) { return INVALID_HANDLE; }
+//
+//	*buffer = {};
+//	FMemory::Memcpy(buffer, &AllocInfo, sizeof(SRMemoryBufferBase));
+//
+//	/**
+//	* CHANGELOG:
+//	* We no longer defer allocations and resources are created right after it gets called.
+//	*/
+//
+//	buffer->Locality = Buffer_Locality_Cpu_To_Gpu;
+//	gpu::CreateBuffer(*buffer, nullptr, buffer->Size);
+//
+//	return Handle<UniformBuffer>(id);
+//}
 
-	UniformBuffer* buffer = reinterpret_cast<UniformBuffer*>(Allocator.Malloc(sizeof(UniformBuffer)));
-	FMemory::InitializeObject(buffer);
-	FMemory::Memcpy(buffer, &AllocInfo, sizeof(SRMemoryBufferBase));
+//Handle<UniformBuffer> IRDescriptorManager::GetUniformBufferHandleWithName(const String128& Name)
+//{
+//	return Handle<UniformBuffer>(DoesUniformBufferExist(Name));
+//}
 
-	buffer->Locality = Buffer_Locality_Cpu_To_Gpu;
-	size_t index = Buffers.Push(buffer);
-
-	if (!AllocInfo.DeferAllocation)
-	{
-		BuildUniformBuffers();
-	}
-
-	return Handle<UniformBuffer>(index);
-}
-
-Handle<UniformBuffer> IRDescriptorManager::GetUniformBufferHandleWithId(uint32 Id)
-{
-	return Handle<UniformBuffer>(DoesUniformBufferExist(Id));
-}
-
-UniformBuffer* IRDescriptorManager::GetUniformBuffer(Handle<UniformBuffer> Hnd)
-{
-	VKT_ASSERT(Hnd != INVALID_HANDLE && "Invalid handle provided to function");
-	if (Hnd == INVALID_HANDLE)
-	{
-		return nullptr;
-	}
-	return Buffers[Hnd];
-}
+//UniformBuffer* IRDescriptorManager::GetUniformBuffer(Handle<UniformBuffer> Hnd)
+//{
+//	VKT_ASSERT(Hnd != INVALID_HANDLE && "Invalid handle provided to function");
+//	if (Hnd == INVALID_HANDLE)
+//	{
+//		return nullptr;
+//	}
+//	return Device.GetBuffer(Hnd);
+//}
 
 Handle<DescriptorPool> IRDescriptorManager::CreateDescriptorPool(const DescriptorPoolCreateInfo& CreateInfo)
 {
-	if (DoesDescriptorPoolExist(CreateInfo.Id) != Resource_Not_Exist)
+	if (DoesDescriptorPoolExist(CreateInfo.Name) != INVALID_HANDLE)
 	{
 		return INVALID_HANDLE;
 	}
 
-	DescriptorPool* pool = reinterpret_cast<DescriptorPool*>(Allocator.Malloc(sizeof(DescriptorPool)));
-	FMemory::InitializeObject(pool);
-	FMemory::Memcpy(pool, &CreateInfo, sizeof(DescriptorPoolBase));
+	size_t id = Device.GenerateId(CreateInfo.Name);
+	DescriptorPool* pool = Device.NewDescriptorPool(id);
 
-	size_t index = Pools.Push(pool);
+	VKT_ASSERT(pool);
+	if (!pool) { return INVALID_HANDLE; }
+	*pool = {};
 
-	return Handle<DescriptorPool>(index);
+	return Handle<DescriptorPool>(id);
 }
 
-Handle<DescriptorPool> IRDescriptorManager::GetDescriptorPoolHandleWithId(uint32 Id)
+Handle<DescriptorPool> IRDescriptorManager::GetDescriptorPoolHandleWithName(const String128& Name)
 {
-	return Handle<DescriptorPool>(DoesDescriptorPoolExist(Id));
+	return Handle<DescriptorPool>(DoesDescriptorPoolExist(Name));
 }
 
-bool IRDescriptorManager::AddSizeTypeToDescriptorPool(Handle<DescriptorPool> Hnd, EDescriptorType Type, uint32 Size)
+bool IRDescriptorManager::AddSizeTypeToDescriptorPool(Handle<DescriptorPool> Hnd, EDescriptorType Type, uint32 DescriptorCount)
 {
 	DescriptorPool* descriptorPool = GetDescriptorPool(Hnd);
 
 	VKT_ASSERT(descriptorPool);
 	if (!descriptorPool) { return false; }
+	descriptorPool->Sizes.Push({ Type, DescriptorCount });
 
-	descriptorPool->Sizes.Push({ Type, Size });
 	return true;
 }
 
@@ -95,7 +102,7 @@ DescriptorPool* IRDescriptorManager::GetDescriptorPool(Handle<DescriptorPool> Hn
 	{
 		return nullptr;
 	}
-	return Pools[Hnd];
+	return Device.GetDescriptorPool(Hnd);
 }
 
 //bool IRDescriptorManager::DestroyDescriptorPool(Handle<DescriptorPool> Hnd)
@@ -129,23 +136,21 @@ DescriptorPool* IRDescriptorManager::GetDescriptorPool(Handle<DescriptorPool> Hn
 
 Handle<DescriptorLayout> IRDescriptorManager::CreateDescriptorLayout(const DescriptorLayoutCreateInfo& CreateInfo)
 {
-	if (DoesDescriptorLayoutExist(CreateInfo.Id) != Resource_Not_Exist)
+	if (DoesDescriptorLayoutExist(CreateInfo.Name) != INVALID_HANDLE)
 	{
 		return INVALID_HANDLE;
 	}
 
-	DescriptorLayout* layout = reinterpret_cast<DescriptorLayout*>(Allocator.Malloc(sizeof(DescriptorLayout)));
-	FMemory::InitializeObject(layout);
-	FMemory::Memcpy(layout, &CreateInfo, sizeof(DescriptorLayoutCreateInfo));
+	size_t id = Device.GenerateId(CreateInfo.Name);
+	DescriptorLayout* layout = Device.NewDescriptorSetLayout(id);
+	*layout = {};
 
-	size_t index = Layouts.Push(layout);
-
-	return Handle<DescriptorLayout>(index);
+	return Handle<DescriptorLayout>(id);
 }
 
-Handle<DescriptorLayout> IRDescriptorManager::GetDescriptorLayoutHandleWithId(uint32 Id)
+Handle<DescriptorLayout> IRDescriptorManager::GetDescriptorLayoutHandleWithName(const String128& Name)
 {
-	return Handle<DescriptorLayout>(DoesDescriptorLayoutExist(Id));
+	return Handle<DescriptorLayout>(DoesDescriptorLayoutExist(Name));
 }
 
 bool IRDescriptorManager::AddDescriptorSetLayoutBinding(const DescriptorLayoutBindingCreateInfo& CreateInfo)
@@ -163,7 +168,7 @@ bool IRDescriptorManager::AddDescriptorSetLayoutBinding(const DescriptorLayoutBi
 
 	if (CreateInfo.BufferHnd != INVALID_HANDLE)
 	{
-		UniformBuffer* buffer = GetUniformBuffer(CreateInfo.BufferHnd);
+		UniformBuffer* buffer = Device.GetBuffer(CreateInfo.BufferHnd);
 		binding.Buffer = buffer;
 	}
 
@@ -179,7 +184,7 @@ bool IRDescriptorManager::QueueBufferForUpdate(Handle<DescriptorSet> SetHnd, uin
 	}
 
 	DescriptorSet* set = GetDescriptorSet(SetHnd);
-	UniformBuffer* buffer = GetUniformBuffer(BufferHnd);
+	UniformBuffer* buffer = Device.GetBuffer(BufferHnd);
 
 	if (!set || !buffer) { return false; }
 
@@ -229,7 +234,7 @@ DescriptorLayout* IRDescriptorManager::GetDescriptorLayout(Handle<DescriptorLayo
 	{
 		return nullptr;
 	}
-	return Layouts[Hnd];
+	return Device.GetDescriptorSetLayout(Hnd);
 }
 
 //bool IRDescriptorManager::DestroyDescriptorLayout(Handle<DescriptorLayout> Hnd)
@@ -251,26 +256,26 @@ Handle<DescriptorSet> IRDescriptorManager::CreateDescriptorSet(const DescriptorS
 
 	if (!descriptorPool			||
 		!descriptorLayout		||
-		(DoesDescriptorSetExist(CreateInfo.Id) != Resource_Not_Exist))
+		(DoesDescriptorSetExist(CreateInfo.Name) != INVALID_HANDLE))
 	{
 		return INVALID_HANDLE;
 	}
 
-	DescriptorSet* set = reinterpret_cast<DescriptorSet*>(Allocator.Malloc(sizeof(DescriptorSet)));
-	FMemory::InitializeObject(set);
+	size_t id = Device.GenerateId(CreateInfo.Name);
+	DescriptorSet* set = Device.NewDescriptorSet(id);
+
+	*set = {};
 	FMemory::Memcpy(set, &CreateInfo, sizeof(DescriptorSetBase));
 
 	set->Pool = descriptorPool;
 	set->Layout = descriptorLayout;
 
-	size_t index = Sets.Push(set);
-
-	return Handle<DescriptorSet>(index);
+	return Handle<DescriptorSet>(id);
 }
 
-Handle<DescriptorSet> IRDescriptorManager::GetDescriptorSetHandleWithId(uint32 Id)
+Handle<DescriptorSet> IRDescriptorManager::GetDescriptorSetHandleWithName(const String128& Name)
 {
-	return Handle<DescriptorSet>(DoesDescriptorSetExist(Id));
+	return Handle<DescriptorSet>(DoesDescriptorSetExist(Name));
 }
 
 bool IRDescriptorManager::UpdateDescriptorSetForBinding(DescriptorSet* Set, uint32 Binding, UniformBuffer** Buffer)
@@ -369,12 +374,12 @@ DescriptorSet* IRDescriptorManager::GetDescriptorSet(Handle<DescriptorSet> Hnd)
 	{
 		return nullptr;
 	}
-	return Sets[Hnd];
+	return Device.GetDescriptorSet(Hnd);
 }
 
 void IRDescriptorManager::BuildAll()
 {
-	BuildUniformBuffers();
+	//BuildUniformBuffers();
 	BuildDescriptorPools();
 	BuildDescriptorLayouts();
 	BuildDescriptorSets();
@@ -399,30 +404,24 @@ void IRDescriptorManager::Update()
 
 void IRDescriptorManager::Destroy()
 {
-	for (DescriptorLayout* layout : Layouts)
+	for (auto& [id, layout] : Device.DescriptorSetLayout)
 	{
 		gpu::DestroyDescriptorSetLayout(*layout);
 	}
 
-	for (DescriptorPool* pool : Pools)
+	for (auto& [id, pool] : Device.DescriptorPools)
 	{
 		gpu::DestroyDescriptorPool(*pool);
 	}
 
-	for (UniformBuffer* buffer : Buffers)
-	{
-		gpu::DestroyBuffer(*buffer);
-	}
-
-	Sets.Release();
-	Pools.Release();
-	Layouts.Release();
-	Buffers.Release();
+	Device.DescriptorSets.Release();
+	Device.DescriptorSetLayout.Release();
+	Device.DescriptorPools.Release();
 }
 
 void IRDescriptorManager::FlushDescriptorSetsOffsets()
 {
-	for (DescriptorSet* set : Sets)
+	for (auto& [id, set] : Device.DescriptorSets)
 	{
 		for (DescriptorBinding& binding : set->Layout->Bindings)
 		{
@@ -431,18 +430,18 @@ void IRDescriptorManager::FlushDescriptorSetsOffsets()
 	}
 }
 
-void IRDescriptorManager::BuildUniformBuffers()
-{
-	for (UniformBuffer* buffer : Buffers)
-	{
-		if (buffer->Handle != INVALID_HANDLE) { continue; }
-		gpu::CreateBuffer(*buffer, nullptr, buffer->Size);
-	}
-}
+//void IRDescriptorManager::BuildUniformBuffers()
+//{
+//	for (UniformBuffer* buffer : Buffers)
+//	{
+//		if (buffer->Handle != INVALID_HANDLE) { continue; }
+//		gpu::CreateBuffer(*buffer, nullptr, buffer->Size);
+//	}
+//}
 
 void IRDescriptorManager::BuildDescriptorPools()
 {
-	for (DescriptorPool* pool : Pools)
+	for (auto& [id, pool] : Device.DescriptorPools)
 	{
 		if (pool->Handle != INVALID_HANDLE) { continue; }
 		gpu::CreateDescriptorPool(*pool);
@@ -451,7 +450,7 @@ void IRDescriptorManager::BuildDescriptorPools()
 
 void IRDescriptorManager::BuildDescriptorLayouts()
 {
-	for (DescriptorLayout* layout : Layouts)
+	for (auto& [id, layout] : Device.DescriptorSetLayout)
 	{
 		if (layout->Handle != INVALID_HANDLE) { continue; }
 		gpu::CreateDescriptorSetLayout(*layout);
@@ -460,53 +459,33 @@ void IRDescriptorManager::BuildDescriptorLayouts()
 
 void IRDescriptorManager::BuildDescriptorSets()
 {
-	for (DescriptorSet* set : Sets)
+	for (auto& [id, set] : Device.DescriptorSets)
 	{
 		if (set->Handle != INVALID_HANDLE) { continue; }
 		gpu::AllocateDescriptorSet(*set);
 	}
 }
 
-size_t IRDescriptorManager::DoesUniformBufferExist(size_t Id)
+//size_t IRDescriptorManager::DoesUniformBufferExist(const String128& Name)
+//{
+//	size_t id = Device.GenerateId(Name);
+//	return Device.GetBuffer(id) ? id : INVALID_HANDLE;
+//}
+
+size_t IRDescriptorManager::DoesDescriptorPoolExist(const String128& Name)
 {
-	UniformBuffer* buffer = nullptr;
-	for (size_t i = 0; i < Buffers.Length(); i++)
-	{
-		buffer = Buffers[i];
-		if (buffer->Id == Id) { return i; }
-	}
-	return Resource_Not_Exist;
+	size_t id = Device.GenerateId(Name);
+	return Device.GetDescriptorPool(id) ? id : INVALID_HANDLE;
 }
 
-size_t IRDescriptorManager::DoesDescriptorPoolExist(size_t Id)
+size_t IRDescriptorManager::DoesDescriptorLayoutExist(const String128& Name)
 {
-	DescriptorPool* pool = nullptr;
-	for (size_t i = 0; i < Pools.Length(); i++)
-	{
-		pool = Pools[i];
-		if (pool->Id == Id) { return i; }
-	}
-	return Resource_Not_Exist;
+	size_t id = Device.GenerateId(Name);
+	return Device.GetDescriptorSetLayout(id) ? id : INVALID_HANDLE;
 }
 
-size_t IRDescriptorManager::DoesDescriptorLayoutExist(size_t Id)
+size_t IRDescriptorManager::DoesDescriptorSetExist(const String128& Name)
 {
-	DescriptorLayout* layout = nullptr;
-	for (size_t i = 0; i < Layouts.Length(); i++)
-	{
-		layout = Layouts[i];
-		if (layout->Id == Id) { return i; }
-	}
-	return Resource_Not_Exist;
-}
-
-size_t IRDescriptorManager::DoesDescriptorSetExist(size_t Id)
-{
-	DescriptorSet* set = nullptr;
-	for (size_t i = 0; i < Sets.Length(); i++)
-	{
-		set = Sets[i];
-		if (set->Id == Id) { return i; }
-	}
-	return Resource_Not_Exist;
+	size_t id = Device.GenerateId(Name);
+	return Device.GetDescriptorSet(id) ? id : INVALID_HANDLE;
 }

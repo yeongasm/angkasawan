@@ -75,6 +75,9 @@
     <ClCompile Include="RenderAbstracts\StagingManager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="API\Context.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="API\Vk\VulkanFunctions.h">

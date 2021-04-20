@@ -10,13 +10,46 @@ ENGINE_API void MurmurHash32(const void* Key, uint32 Len, void* Out, uint32 Seed
 ENGINE_API void XXHash32(const void* Input, size_t Len, uint32* Out, uint32 Seed = 0);
 ENGINE_API void XXHash64(const void* Input, size_t Len, uint64* Out, uint64 Seed = 0);
 
-template <typename Type, uint32 Seed = 0>
+template <typename Type>
 struct XxHash
 {
-	uint32 operator() (const uint32 Source) const
+	size_t operator() (const Type Source) const
 	{
-		uint32 Hash = 0;
-		XXHash32(&Source, sizeof(uint32), &Hash, Seed);
+		size_t Hash = 0;
+		XXHash64(Source.First(), Source.Length(), &Hash);
+		return Hash;
+	}
+};
+
+template <>
+struct XxHash<size_t>
+{
+	size_t operator() (const size_t Source) const
+	{
+		size_t Hash = 0;
+		XXHash64(&Source, sizeof(size_t), &Hash);
+		return Hash;
+	}
+};
+
+template <>
+struct XxHash<int32>
+{
+	size_t operator() (const int32 Source) const
+	{
+		size_t Hash = 0;
+		XXHash64(&Source, sizeof(int32), &Hash);
+		return Hash;
+	}
+};
+
+template <>
+struct XxHash<uint32>
+{
+	size_t operator() (const uint32 Source) const
+	{
+		size_t Hash = 0;
+		XXHash64(&Source, sizeof(uint32), &Hash);
 		return Hash;
 	}
 };

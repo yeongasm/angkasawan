@@ -8,6 +8,7 @@
 #include "Library/Containers/Bitset.h"
 #include "Library/Math/Math.h"
 #include "API/RendererFlagBits.h"
+#include "API/Definitions.h"
 #include "API/ShaderAttribute.h"
 #include "Assets/GPUHandles.h"
 
@@ -16,19 +17,25 @@ class IRenderMemoryManager;
 struct RenderPass;
 struct DescriptorLayout;
 
-struct SRMemoryBufferLocality
-{
-	EBufferLocality Locality;
-};
+//struct SRMemoryBufferLocality
+//{
+//	EBufferLocality Locality;
+//};
 
 struct SRMemoryBufferBase
 {
-	uint32			Id;
+	//uint32			Id;
+	EBufferLocality Locality;
 	BitSet<uint32>	Type;
 	size_t			Size;
 };
 
-struct SRMemoryBuffer : public SRMemoryBufferBase, public SRMemoryBufferLocality
+struct MemoryAllocateInfo : SRMemoryBufferBase
+{
+	String128 Name;
+};
+
+struct SRMemoryBuffer : SRMemoryBufferBase
 {
 	size_t Offset;
 	Handle<HBuffer> Handle;
@@ -57,7 +64,7 @@ struct ModelCreateInfo
 	String128 Name;
 };
 
-struct ModelImportInfo : public ModelCreateInfo
+struct ModelImportInfo : ModelCreateInfo
 {
 	FilePath Path;
 	IRAssetManager* AssetManager;
@@ -65,7 +72,7 @@ struct ModelImportInfo : public ModelCreateInfo
 	Handle<SRMemoryBuffer> IdxMemHandle;
 };
 
-struct MeshCreateInfo : public ModelCreateInfo
+struct MeshCreateInfo : ModelCreateInfo
 {
 	Array<SRVertex> Vertices;
 	Array<uint32> Indices;
@@ -73,7 +80,7 @@ struct MeshCreateInfo : public ModelCreateInfo
 	Handle<SRMemoryBuffer> IdxMemHandle;
 };
 
-struct Mesh : public ModelCreateInfo
+struct Mesh : ModelCreateInfo
 {
 	uint32 VtxOffset;
 	uint32 IdxOffset;
@@ -88,7 +95,7 @@ class Model : Array<Mesh*>
 private:
 	using Super = Array<Mesh*>;
 public:
-	uint32 Id;
+	//uint32 Id;
 
 	using Super::Push;
 	using Super::PopAt;
@@ -110,20 +117,19 @@ struct ImageSamplerBase
 	float32 AnisotropyLvl;
 };
 
-struct ImageSamplerCreateInfo : public ImageSamplerBase
+struct ImageSamplerCreateInfo : ImageSamplerBase
 {
 	String128 Name;
 };
 
-struct ImageSampler : public ImageSamplerBase
+struct ImageSampler : ImageSamplerBase
 {
-	uint32 Id;
+	//uint32 Id;
 	Handle<HSampler> Handle;
 };
 
 struct TextureBase
 {
-	String128 Name;
 	size_t Size;
 	uint32 Width;
 	uint32 Height;
@@ -131,8 +137,9 @@ struct TextureBase
 	BitSet<uint32> Usage; // EImageUsageFlags;
 };
 
-struct TextureCreateInfo : public TextureBase
+struct TextureCreateInfo : TextureBase
 {
+	String128 Name;
 	Buffer<uint8> TextureData;
 };
 
@@ -143,7 +150,7 @@ struct TextureImportInfo
 	IRAssetManager* AssetManager;
 };
 
-struct Texture : public TextureBase
+struct SRTexture : TextureBase
 {
 	ImageSampler* Sampler;
 	Handle<HImage> Handle;
@@ -152,31 +159,34 @@ struct Texture : public TextureBase
 struct SRTextureTransferContext
 {
 	SRMemoryBuffer Buffer;
-	Texture* Texture;
+	SRTexture* Texture;
 };
 
 struct ShaderBase
 {
 	EShaderType Type;
-	String128 Name;
+	//String128 Name;
 	//uint32 Id;
 };
 
-struct ShaderImportInfo : public ShaderBase
+struct ShaderImportInfo : ShaderBase
 {
 	FilePath Path;
+	String128 Name;
 	IRAssetManager* AssetManager;
 };
 
-struct ShaderCreateInfo : public ShaderBase
+struct ShaderCreateInfo : ShaderBase
 {
 	String Code;
+	String128 Name;
 };
 
-struct Shader : public ShaderBase
+struct SRShader : ShaderBase
 {
+	using AttribsContainer = StaticArray<ShaderAttrib, MAX_SHADER_ATTRIBUTES>;
 	Handle<HShader> Handle;
-	Array<ShaderAttrib> Attributes;
+	AttribsContainer Attributes;
 };
 
 struct VertexInputBinding
@@ -199,13 +209,13 @@ struct PipelineBase
 	uint32 Id;
 };
 
-struct SRPipeline : public PipelineBase
+struct SRPipeline : PipelineBase
 {
 	Array<DescriptorLayout*> DescriptorLayouts;
 	Handle<HPipeline> Handle;
 	RenderPass* Renderpass;
-	Shader* VertexShader;
-	Shader* FragmentShader;
+	SRShader* VertexShader;
+	SRShader* FragmentShader;
 	uint32 ColorOutputCount;
 	bool HasDefaultColorOutput;
 	bool HasDepthStencil;

@@ -7,10 +7,7 @@
 #include "Library/Allocators/LinearAllocator.h"
 #include "Primitives.h"
 
-class RenderContext;
-class Model;
-
-using MemoryAllocateInfo = SRMemoryBufferBase;
+//using MemoryAllocateInfo = SRMemoryBufferBase;
 
 /**
 * Vulkan staging buffer to GPU buffer abstraction layer.
@@ -24,7 +21,7 @@ private:
 	enum EExistEnum : size_t { Resource_Not_Exist = -1 };
 
 	LinearAllocator& Allocator;
-	Array<SRMemoryBuffer*> Buffers;
+	//Array<SRMemoryBuffer*> Buffers;
 	Array<SRMemoryTransferContext> Transfers;
 
 	size_t DoesBufferExist(uint32 Id);

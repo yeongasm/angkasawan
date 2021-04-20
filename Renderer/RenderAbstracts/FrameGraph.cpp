@@ -1,39 +1,27 @@
 #include "FrameGraph.h"
-#include "Renderer.h"
+//#include "Renderer.h"
+#include "API/Context.h"
 
 RenderPass::RenderPass(IRFrameGraph& OwnerGraph, ERenderPassType Type, uint32 Order) :
-	//Samples(Sample_Count_Max),
 	Width(0.0f),
 	Height(0.0f),
 	Depth(0.0f),
 	Order(Order),
 	PassType(RenderPass_Pass_Main),
 	Flags(RenderPass_Bit_None),
-	//VertexStride(0),
 	Owner(OwnerGraph), 
 	Type(Type),
-	//Topology(Topology_Type_Triangle),
-	//FrontFace(Front_Face_Clockwise),
-	//CullMode(Culling_Mode_None),
-	//PolygonalMode(Polygon_Mode_Fill),
-	//Shaders(), 
 	State(RenderPass_State_New),
-	//PipelineHandle(INVALID_HANDLE),
 	RenderpassHandle(INVALID_HANDLE),
 	FramebufferHandle(INVALID_HANDLE),
 	ColorInputs(),
 	ColorOutputs(),
 	DepthStencilInput(),
-	DepthStencilOutput()//,
-	//Parent(nullptr),
-	//VertexBindings(),
-	//Childrens(),
-	//BoundDescriptorLayouts()
+	DepthStencilOutput()
 {}
 
 RenderPass::~RenderPass()
-{
-}
+{}
 
 //bool RenderPass::AddShader(Shader* ShaderSrc)
 //{
@@ -214,9 +202,9 @@ void RenderPass::NoDepthStencilRender()
 	Flags.Set(RenderPass_Bit_No_DepthStencil_Render);
 }
 
-IRFrameGraph::IRFrameGraph(LinearAllocator& GraphAllocator) :
+IRFrameGraph::IRFrameGraph(LinearAllocator& GraphAllocator, SRDeviceStore& InDeviceStore) :
 	Allocator(GraphAllocator),
-	Name(),
+	Device(InDeviceStore),
 	RenderPasses(),
 	ColorImage(),
 	DepthStencilImage(),

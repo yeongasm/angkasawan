@@ -1682,7 +1682,7 @@ namespace gpu
 
 		Array<VkAttachmentDescription> descriptions;
 		Array<VkAttachmentReference> references;
-		Array<VkSubpassDependency> dependencies;
+		//Array<VkSubpassDependency> dependencies;
 
 		if (!Pass.Flags.Has(RenderPass_Bit_No_Color_Render))
 		{
@@ -1717,14 +1717,14 @@ namespace gpu
 			ref.attachment = offset++;
 			ref.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
-			VkSubpassDependency& dep = dependencies.Insert(VkSubpassDependency());
-			dep.srcSubpass = VK_SUBPASS_EXTERNAL;
-			dep.dstSubpass = 0;
-			dep.srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-			dep.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-			dep.srcAccessMask = 0;
-			dep.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-			dep.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+			//VkSubpassDependency& dep = dependencies.Insert(VkSubpassDependency());
+			//dep.srcSubpass = VK_SUBPASS_EXTERNAL;
+			//dep.dstSubpass = 0;
+			//dep.srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+			//dep.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+			//dep.srcAccessMask = 0;
+			//dep.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+			//dep.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
 
 			colorAttCount++;
 		}
@@ -1755,15 +1755,15 @@ namespace gpu
 			ref.attachment = offset;
 			ref.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
-			VkSubpassDependency& dep = dependencies.Insert(VkSubpassDependency());
-			dep.srcSubpass = VK_SUBPASS_EXTERNAL;
-			dep.dstSubpass = 0;
-			dep.srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-			dep.dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-			//dep.srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
-			dep.srcAccessMask = 0;
-			dep.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-			dep.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+			//VkSubpassDependency& dep = dependencies.Insert(VkSubpassDependency());
+			//dep.srcSubpass = VK_SUBPASS_EXTERNAL;
+			//dep.dstSubpass = 0;
+			//dep.srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+			//dep.dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+			////dep.srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+			//dep.srcAccessMask = 0;
+			//dep.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+			//dep.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
 
 			colorAttCount++;
 		}
@@ -1797,16 +1797,16 @@ namespace gpu
 			ref.attachment = offset++;
 			ref.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
-			VkSubpassDependency* dep = (!Pass.Flags.Has(RenderPass_Bit_No_Color_Render)) ?
-				&dependencies[0] : &dependencies.Insert(VkSubpassDependency());
+			//VkSubpassDependency* dep = (!Pass.Flags.Has(RenderPass_Bit_No_Color_Render)) ?
+			//	&dependencies[0] : &dependencies.Insert(VkSubpassDependency());
 
-			dep->srcSubpass = VK_SUBPASS_EXTERNAL;
-			dep->dstSubpass = 0;
-			dep->srcStageMask |= VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-			dep->dstStageMask |= VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-			dep->srcAccessMask = 0;
-			dep->dstAccessMask |= VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-			dep->dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+			//dep->srcSubpass = VK_SUBPASS_EXTERNAL;
+			//dep->dstSubpass = 0;
+			//dep->srcStageMask |= VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+			//dep->dstStageMask |= VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+			//dep->srcAccessMask = 0;
+			//dep->dstAccessMask |= VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+			//dep->dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
 		}
 
 		VkSubpassDescription subpassDescription = {};
@@ -1825,8 +1825,10 @@ namespace gpu
 		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
 		renderPassInfo.pAttachments = descriptions.First();
 		renderPassInfo.attachmentCount = static_cast<uint32>(descriptions.Length());
-		renderPassInfo.pDependencies = dependencies.First();
-		renderPassInfo.dependencyCount = static_cast<uint32>(dependencies.Length());
+		//renderPassInfo.pDependencies = dependencies.First();
+		//renderPassInfo.dependencyCount = static_cast<uint32>(dependencies.Length());		
+		renderPassInfo.pDependencies = nullptr;
+		renderPassInfo.dependencyCount = 0;
 		renderPassInfo.pSubpasses = &subpassDescription;
 		renderPassInfo.subpassCount = 1;
 

@@ -3,7 +3,6 @@
 Handle<ISystem> g_RenderSystemHandle;
 LinearAllocator g_RenderSystemAllocator;
 Array<ForwardNode<DescriptorSetInstance>> g_DescriptorInstancePool;
-size_t previousVbo = -1;
 
 RenderSystem::RenderSystem(EngineImpl& InEngine, Handle<ISystem> Hnd) :
 	Engine(InEngine),
@@ -24,7 +23,7 @@ void RenderSystem::OnInit()
 {
 	g_RenderSystemHandle = Hnd;
 	gpu::Initialize();
-	g_RenderSystemAllocator.Initialize(MEGABYTES(16));
+	g_RenderSystemAllocator.Initialize(KILOBYTES(64));
 	g_DescriptorInstancePool.Reserve(2048);
 
 	DeviceStore = reinterpret_cast<SRDeviceStore*>(g_RenderSystemAllocator.Malloc(sizeof(SRDeviceStore)));
@@ -33,17 +32,19 @@ void RenderSystem::OnInit()
 	MemoryManager = reinterpret_cast<IRenderMemoryManager*>(g_RenderSystemAllocator.Malloc(sizeof(IRenderMemoryManager)));
 	FMemory::InitializeObject(MemoryManager, g_RenderSystemAllocator);
 
-	TextureMemoryManager = reinterpret_cast<IRTextureMemoryManager*>(g_RenderSystemAllocator.Malloc(sizeof(IRTextureMemoryManager)));
-	FMemory::InitializeObject(TextureMemoryManager);
+	// TODO:
+	// To remove and replace with staging manager.
+	//TextureMemoryManager = reinterpret_cast<IRTextureMemoryManager*>(g_RenderSystemAllocator.Malloc(sizeof(IRTextureMemoryManager)));
+	//FMemory::InitializeObject(TextureMemoryManager);
 
 	AssetManager = reinterpret_cast<IRAssetManager*>(g_RenderSystemAllocator.Malloc(sizeof(IRAssetManager)));
-	FMemory::InitializeObject(AssetManager, *MemoryManager, *TextureMemoryManager, Engine.Manager);
+	FMemory::InitializeObject(AssetManager, Engine.Manager, *DeviceStore);
 
 	FrameGraph = reinterpret_cast<IRFrameGraph*>(g_RenderSystemAllocator.Malloc(sizeof(IRFrameGraph)));
-	FMemory::InitializeObject(FrameGraph, g_RenderSystemAllocator);
+	FMemory::InitializeObject(FrameGraph, g_RenderSystemAllocator, *DeviceStore);
 
 	DescriptorManager = reinterpret_cast<IRDescriptorManager*>(g_RenderSystemAllocator.Malloc(sizeof(IRDescriptorManager)));
-	FMemory::InitializeObject(DescriptorManager, g_RenderSystemAllocator);
+	FMemory::InitializeObject(DescriptorManager, g_RenderSystemAllocator, *DeviceStore);
 
 	DrawCmdManager = reinterpret_cast<IRDrawManager*>(g_RenderSystemAllocator.Malloc(sizeof(IRDrawManager)));
 	FMemory::InitializeObject(DrawCmdManager, g_RenderSystemAllocator, *FrameGraph, *AssetManager);

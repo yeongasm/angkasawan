@@ -10,6 +10,7 @@
 #include "Primitives.h"
 
 class RenderSystem;
+struct SRDeviceStore;
 
 /**
 * NOTE(Ygsm):
@@ -17,19 +18,22 @@ class RenderSystem;
 * Storage buffers are for unknown amounts of data sets that will be read and written to in the shader. (vector equivalent).
 */
 
-struct UniformBufferCreateInfo : public SRMemoryBufferBase
-{
-	bool DeferAllocation;
-};
+//struct UniformBufferCreateInfo : public SRMemoryBufferBase
+//{
+//	bool DeferAllocation;
+//};
 
 using UniformBuffer = SRMemoryBuffer;
 
-struct DescriptorPoolBase
-{
-	uint32 Id;
-};
+//struct DescriptorPoolBase
+//{
+//	uint32 Id;
+//};
 
-using DescriptorPoolCreateInfo = DescriptorPoolBase;
+struct DescriptorPoolCreateInfo
+{
+	String128 Name;
+};
 
 //struct DescriptorPoolCreateInfo : public DescriptorPoolBase
 //{
@@ -41,13 +45,18 @@ using DescriptorPoolCreateInfo = DescriptorPoolBase;
 * A single descriptor pool can have multiple types of descriptor pool sizes.
 * maxSets would be the total number of descriptor types from each pool sizes.
 */
-struct DescriptorPool : public DescriptorPoolBase
+struct DescriptorPool /*: public DescriptorPoolBase*/
 {
-	Array<Pair<EDescriptorType, uint32>> Sizes;
+	struct Size
+	{
+		EDescriptorType Type;	// Descriptor type
+		uint32 Count;			// Descriptor count
+	};
+
+	StaticArray<Size, MAX_DESCRIPTOR_POOL_TYPE_SIZE> Sizes;
+	//Array<Pair<EDescriptorType, uint32>> Sizes;
 	Handle<HSetPool> Handle;
 };
-
-using EShaderTypeFlagBits = uint32;
 
 struct DescriptorBinding
 {
@@ -63,27 +72,30 @@ struct DescriptorBinding
 
 struct DescriptorLayoutCreateInfo
 {
-	uint32 Id;
+	String128 Name;
 };
 
 /**
 * A single descriptor set layout can have multiple bindings.
 */
-struct DescriptorLayout : public DescriptorLayoutCreateInfo
+struct DescriptorLayout /*: public DescriptorLayoutCreateInfo*/
 {
+	using BindingsContainer = StaticArray<DescriptorBinding, MAX_DESCRIPTOR_SET_LAYOUT_BINDINGS>;
 	Handle<HPipeline>* Pipeline;
 	Handle<HSetLayout> Handle;
-	Array<DescriptorBinding> Bindings;
+	BindingsContainer Bindings;
+	//Array<DescriptorBinding> Bindings;
 };
 
 struct DescriptorSetBase
 {
-	uint32 Id;
+	//uint32 Id;
 	uint32 Slot;
 };
 
 struct DescriptorSetCreateInfo : public DescriptorSetBase
 {
+	String128 Name;
 	Handle<DescriptorPool> DescriptorPoolHandle;
 	Handle<DescriptorLayout> DescriptorLayoutHandle;
 };
@@ -118,8 +130,8 @@ struct DescriptorLayoutBindingCreateInfo
 	uint32 Binding;
 	Handle<DescriptorLayout> LayoutHandle;
 	EDescriptorType Type;
-	EShaderTypeFlagBits ShaderStages;
-	Handle<UniformBuffer> BufferHnd = static_cast<size_t>(INVALID_HANDLE);
+	uint32 ShaderStages;
+	Handle<UniformBuffer> BufferHnd;
 };
 
 /**
@@ -133,7 +145,7 @@ private:
 	friend class RenderSystem;
 	friend class IRPipelineManager;
 
-	enum EExistEnum : size_t { Resource_Not_Exist = -1 };
+	//enum EExistEnum : size_t { Resource_Not_Exist = -1 };
 
 	struct DescriptorUpdateParam
 	{
@@ -145,23 +157,24 @@ private:
 		uint32 NumOfTextures;
 	};
 
-	LinearAllocator&					Allocator;
-	Array<UniformBuffer*>				Buffers;
-	Array<DescriptorSet*>				Sets;
-	Array<DescriptorPool*>				Pools;
-	Array<DescriptorLayout*>			Layouts;
-	Array<DescriptorUpdateParam>		UpdateQueue;
+	LinearAllocator& Allocator;
+	SRDeviceStore& Device;
+	//Array<UniformBuffer*> Buffers;
+	//Array<DescriptorSet*>				Sets;
+	//Array<DescriptorPool*>				Pools;
+	//Array<DescriptorLayout*>			Layouts;
+	Array<DescriptorUpdateParam> UpdateQueue;
 
-	void	BuildUniformBuffers			();
+	//void	BuildUniformBuffers			();
 	void	BuildDescriptorPools		();
 	void	BuildDescriptorLayouts		();
 	void	BuildDescriptorSets			();
-	size_t	DoesUniformBufferExist		(size_t Id);
-	size_t	DoesDescriptorPoolExist		(size_t Id);
-	size_t	DoesDescriptorLayoutExist	(size_t Id);
-	size_t	DoesDescriptorSetExist		(size_t Id);
+	//size_t	DoesUniformBufferExist		(const String128& Name);
+	size_t	DoesDescriptorPoolExist		(const String128& Name);
+	size_t	DoesDescriptorLayoutExist	(const String128& Name);
+	size_t	DoesDescriptorSetExist		(const String128& Name);
 
-	UniformBuffer*		GetUniformBuffer	(Handle<UniformBuffer> Hnd);
+	//UniformBuffer*		GetUniformBuffer	(Handle<UniformBuffer> Hnd);
 	DescriptorPool*		GetDescriptorPool	(Handle<DescriptorPool> Hnd);
 	DescriptorLayout*	GetDescriptorLayout	(Handle<DescriptorLayout> Hnd);
 	DescriptorSet*		GetDescriptorSet	(Handle<DescriptorSet> Hnd);
@@ -173,28 +186,28 @@ public:
 
 	Handle<DescriptorSet> PreviousHandle = INVALID_HANDLE;
 
-	IRDescriptorManager(LinearAllocator& InAllocator);
+	IRDescriptorManager(LinearAllocator& InAllocator, SRDeviceStore& InDeviceStore);
 	~IRDescriptorManager();
 
 	DELETE_COPY_AND_MOVE(IRDescriptorManager)
 
-	Handle<UniformBuffer>	AllocateUniformBuffer			(const UniformBufferCreateInfo& AllocInfo);
-	Handle<UniformBuffer>	GetUniformBufferHandleWithId	(uint32 Id);
+	//Handle<UniformBuffer>	AllocateUniformBuffer			(const MemoryAllocateInfo& AllocInfo);
+	//Handle<UniformBuffer>	GetUniformBufferHandleWithName	(const String128& Name);
 
 	Handle<DescriptorPool>	CreateDescriptorPool			(const DescriptorPoolCreateInfo& CreateInfo);
-	Handle<DescriptorPool>	GetDescriptorPoolHandleWithId	(uint32 Id);
-	bool					AddSizeTypeToDescriptorPool		(Handle<DescriptorPool> Hnd, EDescriptorType Type, uint32 Size);
+	Handle<DescriptorPool>	GetDescriptorPoolHandleWithName	(const String128& Name);
+	bool					AddSizeTypeToDescriptorPool		(Handle<DescriptorPool> Hnd, EDescriptorType Type, uint32 DescriptorCount);
 	//bool DestroyDescriptorPool(Handle<DescriptorPool> Hnd);
 
 	Handle<DescriptorLayout> CreateDescriptorLayout			(const DescriptorLayoutCreateInfo& CreateInfo);
-	Handle<DescriptorLayout> GetDescriptorLayoutHandleWithId(uint32 Id);
+	Handle<DescriptorLayout> GetDescriptorLayoutHandleWithName(const String128& Name);
 	bool					 AddDescriptorSetLayoutBinding	(const DescriptorLayoutBindingCreateInfo& CreateInfo);
 	
 	bool QueueBufferForUpdate	(Handle<DescriptorSet> SetHnd, uint32 Binding, Handle<UniformBuffer> BufferHnd);
 	bool QueueTexturesForUpdate	(Handle<DescriptorSet> SetHnd, uint32 Binding, Texture** Textures, uint32 Count);
 
 	Handle<DescriptorSet>	CreateDescriptorSet				(const DescriptorSetCreateInfo& CreateInfo);
-	Handle<DescriptorSet>	GetDescriptorSetHandleWithId	(uint32 Id);
+	Handle<DescriptorSet>	GetDescriptorSetHandleWithName	(const String128& Name);
 	bool					UpdateDescriptorSetData			(Handle<DescriptorSet> SetHnd, uint32 Binding, void* Data, size_t Size);
 
 	void BindDescriptorSet(Handle<DescriptorSet> Hnd);
