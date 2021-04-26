@@ -4,18 +4,11 @@
 
 #include "Vk.h"
 #include "API/Definitions.h"
-#include "Library/Templates/Types.h"
-#include "Library/Templates/Templates.h"
 #include "Library/Containers/Map.h"
 #include "Library/Containers/Bitset.h"
 #include "Assets/GPUHandles.h"
 #include "API/RendererFlagBits.h"
 #include "Engine/Interface.h"
-#include "RenderAbstracts/Primitives.h"
-#include "RenderAbstracts/FrameGraph.h"
-#include "RenderAbstracts/DrawCommand.h"
-#include "RenderAbstracts/DescriptorSets.h"
-#include "RenderAbstracts/RenderMemory.h"
 
 namespace gpu
 {
@@ -56,15 +49,12 @@ namespace gpu
 	struct VulkanFramebuffer
 	{
 		VkFramebuffer Framebuffers[MAX_SWAPCHAIN_IMAGE_ALLOWED];
-		//VkCommandBuffer CmdBuffers[MAX_FRAMES_IN_FLIGHT];
-		//VkRenderPass Renderpass;
 	};
 
 	struct VulkanImage
 	{
 		VkImage Handle;
 		VkImageView View;
-		//VkSampler Sampler;
 		VmaAllocation Allocation;
 	};
 

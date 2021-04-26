@@ -7,7 +7,7 @@
 #include "Array.h"
 
 
-template <typename KeyType, typename ValueType, typename HashAlgorithm = MurmurHash<KeyType>, size_t BucketSlack = 5>
+template <typename KeyType, typename ValueType, typename HashAlgorithm = XxHash<KeyType>, size_t BucketSlack = 5>
 class Map
 {
 public:

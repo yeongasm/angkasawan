@@ -37,8 +37,8 @@ void RenderSystem::OnInit()
 	//TextureMemoryManager = reinterpret_cast<IRTextureMemoryManager*>(g_RenderSystemAllocator.Malloc(sizeof(IRTextureMemoryManager)));
 	//FMemory::InitializeObject(TextureMemoryManager);
 
-	AssetManager = reinterpret_cast<IRAssetManager*>(g_RenderSystemAllocator.Malloc(sizeof(IRAssetManager)));
-	FMemory::InitializeObject(AssetManager, Engine.Manager, *DeviceStore);
+	//AssetManager = reinterpret_cast<IRAssetManager*>(g_RenderSystemAllocator.Malloc(sizeof(IRAssetManager)));
+	//FMemory::InitializeObject(AssetManager, Engine.Manager, *DeviceStore);
 
 	FrameGraph = reinterpret_cast<IRFrameGraph*>(g_RenderSystemAllocator.Malloc(sizeof(IRFrameGraph)));
 	FMemory::InitializeObject(FrameGraph, g_RenderSystemAllocator, *DeviceStore);
@@ -211,17 +211,11 @@ IRAssetManager& RenderSystem::GetAssetManager()
 
 void RenderSystem::FlushRenderer()
 {
-	//previousVbo = -1;
 	PushConstantManager->PreviousHandle = INVALID_HANDLE;
 	PipelineManager->PreviousHandle = INVALID_HANDLE;
 	DescriptorManager->PreviousHandle = INVALID_HANDLE;
 	DescriptorManager->FlushDescriptorSetsOffsets();
 	DrawCmdManager->Flush();
-	
-	//DescriptorInstances.Global.Empty();
-	//DescriptorInstances.PerPass.Empty();
-	//DescriptorInstances.PerObject.Empty();
-	//g_DescriptorInstancePool.Empty();
 }
 
 //void RenderSystem::BindPerPassDescriptors(uint32 RenderPassId, RenderPass& Pass)

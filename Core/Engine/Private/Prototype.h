@@ -26,11 +26,21 @@ enum AppState : uint32
 
 struct WindowInfo
 {
+	struct Position
+	{
+		uint32 x;
+		uint32 y;
+	};
+
+	struct Extent2D
+	{
+		uint32 Width;
+		uint32 Height;
+	};
+
 	WndHandle	Handle;
-	uint32		PosX;
-	uint32		PosY;
-	uint32		Width;
-	uint32		Height;
+	Position	Pos;
+	Extent2D	Extent;
 	bool		IsFullScreened;
 	bool		WindowSizeChanged;
 };

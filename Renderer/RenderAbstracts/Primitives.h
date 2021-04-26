@@ -24,16 +24,15 @@ struct DescriptorLayout;
 
 struct SRMemoryBufferBase
 {
-	//uint32			Id;
 	EBufferLocality Locality;
-	BitSet<uint32>	Type;
-	size_t			Size;
+	BitSet<EBufferTypeFlagBits>	Type;
+	size_t Size;
 };
 
-struct MemoryAllocateInfo : SRMemoryBufferBase
-{
-	String128 Name;
-};
+//struct MemoryAllocateInfo : SRMemoryBufferBase
+//{
+//	String128 Name;
+//};
 
 struct SRMemoryBuffer : SRMemoryBufferBase
 {
@@ -41,72 +40,72 @@ struct SRMemoryBuffer : SRMemoryBufferBase
 	Handle<HBuffer> Handle;
 };
 
-struct SRMemoryTransferContext
-{
-	SRMemoryBuffer SrcBuffer;
-	size_t SrcOffset;
-	size_t SrcSize;
-	SRMemoryBuffer* DstBuffer;
-	size_t DstOffset;
-};
+//struct SRMemoryTransferContext
+//{
+//	SRMemoryBuffer SrcBuffer;
+//	size_t SrcOffset;
+//	size_t SrcSize;
+//	SRMemoryBuffer* DstBuffer;
+//	size_t DstOffset;
+//};
 
-struct SRVertex
-{
-	math::vec3 Position;
-	math::vec3 Normal;
-	math::vec3 Tangent;
-	math::vec3 Bitangent;
-	math::vec2 TexCoord;
-};
+//struct SRVertex
+//{
+//	math::vec3 Position;
+//	math::vec3 Normal;
+//	math::vec3 Tangent;
+//	math::vec3 Bitangent;
+//	math::vec2 TexCoord;
+//};
 
-struct ModelCreateInfo
-{
-	String128 Name;
-};
+//struct ModelCreateInfo
+//{
+//	String128 Name;
+//};
+//
+//struct ModelImportInfo : ModelCreateInfo
+//{
+//	FilePath Path;
+//	IRAssetManager* AssetManager;
+//	Handle<SRMemoryBuffer> VtxMemHandle;
+//	Handle<SRMemoryBuffer> IdxMemHandle;
+//};
+//
+//struct MeshCreateInfo : ModelCreateInfo
+//{
+//	Array<SRVertex> Vertices;
+//	Array<uint32> Indices;
+//	Handle<SRMemoryBuffer> VtxMemHandle;
+//	Handle<SRMemoryBuffer> IdxMemHandle;
+//};
+//
+//struct Mesh : ModelCreateInfo
+//{
+//	uint32 VtxOffset;
+//	uint32 IdxOffset;
+//	uint32 NumOfVertices;
+//	uint32 NumOfIndices;
+//	Handle<HBuffer> Vbo;
+//	Handle<HBuffer> Ebo;
+//};
+//
+//class Model : Array<Mesh*>
+//{
+//private:
+//	using Super = Array<Mesh*>;
+//public:
+//	//uint32 Id;
+//
+//	using Super::Push;
+//	using Super::PopAt;
+//	using Super::Length;
+//	using Super::begin;
+//	using Super::end;
+//	using Super::operator[];
+//	using Super::Reserve;
+//};
 
-struct ModelImportInfo : ModelCreateInfo
-{
-	FilePath Path;
-	IRAssetManager* AssetManager;
-	Handle<SRMemoryBuffer> VtxMemHandle;
-	Handle<SRMemoryBuffer> IdxMemHandle;
-};
-
-struct MeshCreateInfo : ModelCreateInfo
-{
-	Array<SRVertex> Vertices;
-	Array<uint32> Indices;
-	Handle<SRMemoryBuffer> VtxMemHandle;
-	Handle<SRMemoryBuffer> IdxMemHandle;
-};
-
-struct Mesh : ModelCreateInfo
-{
-	uint32 VtxOffset;
-	uint32 IdxOffset;
-	uint32 NumOfVertices;
-	uint32 NumOfIndices;
-	Handle<HBuffer> Vbo;
-	Handle<HBuffer> Ebo;
-};
-
-class Model : Array<Mesh*>
-{
-private:
-	using Super = Array<Mesh*>;
-public:
-	//uint32 Id;
-
-	using Super::Push;
-	using Super::PopAt;
-	using Super::Length;
-	using Super::begin;
-	using Super::end;
-	using Super::operator[];
-	using Super::Reserve;
-};
-
-struct ImageSamplerBase
+struct SRImageSamplerBase
 {
 	ESamplerFilter MinFilter;
 	ESamplerFilter MagFilter;
@@ -117,50 +116,50 @@ struct ImageSamplerBase
 	float32 AnisotropyLvl;
 };
 
-struct ImageSamplerCreateInfo : ImageSamplerBase
-{
-	String128 Name;
-};
+//struct ImageSamplerCreateInfo : ImageSamplerBase
+//{
+//	String128 Name;
+//};
 
-struct ImageSampler : ImageSamplerBase
+struct SRImageSampler : SRImageSamplerBase
 {
-	//uint32 Id;
 	Handle<HSampler> Handle;
 };
 
-struct TextureBase
+struct SRTextureBase
 {
 	size_t Size;
 	uint32 Width;
 	uint32 Height;
 	uint32 Channels;
-	BitSet<uint32> Usage; // EImageUsageFlags;
+	ETextureType Type;
+	BitSet<EImageUsageFlagBits> Usage;
 };
 
-struct TextureCreateInfo : TextureBase
-{
-	String128 Name;
-	Buffer<uint8> TextureData;
-};
+//struct TextureCreateInfo : TextureBase
+//{
+//	String128 Name;
+//	Buffer<uint8> TextureData;
+//};
 
-struct TextureImportInfo
-{
-	String128 Name;
-	FilePath Path;
-	IRAssetManager* AssetManager;
-};
+//struct TextureImportInfo
+//{
+//	String128 Name;
+//	FilePath Path;
+//	IRAssetManager* AssetManager;
+//};
 
-struct SRTexture : TextureBase
+struct SRTexture : SRTextureBase
 {
 	ImageSampler* Sampler;
 	Handle<HImage> Handle;
 };
 
-struct SRTextureTransferContext
-{
-	SRMemoryBuffer Buffer;
-	SRTexture* Texture;
-};
+//struct SRTextureTransferContext
+//{
+//	SRMemoryBuffer Buffer;
+//	SRTexture* Texture;
+//};
 
 struct ShaderBase
 {
@@ -179,7 +178,7 @@ struct ShaderImportInfo : ShaderBase
 struct ShaderCreateInfo : ShaderBase
 {
 	String Code;
-	String128 Name;
+	//String128 Name;
 };
 
 struct SRShader : ShaderBase

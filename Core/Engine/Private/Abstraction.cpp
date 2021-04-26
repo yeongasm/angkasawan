@@ -194,13 +194,13 @@ void EngineImpl::OnEvent(const OS::Event& e)
 			State = AppState::Exit;
 			break;
 		case OS::Event::Type::WINDOW_MOVE:
-			Window.PosX = e.WinMove.x;
-			Window.PosY = e.WinMove.y;
+			Window.Pos.x = e.WinMove.x;
+			Window.Pos.y = e.WinMove.y;
 			//Window.IsFullScreened = OS::IsWindowMaximized(Window.Handle);
 			break;
 		case OS::Event::Type::WINDOW_RESIZE:
-			Window.Width = e.WinSize.Width;
-			Window.Height = e.WinSize.Height;
+			Window.Extent.Width = e.WinSize.Width;
+			Window.Extent.Height = e.WinSize.Height;
 			Window.WindowSizeChanged = true;
 			//Window.IsFullScreened = OS::IsWindowMaximized(Window.Handle);
 			break;
@@ -225,10 +225,10 @@ void EngineImpl::OnInit()
 	wndInfo.Name = this->Name.C_Str();
 	wndInfo.FullScreen = Window.IsFullScreened;
 	wndInfo.HandleFileDrop = false;
-	wndInfo.PosX = Window.PosX;
-	wndInfo.PosY = Window.PosY;
-	wndInfo.Width = Window.Width;
-	wndInfo.Height = Window.Height;
+	wndInfo.PosX = Window.Pos.x;
+	wndInfo.PosY = Window.Pos.y;
+	wndInfo.Width = Window.Extent.Width;
+	wndInfo.Height = Window.Extent.Height;
 	Window.Handle = OS::CreateAppWindow(wndInfo);
 
 	if (Window.IsFullScreened)
@@ -270,10 +270,10 @@ void EngineImpl::InitializeEngine(const EngineCreationInfo& Info)
 	Clock.StartSystemClock();
 
 	Name	= Info.AppName;
-	Window.PosX = Info.StartPosX;
-	Window.PosY = Info.StartPosY;
-	Window.Width = Info.Width;
-	Window.Height = Info.Height;
+	Window.Pos.x = Info.StartPosX;
+	Window.Pos.y = Info.StartPosY;
+	Window.Extent.Width = Info.Width;
+	Window.Extent.Height = Info.Height;
 	Window.IsFullScreened = Info.FullScreen;
 	State = AppState::Running;
 

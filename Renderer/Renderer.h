@@ -2,72 +2,89 @@
 #ifndef LEARNVK_RENDERER_RENDER_SYSTEM_H
 #define LEARNVK_RENDERER_RENDER_SYSTEM_H
 
-#include "API/Context.h"
 #include "RenderPlatform/API.h"
 #include "Engine/Interface.h"
-#include "Assets/Assets.h"
-#include "Library/Containers/Node.h"
-#include "RenderAbstracts/FrameGraph.h"
-#include "RenderAbstracts/DrawCommand.h"
-#include "RenderAbstracts/DescriptorSets.h"
-#include "RenderAbstracts/RenderMemory.h"
-#include "RenderAbstracts/PipelineManager.h"
-#include "RenderAbstracts/MaterialManager.h"
-#include "RenderAbstracts/PushConstant.h"
-#include "RenderAbstracts/TextureMemory.h"
+#include "API/Device.h"
+#include "SubSystem/Resource/Handle.h"
+#include "API/RendererFlagBits.h"
+//#include "RenderAbstracts/DescriptorSets.h"
+//#include "RenderAbstracts/FrameGraph.h"
+//#include "RenderAbstracts/DrawCommand.h"
+//#include "RenderAbstracts/DescriptorSets.h"
+//#include "RenderAbstracts/RenderMemory.h"
+//#include "RenderAbstracts/PipelineManager.h"
+//#include "RenderAbstracts/MaterialManager.h"
+//#include "RenderAbstracts/PushConstant.h"
+//#include "RenderAbstracts/TextureMemory.h"
 
-/**
-*
-* TODO(Ygsm):
-* Include settings e.g render resolution and etc.
-*/
+struct SDescriptorPool;
+struct SDescriptorSetLayout;
+struct SDesriptorSet;
+struct DescriptorSetLayoutBindingInfo;
+struct STexture;
+struct SImageSampler;
 
-class RENDERER_API RenderSystem : public SystemInterface
+class RENDERER_API IRenderSystem : public SystemInterface
 {
 private:
 
-	EngineImpl&				Engine;
-	SRDeviceStore*			DeviceStore;
-	IRAssetManager*			AssetManager;
-	IRFrameGraph*			FrameGraph;
-	IRDescriptorManager*	DescriptorManager;
-	IRenderMemoryManager*	MemoryManager;
-	IRTextureMemoryManager* TextureMemoryManager;
-	IRDrawManager*			DrawCmdManager;
-	IRPipelineManager*		PipelineManager;
-	IRPushConstantManager*	PushConstantManager;
-	IRMaterialManager*		MaterialManager;
-	Handle<ISystem>			Hnd;
+	struct DescriptorSetUpdateContext
+	{
+		SDescriptorSet* pSet;
+		uint32 Binding;
+		SMemoryBuffer** pBuffers;
+		uint32 NumBuffers;
+		STexture** pTextures;
+		uint32 NumTextures;
+	};
+
+	EngineImpl& Engine;
+	IRenderDevice* Device;
+	IDeviceStore* Store;
+	Handle<ISystem>	Hnd;
+
+	Array<DescriptorSetUpdateContext> DescriptorUpdates;
 
 	void FlushRenderer();
+	bool DescriptorSetUpdateBufferBinding(SDescriptorSet* pSet, uint32 Binding, SMemoryBuffer** pBuffer, size_t Count);
+	bool DescriptorSetUpdateImageBinding(SDescriptorSet* pSet, uint32 Binding, STexture** pTexture, size_t Count);
 
 public:
 
-	RenderSystem(EngineImpl& InEngine, Handle<ISystem> Hnd);
-	~RenderSystem();
+	IRenderSystem(EngineImpl& InEngine, Handle<ISystem> Hnd);
+	~IRenderSystem();
 
-	DELETE_COPY_AND_MOVE(RenderSystem)
+	DELETE_COPY_AND_MOVE(IRenderSystem)
 
-	void		OnInit			() override;
-	void		OnUpdate		() override;
-	void		OnTerminate		() override;
-	void		FinalizeGraph	();
+	void OnInit			() override;
+	void OnUpdate		() override;
+	void OnTerminate	() override;
+	void FinalizeGraph	();
 
-	IRFrameGraph&			GetFrameGraph			();
-	IRAssetManager&			GetAssetManager			();
-	IRDescriptorManager&	GetDescriptorManager	();
-	IRenderMemoryManager&	GetRenderMemoryManager	();
-	IRDrawManager&			GetDrawManager			();
-	IRPipelineManager&		GetPipelineManager		();
-	IRMaterialManager&		GetMaterialManager		();
-	IRTextureMemoryManager& GetTextureMemoryManager	();
+	Handle<SDescriptorPool> CreateDescriptorPool();
+	bool DescriptorPoolAddSizeType(Handle<SDescriptorPool> Hnd, EDescriptorType Type, uint32 DescriptorCount);
+	bool BuildDescriptorPool(Handle<SDescriptorPool> Hnd);
+	bool DestroyDescriptorPool(Handle<SDescriptorPool> Hnd);
+
+	Handle<SDescriptorSetLayout> CreateDescriptorSetLayout();
+	bool DescriptorSetLayoutAddBinding(const DescriptorSetLayoutBindingInfo& BindInfo);
+	bool BuildDescriptorSetLayout(Handle<SDescriptorSetLayout> Hnd);
+	bool DestroyDescriptorSetLayout(Handle<SDescriptorSetLayout> Hnd);
+
+	Handle<SDescriptorSet> CreateDescriptorSet();
+	bool DescriptorSetUpdateData(Handle<SDescriptorSet> Hnd, uint32 Binding, void* Data, size_t Size);
+	bool BuildDescriptorSet(Handle<SDescriptorSet> Hnd);
+	bool DescriptorSetFlushBindingOffset(Handle<SDescriptorSet> Hnd);
+	bool DestroyDescriptorSet(Handle<SDescriptorSet> Hnd);
+	
+	bool FlushDescriptorSetBindingOffsets();
 
 	static Handle<ISystem> GetSystemHandle();
 };
 
 namespace ao
 {
-	RENDERER_API RenderSystem& FetchRenderSystem();
+	RENDERER_API IRenderSystem& FetchRenderSystem();
 }
 
 #endif // !LEARNVK_RENDERER_RENDER_SYSTEM_H

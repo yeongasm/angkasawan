@@ -12,7 +12,7 @@
 #define MEGABYTES(n)	(KILOBYTES(n)	* 1024)
 #define GIGABYTES(n)	(MEGABYTES(n)	* 1024)
 
-struct ENGINE_API FMemory
+struct ENGINE_API IMemory
 {
 	static void*	AllignedAlloc		(size_t Size, size_t Alignment);
 	static void*	Malloc				(size_t Size);

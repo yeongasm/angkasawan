@@ -1,6 +1,5 @@
 #pragma once
 #include "VulkanDriver.h"
-#include "Library/Random/Xoroshiro.h"
 #include "Library/Algorithms/QuickSort.h"
 #include "VulkanFunctions.h"
 #include "ShaderToSPIRVCompiler.h"
@@ -11,18 +10,17 @@ namespace gpu
 
 #define GET_CURR_CMD_BUFFER() VkCommandBuffer& cmd = Ctx.CommandBuffers[Ctx.CurrentFrameIndex]
 
-	static Xoroshiro32 g_RandIdVk(OS::GetPerfCounter());
 	static VulkanContext Ctx;
-	static Map<uint32, VulkanFramebuffer> g_Framebuffer;
-	static Map<uint32, VkRenderPass> g_RenderPass;
-	static Map<uint32, VulkanBuffer> g_Buffers;
-	static Map<uint32, VulkanPipeline> g_Pipelines;
-	static Map<uint32, VulkanDescriptorSet> g_DescriptorSets;
-	static Map<uint32, VulkanDescriptorPool> g_DescriptorPools;
-	static Map<uint32, VkDescriptorSetLayout> g_DescriptorSetLayout;
-	static Map<uint32, VulkanImage> g_Textures;
-	static Map<uint32, VkShaderModule> g_Shaders;
-	static Map<uint32, VkSampler> g_Samplers;
+	//static Map<uint32, VulkanFramebuffer> g_Framebuffer;
+	//static Map<uint32, VkRenderPass> g_RenderPass;
+	//static Map<uint32, VulkanBuffer> g_Buffers;
+	//static Map<uint32, VulkanPipeline> g_Pipelines;
+	//static Map<uint32, VulkanDescriptorSet> g_DescriptorSets;
+	//static Map<uint32, VulkanDescriptorPool> g_DescriptorPools;
+	//static Map<uint32, VkDescriptorSetLayout> g_DescriptorSetLayout;
+	//static Map<uint32, VulkanImage> g_Textures;
+	//static Map<uint32, VkShaderModule> g_Shaders;
+	//static Map<uint32, VkSampler> g_Samplers;
 
 	static VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT Severity,
 		VkDebugUtilsMessageTypeFlagsEXT Type,

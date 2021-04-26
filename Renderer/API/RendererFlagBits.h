@@ -76,7 +76,7 @@ enum ERenderPassState
 	RenderPass_State_Built
 };
 
-enum ERenderPassFlagBits : uint32
+enum ERenderPassFlags : uint32
 {
 	RenderPass_Bit_None						= 0,
 	RenderPass_Bit_Color_Input				= 1,
@@ -90,6 +90,7 @@ enum ERenderPassFlagBits : uint32
 	RenderPass_Bit_Stencil_Input			= 9,
 	RenderPass_Bit_Stencil_Output			= 10
 };
+using ERenderPassFlagBits = uint32;
 
 enum ECommandBufferLevel : uint32
 {
@@ -114,6 +115,7 @@ enum EShaderType : uint32
 	Shader_Type_Compute		= 3,
 	Shader_Type_Max			= 4
 };
+using EShaderTypeFlagBits = uint32;
 
 enum EShaderVarType : uint32
 {
@@ -202,6 +204,7 @@ enum EImageUsageFlags : uint32
 	Image_Usage_Depth_Stencil_Attachment = 4,
 	Image_Usage_Max = 5
 };
+using EImageUsageFlagBits = uint32;
 
 enum EAttachmentType : uint32
 {
@@ -218,6 +221,7 @@ enum EBufferType : uint32
 	Buffer_Type_Transfer_Dst = 4,
 	Buffer_Type_Max		= 5
 };
+using EBufferTypeFlagBits = uint32;
 
 enum EBufferLocality : uint32
 {

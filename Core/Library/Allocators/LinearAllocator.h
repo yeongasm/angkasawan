@@ -6,10 +6,9 @@
 
 /**
 * Linear allocator implementation.
-* 
 * Currently does not allow memory re-allocation.
 */
-class LinearAllocator final : protected AllocatorInterface
+class LinearAllocator final : protected IAllocator
 {
 public:
 
@@ -17,22 +16,30 @@ public:
 		Block(nullptr), Size(0), Offset(0) 
 	{}
 
+	LinearAllocator(size_t BlockSize) :
+		LinearAllocator()
+	{
+		Initialize(BlockSize);
+	}
+
 	~LinearAllocator() 
-	{}
+	{
+		Terminate();
+	}
 
 	DELETE_COPY_AND_MOVE(LinearAllocator)
 
 	void Initialize(size_t BlockSize)
 	{
 		if (Block) return;
-		Block = reinterpret_cast<uint8*>(FMemory::Malloc(BlockSize));
+		Block = reinterpret_cast<uint8*>(IMemory::Malloc(BlockSize));
 		Size = BlockSize;
 	}
 
 	void Terminate()
 	{
 		if (!Block) return;
-		FMemory::Free(Block);
+		IMemory::Free(Block);
 		new (this) LinearAllocator();
 	}
 
@@ -45,46 +52,21 @@ public:
 
 		if (Alignment != 0 && Offset % Alignment != 0)
 		{
-			padding = FMemory::CalculatePadding(currentAddress, Alignment);
+			padding = IMemory::CalculatePadding(currentAddress, Alignment);
 		}
 
 		Offset += padding;
 		void* result = reinterpret_cast<void*>(currentAddress + padding);
 		Offset += Size;
 
-		FMemory::Memzero(result, Size);
+		IMemory::Memzero(result, Size);
 		return result;
 	}
 
 	void FlushMemory()
 	{
-		FMemory::Memzero(Block, Size);
+		IMemory::Memzero(Block, Size);
 		Offset = 0;
-	}
-
-	template <typename Type>
-	Type* New(bool Construct = true)
-	{
-		Type* p = reinterpret_cast<Type*>(Malloc(sizeof(Type), alignof(Type)));
-		if (Construct)
-		{
-			new (p) Type();
-		}
-		return p;
-	}
-
-	template <typename Type>
-	Type* New(size_t Num, bool Construct = true)
-	{
-		Type* p = reinterpret_cast<Type*>(Malloc(sizeof(Type) * Num, alignof(Type)));
-		if (Construct)
-		{
-			for (size_t i = 0; i < Num; i++)
-			{
-				new (p[i]) Type();
-			}
-		}
-		return p;
 	}
 
 private:
