@@ -7,19 +7,13 @@
 #include "API/Device.h"
 #include "SubSystem/Resource/Handle.h"
 #include "API/RendererFlagBits.h"
-//#include "RenderAbstracts/DescriptorSets.h"
-//#include "RenderAbstracts/FrameGraph.h"
-//#include "RenderAbstracts/DrawCommand.h"
-//#include "RenderAbstracts/DescriptorSets.h"
-//#include "RenderAbstracts/RenderMemory.h"
-//#include "RenderAbstracts/PipelineManager.h"
-//#include "RenderAbstracts/MaterialManager.h"
-//#include "RenderAbstracts/PushConstant.h"
-//#include "RenderAbstracts/TextureMemory.h"
 
 struct SDescriptorPool;
+struct SDescriptorPool::Size;
 struct SDescriptorSetLayout;
 struct SDesriptorSet;
+struct SDescriptorSetInstance;
+struct DescriptorPoolCreateInfo;
 struct DescriptorSetLayoutBindingInfo;
 struct STexture;
 struct SImageSampler;
@@ -38,14 +32,16 @@ private:
 		uint32 NumTextures;
 	};
 
+	using DescriptorUpdateContainer = Array<DescriptorSetUpdateContext>;
+
 	EngineImpl& Engine;
 	IRenderDevice* Device;
 	IDeviceStore* Store;
+
+	DescriptorUpdateContainer DescriptorUpdates;
+
 	Handle<ISystem>	Hnd;
 
-	Array<DescriptorSetUpdateContext> DescriptorUpdates;
-
-	void FlushRenderer();
 	bool DescriptorSetUpdateBufferBinding(SDescriptorSet* pSet, uint32 Binding, SMemoryBuffer** pBuffer, size_t Count);
 	bool DescriptorSetUpdateImageBinding(SDescriptorSet* pSet, uint32 Binding, STexture** pTexture, size_t Count);
 
@@ -59,10 +55,9 @@ public:
 	void OnInit			() override;
 	void OnUpdate		() override;
 	void OnTerminate	() override;
-	void FinalizeGraph	();
 
 	Handle<SDescriptorPool> CreateDescriptorPool();
-	bool DescriptorPoolAddSizeType(Handle<SDescriptorPool> Hnd, EDescriptorType Type, uint32 DescriptorCount);
+	bool DescriptorPoolAddSizeType(Handle<SDescriptorPool> Hnd, SDescriptorPool::Size Type);
 	bool BuildDescriptorPool(Handle<SDescriptorPool> Hnd);
 	bool DestroyDescriptorPool(Handle<SDescriptorPool> Hnd);
 

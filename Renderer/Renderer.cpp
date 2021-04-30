@@ -1,303 +1,259 @@
 #include "Renderer.h"
+#include "Library/Containers/Node.h"
+#include "Library/Random/Xoroshiro.h"
+#include "RenderAbstracts/DescriptorSets.h"
 
 Handle<ISystem> g_RenderSystemHandle;
 LinearAllocator g_RenderSystemAllocator;
-Array<ForwardNode<DescriptorSetInstance>> g_DescriptorInstancePool;
+Array<ForwardNode<SDescriptorSetInstance>> g_DescriptorInstancePool;
+Xoroshiro64 g_Uid(OS::GetPerfCounter());
 
-RenderSystem::RenderSystem(EngineImpl& InEngine, Handle<ISystem> Hnd) :
+IRenderSystem::IRenderSystem(EngineImpl& InEngine, Handle<ISystem> Hnd) :
 	Engine(InEngine),
-	DeviceStore(nullptr),
-	AssetManager(nullptr),
-	FrameGraph(nullptr),
-	DescriptorManager(nullptr),
-	MemoryManager(nullptr),
-	TextureMemoryManager(nullptr),
-	DrawCmdManager(nullptr),
-	PipelineManager(nullptr),
+	Device(nullptr),
+	Store(nullptr),
+	DescriptorUpdates(),
 	Hnd(Hnd)
 {}
 
-RenderSystem::~RenderSystem() {}
+IRenderSystem::~IRenderSystem() {}
 
-void RenderSystem::OnInit()
+void IRenderSystem::OnInit()
 {
 	g_RenderSystemHandle = Hnd;
-	gpu::Initialize();
 	g_RenderSystemAllocator.Initialize(KILOBYTES(64));
 	g_DescriptorInstancePool.Reserve(2048);
 
-	DeviceStore = reinterpret_cast<SRDeviceStore*>(g_RenderSystemAllocator.Malloc(sizeof(SRDeviceStore)));
-	FMemory::InitializeObject(DeviceStore, g_RenderSystemAllocator);
+	Store = IAllocator::New<IDeviceStore>(g_RenderSystemAllocator, g_RenderSystemAllocator);
 
-	MemoryManager = reinterpret_cast<IRenderMemoryManager*>(g_RenderSystemAllocator.Malloc(sizeof(IRenderMemoryManager)));
-	FMemory::InitializeObject(MemoryManager, g_RenderSystemAllocator);
-
-	// TODO:
-	// To remove and replace with staging manager.
-	//TextureMemoryManager = reinterpret_cast<IRTextureMemoryManager*>(g_RenderSystemAllocator.Malloc(sizeof(IRTextureMemoryManager)));
-	//FMemory::InitializeObject(TextureMemoryManager);
-
-	//AssetManager = reinterpret_cast<IRAssetManager*>(g_RenderSystemAllocator.Malloc(sizeof(IRAssetManager)));
-	//FMemory::InitializeObject(AssetManager, Engine.Manager, *DeviceStore);
-
-	FrameGraph = reinterpret_cast<IRFrameGraph*>(g_RenderSystemAllocator.Malloc(sizeof(IRFrameGraph)));
-	FMemory::InitializeObject(FrameGraph, g_RenderSystemAllocator, *DeviceStore);
-
-	DescriptorManager = reinterpret_cast<IRDescriptorManager*>(g_RenderSystemAllocator.Malloc(sizeof(IRDescriptorManager)));
-	FMemory::InitializeObject(DescriptorManager, g_RenderSystemAllocator, *DeviceStore);
-
-	DrawCmdManager = reinterpret_cast<IRDrawManager*>(g_RenderSystemAllocator.Malloc(sizeof(IRDrawManager)));
-	FMemory::InitializeObject(DrawCmdManager, g_RenderSystemAllocator, *FrameGraph, *AssetManager);
-
-	PipelineManager = reinterpret_cast<IRPipelineManager*>(g_RenderSystemAllocator.Malloc(sizeof(IRPipelineManager)));
-	FMemory::InitializeObject(PipelineManager, g_RenderSystemAllocator, *DescriptorManager, *FrameGraph, *AssetManager);
-
-	PushConstantManager = reinterpret_cast<IRPushConstantManager*>(g_RenderSystemAllocator.Malloc(sizeof(IRPushConstantManager)));
-	FMemory::InitializeObject(PushConstantManager, g_RenderSystemAllocator, *PipelineManager);
-
-	MaterialManager = reinterpret_cast<IRMaterialManager*>(g_RenderSystemAllocator.Malloc(sizeof(IRMaterialManager)));
-	FMemory::InitializeObject(MaterialManager, g_RenderSystemAllocator, *PipelineManager, *DescriptorManager, *AssetManager, *PushConstantManager);
+	Device = IAllocator::New<IRenderDevice>(g_RenderSystemAllocator);
+	Device->Initialize(this->Engine);
 }
 
-void RenderSystem::OnUpdate()
+void IRenderSystem::OnUpdate()
 {
-	RenderPass* renderPass = nullptr;
-	IRDrawManager::DrawCommands* drawCommands = nullptr;
+	//RenderPass* renderPass = nullptr;
+	//IRDrawManager::DrawCommands* drawCommands = nullptr;
 
-	if (Engine.Window.WindowSizeChanged)
+	//if (Engine.Window.WindowSizeChanged)
+	//{
+	//	gpu::OnWindowResize();
+	//	FrameGraph->OnWindowResize();
+	//	PipelineManager->OnWindowResize();
+	//}
+
+	//gpu::Clear();
+	//gpu::BeginFrame();
+	//DrawCmdManager->BindBuffers();
+
+	//for (auto& pair : FrameGraph->RenderPasses)
+	//{
+	//	renderPass = pair.Value;
+	//	drawCommands = &DrawCmdManager->FinalDrawCommands[pair.Key];
+
+	//	gpu::BindRenderpass(*renderPass);
+
+	//	for (DrawCommand& command : *drawCommands)
+	//	{
+	//		PipelineManager->BindPipeline(command.PipelineHandle);
+	//		DescriptorManager->BindDescriptorSet(command.DescriptorSetHandle);
+	//		PushConstantManager->BindPushConstant(command.PushConstantHandle);
+
+	//		gpu::Draw(command);
+	//	}
+
+	//	gpu::UnbindRenderpass(*renderPass);
+	//}
+
+	//gpu::BlitToDefault(*FrameGraph);
+	//gpu::EndFrame();
+	//gpu::SwapBuffers();
+
+	//FlushRenderer();
+}
+
+void IRenderSystem::OnTerminate()
+{
+	g_RenderSystemAllocator.Terminate();
+	Device->Terminate();
+}
+
+Handle<SDescriptorPool> IRenderSystem::CreateDescriptorPool()
+{
+	size_t id = g_Uid();
+	SDescriptorPool* pPool = Store->NewDescriptorPool(id);
+	if (!pPool) { return INVALID_HANDLE; }
+	return id;
+}
+
+bool IRenderSystem::DescriptorPoolAddSizeType(Handle<SDescriptorPool> Hnd, SDescriptorPool::Size Type)
+{
+	SDescriptorPool* pPool = Store->GetDescriptorPool(Hnd);
+	if (pPool) 
+	{ 
+		VKT_ASSERT(false && "Pool with handle does not exist.");
+		return false; 
+	}
+	VKT_ASSERT((pPool->Sizes.Length() != MAX_DESCRIPTOR_POOL_TYPE_SIZE) && "Maximum pool type size reached.");
+	pPool->Sizes.Push(Type);
+	return true;
+}
+
+bool IRenderSystem::BuildDescriptorPool(Handle<SDescriptorPool> Hnd)
+{
+	using PoolSizeContainer = StaticArray<VkDescriptorPoolSize, MAX_DESCRIPTOR_POOL_TYPE_SIZE>;
+
+	uint32 maxSets = 0;
+	SDescriptorPool* pPool = Store->GetDescriptorPool(Hnd);
+	if (!pPool)
 	{
-		gpu::OnWindowResize();
-		FrameGraph->OnWindowResize();
-		PipelineManager->OnWindowResize();
+		VKT_ASSERT(false && "Pool with handle does not exist.");
+		return false;
 	}
 
-	gpu::Clear();
-	gpu::BeginFrame();
-	DrawCmdManager->BindBuffers();
+	PoolSizeContainer poolSizes;
 
-	for (auto& pair : FrameGraph->RenderPasses)
+	for (SDescriptorPool::Size& size : pPool->Sizes)
 	{
-		renderPass = pair.Value;
-		drawCommands = &DrawCmdManager->FinalDrawCommands[pair.Key];
+		poolSizes.Push({ 
+			Device->GetDescriptorType(size.Type), 
+			size.Count 
+		});
+		maxSets += size.Count;
+	}
 
-		gpu::BindRenderpass(*renderPass);
+	VkDescriptorPoolCreateInfo info = {};
+	info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	info.maxSets = maxSets;
+	info.pPoolSizes = poolSizes.First();
+	info.poolSizeCount = static_cast<uint32>(poolSizes.Length());
 
-		for (DrawCommand& command : *drawCommands)
+	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+	{
+		vkCreateDescriptorPool(Device->GetDevice(), &info, nullptr, &pPool->Hnd[i]);
+	}
+
+	return true;
+}
+
+bool IRenderSystem::DestroyDescriptorPool(Handle<SDescriptorPool> Hnd)
+{
+	SDescriptorPool* pPool = Store->GetDescriptorPool(Hnd);
+	if (!pPool)
+	{
+		VKT_ASSERT(false && "Pool with handle does not exist.");
+		return false;
+	}
+	vkDeviceWaitIdle(Device->GetDevice());
+	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+	{
+		vkDestroyDescriptorPool(Device->GetDevice(), pPool->Hnd[i], nullptr);
+	}
+	Store->DeleteDescriptorPool(Hnd);
+	return true;
+}
+
+Handle<SDescriptorSetLayout> IRenderSystem::CreateDescriptorSetLayout()
+{
+	size_t id = g_Uid();
+	SDescriptorSetLayout* pSetLayout = Store->NewDescriptorSetLayout(id);
+	if (!pSetLayout) { return INVALID_HANDLE; }
+	return id;
+}
+
+bool IRenderSystem::DescriptorSetLayoutAddBinding(const DescriptorSetLayoutBindingInfo& BindInfo)
+{
+	SDescriptorSetLayout* pSetLayout = Store->GetDescriptorSetLayout(BindInfo.LayoutHnd);
+	if (!pSetLayout)
+	{
+		VKT_ASSERT(false && "Layout with handle does not exist.");
+		return false;
+	}
+
+	SDescriptorSetLayout::Binding binding = {};
+	binding.Binding = BindInfo.Binding;
+	binding.DescriptorCount = BindInfo.DescriptorCount;
+	binding.Type = BindInfo.Type;
+	binding.ShaderStages = BindInfo.ShaderStages;
+
+	if (BindInfo.BufferHnd != INVALID_HANDLE)
+	{
+		SMemoryBuffer* pBuffer = Store->GetBuffer(BindInfo.BufferHnd);
+		if (!pBuffer)
 		{
-			PipelineManager->BindPipeline(command.PipelineHandle);
-			DescriptorManager->BindDescriptorSet(command.DescriptorSetHandle);
-			PushConstantManager->BindPushConstant(command.PushConstantHandle);
+			VKT_ASSERT(false && "Buffer with handle does not exist.");
+			return false;
+		}
+		binding.Buffer = pBuffer;
+	}
 
-			gpu::Draw(command);
+	pSetLayout->Bindings.Push(Move(binding));
+
+	return true;
+}
+
+bool IRenderSystem::BuildDescriptorSetLayout(Handle<SDescriptorSetLayout> Hnd)
+{
+	using BindingsContainer = StaticArray<VkDescriptorSetLayoutBinding, MAX_DESCRIPTOR_SET_LAYOUT_BINDINGS>;
+
+	SDescriptorSetLayout* pSetLayout = Store->GetDescriptorSetLayout(Hnd);
+	if (!pSetLayout)
+	{
+		VKT_ASSERT(false && "Layout with handle does not exist.");
+		return false;
+	}
+
+	BindingsContainer layoutBindings;
+
+	for (const SDescriptorSetLayout::Binding& b : pSetLayout->Bindings)
+	{
+		VkDescriptorSetLayoutBinding binding = {};
+		binding.binding = b.Binding;
+		binding.descriptorCount = b.DescriptorCount;
+		binding.descriptorType = Device->GetDescriptorType(b.Type);
+
+		if (b.ShaderStages.Has(Shader_Type_Vertex))
+		{
+			binding.stageFlags |= VK_SHADER_STAGE_VERTEX_BIT;
 		}
 
-		gpu::UnbindRenderpass(*renderPass);
+		if (b.ShaderStages.Has(Shader_Type_Fragment))
+		{
+			binding.stageFlags |= VK_SHADER_STAGE_FRAGMENT_BIT;
+		}
+
+		layoutBindings.Push(binding);
 	}
 
-	gpu::BlitToDefault(*FrameGraph);
-	gpu::EndFrame();
-	gpu::SwapBuffers();
+	VkDescriptorSetLayoutCreateInfo create = {};
+	create.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	create.bindingCount = static_cast<uint32>(layoutBindings.Length());
+	create.pBindings = layoutBindings.First();
 
-	FlushRenderer();
-}
+	if (vkCreateDescriptorSetLayout(Device->GetDevice(), &create, nullptr, &pSetLayout->Hnd) != VK_SUCCESS)
+	{
+		VKT_ASSERT(false && "Failed to create descriptor set layout on GPU");
+	}
 
-void RenderSystem::OnTerminate()
-{
-	DrawCmdManager->Destroy();
-	AssetManager->Destroy();
-	FrameGraph->Destroy();
-	DescriptorManager->Destroy();
-	MemoryManager->Destroy();
-	PipelineManager->Destroy();
-	MaterialManager->Destroy();
-	g_RenderSystemAllocator.Terminate();
-	gpu::Terminate();
-}
-
-IRFrameGraph& RenderSystem::GetFrameGraph()
-{
-	return *FrameGraph;
+	return true;
 }
 
 /**
 * Just registers the pass into the the command buffer.
 */
-void RenderSystem::FinalizeGraph()
-{
-	size_t numPasses = FrameGraph->RenderPasses.Length();
-	DrawCmdManager->InstanceDraws.Reserve(numPasses);
-	DrawCmdManager->NonInstanceDraws.Reserve(numPasses);
-	for (auto& pair : FrameGraph->RenderPasses)
-	{
-		//if (pair.Value->IsSubpass()) { continue; }
-		DrawCmdManager->AddDrawCommandList(pair.Key);
-	}
-}
 
-//bool RenderSystem::UpdateDescriptorSet(uint32 DescriptorId, Handle<DrawCommand> DrawCmdHandle, uint32 Binding, void* Data, size_t Size)
-//{
-//	if (DrawCmdHandle == INVALID_HANDLE)
-//	{
-//		return false;
-//	}
-//
-//	const uint32 currentFrameIndex = gpu::CurrentFrameIndex();
-//	BindingDescriptors& bindings = DescriptorInstances.PerObject[DrawCmdHandle];
-//
-//	DescriptorBinding* binding = nullptr;
-//	Handle<DescriptorSet> setHandle = DescriptorManager->GetDescriptorSetHandleWithId(DescriptorId);
-//	DescriptorSet* descriptorSet = DescriptorManager->GetDescriptorSet(setHandle);
-//
-//	if (!descriptorSet) { return false; }
-//
-//	for (DescriptorBinding& b : descriptorSet->Layout->Bindings)
-//	{
-//		if (b.Binding != Binding)
-//		{
-//			continue;
-//		}
-//		binding = &b;
-//		break;
-//	}
-//
-//	if (!binding) { return false; }
-//	if (binding->Allocated >= binding->Size) 
-//	{
-//		VKT_ASSERT(false && "Insufficient memory to allocate more descriptor set instances");
-//		return false; 
-//	}
-//
-//	auto& node = g_DescriptorInstancePool.Insert(ForwardNode<DescriptorSetInstance>());
-//
-//	node.Data.Binding = Binding;
-//	node.Data.Owner = descriptorSet;
-//	node.Data.Offset = binding->Allocated;
-//	binding->Allocated += gpu::PadSizeToAlignedSize(Size);
-//
-//	gpu::CopyToBuffer(*binding->Buffer, Data, Size, binding->Offset[currentFrameIndex] + node.Data.Offset);
-//
-//	if (!bindings.Count)
-//	{
-//		bindings.Base = &node;
-//		bindings.Current = &node;
-//	}
-//	else
-//	{
-//		bindings.Current->Next = &node;
-//		bindings.Current = &node;
-//	}
-//
-//	bindings.Count++;
-//
-//	return true;
-//}
-
-//bool RenderSystem::BindDescLayoutToPass(uint32 DescriptorLayoutId, Handle<RenderPass> PassHandle)
-//{
-//	Handle<DescriptorLayout> layoutHandle = DescriptorManager->GetDescriptorLayoutHandleWithId(DescriptorLayoutId);
-//	DescriptorLayout* descriptorLayout = DescriptorManager->GetDescriptorLayout(layoutHandle);
-//	if (!descriptorLayout)
-//	{
-//		return false;
-//	}
-//	FrameGraph->BindLayoutToRenderPass(*descriptorLayout, PassHandle);
-//	return true;
-//}
-
-IRAssetManager& RenderSystem::GetAssetManager()
-{
-	return *AssetManager;
-}
-
-void RenderSystem::FlushRenderer()
-{
-	PushConstantManager->PreviousHandle = INVALID_HANDLE;
-	PipelineManager->PreviousHandle = INVALID_HANDLE;
-	DescriptorManager->PreviousHandle = INVALID_HANDLE;
-	DescriptorManager->FlushDescriptorSetsOffsets();
-	DrawCmdManager->Flush();
-}
-
-//void RenderSystem::BindPerPassDescriptors(uint32 RenderPassId, RenderPass& Pass)
-//{
-//	if (!DescriptorInstances.PerPass.Length())
-//	{
-//		return;
-//	}
-//
-//	BindingDescriptors& descriptorInstances = DescriptorInstances.PerPass[RenderPassId];
-//	ForwardNode<DescriptorSetInstance>* node = descriptorInstances.Base;
-//
-//	while (descriptorInstances.Count)
-//	{
-//		gpu::BindDescriptorSetInstance(node->Data);
-//		//Context.BindDescriptorSetInstance(node->Data, Pass);
-//		descriptorInstances.Count--;
-//		node = node->Next;
-//	}
-//}
-
-//void RenderSystem::BindPerObjectDescriptors(DrawCommand& Command)
-//{
-//	if (!DescriptorInstances.PerObject.Length())
-//	{
-//		return;
-//	}
-//
-//	BindingDescriptors& descriptorInstances = DescriptorInstances.PerObject[Command.Id];
-//	ForwardNode<DescriptorSetInstance>* node = descriptorInstances.Base;
-//
-//	while (descriptorInstances.Count)
-//	{
-//		gpu::BindDescriptorSetInstance(node->Data);
-//		//Context.BindDescriptorSetInstance(node->Data, Pass);
-//		descriptorInstances.Count--;
-//		node = node->Next;
-//	}
-//}
-
-IRDescriptorManager& RenderSystem::GetDescriptorManager()
-{
-	return *DescriptorManager;
-}
-
-IRenderMemoryManager& RenderSystem::GetRenderMemoryManager()
-{
-	return *MemoryManager;
-}
-
-IRDrawManager& RenderSystem::GetDrawManager()
-{
-	return *DrawCmdManager;
-}
-
-IRPipelineManager& RenderSystem::GetPipelineManager()
-{
-	return *PipelineManager;
-}
-
-IRMaterialManager& RenderSystem::GetMaterialManager()
-{
-	return *MaterialManager;
-}
-
-IRTextureMemoryManager& RenderSystem::GetTextureMemoryManager()
-{
-	return *TextureMemoryManager;
-}
-
-Handle<ISystem> RenderSystem::GetSystemHandle()
+Handle<ISystem> IRenderSystem::GetSystemHandle()
 {
 	return g_RenderSystemHandle;
 }
 
 namespace ao
 {
-	RenderSystem& FetchRenderSystem()
+	IRenderSystem& FetchRenderSystem()
 	{
 		EngineImpl& engine = FetchEngineCtx();
-		Handle<ISystem> handle = RenderSystem::GetSystemHandle();
+		Handle<ISystem> handle = IRenderSystem::GetSystemHandle();
 		SystemInterface* system = engine.GetRegisteredSystem(System_Engine_Type, handle);
-		return *(reinterpret_cast<RenderSystem*>(system));
+		return *(reinterpret_cast<IRenderSystem*>(system));
 	}
 }

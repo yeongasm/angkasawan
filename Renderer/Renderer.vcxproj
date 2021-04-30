@@ -19,12 +19,10 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="API\Context.cpp" />
+    <ClCompile Include="API\Device.cpp" />
     <ClCompile Include="API\Vk\ShaderToSPIRVCompiler.cpp" />
     <ClCompile Include="API\Vk\Src\spirv_reflect.c" />
     <ClCompile Include="API\Vk\Vk.cpp" />
-    <ClCompile Include="Assets\Assets.cpp" />
-    <ClCompile Include="Assets\Importer.cpp" />
     <ClCompile Include="External\cgltf\cgltf.cpp" />
     <ClCompile Include="External\stb\stb_image.cpp" />
     <ClCompile Include="RenderAbstracts\DescriptorSets.cpp" />
@@ -42,13 +40,13 @@
     <ClCompile Include="RenderAbstracts\FrameGraph.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="API\Context.h" />
+    <ClInclude Include="API\Common.h" />
+    <ClInclude Include="API\Device.h" />
     <ClInclude Include="API\Definitions.h" />
     <ClInclude Include="API\ShaderAttribute.h" />
     <ClInclude Include="API\Vk\Src\spirv.h" />
     <ClInclude Include="API\Vk\Src\spirv_reflect.h" />
     <ClInclude Include="API\Vk\vk_mem_alloc.h" />
-    <ClInclude Include="Assets\GPUHandles.h" />
     <ClInclude Include="API\RendererFlagBits.h" />
     <ClInclude Include="API\Vk\ShaderToSPIRVCompiler.h" />
     <ClInclude Include="API\Vk\Src\shaderc.hpp" />
@@ -57,8 +55,6 @@
     <ClInclude Include="API\Vk\Src\shaderc\status.h" />
     <ClInclude Include="API\Vk\Src\shaderc\visibility.h" />
     <ClInclude Include="API\Vk\Vk.h" />
-    <ClInclude Include="Assets\Assets.h" />
-    <ClInclude Include="Assets\Importer.h" />
     <ClInclude Include="External\cgltf\cgltf.h" />
     <ClInclude Include="External\stb\stb_image.h" />
     <ClInclude Include="RenderAbstracts\FrameGraph.h" />

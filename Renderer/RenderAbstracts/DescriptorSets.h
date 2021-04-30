@@ -32,24 +32,42 @@ struct SDescriptorPool
 	VkDescriptorPool Hnd[MAX_FRAMES_IN_FLIGHT];
 };
 
-struct SDescriptorBinding
+struct DescriptorPoolCreateInfo
 {
-	uint32 Binding;
-	uint32 DescriptorCount;
-	size_t Size;
-	size_t Allocated;
-	size_t Offset[MAX_FRAMES_IN_FLIGHT];
-	EDescriptorType Type;
-	BitSet<uint32> ShaderStages;
-	SMemoryBuffer* Buffer;
+	SDescriptorPool::Size* pSizes;
+	uint32 NumSizes;
 };
+
+//struct SDescriptorBinding
+//{
+//	uint32 Binding;
+//	uint32 DescriptorCount;
+//	size_t Size;
+//	size_t Allocated;
+//	size_t Offset[MAX_FRAMES_IN_FLIGHT];
+//	EDescriptorType Type;
+//	BitSet<uint32> ShaderStages;
+//	SMemoryBuffer* Buffer;
+//};
 
 /**
 * A single descriptor set layout can have multiple bindings.
 */
 struct SDescriptorSetLayout
 {
-	using BindingsContainer = StaticArray<SDescriptorBinding, MAX_DESCRIPTOR_SET_LAYOUT_BINDINGS>;
+	struct Binding
+	{
+		uint32 Binding;
+		uint32 DescriptorCount;
+		size_t Size;
+		size_t Allocated;
+		size_t Offset[MAX_FRAMES_IN_FLIGHT];
+		EDescriptorType Type;
+		BitSet<uint32> ShaderStages;
+		SMemoryBuffer* Buffer;
+	};
+
+	using BindingsContainer = StaticArray<Binding, MAX_DESCRIPTOR_SET_LAYOUT_BINDINGS>;
 	SPipeline* pPipeline;
 	VkDescriptorSetLayout Hnd;
 	BindingsContainer Bindings;

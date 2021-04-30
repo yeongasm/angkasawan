@@ -56,16 +56,32 @@ public:
 	void Terminate();
 
 	bool CreateSwapchain(uint32 Width, uint32 Height);
+
+	/**
+	* Default framebuffer will always take it's width and height from the swapchain.
+	*/
 	bool CreateDefaultFramebuffer();
+	void DestroyDefaultFramebuffer();
 
 	void BeginFrame();
 	void EndFrame();
 
-	void BeginTransfer();
-	void EndTransfer();
+	/**
+	* Returns the current frame's command buffer.
+	* Extendable to multi-threaded command buffer recording.
+	*/
+	VkCommandBuffer GetCommandBuffer() const;
 
-	VmaAllocator& GetAllocator() const;
-	uint32 GetCurrentFrameIndex() const;
+	VmaAllocator& GetAllocator();
+
+	VkDevice GetDevice() const;
+
+	VkDescriptorType GetDescriptorType(uint32 Index);
+
+	/**
+	* Current frame's index.
+	*/
+	const uint32 GetCurrentFrameIndex() const;
 
 private:
 
@@ -83,7 +99,7 @@ private:
 	VulkanQueue GraphicsQueue;
 	VulkanQueue PresentQueue;
 	VulkanTransfer TransferOp;
-	VulkanFramebuffer DefautltFramebuffer;
+	VulkanFramebuffer DefaultFramebuffer;
 	VkRenderPass DefaultRenderPass;
 	VkSemaphore Semaphores[MAX_FRAMES_IN_FLIGHT][Semaphore_Type_Max];
 	VkFence Fences[MAX_FRAMES_IN_FLIGHT];

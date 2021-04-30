@@ -66,6 +66,11 @@ public:
 		Data &= ~(1 << Bit);
 	}
 
+	const bool Has(Type Bit) const
+	{
+		return (Data >> Bit) & 1U;
+	}
+
 	bool Has(Type Bit)
 	{
 		return (Data >> Bit) & 1U;

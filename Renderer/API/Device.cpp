@@ -51,6 +51,46 @@ bool IRenderDevice::Initialize(const EngineImpl& Engine)
 	return true;
 }
 
+void IRenderDevice::Terminate()
+{
+	DestroyDefaultFramebuffer();
+	vkDestroyRenderPass(Device, DefaultRenderPass, nullptr);
+	vmaDestroyAllocator(Allocator);
+
+	for (size_t i = 0; i < Swapchain.NumOfImages; i++)
+	{
+		vkDestroyImageView(Device, Swapchain.ImageViews[i], nullptr);
+	}
+
+	vkDestroyCommandPool(Device, CommandPool, nullptr);
+	vkDestroyCommandPool(Device, TransferOp.CommandPool, nullptr);
+	vkDestroyFence(Device, TransferOp.Fence, nullptr);
+
+	for (uint32 i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+	{
+		vkDestroyFence(Device, Fences[i], nullptr);
+		for (uint32 j = 0; j < Semaphore_Type_Max; j++)
+		{
+			vkDestroySemaphore(Device, Semaphores[i][j], nullptr);
+		}
+	}
+
+	if (Swapchain.Hnd != VK_NULL_HANDLE)
+	{
+		vkDestroySwapchainKHR(Device, Swapchain.Hnd, nullptr);
+	}
+
+	if (DebugMessenger != VK_NULL_HANDLE)
+	{
+		vkDestroyDebugUtilsMessengerEXT(Instance, DebugMessenger, nullptr);
+	}
+
+	vkDestroyDevice(Device, nullptr);
+	vkDestroySurfaceKHR(Instance, Surface, nullptr);
+	vkDestroyInstance(Instance, nullptr);
+	FreeVulkanLibrary();
+}
+
 bool IRenderDevice::CreateSwapchain(uint32 Width, uint32 Height)
 {
 	static auto getSwapChainImageCount = [](
@@ -303,7 +343,7 @@ bool IRenderDevice::CreateSwapchain(uint32 Width, uint32 Height)
 
 bool IRenderDevice::CreateDefaultFramebuffer()
 {
-	VulkanFramebuffer& framebuffer = DefautltFramebuffer;
+	VulkanFramebuffer& framebuffer = DefaultFramebuffer;
 
 	VkFramebufferCreateInfo createInfo = {};
 	createInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
@@ -324,6 +364,34 @@ bool IRenderDevice::CreateDefaultFramebuffer()
 	}
 
 	return true;
+}
+
+void IRenderDevice::DestroyDefaultFramebuffer()
+{
+	vkDeviceWaitIdle(Device);
+	for (size_t i = 0; i < MAX_SWAPCHAIN_IMAGE_ALLOWED; i++)
+	{
+		vkDestroyFramebuffer(Device, DefaultFramebuffer.Hnd[i], nullptr);
+		DefaultFramebuffer.Hnd[i] = VK_NULL_HANDLE;
+	}
+}
+
+void IRenderDevice::BeginFrame()
+{
+	VkCommandBuffer cmd = GetCommandBuffer();
+	VkCommandBufferBeginInfo begin = {
+		VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+		nullptr,
+		VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT,
+		nullptr
+	};
+	vkResetCommandBuffer(cmd, 0);
+	vkBeginCommandBuffer(cmd, &begin);
+}
+
+void IRenderDevice::EndFrame()
+{
+	vkEndCommandBuffer(GetCommandBuffer());
 }
 
 bool IRenderDevice::LoadVulkanLibrary()
@@ -1184,4 +1252,38 @@ bool IDeviceStore::DeleteTexture(size_t Id, bool Free)
 	}
 	Textures.Remove(Id);
 	return true;
+}
+
+VkCommandBuffer IRenderDevice::GetCommandBuffer() const
+{
+	return CommandBuffers[CurrentFrameIndex];
+}
+
+VmaAllocator& IRenderDevice::GetAllocator()
+{
+	return Allocator;
+}
+
+VkDevice IRenderDevice::GetDevice() const
+{
+	return Device;
+}
+
+VkDescriptorType IRenderDevice::GetDescriptorType(uint32 Index)
+{
+	static constexpr VkDescriptorType types[] = {
+		VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+		VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+		VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+		VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
+		VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+		VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC,
+		VK_DESCRIPTOR_TYPE_SAMPLER
+	};
+	return types[Index];
+}
+
+const uint32 IRenderDevice::GetCurrentFrameIndex() const
+{
+	return CurrentFrameIndex;
 }
