@@ -39,9 +39,6 @@
     <ClCompile Include="External\cgltf\cgltf.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="RenderAbstracts\DescriptorSets.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="RenderAbstracts\FrameGraph.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -61,9 +58,6 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="RenderAbstracts\PushConstant.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="RenderAbstracts\TextureMemory.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="RenderAbstracts\StagingManager.cpp">
@@ -140,9 +134,6 @@
     <ClInclude Include="External\cgltf\cgltf.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="RenderAbstracts\DescriptorSets.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="API\ShaderAttribute.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -174,9 +165,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="RenderAbstracts\PushConstant.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="RenderAbstracts\TextureMemory.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="RenderAbstracts\StagingManager.h">

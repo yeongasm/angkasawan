@@ -17,7 +17,7 @@ class IFrameGraph;
 /**
 *
 */
-struct RENDERER_API RenderPass
+class RENDERER_API RenderPass
 {
 
 	RenderPass(IFrameGraph& Graph, uint32 Order);

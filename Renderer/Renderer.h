@@ -7,43 +7,16 @@
 #include "API/Device.h"
 #include "SubSystem/Resource/Handle.h"
 #include "API/RendererFlagBits.h"
-
-struct SDescriptorPool;
-struct SDescriptorPool::Size;
-struct SDescriptorSetLayout;
-struct SDesriptorSet;
-struct SDescriptorSetInstance;
-struct DescriptorPoolCreateInfo;
-struct DescriptorSetLayoutBindingInfo;
-struct STexture;
-struct SImageSampler;
+#include "RenderAbstracts/Primitives.h"
 
 class RENDERER_API IRenderSystem : public SystemInterface
 {
 private:
 
-	struct DescriptorSetUpdateContext
-	{
-		SDescriptorSet* pSet;
-		uint32 Binding;
-		SMemoryBuffer** pBuffers;
-		uint32 NumBuffers;
-		STexture** pTextures;
-		uint32 NumTextures;
-	};
-
-	using DescriptorUpdateContainer = Array<DescriptorSetUpdateContext>;
-
 	EngineImpl& Engine;
 	IRenderDevice* Device;
 	IDeviceStore* Store;
-
-	DescriptorUpdateContainer DescriptorUpdates;
-
 	Handle<ISystem>	Hnd;
-
-	bool DescriptorSetUpdateBufferBinding(SDescriptorSet* pSet, uint32 Binding, SMemoryBuffer** pBuffer, size_t Count);
-	bool DescriptorSetUpdateImageBinding(SDescriptorSet* pSet, uint32 Binding, STexture** pTexture, size_t Count);
 
 public:
 
@@ -66,13 +39,12 @@ public:
 	bool BuildDescriptorSetLayout(Handle<SDescriptorSetLayout> Hnd);
 	bool DestroyDescriptorSetLayout(Handle<SDescriptorSetLayout> Hnd);
 
-	Handle<SDescriptorSet> CreateDescriptorSet();
-	bool DescriptorSetUpdateData(Handle<SDescriptorSet> Hnd, uint32 Binding, void* Data, size_t Size);
+	Handle<SDescriptorSet> CreateDescriptorSet(const DescriptorSetAllocateInfo& AllocInfo);
+	bool DescriptorSetUpdateBuffer(Handle<SDescriptorSet> Hnd, uint32 Binding, Handle<SMemoryBuffer> BufferHnd);
+	bool DescriptorSetUpdateTexture(Handle<SDescriptorSet> Hnd, uint32 Binding, Handle<SImage> ImageHnd);
 	bool BuildDescriptorSet(Handle<SDescriptorSet> Hnd);
 	bool DescriptorSetFlushBindingOffset(Handle<SDescriptorSet> Hnd);
 	bool DestroyDescriptorSet(Handle<SDescriptorSet> Hnd);
-	
-	bool FlushDescriptorSetBindingOffsets();
 
 	static Handle<ISystem> GetSystemHandle();
 };

@@ -2,110 +2,23 @@
 #ifndef LEARNVK_RENDERER_RENDER_ABSTRACT_PRIMITIVES_H
 #define LEARNVK_RENDERER_RENDER_ABSTRACT_PRIMITIVES_H
 
-#include "Library/Containers/Buffer.h"
 #include "Library/Containers/Array.h"
-#include "Library/Containers/Path.h"
 #include "Library/Containers/Bitset.h"
-#include "Library/Math/Math.h"
+#include "API/Common.h"
 #include "API/RendererFlagBits.h"
 #include "API/Definitions.h"
 #include "API/ShaderAttribute.h"
-#include "Assets/GPUHandles.h"
 
-class IRAssetManager;
-class IRenderMemoryManager;
-struct RenderPass;
-struct DescriptorLayout;
-
-//struct SRMemoryBufferLocality
-//{
-//	EBufferLocality Locality;
-//};
-
-struct SRMemoryBufferBase
+struct SMemoryBuffer
 {
-	EBufferLocality Locality;
 	BitSet<EBufferTypeFlagBits>	Type;
 	size_t Size;
-};
-
-//struct MemoryAllocateInfo : SRMemoryBufferBase
-//{
-//	String128 Name;
-//};
-
-struct SRMemoryBuffer : SRMemoryBufferBase
-{
 	size_t Offset;
-	Handle<HBuffer> Handle;
+	EBufferLocality Locality;
+	VkBuffer Hnd;
 };
 
-//struct SRMemoryTransferContext
-//{
-//	SRMemoryBuffer SrcBuffer;
-//	size_t SrcOffset;
-//	size_t SrcSize;
-//	SRMemoryBuffer* DstBuffer;
-//	size_t DstOffset;
-//};
-
-//struct SRVertex
-//{
-//	math::vec3 Position;
-//	math::vec3 Normal;
-//	math::vec3 Tangent;
-//	math::vec3 Bitangent;
-//	math::vec2 TexCoord;
-//};
-
-//struct ModelCreateInfo
-//{
-//	String128 Name;
-//};
-//
-//struct ModelImportInfo : ModelCreateInfo
-//{
-//	FilePath Path;
-//	IRAssetManager* AssetManager;
-//	Handle<SRMemoryBuffer> VtxMemHandle;
-//	Handle<SRMemoryBuffer> IdxMemHandle;
-//};
-//
-//struct MeshCreateInfo : ModelCreateInfo
-//{
-//	Array<SRVertex> Vertices;
-//	Array<uint32> Indices;
-//	Handle<SRMemoryBuffer> VtxMemHandle;
-//	Handle<SRMemoryBuffer> IdxMemHandle;
-//};
-//
-//struct Mesh : ModelCreateInfo
-//{
-//	uint32 VtxOffset;
-//	uint32 IdxOffset;
-//	uint32 NumOfVertices;
-//	uint32 NumOfIndices;
-//	Handle<HBuffer> Vbo;
-//	Handle<HBuffer> Ebo;
-//};
-//
-//class Model : Array<Mesh*>
-//{
-//private:
-//	using Super = Array<Mesh*>;
-//public:
-//	//uint32 Id;
-//
-//	using Super::Push;
-//	using Super::PopAt;
-//	using Super::Length;
-//	using Super::begin;
-//	using Super::end;
-//	using Super::operator[];
-//	using Super::Reserve;
-//};
-
-struct SRImageSamplerBase
+struct SImageSampler
 {
 	ESamplerFilter MinFilter;
 	ESamplerFilter MagFilter;
@@ -114,117 +27,147 @@ struct SRImageSamplerBase
 	ESamplerAddressMode AddressModeW;
 	ECompareOp CompareOp;
 	float32 AnisotropyLvl;
+	VkSampler Hnd;
 };
 
-//struct ImageSamplerCreateInfo : ImageSamplerBase
-//{
-//	String128 Name;
-//};
-
-struct SRImageSampler : SRImageSamplerBase
+struct SImage
 {
-	Handle<HSampler> Handle;
-};
-
-struct SRTextureBase
-{
+	SImageSampler* pSampler;
+	BitSet<EImageUsageFlagBits> Usage;
 	size_t Size;
 	uint32 Width;
 	uint32 Height;
 	uint32 Channels;
 	ETextureType Type;
-	BitSet<EImageUsageFlagBits> Usage;
+	VkImage ImgHnd;
+	VkImageView ImgViewHnd;
 };
 
-//struct TextureCreateInfo : TextureBase
-//{
-//	String128 Name;
-//	Buffer<uint8> TextureData;
-//};
-
-//struct TextureImportInfo
-//{
-//	String128 Name;
-//	FilePath Path;
-//	IRAssetManager* AssetManager;
-//};
-
-struct SRTexture : SRTextureBase
-{
-	ImageSampler* Sampler;
-	Handle<HImage> Handle;
-};
-
-//struct SRTextureTransferContext
-//{
-//	SRMemoryBuffer Buffer;
-//	SRTexture* Texture;
-//};
-
-struct ShaderBase
-{
-	EShaderType Type;
-	//String128 Name;
-	//uint32 Id;
-};
-
-struct ShaderImportInfo : ShaderBase
-{
-	FilePath Path;
-	String128 Name;
-	IRAssetManager* AssetManager;
-};
-
-struct ShaderCreateInfo : ShaderBase
-{
-	String Code;
-	//String128 Name;
-};
-
-struct SRShader : ShaderBase
+struct SShader
 {
 	using AttribsContainer = StaticArray<ShaderAttrib, MAX_SHADER_ATTRIBUTES>;
-	Handle<HShader> Handle;
+
 	AttribsContainer Attributes;
+	VkShaderModule Hnd;
+	EShaderType Type;
 };
 
-struct VertexInputBinding
+struct SPipeline
 {
-	uint32 Binding;
-	uint32 From;
-	uint32 To;
-	uint32 Stride;
-	EVertexInputRateType Type;
-};
+	struct VertexInputBinding
+	{
+		uint32 Binding;
+		uint32 From;
+		uint32 To;
+		uint32 Stride;
+		EVertexInputRateType Type;
+	};
 
-struct PipelineBase
-{
-	Array<VertexInputBinding> VertexInputBindings;
+	using VertexInBindings = StaticArray<VertexInputBinding, MAX_VERTEX_INPUT_BINDING>;
+	using LayoutsContainer = StaticArray<SDescriptorSetLayout*, MAX_PIPELINE_DESCRIPTOR_LAYOUT>;
+
+	VertexInBindings VertexBindings;
+	LayoutsContainer Layouts;
+	VkPipeline Hnd;
 	ESampleCount Samples;
 	ETopologyType Topology;
 	EFrontFaceDir FrontFace;
 	ECullingMode CullMode;
 	EPolygonMode PolygonalMode;
-	uint32 Id;
-};
-
-struct SRPipeline : PipelineBase
-{
-	Array<DescriptorLayout*> DescriptorLayouts;
-	Handle<HPipeline> Handle;
-	RenderPass* Renderpass;
-	SRShader* VertexShader;
-	SRShader* FragmentShader;
 	uint32 ColorOutputCount;
 	bool HasDefaultColorOutput;
 	bool HasDepthStencil;
 };
 
-struct SRPushConstant
+struct SPushConstant
 {
 	uint8 Data[Push_Constant_Size];
 	size_t Offset;
-	SRPipeline* Pipeline;
+	SPipeline* pPipeline;
+};
+
+struct SDescriptorPool
+{
+	struct Size
+	{
+		EDescriptorType Type;	// Descriptor type
+		uint32 Count;			// Descriptor count
+	};
+
+	StaticArray<Size, MAX_DESCRIPTOR_POOL_TYPE_SIZE> Sizes;
+	VkDescriptorPool Hnd[MAX_FRAMES_IN_FLIGHT];
+};
+
+/**
+* A single descriptor set layout can have multiple bindings.
+*/
+struct SDescriptorSetLayout
+{
+	struct Binding
+	{
+		uint32 Binding;
+		uint32 DescriptorCount;
+		size_t Size;
+		size_t Allocated;
+		size_t Offset[MAX_FRAMES_IN_FLIGHT];
+		EDescriptorType Type;
+		BitSet<uint32> ShaderStages;
+		SMemoryBuffer* Buffer;
+	};
+
+	using BindingsContainer = StaticArray<Binding, MAX_DESCRIPTOR_SET_LAYOUT_BINDINGS>;
+	VkDescriptorSetLayout Hnd;
+	BindingsContainer Bindings;
+};
+
+/**
+* Generally, each descriptor set can only occupy a slot in the driver (set = ??? in the shader)
+* If 2 descriptor sets referencing different layouts (and each layout have different binding values) are bounded to
+* the same slot, one will overwrite the other.
+*
+* A descriptor set can only references one layout.
+*/
+struct SDescriptorSet
+{
+	struct UpdateContext
+	{
+		using Binding = SDescriptorSetLayout::Binding;
+
+		SDescriptorSet* pSet;
+		Binding* pBinding;
+		SMemoryBuffer* pBuffer;
+		SImage* pImage;
+	};
+
+	SDescriptorPool* pPool;
+	SDescriptorSetLayout* pLayout;
+	VkDescriptorSet Hnd[MAX_FRAMES_IN_FLIGHT];
+	uint32 Slot;
+};
+
+struct SDescriptorSetInstance
+{
+	SDescriptorSet* pSet;
+	size_t Offset;
+	uint32 Binding;
+};
+
+struct DescriptorSetLayoutBindingInfo
+{
+	size_t Size;
+	uint32 DescriptorCount;
+	uint32 Binding;
+	EDescriptorType Type;
+	Handle<SDescriptorSetLayout> LayoutHnd;
+	Handle<SMemoryBuffer> BufferHnd;
+	BitSet<EShaderTypeFlagBits> ShaderStages;
+};
+
+struct DescriptorSetAllocateInfo
+{
+	Handle<SDescriptorPool> PoolHnd;
+	Handle<SDescriptorSetLayout> LayoutHnd;
+	uint32 Slot;
 };
 
 #endif // !LEARNVK_RENDERER_RENDER_ABSTRACT_PRIMITIVES_H

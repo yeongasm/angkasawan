@@ -25,14 +25,12 @@
     <ClCompile Include="API\Vk\Vk.cpp" />
     <ClCompile Include="External\cgltf\cgltf.cpp" />
     <ClCompile Include="External\stb\stb_image.cpp" />
-    <ClCompile Include="RenderAbstracts\DescriptorSets.cpp" />
     <ClCompile Include="RenderAbstracts\DrawCommand.cpp" />
     <ClCompile Include="RenderAbstracts\MaterialManager.cpp" />
     <ClCompile Include="RenderAbstracts\PipelineManager.cpp" />
     <ClCompile Include="RenderAbstracts\PushConstant.cpp" />
     <ClCompile Include="RenderAbstracts\RenderMemory.cpp" />
     <ClCompile Include="RenderAbstracts\StagingManager.cpp" />
-    <ClCompile Include="RenderAbstracts\TextureMemory.cpp" />
     <ClCompile Include="Renderer.cpp" />
     <ClCompile Include="API\Vk\VulkanFunctions.cpp" />
     <ClCompile Include="API\Vk\VulkanDriver.cpp" />
@@ -58,7 +56,6 @@
     <ClInclude Include="External\cgltf\cgltf.h" />
     <ClInclude Include="External\stb\stb_image.h" />
     <ClInclude Include="RenderAbstracts\FrameGraph.h" />
-    <ClInclude Include="RenderAbstracts\DescriptorSets.h" />
     <ClInclude Include="RenderAbstracts\DrawCommand.h" />
     <ClInclude Include="RenderAbstracts\MaterialManager.h" />
     <ClInclude Include="RenderAbstracts\PipelineManager.h" />
@@ -66,7 +63,6 @@
     <ClInclude Include="RenderAbstracts\PushConstant.h" />
     <ClInclude Include="RenderAbstracts\RenderMemory.h" />
     <ClInclude Include="RenderAbstracts\StagingManager.h" />
-    <ClInclude Include="RenderAbstracts\TextureMemory.h" />
     <ClInclude Include="RenderPlatform\API.h" />
     <ClInclude Include="Renderer.h" />
     <ClInclude Include="API\Vk\Src\vk_layer.h" />

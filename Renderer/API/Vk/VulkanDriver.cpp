@@ -1975,15 +1975,15 @@ namespace gpu
 
 	bool AllocateDescriptorSet(DescriptorSet& Set)
 	{
-		constexpr VkDescriptorType types[Descriptor_Type_Max] = {
-			VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-			VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
-			VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-			VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
-			VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-			VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC,
-			VK_DESCRIPTOR_TYPE_SAMPLER
-		};
+		//constexpr VkDescriptorType types[Descriptor_Type_Max] = {
+		//	VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+		//	VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+		//	VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+		//	VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
+		//	VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+		//	VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC,
+		//	VK_DESCRIPTOR_TYPE_SAMPLER
+		//};
 
 		VulkanDescriptorPool& poolParams = g_DescriptorPools[Set.Pool->Handle];
 		VkDescriptorSetLayout layout = g_DescriptorSetLayout[Set.Layout->Handle];

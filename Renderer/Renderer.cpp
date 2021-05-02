@@ -1,18 +1,17 @@
 #include "Renderer.h"
 #include "Library/Containers/Node.h"
 #include "Library/Random/Xoroshiro.h"
-#include "RenderAbstracts/DescriptorSets.h"
+
+using DescriptorBindingUpdates = Map<uint32, StaticArray<SDescriptorSet::UpdateContext, MAX_DESCRIPTOR_BINDING_UPDATES>>;
 
 Handle<ISystem> g_RenderSystemHandle;
 LinearAllocator g_RenderSystemAllocator;
-Array<ForwardNode<SDescriptorSetInstance>> g_DescriptorInstancePool;
 Xoroshiro64 g_Uid(OS::GetPerfCounter());
 
 IRenderSystem::IRenderSystem(EngineImpl& InEngine, Handle<ISystem> Hnd) :
 	Engine(InEngine),
 	Device(nullptr),
 	Store(nullptr),
-	DescriptorUpdates(),
 	Hnd(Hnd)
 {}
 
@@ -22,8 +21,7 @@ void IRenderSystem::OnInit()
 {
 	g_RenderSystemHandle = Hnd;
 	g_RenderSystemAllocator.Initialize(KILOBYTES(64));
-	g_DescriptorInstancePool.Reserve(2048);
-
+	
 	Store = IAllocator::New<IDeviceStore>(g_RenderSystemAllocator, g_RenderSystemAllocator);
 
 	Device = IAllocator::New<IRenderDevice>(g_RenderSystemAllocator);
@@ -238,9 +236,104 @@ bool IRenderSystem::BuildDescriptorSetLayout(Handle<SDescriptorSetLayout> Hnd)
 	return true;
 }
 
-/**
-* Just registers the pass into the the command buffer.
-*/
+bool IRenderSystem::DestroyDescriptorSetLayout(Handle<SDescriptorSetLayout> Hnd)
+{
+	SDescriptorSetLayout* pSetLayout = Store->GetDescriptorSetLayout(Hnd);
+	if (!pSetLayout)
+	{
+		VKT_ASSERT(false && "Layout with handle does not exist.");
+		return false;
+	}
+	vkDeviceWaitIdle(Device->GetDevice());
+	vkDestroyDescriptorSetLayout(Device->GetDevice(), pSetLayout->Hnd, nullptr);
+	Store->DeleteDescriptorSetLayout(Hnd);
+
+	return true;
+}
+
+Handle<SDescriptorSet> IRenderSystem::CreateDescriptorSet(const DescriptorSetAllocateInfo& AllocInfo)
+{
+	SDescriptorPool* pPool = Store->GetDescriptorPool(AllocInfo.PoolHnd);
+	SDescriptorSetLayout* pLayout = Store->GetDescriptorSetLayout(AllocInfo.LayoutHnd);
+	if (!pPool || !pLayout) { return INVALID_HANDLE; }
+
+	size_t id = g_Uid();
+	SDescriptorSet* pSet = Store->NewDescriptorSet(id);
+	if (!pSet) { return INVALID_HANDLE; }
+
+	pSet->pPool = pPool;
+	pSet->pLayout = pLayout;
+	pSet->Slot = AllocInfo.Slot;
+
+	return id;
+}
+
+bool IRenderSystem::BuildDescriptorSet(Handle<SDescriptorSet> Hnd)
+{
+	SDescriptorSet* pSet = Store->GetDescriptorSet(Hnd);
+	if (!pSet)
+	{
+		VKT_ASSERT(false && "Set with handle does not exist.");
+		return false;
+	}
+
+	if (pSet->pPool->Hnd[0] == VK_NULL_HANDLE || 
+		pSet->pLayout->Hnd == VK_NULL_HANDLE)
+	{
+		VKT_ASSERT(false && "Descriptor pool or set layout has not been constructed.");
+		return false;
+	}
+
+	VkDescriptorSetAllocateInfo allocInfo = {};
+	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	allocInfo.descriptorSetCount = 1;
+	allocInfo.pSetLayouts = &pSet->pLayout->Hnd;
+
+	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+	{
+		allocInfo.descriptorPool = pSet->pPool->Hnd[i];
+		vkAllocateDescriptorSets(Device->GetDevice(), &allocInfo, &pSet->Hnd[i]);
+	}
+
+
+	return true;
+}
+
+bool IRenderSystem::DescriptorSetFlushBindingOffset(Handle<SDescriptorSet> Hnd)
+{
+	SDescriptorSet* pSet = Store->GetDescriptorSet(Hnd);
+	if (!pSet)
+	{
+		VKT_ASSERT(false && "Set with handle does not exist.");
+		return false;
+	}
+
+	for (SDescriptorSetLayout::Binding& b : pSet->pLayout->Bindings)
+	{
+		b.Offset[Device->GetCurrentFrameIndex()] = 0;
+	}
+
+	return true;
+}
+
+bool IRenderSystem::DestroyDescriptorSet(Handle<SDescriptorSet> Hnd)
+{
+	SDescriptorSet* pSet = Store->GetDescriptorSet(Hnd);
+	if (!pSet)
+	{
+		VKT_ASSERT(false && "Set with handle does not exist.");
+		return false;
+	}
+
+	vkDeviceWaitIdle(Device->GetDevice());
+	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+	{
+		vkFreeDescriptorSets(Device->GetDevice(), pSet->pPool->Hnd[i], 1, &pSet->Hnd[i]);
+	}
+	Store->DeleteDescriptorSet(Hnd);
+
+	return true;
+}
 
 Handle<ISystem> IRenderSystem::GetSystemHandle()
 {

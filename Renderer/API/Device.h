@@ -134,7 +134,7 @@ private:
 };
 
 struct IAllocator;
-struct STexture;
+struct SImage;
 struct SRenderPass;
 struct SPipeline;
 struct SMemoryBuffer;
@@ -143,7 +143,6 @@ struct SShader;
 struct SDescriptorPool;
 struct SDescriptorSetLayout;
 struct SDescriptorSet;
-struct SDescriptorBinding;
 struct SImageSampler;
 struct SPushConstant;
 
@@ -158,7 +157,7 @@ struct IDeviceStore
 	Map<size_t, SImageSampler*> ImageSamplers;
 	Map<size_t, SPipeline*> Pipelines;
 	Map<size_t, SShader*> Shaders;
-	Map<size_t, STexture*> Textures;
+	Map<size_t, SImage*> Images;
 	Map<size_t, SPushConstant*> PushConstants;
 
 	IDeviceStore(IAllocator& InAllocator);
@@ -174,7 +173,7 @@ struct IDeviceStore
 	bool DoesImageSamplerExist(size_t Id);
 	bool DoesPipelineExist(size_t Id);
 	bool DoesShaderExist(size_t Id);
-	bool DoesTextureExist(size_t Id);
+	bool DoesImageExist(size_t Id);
 
 	SMemoryBuffer* NewBuffer(size_t Id);
 	SMemoryBuffer* GetBuffer(size_t Id);
@@ -208,9 +207,9 @@ struct IDeviceStore
 	SShader* GetShader(size_t Id);
 	bool DeleteShader(size_t Id, bool Free = false);
 
-	STexture* NewTexture(size_t Id);
-	STexture* GetTexture(size_t Id);
-	bool DeleteTexture(size_t Id, bool Free = false);
+	SImage* NewImage(size_t Id);
+	SImage* GetImage(size_t Id);
+	bool DeleteImage(size_t Id, bool Free = false);
 };
 
 #endif // !ANGKASA1_RENDERER_API_DEVICE_H

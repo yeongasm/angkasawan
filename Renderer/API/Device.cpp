@@ -933,7 +933,7 @@ IDeviceStore::IDeviceStore(IAllocator& InAllocator) :
 	ImageSamplers{},
 	Pipelines{},
 	Shaders{},
-	Textures{},
+	Images{},
 	PushConstants{}
 {}
 
@@ -1011,9 +1011,9 @@ bool IDeviceStore::DoesShaderExist(size_t Id)
 	return false;
 }
 
-bool IDeviceStore::DoesTextureExist(size_t Id)
+bool IDeviceStore::DoesImageExist(size_t Id)
 {
-	for (auto& [id, resource] : Textures)
+	for (auto& [id, resource] : Images)
 	{
 		if (id == Id) { return true; }
 	}
@@ -1228,29 +1228,29 @@ bool IDeviceStore::DeleteShader(size_t Id, bool Free)
 	return true;
 }
 
-STexture* IDeviceStore::NewTexture(size_t Id)
+SImage* IDeviceStore::NewImage(size_t Id)
 {
-	if (DoesTextureExist(Id)) { return nullptr; }
-	STexture* resource = IAllocator::New<STexture>(Allocator);
-	Textures.Insert(Id, resource);
+	if (DoesImageExist(Id)) { return nullptr; }
+	SImage* resource = IAllocator::New<SImage>(Allocator);
+	Images.Insert(Id, resource);
 	return resource;
 }
 
-STexture* IDeviceStore::GetTexture(size_t Id)
+SImage* IDeviceStore::GetImage(size_t Id)
 {
-	if (!DoesTextureExist(Id)) { return nullptr; }
-	return Textures[Id];
+	if (!DoesImageExist(Id)) { return nullptr; }
+	return Images[Id];
 }
 
-bool IDeviceStore::DeleteTexture(size_t Id, bool Free)
+bool IDeviceStore::DeleteImage(size_t Id, bool Free)
 {
-	if (!DoesTextureExist(Id)) { return false; }
+	if (!DoesImageExist(Id)) { return false; }
 	if (Free)
 	{
-		STexture* resource = Textures[Id];
-		IAllocator::Delete<STexture>(resource, Allocator);
+		SImage* resource = Images[Id];
+		IAllocator::Delete<SImage>(resource, Allocator);
 	}
-	Textures.Remove(Id);
+	Images.Remove(Id);
 	return true;
 }
 
