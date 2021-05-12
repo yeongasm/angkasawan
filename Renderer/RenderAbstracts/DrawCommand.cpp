@@ -59,8 +59,8 @@ bool IRDrawManager::InitializeDrawManager(const DrawManagerInitInfo& AllocInfo)
 	size_t totalSize = mat4Size * MaxDrawables;
 	AllocInfo.pMemAllocInfo->Size = totalSize * MAX_FRAMES_IN_FLIGHT;
 	InstanceBuffer = reinterpret_cast<SRMemoryBuffer*>(Allocator.Malloc(sizeof(SRMemoryBuffer)));
-	FMemory::InitializeObject(InstanceBuffer);
-	FMemory::Memcpy(InstanceBuffer, AllocInfo.pMemAllocInfo, sizeof(SRMemoryBufferBase));
+	IMemory::InitializeObject(InstanceBuffer);
+	IMemory::Memcpy(InstanceBuffer, AllocInfo.pMemAllocInfo, sizeof(SRMemoryBufferBase));
 
 	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 	{

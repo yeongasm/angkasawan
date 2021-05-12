@@ -13,7 +13,7 @@ void MurmurHash32(const void* Key, uint32 Len, void* Out, uint32 Seed)
 
 	for (int32 i = Len >> 2; i; i--)
 	{
-		FMemory::Memcpy(&Element, Mem, sizeof(uint32));
+		IMemory::Memcpy(&Element, Mem, sizeof(uint32));
 		Element += static_cast<uint32>(sizeof(uint32));
 		//uint32 Element = static_cast<uint32>(Blocks[i]);
 

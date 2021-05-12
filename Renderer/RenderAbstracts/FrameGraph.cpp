@@ -74,7 +74,7 @@ void RenderPass::AddColorInput(const String32& Identifier, RenderPass& From)
 void RenderPass::AddColorOutput(const String32& Identifier, const AttachmentCreateInfo& CreateInfo)
 {
 	AttachmentInfo attachment;
-	FMemory::Memcpy(&attachment, &CreateInfo, sizeof(AttachmentCreateInfo));
+	IMemory::Memcpy(&attachment, &CreateInfo, sizeof(AttachmentCreateInfo));
 	ColorOutputs.Insert(Identifier, Move(attachment));
 }
 
@@ -96,7 +96,7 @@ void RenderPass::AddDepthStencilOutput()
 		return; 
 	}
 	
-	FMemory::Memzero(&DepthStencilOutput, sizeof(AttachmentInfo));
+	IMemory::Memzero(&DepthStencilOutput, sizeof(AttachmentInfo));
 
 	DepthStencilOutput.Type = Texture_Type_2D;
 	DepthStencilOutput.Usage = Texture_Usage_Depth_Stencil;
@@ -221,7 +221,7 @@ Handle<RenderPass> IRFrameGraph::AddPass(RenderPassEnum PassIdentity, ERenderPas
 	uint32 order = static_cast<uint32>(RenderPasses.Length());
 
 	RenderPass* renderPass = reinterpret_cast<RenderPass*>(Allocator.Malloc(sizeof(RenderPass)));
-	FMemory::InitializeObject(renderPass, *this, Type, order);
+	IMemory::InitializeObject(renderPass, *this, Type, order);
 	
 	RenderPasses.Insert(PassIdentity, renderPass);
 

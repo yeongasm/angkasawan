@@ -66,6 +66,25 @@ public:
 	void BeginFrame();
 	void EndFrame();
 
+	void DeviceWaitIdle();
+
+	VkCommandPool CreateCommandPool(uint32 QueueFamilyIndex, VkCommandPoolCreateFlags Flags);
+	void DestroyCommandPool(VkCommandPool Hnd);
+	VkCommandBuffer AllocateCommandBuffer(VkCommandPool PoolHnd, VkCommandBufferLevel Level, uint32 Count);
+	void ResetCommandBuffer(VkCommandBuffer Hnd, VkCommandBufferResetFlags Flag);
+	VkFence CreateFence(VkFenceCreateFlags Flag = VK_FENCE_CREATE_SIGNALED_BIT);
+	void WaitFence(VkFence Hnd, uint64 Timeout = UINT64_MAX);
+	void ResetFence(VkFence Hnd);
+	void DestroyFence(VkFence Hnd);
+	VkSemaphore CreateVkSemaphore(VkSemaphoreTypeCreateInfo* pSemaphoreType); // Can't do CreateSemaphore because Windows macro-ed the function signature.
+	void DestroyVkSemaphore(VkSemaphore Hnd);
+
+	void WaitTimelineSempahore(VkSemaphore Hnd, uint64 Value, uint64 Timeout = UINT64_MAX);
+	void SignalTimelineSemaphore(VkSemaphore Hnd, uint64 Value);
+	
+	void BeginCommandBuffer(VkCommandBuffer Hnd, VkCommandBufferUsageFlags Flag);
+	void EndCommandBuffer(VkCommandBuffer Hnd);
+
 	/**
 	* Returns the current frame's command buffer.
 	* Extendable to multi-threaded command buffer recording.
@@ -75,8 +94,15 @@ public:
 	VmaAllocator& GetAllocator();
 
 	VkDevice GetDevice() const;
+	const VulkanQueue& GetTransferQueue() const;
+	const VulkanQueue& GetGraphicsQueue() const;
+	const VulkanQueue& GetPresentationQueue() const;
 
-	VkDescriptorType GetDescriptorType(uint32 Index);
+	VkDescriptorType GetDescriptorType(uint32 Index) const;
+	VkBufferUsageFlagBits GetBufferUsage(uint32 Index) const;
+	VmaMemoryUsage GetMemoryUsage(uint32 Index) const;
+
+	const VkPhysicalDeviceProperties& GetPhysicalDeviceProperties() const;
 
 	/**
 	* Current frame's index.
@@ -98,7 +124,8 @@ private:
 	VulkanSwapchain Swapchain;
 	VulkanQueue GraphicsQueue;
 	VulkanQueue PresentQueue;
-	VulkanTransfer TransferOp;
+	VulkanQueue TransferQueue;
+	//VulkanTransfer TransferOp;
 	VulkanFramebuffer DefaultFramebuffer;
 	VkRenderPass DefaultRenderPass;
 	VkSemaphore Semaphores[MAX_FRAMES_IN_FLIGHT][Semaphore_Type_Max];
@@ -126,7 +153,7 @@ private:
 	bool CreateSyncObjects();
 	bool CreateDefaultRenderpass();
 	bool CreateAllocator();
-	bool CreateTransferOperation();
+	//bool CreateTransferOperation();
 	bool CreateCommandPool();
 	bool AllocateCommandBuffers();
 	void FreeVulkanLibrary();

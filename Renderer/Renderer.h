@@ -9,14 +9,56 @@
 #include "API/RendererFlagBits.h"
 #include "RenderAbstracts/Primitives.h"
 
+class IStagingManager;
+
 class RENDERER_API IRenderSystem : public SystemInterface
 {
 private:
 
+	friend class IStagingManager;
+
+	struct DescriptorUpdate
+	{
+		struct Key
+		{
+			SDescriptorSet* pSet;
+			SDescriptorSetLayout::Binding* pBinding;
+			size_t _Key;
+
+			Key(SDescriptorSet* InSet, SDescriptorSetLayout::Binding* InBinding, size_t InKey);
+			~Key();
+
+			/**
+			* NOTE(Ygsm):
+			* These functions are needed to make hashing custom structs work.
+			*/
+			size_t First();
+			size_t Length();
+		};
+
+		template <typename UpdateObject>
+		using Container = Map<Key, StaticArray<UpdateObject, MAX_DESCRIPTOR_BINDING_UPDATES>, XxHash<Key>>;
+
+		static Container<SImage*> _Images;
+		static Container<SMemoryBuffer*> _Buffers;
+		
+		static size_t CalcKey(Handle<SDescriptorSet> SetHnd, uint32 Binding);
+	};
+
+	using DefaultBuffer = Pair<Handle<SMemoryBuffer>, SMemoryBuffer*>;
+
 	EngineImpl& Engine;
 	IRenderDevice* Device;
 	IDeviceStore* Store;
+	IStagingManager* Staging;
 	Handle<ISystem>	Hnd;
+
+	// NOTE(Ygsm):
+	// A better solution would be to allocate memory in pages!
+	// Instead of linear memory.
+	DefaultBuffer VertexBuffer;
+	DefaultBuffer IndexBuffer;
+	DefaultBuffer InstanceBuffer;
 
 public:
 
@@ -45,6 +87,23 @@ public:
 	bool BuildDescriptorSet(Handle<SDescriptorSet> Hnd);
 	bool DescriptorSetFlushBindingOffset(Handle<SDescriptorSet> Hnd);
 	bool DestroyDescriptorSet(Handle<SDescriptorSet> Hnd);
+
+	void UpdateDescriptorSetInQueue();
+
+	Handle<SMemoryBuffer> AllocateNewBuffer(const BufferAllocateInfo& AllocInfo);
+	bool BuildBuffer(Handle<SMemoryBuffer> Hnd);
+	bool DestroyBuffer(Handle<SMemoryBuffer> Hnd);
+	
+	IStagingManager& GetStagingManager() const;
+
+	void FlushVertexBuffer();
+	void FlushIndexBuffer();
+	void FlushInstanceBuffer();
+
+	/**
+	* NOTE(Ygsm):
+	* Updating descriptor sets should be done at the start of every frame and the update buffer should clear after everything is updated.
+	*/
 
 	static Handle<ISystem> GetSystemHandle();
 };

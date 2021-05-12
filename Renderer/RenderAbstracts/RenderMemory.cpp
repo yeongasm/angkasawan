@@ -32,8 +32,8 @@ Handle<SRMemoryBuffer> IRenderMemoryManager::AllocateNewBuffer(const MemoryAlloc
 	}
 
 	SRMemoryBuffer* buffer = reinterpret_cast<SRMemoryBuffer*>(Allocator.Malloc(sizeof(SRMemoryBuffer)));
-	FMemory::InitializeObject(buffer);
-	FMemory::Memcpy(buffer, &AllocInfo, sizeof(SRMemoryBufferBase));
+	IMemory::InitializeObject(buffer);
+	IMemory::Memcpy(buffer, &AllocInfo, sizeof(SRMemoryBufferBase));
 
 	buffer->Offset = 0;
 	buffer->Locality = Buffer_Locality_Gpu;

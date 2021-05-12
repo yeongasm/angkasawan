@@ -5,8 +5,8 @@ template <typename SystemClass>
 SystemClass* SystemManager::RegisterSystem(SystemType Type)
 {
 	using Identity = typename SystemClass::Identity;
-	SystemClass* system = reinterpret_cast<SystemClass*>(FMemory::Malloc(sizeof(SystemClass)));
-	FMemory::InitializeObject(system);
+	SystemClass* system = reinterpret_cast<SystemClass*>(IMemory::Malloc(sizeof(SystemClass)));
+	IMemory::InitializeObject(system);
 
 	if (Type == System_Engine_Type)
 	{

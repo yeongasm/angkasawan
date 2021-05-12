@@ -194,7 +194,7 @@ private:
 	}
 
 
-	ElementNode& FindObjectWithKey(const KeyType& Key, bool ShiftToTombStone = true)
+	ElementNode* FindObjectWithKey(const KeyType& Key, bool ShiftToTombStone = true)
 	{
 		HashFunc Func;
 		size_t TombStone = -1;
@@ -225,30 +225,32 @@ private:
 			Element = &Entries[TombStone];
 		}
 
-		return *Element;
+		return Element;
 	}
 
 
 	void RemoveElementWithKey(const KeyType& Key)
 	{
-		ElementNode& Element = FindObjectWithKey(Key, false);
+		ElementNode* Element = FindObjectWithKey(Key, false);
 		
-		if (Last == &Element)
+		if (!Element) { return; }
+
+		if (Last == Element)
 		{
 			Last = Last->Previous;
 		}
 		
-		if (First == &Element)
+		if (First == Element)
 		{
 			First = First->Next;
 		}
 
-		Element.Key.~KeyType();
-		Element.Value.~ValueType();
+		Element->Key.~KeyType();
+		Element->Value.~ValueType();
 
-		new (&Element) ElementNode();
+		new (Element) ElementNode();
 
-		Element.Status = Bucket_WasDeleted;
+		Element->Status = Bucket_WasDeleted;
 
 		NumBuckets++;
 	}
@@ -270,13 +272,18 @@ public:
 
 	ValueType& operator[] (const KeyType& Key)
 	{
-		return Get(Key);
+		ValueType* Value = Get(Key);
+		if (!Value) 
+		{
+			Value = &Add(Key, {}).Value;
+		}
+		return *Value;
 	}
 
 
 	const ValueType& operator[] (const KeyType& Key) const
 	{
-		return Get(Key);
+		return *Get(Key);
 	}
 
 
@@ -347,16 +354,17 @@ public:
 		RemoveElementWithKey(Move(Key));
 	}
 
-	ValueType& Get(const KeyType& Key)
+	ValueType* Get(const KeyType& Key)
 	{
-		ElementType& Element = FindObjectWithKey(Key);
-		return Element.Value;
+		ElementType* Element = FindObjectWithKey(Key);
+		if (!Element) { return nullptr; }
+		return &Element->Value;
 	}
 
 
-	ElementType& GetPair(const KeyType& Key)
+	ElementType* GetPair(const KeyType& Key)
 	{
-		ElementType& Element = FindObjectWithKey(Key);
+		ElementType& Element = *FindObjectWithKey(Key);
 		return Element;
 	}
 

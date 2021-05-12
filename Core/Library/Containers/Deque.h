@@ -43,7 +43,7 @@ private:
 			Capacity = Size;
 		}
 
-		ElementType* NewBlock = reinterpret_cast<ElementType*>(FMemory::Malloc(sizeof(ElementType) * Capacity));
+		ElementType* NewBlock = reinterpret_cast<ElementType*>(IMemory::Malloc(sizeof(ElementType) * Capacity));
 
 		size_t PreviousMiddle = PrevCapacity / 2;
 		size_t NewMiddle = Capacity / 2;
@@ -68,15 +68,15 @@ private:
 		{
 			if (QFront < QBack)
 			{
-				FMemory::Memmove(NewBlock + FrontIndexFromNewMid, OldCopy + QFront, QBack - QFront);
+				IMemory::Memmove(NewBlock + FrontIndexFromNewMid, OldCopy + QFront, QBack - QFront);
 			}
 			else
 			{
-				FMemory::Memmove(NewBlock + FrontIndexFromNewMid, OldCopy + QFront, (PrevCapacity - QFront) * sizeof(ElementType));
-				FMemory::Memmove(NewBlock + FrontIndexFromNewMid + (PrevCapacity - QFront), OldCopy, QBack * sizeof(ElementType));
+				IMemory::Memmove(NewBlock + FrontIndexFromNewMid, OldCopy + QFront, (PrevCapacity - QFront) * sizeof(ElementType));
+				IMemory::Memmove(NewBlock + FrontIndexFromNewMid + (PrevCapacity - QFront), OldCopy, QBack * sizeof(ElementType));
 			}
 
-			FMemory::Free(OldCopy);
+			IMemory::Free(OldCopy);
 		}
 
 		QFront = FrontIndexFromNewMid;
@@ -191,7 +191,7 @@ public:
 			Destruct(0, Capacity);
 			if (Data)
 			{
-				FMemory::Free(Data);
+				IMemory::Free(Data);
 			}
 			Data = Rhs.Data;
 			QFront = Rhs.QFront;
@@ -208,7 +208,7 @@ public:
 		Destruct(0, Capacity);
 		if (Data)
 		{
-			FMemory::Free(Data);
+			IMemory::Free(Data);
 		}
 		new (this) Deque();
 	}

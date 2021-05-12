@@ -133,15 +133,15 @@ private:
 	{
 		Type* Ptr = PointerToString();
 		size_t Count = To - From;
-		FMemory::Memzero(&Ptr[From], Count);
+		IMemory::Memzero(&Ptr[From], Count);
 
 		if (Count != Capacity)
 		{
-			FMemory::Memmove(Ptr, &Ptr[To + 1], Count);
+			IMemory::Memmove(Ptr, &Ptr[To + 1], Count);
 		}
 
 		Len -= static_cast<uint32>(Count);
-		//FMemory::Memzero(Ptr, To);
+		//IMemory::Memzero(Ptr, To);
 	}
 
 	/**
@@ -154,7 +154,7 @@ private:
 
 		Capacity = Append ? Capacity + (uint32)Length : (uint32)Length;
 
-		Type* New = reinterpret_cast<Type*>(FMemory::Realloc(Data, Capacity));
+		Type* New = reinterpret_cast<Type*>(IMemory::Realloc(Data, Capacity));
 			
 		VKT_ASSERT("Unable to allocate memory!" && New);
 		
@@ -416,7 +416,7 @@ public:
 		{
 			if (Data)
 			{
-				FMemory::Free(Data);
+				IMemory::Free(Data);
 			}
 		}
 
@@ -769,7 +769,7 @@ public:
 	{
 		if (this != &Rhs)
 		{
-			FMemory::Memcpy(Buf, Rhs.Buf, Rhs.Len);
+			IMemory::Memcpy(Buf, Rhs.Buf, Rhs.Len);
 			Len = Rhs.Len;
 		}
 		return *this;
@@ -779,7 +779,7 @@ public:
 	{
 		if (this != &Rhs)
 		{
-			FMemory::Memmove(Buf, Rhs.Buf, Rhs.Len);
+			IMemory::Memmove(Buf, Rhs.Buf, Rhs.Len);
 			Len = Rhs.Len;
 			new (&Rhs) BaseStaticString();
 		}
@@ -804,7 +804,7 @@ public:
 
 	void Flush()
 	{
-		FMemory::Memzero(Buf, Len);
+		IMemory::Memzero(Buf, Len);
 		Len = 0;
 	}
 

@@ -4,7 +4,7 @@
 
 Mutex::Mutex()
 {
-	FMemory::Memset(Lock, 0, sizeof(Lock));
+	IMemory::Memset(Lock, 0, sizeof(Lock));
 #if _WIN32
 	SRWLOCK* lock = new (&Lock) SRWLOCK();
 	InitializeSRWLock(lock);

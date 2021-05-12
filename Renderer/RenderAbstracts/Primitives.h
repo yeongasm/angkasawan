@@ -12,10 +12,19 @@
 struct SMemoryBuffer
 {
 	BitSet<EBufferTypeFlagBits>	Type;
+	EBufferLocality Locality;
+	VmaAllocation Allocation;
+	uint8* pData;
 	size_t Size;
 	size_t Offset;
-	EBufferLocality Locality;
 	VkBuffer Hnd;
+};
+
+struct BufferAllocateInfo
+{
+	BitSet<EBufferTypeFlagBits> Type;
+	EBufferLocality Locality;
+	size_t Size;
 };
 
 struct SImageSampler
@@ -129,16 +138,6 @@ struct SDescriptorSetLayout
 */
 struct SDescriptorSet
 {
-	struct UpdateContext
-	{
-		using Binding = SDescriptorSetLayout::Binding;
-
-		SDescriptorSet* pSet;
-		Binding* pBinding;
-		SMemoryBuffer* pBuffer;
-		SImage* pImage;
-	};
-
 	SDescriptorPool* pPool;
 	SDescriptorSetLayout* pLayout;
 	VkDescriptorSet Hnd[MAX_FRAMES_IN_FLIGHT];

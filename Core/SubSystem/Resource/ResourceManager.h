@@ -17,7 +17,7 @@ struct Resource
 {
 	uint32		Type		= 0;
 	uint32		RefCount	= 0;
-	uint32		Index		= -1;
+	uint32		Index		= uint32(-1);
 	FilePath	Path		= {};
 };
 

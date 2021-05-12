@@ -13,11 +13,11 @@ bool ConfigFileParser::InitializeFromConfigFile(EngineCreationInfo& CreateInfo)
 
 	configFile.Open(".cfg");
 	size_t fileSize = configFile.Size() + 1;
-	char* buf = reinterpret_cast<char*>(FMemory::Malloc(sizeof(uint8) * fileSize));
+	char* buf = reinterpret_cast<char*>(IMemory::Malloc(sizeof(uint8) * fileSize));
 	configFile.Read(buf, fileSize);
 	buf[fileSize - 1] = '\0';
 	document.Parse(buf);
-	FMemory::Free(buf);
+	IMemory::Free(buf);
 
 	if (document.HasParseError())	{ return false; }
 	if (!document.IsObject())		{ return false; }

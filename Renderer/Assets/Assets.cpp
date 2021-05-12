@@ -302,7 +302,7 @@ Handle<Texture> IRAssetManager::CreateNewTexture(const TextureCreateInfo& Create
 	resource->Type = Renderer_Asset_Texture;
 
 	Texture& texture = TextureStore.Add(id, Texture()).Value;
-	FMemory::Memcpy(&texture, &CreateInfo, sizeof(TextureBase));
+	IMemory::Memcpy(&texture, &CreateInfo, sizeof(TextureBase));
 
 	texture.Usage.Set(Image_Usage_Sampled);
 	texture.Usage.Set(Image_Usage_Transfer_Dst);

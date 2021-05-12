@@ -358,7 +358,7 @@ Handle<Texture> TextureImporter::ImportTextureFromPath(const TextureImportInfo& 
 	// TODO:
 	// Rewrite buffer class to take an external pointer
 
-	FMemory::Memcpy(createInfo.TextureData.Data(), data, createInfo.Size);
+	IMemory::Memcpy(createInfo.TextureData.Data(), data, createInfo.Size);
 	//for (size_t i = 0; i < createInfo.Size; i++)
 	//{
 	//	createInfo.TextureData[i] = data[i];
@@ -404,7 +404,7 @@ Handle<Shader> ShaderImporter::ImportShaderFromPath(const ShaderImportInfo& Impo
 
 	IRAssetManager* assetManager = ImportInfo.AssetManager;
 	ShaderCreateInfo createInfo = {};
-	FMemory::Memcpy(&createInfo, &ImportInfo, sizeof(ShaderBase));
+	IMemory::Memcpy(&createInfo, &ImportInfo, sizeof(ShaderBase));
 
 	Ifstream ifstream;
 	if (!ifstream.Open(ImportInfo.Path.C_Str())) { return INVALID_HANDLE; }

@@ -16,7 +16,7 @@ IRPushConstantManager::~IRPushConstantManager()
 Handle<SRPushConstant> IRPushConstantManager::CreateNewPushConstant(const PushConstantCreateInfo& CreateInfo)
 {
 	SRPushConstant* pushConstant = reinterpret_cast<SRPushConstant*>(Allocator.Malloc(sizeof(SRPushConstant)));
-	FMemory::InitializeObject(pushConstant);
+	IMemory::InitializeObject(pushConstant);
 	pushConstant->Pipeline = PipelineManager.GetGraphicsPipelineWithHandle(CreateInfo.PipelineHandle);
 	size_t idx = PushConstantContainer.Push(pushConstant);
 	return Handle<SRPushConstant>(idx);
@@ -41,7 +41,7 @@ bool IRPushConstantManager::UpdatePushConstantData(Handle<SRPushConstant> Hnd, v
 	if (!pushConstant) { return false; }
 
 	uint8* dst = pushConstant->Data + pushConstant->Offset;
-	FMemory::Memcpy(dst, Data, Size);
+	IMemory::Memcpy(dst, Data, Size);
 	pushConstant->Offset += Size;
 
 	return true;

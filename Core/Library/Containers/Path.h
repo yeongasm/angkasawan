@@ -71,7 +71,7 @@ public:
 			i--;
 		}
 		char directory[256];
-		FMemory::Memcpy(directory, Path, ++i * sizeof(int8));
+		IMemory::Memcpy(directory, Path, ++i * sizeof(int8));
 		directory[i] = '\0';
 		return FilePath(directory);
 	}

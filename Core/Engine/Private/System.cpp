@@ -7,14 +7,14 @@ void SystemManager::UnregisterAndFreeAll()
 	{
 		SystemInterface* system = pair.Value;
 		system->OnTerminate();
-		FMemory::Free(system);
+		IMemory::Free(system);
 	}
 
 	for (const Pair<uint32, SystemInterface*>& pair : EngineSystems)
 	{
 		SystemInterface* system = pair.Value;
 		system->OnTerminate();
-		FMemory::Free(system);
+		IMemory::Free(system);
 	}
 
 	GameSystems.Release();

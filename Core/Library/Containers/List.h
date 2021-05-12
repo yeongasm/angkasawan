@@ -75,7 +75,7 @@ private:
 	template <class... ForwardType>
 	ElementType& StoreObject(OperationDirection Direction, ForwardType&&... Element)
 	{
-		Node* NewNode = reinterpret_cast<Node*>(FMemory::Malloc(sizeof(Node)));
+		Node* NewNode = reinterpret_cast<Node*>(IMemory::Malloc(sizeof(Node)));
 		NewNode->Data = ElementType(Forward<ForwardType>(Element)...);
 
 		if (!Head && !Tail)
@@ -123,7 +123,7 @@ private:
 
 		VKT_ASSERT(Replaced);
 
-		Node* NewNode = reinterpret_cast<Node*>(FMemory::Malloc(sizeof(Node)));
+		Node* NewNode = reinterpret_cast<Node*>(IMemory::Malloc(sizeof(Node)));
 		NewNode->Data = ElementType(Forward<ForwardType>(Element)...);
 
 		NewNode->Previous = Replaced->Previous;
@@ -274,7 +274,7 @@ public:
 
 		Node* BeforeTail = Tail->Previous;
 			
-		FMemory::Free(Tail);
+		IMemory::Free(Tail);
 		Tail = Move(BeforeTail);
 		Tail->Next = nullptr;
 
@@ -291,7 +291,7 @@ public:
 		PoppedNode->Previous->Next = PoppedNode->Next;
 		PoppedNode->Next->Previous = PoppedNode->Previous;
 
-		FMemory::Free(PoppedNode);
+		IMemory::Free(PoppedNode);
 
 		Len--;
 	}
@@ -303,7 +303,7 @@ public:
 
 		Node* AfterHead = Head->Next;
 
-		FMemory::Free(Head);
+		IMemory::Free(Head);
 		Head = Move(AfterHead);
 		Head->Previous = nullptr;
 
@@ -322,7 +322,7 @@ public:
 		while (Len)
 		{
 			Node* BeforeTail = Tail->Previous;
-			FMemory::Free(Tail);
+			IMemory::Free(Tail);
 			Tail = BeforeTail;
 
 			Len--;

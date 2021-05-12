@@ -22,7 +22,7 @@ public:
 		Initialize(BlockSize);
 	}
 
-	~LinearAllocator() 
+	~LinearAllocator()
 	{
 		Terminate();
 	}

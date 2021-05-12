@@ -60,7 +60,7 @@ Handle<MaterialDefinition> IRMaterialManager::CreateMaterialDefinition(const Mat
 	}
 
 	MaterialDefinition* definition = reinterpret_cast<MaterialDefinition*>(Allocator.Malloc(sizeof(MaterialDefinition)));
-	FMemory::InitializeObject(definition);
+	IMemory::InitializeObject(definition);
 
 	definition->Id = CreateInfo.Id;
 	definition->PipelineHandle = CreateInfo.PipelineHandle;
@@ -152,8 +152,8 @@ Handle<ImageSampler> IRMaterialManager::CreateImageSampler(const ImageSamplerCre
 	XXHash32(CreateInfo.Name.First(), CreateInfo.Name.Length(), &id, g_ImgSamplerSeed);
 
 	ImageSampler* sampler = reinterpret_cast<ImageSampler*>(Allocator.Malloc(sizeof(ImageSampler)));
-	FMemory::InitializeObject(sampler);
-	FMemory::Memcpy(sampler, &CreateInfo, sizeof(ImageSamplerBase));
+	IMemory::InitializeObject(sampler);
+	IMemory::Memcpy(sampler, &CreateInfo, sizeof(ImageSamplerBase));
 	sampler->Id = id;
 
 	gpu::CreateSampler(*sampler);
@@ -217,7 +217,7 @@ Handle<SRMaterial> IRMaterialManager::CreateNewMaterial(const MaterialCreateInfo
 	XXHash32(CreateInfo.Name.C_Str(), CreateInfo.Name.Length(), &id, g_ImgSamplerSeed);
 	
 	SRMaterial* material = reinterpret_cast<SRMaterial*>(Allocator.Malloc(sizeof(SRMaterial)));
-	FMemory::InitializeObject(material);
+	IMemory::InitializeObject(material);
 
 	material->Id = id;
 

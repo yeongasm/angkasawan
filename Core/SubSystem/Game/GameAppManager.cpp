@@ -49,7 +49,7 @@ void GameManager::TerminateGame()
 		return;
 	}
 	Game->Terminate();
-	FMemory::Free(Game);
+	IMemory::Free(Game);
 	Game = nullptr;
 	Dll.UnloadDllModule();
 }

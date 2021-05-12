@@ -9,7 +9,7 @@ bool InitializeEngine(EngineImpl* Engine, const EngineCreationInfo& CreateInfo)
 	Handle<ISystem> hnd;
 	size_t renderSystemSize = sizeof(RenderSystem);
 	RenderSystem* renderer = reinterpret_cast<RenderSystem*>(Engine->AllocateAndRegisterSystem(renderSystemSize, System_Engine_Type, &hnd));
-	FMemory::InitializeObject(renderer, *Engine, hnd);
+	IMemory::InitializeObject(renderer, *Engine, hnd);
 	renderer->OnInit();
 
 	Engine->RegisterGame(CreateInfo);
@@ -26,8 +26,8 @@ int main(int argc, char* argv[])
 		return -1;
 	}
 
-	EngineImpl* engine = reinterpret_cast<EngineImpl*>(FMemory::Malloc(sizeof(EngineImpl)));
-	FMemory::InitializeObject(engine);
+	EngineImpl* engine = reinterpret_cast<EngineImpl*>(IMemory::Malloc(sizeof(EngineImpl)));
+	IMemory::InitializeObject(engine);
 
 	if (!InitializeEngine(engine, createInfo))
 	{

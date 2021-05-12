@@ -4,7 +4,7 @@
 template <typename GameClass>
 bool GameManager::InitializeGame()
 {
-	Game = reinterpret_cast<GameClass*>(FMemory::Malloc(sizeof(GameClass)));
+	Game = reinterpret_cast<GameClass*>(IMemory::Malloc(sizeof(GameClass)));
 	if (!Game)
 	{
 		return false;

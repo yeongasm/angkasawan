@@ -54,7 +54,7 @@ private:
 			Capacity = Size;
 		}
 
-		New = reinterpret_cast<ElementType*>(FMemory::Realloc(Old, sizeof(ElementType) * Capacity));
+		New = reinterpret_cast<ElementType*>(IMemory::Realloc(Old, sizeof(ElementType) * Capacity));
 		
 		for (size_t i = Len; i < Capacity; i++)
 		{
@@ -231,7 +231,7 @@ public:
 		Destruct(0, Capacity);
 		if (Data)
 		{
-			FMemory::Free(Data);
+			IMemory::Free(Data);
 		}
 		new (this) Array();
 	}
@@ -386,7 +386,7 @@ public:
 
 		if (Move) 
 		{
-			FMemory::Memmove(Data + Index, Data + Index + 1, sizeof(ElementType) * (--Len - Index));
+			IMemory::Memmove(Data + Index, Data + Index + 1, sizeof(ElementType) * (--Len - Index));
 			new (Data + Len) ElementType();
 		} 
 		else 
@@ -728,7 +728,7 @@ public:
 
 		if (Move)
 		{
-			FMemory::Memmove(Data + Index, Data + Index + 1, sizeof(ElementType) * (--Len - Index));
+			IMemory::Memmove(Data + Index, Data + Index + 1, sizeof(ElementType) * (--Len - Index));
 			new (Data + Len) ElementType();
 		}
 		else

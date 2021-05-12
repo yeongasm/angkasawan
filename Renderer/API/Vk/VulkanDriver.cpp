@@ -94,7 +94,7 @@ namespace gpu
 
 	void PopulateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& CreateInfo)
 	{
-		FMemory::InitializeObject(CreateInfo);
+		IMemory::InitializeObject(CreateInfo);
 		CreateInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
 		CreateInfo.messageSeverity = //VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
 			VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
@@ -123,7 +123,7 @@ namespace gpu
 	bool CreateVmAllocator()
 	{
 		VmaAllocatorCreateInfo allocatorInfo;
-		FMemory::InitializeObject(allocatorInfo);
+		IMemory::InitializeObject(allocatorInfo);
 
 		allocatorInfo.physicalDevice	= Ctx.Gpu;
 		allocatorInfo.device			= Ctx.Device;
@@ -2684,7 +2684,7 @@ namespace gpu
 
 		VulkanBuffer& buffer = g_Buffers[Buffer.Handle];
 		buffer.pData += Buffer.Offset;
-		FMemory::Memcpy(buffer.pData, Data, Size);
+		IMemory::Memcpy(buffer.pData, Data, Size);
 		Buffer.Offset += Size;
 
 		return true;
@@ -2700,8 +2700,8 @@ namespace gpu
 		VulkanBuffer& buffer = g_Buffers[Buffer.Handle];
 		uint8* ptr = reinterpret_cast<uint8*>(buffer.pData + Offset);
 		//buffer.pData += Offset;
-		//FMemory::Memzero(buffer.pData, Buffer.Size - Offset);
-		FMemory::Memcpy(ptr, Data, Size);
+		//IMemory::Memzero(buffer.pData, Buffer.Size - Offset);
+		IMemory::Memcpy(ptr, Data, Size);
 		//Buffer.Offset = Offset + Size;
 
 		return true;

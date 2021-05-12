@@ -46,7 +46,7 @@ bool IRenderDevice::Initialize(const EngineImpl& Engine)
 	if (!CreateAllocator()) return false;
 	if (!CreateCommandPool()) return false;
 	if (!AllocateCommandBuffers()) return false;
-	if (!CreateTransferOperation()) return false;
+	//if (!CreateTransferOperation()) return false;
 
 	return true;
 }
@@ -63,8 +63,8 @@ void IRenderDevice::Terminate()
 	}
 
 	vkDestroyCommandPool(Device, CommandPool, nullptr);
-	vkDestroyCommandPool(Device, TransferOp.CommandPool, nullptr);
-	vkDestroyFence(Device, TransferOp.Fence, nullptr);
+	//vkDestroyCommandPool(Device, TransferOp.CommandPool, nullptr);
+	//vkDestroyFence(Device, TransferOp.Fence, nullptr);
 
 	for (uint32 i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 	{
@@ -394,6 +394,135 @@ void IRenderDevice::EndFrame()
 	vkEndCommandBuffer(GetCommandBuffer());
 }
 
+void IRenderDevice::DeviceWaitIdle()
+{
+	vkDeviceWaitIdle(Device);
+}
+
+VkCommandPool IRenderDevice::CreateCommandPool(uint32 QueueFamilyIndex, VkCommandPoolCreateFlags Flags)
+{
+	VkCommandPool hnd;
+	VkCommandPoolCreateInfo info = {};
+	info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+	info.queueFamilyIndex = QueueFamilyIndex;
+	info.flags = Flags;
+
+	if (vkCreateCommandPool(Device, &info, nullptr, &hnd) != VK_SUCCESS)
+	{
+		return VK_NULL_HANDLE;
+	}
+	return hnd;
+}
+
+void IRenderDevice::DestroyCommandPool(VkCommandPool Hnd)
+{
+	vkDestroyCommandPool(Device, Hnd, nullptr);
+}
+
+VkCommandBuffer IRenderDevice::AllocateCommandBuffer(VkCommandPool PoolHnd, VkCommandBufferLevel Level, uint32 Count)
+{
+	VkCommandBuffer hnd;
+	VkCommandBufferAllocateInfo info = {};
+	info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	info.commandPool = PoolHnd;
+	info.level = Level;
+	info.commandBufferCount = Count;
+
+	if (vkAllocateCommandBuffers(Device, &info, &hnd) != VK_SUCCESS)
+	{
+		return VK_NULL_HANDLE;
+	}
+	return hnd;
+}
+
+void IRenderDevice::ResetCommandBuffer(VkCommandBuffer Hnd, VkCommandBufferResetFlags Flag)
+{
+	vkResetCommandBuffer(Hnd, Flag);
+}
+
+VkFence IRenderDevice::CreateFence(VkFenceCreateFlags Flag)
+{
+	VkFence hnd;
+	VkFenceCreateInfo info = {};
+	info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+	info.flags = Flag;
+
+	if (vkCreateFence(Device, &info, nullptr, &hnd) != VK_SUCCESS)
+	{
+		return VK_NULL_HANDLE;
+	}
+	return hnd;
+}
+
+void IRenderDevice::WaitFence(VkFence Hnd, uint64 Timeout)
+{
+	vkWaitForFences(Device, 1, &Hnd, VK_TRUE, Timeout);
+}
+
+void IRenderDevice::ResetFence(VkFence Hnd)
+{
+	vkResetFences(Device, 1, &Hnd);
+}
+
+void IRenderDevice::DestroyFence(VkFence Hnd)
+{
+	vkDestroyFence(Device, Hnd, nullptr);
+}
+
+VkSemaphore IRenderDevice::CreateVkSemaphore(VkSemaphoreTypeCreateInfo* pSemaphoreType)
+{
+	VkSemaphore hnd;
+	VkSemaphoreCreateInfo info = {};
+	info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+	if (pSemaphoreType) { info.pNext = pSemaphoreType; }
+
+	if (vkCreateSemaphore(Device, &info, nullptr, &hnd) != VK_SUCCESS)
+	{
+		return VK_NULL_HANDLE;
+	}
+	return hnd;
+}
+
+void IRenderDevice::DestroyVkSemaphore(VkSemaphore Hnd)
+{
+	vkDestroySemaphore(Device, Hnd, nullptr);
+}
+
+void IRenderDevice::WaitTimelineSempahore(VkSemaphore Hnd, uint64 Value, uint64 Timeout)
+{
+	VkSemaphoreWaitInfo info = {};
+	info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
+	info.semaphoreCount = 1;
+	info.pValues = &Value;
+	info.pSemaphores = &Hnd;
+
+	vkWaitSemaphores(Device, &info, Timeout);
+}
+
+void IRenderDevice::SignalTimelineSemaphore(VkSemaphore Hnd, uint64 Value)
+{
+	VkSemaphoreSignalInfo info = {};
+	info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SIGNAL_INFO;
+	info.semaphore = Hnd;
+	info.value = Value;
+
+	vkSignalSemaphore(Device, &info);
+}
+
+void IRenderDevice::BeginCommandBuffer(VkCommandBuffer Hnd, VkCommandBufferUsageFlags Flag)
+{
+	VkCommandBufferBeginInfo info = {};
+	info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	info.flags = Flag;
+	vkBeginCommandBuffer(Hnd, &info);
+}
+
+void IRenderDevice::EndCommandBuffer(VkCommandBuffer Hnd)
+{
+	vkEndCommandBuffer(Hnd);
+}
+
 bool IRenderDevice::LoadVulkanLibrary()
 {
 	Dll = OS::LoadDllLibrary("vulkan-1.dll");
@@ -642,10 +771,10 @@ bool IRenderDevice::ChoosePhysicalDevice()
 	VkQueueFamilyProperties properties[8] = {};
 	vkGetPhysicalDeviceQueueFamilyProperties(Gpu, &queueFamilyCount, properties);
 
-	TransferOp.Queue.FamilyIndex = -1;
+	TransferQueue.FamilyIndex = -1;
 	if (!GetTransferQueueFamilyIndex(
 		Gpu,
-		TransferOp.Queue.FamilyIndex))
+		TransferQueue.FamilyIndex))
 	{
 		return false;
 	}
@@ -661,9 +790,9 @@ bool IRenderDevice::ChoosePhysicalDevice()
 		return false;
 	}
 
-	if (TransferOp.Queue.FamilyIndex == -1)
+	if (TransferQueue.FamilyIndex == -1)
 	{
-		TransferOp.Queue.FamilyIndex = GraphicsQueue.FamilyIndex;
+		TransferQueue.FamilyIndex = GraphicsQueue.FamilyIndex;
 	}
 
 	return true;
@@ -686,7 +815,7 @@ bool IRenderDevice::CreateLogicalDevice()
 	{
 		VkDeviceQueueCreateInfo info = {};
 		info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-		info.queueFamilyIndex = TransferOp.Queue.FamilyIndex;
+		info.queueFamilyIndex = TransferQueue.FamilyIndex;
 		info.queueCount = 1;
 		info.pQueuePriorities = &queuePriority;
 		queueCreateInfos.Push(Move(info));
@@ -729,7 +858,7 @@ void IRenderDevice::GetDeviceQueues()
 {
 	vkGetDeviceQueue(Device, GraphicsQueue.FamilyIndex, 0, &GraphicsQueue.Hnd);
 	vkGetDeviceQueue(Device, PresentQueue.FamilyIndex, 0, &PresentQueue.Hnd);
-	vkGetDeviceQueue(Device, TransferOp.Queue.FamilyIndex, 0, &TransferOp.Queue.Hnd);
+	vkGetDeviceQueue(Device, TransferQueue.FamilyIndex, 0, &TransferQueue.Hnd);
 }
 
 bool IRenderDevice::CreateSyncObjects()
@@ -827,51 +956,51 @@ bool IRenderDevice::CreateAllocator()
 	return true;
 }
 
-bool IRenderDevice::CreateTransferOperation()
-{
-	VkCommandPoolCreateInfo cmdPoolCreateInfo = {};
-	cmdPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-	cmdPoolCreateInfo.queueFamilyIndex = TransferOp.Queue.FamilyIndex;
-	cmdPoolCreateInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-
-	if (vkCreateCommandPool(Device, &cmdPoolCreateInfo, nullptr, &TransferOp.CommandPool) != VK_SUCCESS)
-	{
-		return false;
-	}
-
-	VkCommandBufferAllocateInfo cmdBufferAllocateInfo = {};
-	cmdBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	cmdBufferAllocateInfo.commandPool = TransferOp.CommandPool;
-	cmdBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	cmdBufferAllocateInfo.commandBufferCount = 1;
-
-	if (vkAllocateCommandBuffers(Device, &cmdBufferAllocateInfo, &TransferOp.TransferCmdBuffer) != VK_SUCCESS)
-	{
-		return false;
-	}
-
-	cmdBufferAllocateInfo.commandPool = CommandPool;
-
-	if (vkAllocateCommandBuffers(Device, &cmdBufferAllocateInfo, &TransferOp.GraphicsCmdBuffer) != VK_SUCCESS)
-	{
-		return false;
-	}
-
-	VkFenceCreateInfo fenceCreateInfo = {};
-	fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-
-	if (vkCreateFence(Device, &fenceCreateInfo, nullptr, &TransferOp.Fence) != VK_SUCCESS)
-	{
-		return false;
-	}
-
-	VkSemaphoreCreateInfo semaphoreCreateInfo = {};
-	semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-
-	vkCreateSemaphore(Device, &semaphoreCreateInfo, nullptr, &TransferOp.Semaphore);
-
-	return true;
-}
+//bool IRenderDevice::CreateTransferOperation()
+//{
+//	VkCommandPoolCreateInfo cmdPoolCreateInfo = {};
+//	cmdPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+//	cmdPoolCreateInfo.queueFamilyIndex = TransferOp.Queue.FamilyIndex;
+//	cmdPoolCreateInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+//
+//	if (vkCreateCommandPool(Device, &cmdPoolCreateInfo, nullptr, &TransferOp.CommandPool) != VK_SUCCESS)
+//	{
+//		return false;
+//	}
+//
+//	VkCommandBufferAllocateInfo cmdBufferAllocateInfo = {};
+//	cmdBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+//	cmdBufferAllocateInfo.commandPool = TransferOp.CommandPool;
+//	cmdBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+//	cmdBufferAllocateInfo.commandBufferCount = 1;
+//
+//	if (vkAllocateCommandBuffers(Device, &cmdBufferAllocateInfo, &TransferOp.TransferCmdBuffer) != VK_SUCCESS)
+//	{
+//		return false;
+//	}
+//
+//	cmdBufferAllocateInfo.commandPool = CommandPool;
+//
+//	if (vkAllocateCommandBuffers(Device, &cmdBufferAllocateInfo, &TransferOp.GraphicsCmdBuffer) != VK_SUCCESS)
+//	{
+//		return false;
+//	}
+//
+//	VkFenceCreateInfo fenceCreateInfo = {};
+//	fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+//
+//	if (vkCreateFence(Device, &fenceCreateInfo, nullptr, &TransferOp.Fence) != VK_SUCCESS)
+//	{
+//		return false;
+//	}
+//
+//	VkSemaphoreCreateInfo semaphoreCreateInfo = {};
+//	semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+//
+//	vkCreateSemaphore(Device, &semaphoreCreateInfo, nullptr, &TransferOp.Semaphore);
+//
+//	return true;
+//}
 
 bool IRenderDevice::CreateCommandPool()
 {
@@ -1269,7 +1398,22 @@ VkDevice IRenderDevice::GetDevice() const
 	return Device;
 }
 
-VkDescriptorType IRenderDevice::GetDescriptorType(uint32 Index)
+const IRenderDevice::VulkanQueue& IRenderDevice::GetTransferQueue() const
+{
+	return TransferQueue;
+}
+
+const IRenderDevice::VulkanQueue& IRenderDevice::GetGraphicsQueue() const
+{
+	return GraphicsQueue;
+}
+
+const IRenderDevice::VulkanQueue& IRenderDevice::GetPresentationQueue() const
+{
+	return PresentQueue;
+}
+
+VkDescriptorType IRenderDevice::GetDescriptorType(uint32 Index) const
 {
 	static constexpr VkDescriptorType types[] = {
 		VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
@@ -1281,6 +1425,33 @@ VkDescriptorType IRenderDevice::GetDescriptorType(uint32 Index)
 		VK_DESCRIPTOR_TYPE_SAMPLER
 	};
 	return types[Index];
+}
+
+VkBufferUsageFlagBits IRenderDevice::GetBufferUsage(uint32 Index) const
+{
+	static constexpr VkBufferUsageFlagBits flags[] = {
+		VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+		VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+		VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+		VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+		VK_BUFFER_USAGE_TRANSFER_DST_BIT
+	};
+	return flags[Index];
+}
+
+VmaMemoryUsage IRenderDevice::GetMemoryUsage(uint32 Index) const
+{
+	static constexpr VmaMemoryUsage usage[] = {
+		VMA_MEMORY_USAGE_CPU_ONLY,
+		VMA_MEMORY_USAGE_GPU_ONLY,
+		VMA_MEMORY_USAGE_CPU_TO_GPU
+	};
+	return usage[Index];
+}
+
+const VkPhysicalDeviceProperties& IRenderDevice::GetPhysicalDeviceProperties() const
+{
+	return Properties;
 }
 
 const uint32 IRenderDevice::GetCurrentFrameIndex() const

@@ -12,6 +12,14 @@ enum EBuildStatus
 	Build_Status_Compiled
 };
 
+enum class EQueueType : size_t
+{
+	Queue_Type_Graphics = 0,
+	Queue_Type_Present = 1,
+	Queue_Type_Transfer = 2,
+	Queue_Type_Compute = 3
+};
+
 enum ESurfaceOffset : size_t
 {
 	Surface_Offset_X	= 0,

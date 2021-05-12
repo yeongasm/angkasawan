@@ -41,7 +41,7 @@ Handle<SRPipeline> IRPipelineManager::CreateNewGraphicsPipline(const PipelineCre
 	}
 
 	SRPipeline* pipeline = reinterpret_cast<SRPipeline*>(Allocator.Malloc(sizeof(SRPipeline)));
-	FMemory::InitializeObject(pipeline);
+	IMemory::InitializeObject(pipeline);
 
 	pipeline->CullMode = CreateInfo.CullMode;
 	pipeline->FrontFace = CreateInfo.FrontFace;

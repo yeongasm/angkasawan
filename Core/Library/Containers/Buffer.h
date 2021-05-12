@@ -118,7 +118,7 @@ public:
 
 		Type* Old = Buf;
 		size_t capacity = Capacity * sizeof(Type);
-		Buf = reinterpret_cast<Type*>(FMemory::Realloc(Old, capacity));
+		Buf = reinterpret_cast<Type*>(IMemory::Realloc(Old, capacity));
 
 		if (!Buf) { return; }
 
@@ -132,13 +132,13 @@ public:
 
 	void Flush()
 	{
-		FMemory::Memzero(Buf, Size());
+		IMemory::Memzero(Buf, Size());
 	}
 
 	void Release()
 	{
 		if (!Buf) { return; }
-		FMemory::Free(Buf);
+		IMemory::Free(Buf);
 		Buf = nullptr;
 	}
 	

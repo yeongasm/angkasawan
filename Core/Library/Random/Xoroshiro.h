@@ -68,7 +68,7 @@ public:
 	{
 		if (this != &Rhs)
 		{
-			FMemory::Memcpy(s, Rhs.s, 4);
+			IMemory::Memcpy(s, Rhs.s, 4);
 		}
 		return *this;
 	}
@@ -77,7 +77,7 @@ public:
 	{
 		if (this != &Rhs)
 		{
-			FMemory::Memcpy(s, Rhs.s, 4);
+			IMemory::Memcpy(s, Rhs.s, 4);
 			new (&Rhs) XoroshiroBase();
 		}
 		return *this;
