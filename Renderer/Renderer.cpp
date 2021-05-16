@@ -506,13 +506,13 @@ Handle<SMemoryBuffer> IRenderSystem::AllocateNewBuffer(const BufferAllocateInfo&
 {
 	size_t id = g_Uid();
 	SMemoryBuffer* pBuffer = Store->NewBuffer(id);
+	if (!pBuffer) { return INVALID_HANDLE; }
 
 	pBuffer->Locality = AllocInfo.Locality;
 	pBuffer->Size = AllocInfo.Size;
 	pBuffer->Type = AllocInfo.Type;
 	pBuffer->pData = nullptr;
 
-	if (!pBuffer) { return INVALID_HANDLE; }
 	return id;
 }
 
@@ -564,6 +564,101 @@ bool IRenderSystem::DestroyBuffer(Handle<SMemoryBuffer> Hnd)
 	vkDeviceWaitIdle(Device->GetDevice());
 	vmaDestroyBuffer(Device->GetAllocator(), pBuffer->Hnd, pBuffer->Allocation);
 	Store->DeleteBuffer(Hnd);
+
+	return true;
+}
+
+Handle<SImage> IRenderSystem::CreateImage(const ImageCreateInfo& CreateInfo)
+{
+	size_t id = (CreateInfo.Identifier == -1) ?  g_Uid() : CreateInfo.Identifier;
+	SImage* pImg = Store->NewImage(id);
+	if (!pImg) { return INVALID_HANDLE; }
+
+	pImg->Width = CreateInfo.Width;
+	pImg->Height = CreateInfo.Height;
+	pImg->Channels = CreateInfo.Channels;
+	pImg->Type = CreateInfo.Type;
+
+	return id;
+}
+
+bool IRenderSystem::BuildImage(Handle<SImage> Hnd)
+{
+	SImage* pImg = Store->GetImage(Hnd);
+	if (!pImg) { return false; }
+
+	VkFormat format = VK_FORMAT_R8G8B8A8_SRGB;
+	switch (pImg->Channels)
+	{
+	case 1:
+		format = VK_FORMAT_R8_SRGB;
+		break;
+	case 2:
+		format = VK_FORMAT_R8G8_SRGB;
+		break;
+	default:
+		break;
+	}
+
+	if (pImg->Usage.Has(Image_Usage_Depth_Stencil_Attachment))
+	{
+		format = VK_FORMAT_D24_UNORM_S8_UINT;
+	}
+
+	VkImageUsageFlags usage = 0;
+	for (uint32 i = 0; i < Image_Usage_Max; i++)
+	{
+		if (!pImg->Usage.Has(i)) { continue; }
+		usage |= Device->GetImageUsage(i);
+	}
+
+	VkImageCreateInfo img = {};
+	img.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+	img.imageType = Device->GetImageType(pImg->Type);
+	img.format = format;
+	img.samples = VK_SAMPLE_COUNT_1_BIT;
+	img.extent = { pImg->Width, pImg->Height, 1 };
+	img.tiling = VK_IMAGE_TILING_OPTIMAL;
+	img.mipLevels = 1;
+	img.usage = usage;
+	img.arrayLayers = 1;
+	img.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	img.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+	VkImageViewCreateInfo imgView = {};
+	imgView.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+	imgView.format = format;
+	imgView.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	imgView.subresourceRange.baseMipLevel = 0;
+	imgView.subresourceRange.levelCount = 1;
+	imgView.subresourceRange.baseArrayLayer = 0;
+	imgView.subresourceRange.layerCount = 1;
+	imgView.viewType = Device->GetImageViewType(pImg->Type);
+
+	if (pImg->Usage.Has(Image_Usage_Depth_Stencil_Attachment))
+	{
+		imgView.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+	}
+
+	VmaAllocationCreateInfo alloc = {};
+	alloc.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+
+	vkCreateImageView(Device->GetDevice(), &imgView, nullptr, &pImg->ImgViewHnd);
+	vmaCreateImage(Device->GetAllocator(), &img, &alloc, &pImg->ImgHnd, &pImg->Allocation, nullptr);
+
+	return true;
+}
+
+bool IRenderSystem::DestroyImage(Handle<SImage> Hnd)
+{
+	SImage* pImg = Store->GetImage(Hnd);
+	if (!pImg) { return false; }
+
+	vkDeviceWaitIdle(Device->GetDevice());
+	vkDestroyImageView(Device->GetDevice(), pImg->ImgViewHnd, nullptr);
+	vmaDestroyImage(Device->GetAllocator(), pImg->ImgHnd, pImg->Allocation);
+
+	Store->DeleteImage(Hnd);
 
 	return true;
 }

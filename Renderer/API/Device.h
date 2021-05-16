@@ -21,6 +21,19 @@ public:
 		Semaphore_Type_Max = 2
 	};
 
+	enum class EHandleType : uint32
+	{
+		Handle_Type_Command_Buffer,
+		Handle_Type_Framebuffer,
+		Handle_Type_Renderpass,
+		Handle_Type_Image,
+		Handle_Type_Image_View,
+		Handle_Type_Buffer,
+		Handle_Type_Descriptor_Pool,
+		Handle_Type_Descriptor_Set_Layout,
+		Handle_Type_Descriptor_Set
+	};
+
 	struct VulkanFramebuffer
 	{
 		VkFramebuffer Hnd[MAX_SWAPCHAIN_IMAGE_ALLOWED];
@@ -79,6 +92,9 @@ public:
 	VkSemaphore CreateVkSemaphore(VkSemaphoreTypeCreateInfo* pSemaphoreType); // Can't do CreateSemaphore because Windows macro-ed the function signature.
 	void DestroyVkSemaphore(VkSemaphore Hnd);
 
+	void BufferBarrier(VkCommandBuffer Cmd, VkBuffer Hnd, size_t Size, size_t Offset, VkAccessFlags SrcAccessMask, VkAccessFlags DstAccessMask, VkPipelineStageFlags SrcStageMask, VkPipelineStageFlags DstStageMask, uint32 SrcQueue, uint32 DstQueue);
+	void ImageBarrier(VkCommandBuffer Cmd, VkImage Hnd, VkImageSubresourceRange* pSubRange, VkImageLayout OldLayout, VkImageLayout NewLayout, VkPipelineStageFlags SrcStageMask, VkPipelineStageFlags DstStageMask, uint32 SrcQueue, uint32 DstQueue);
+
 	void WaitTimelineSempahore(VkSemaphore Hnd, uint64 Value, uint64 Timeout = UINT64_MAX);
 	void SignalTimelineSemaphore(VkSemaphore Hnd, uint64 Value);
 	
@@ -98,6 +114,11 @@ public:
 	const VulkanQueue& GetGraphicsQueue() const;
 	const VulkanQueue& GetPresentationQueue() const;
 
+	VkImageUsageFlags GetImageUsage(uint32 Index) const;
+	VkSampleCountFlagBits GetSampleCount(uint32 Index) const;
+	VkPipelineBindPoint GetPipelineBindPoint(uint32 Index) const;
+	VkImageType GetImageType(uint32 Index) const;
+	VkImageViewType GetImageViewType(uint32 Index) const;
 	VkDescriptorType GetDescriptorType(uint32 Index) const;
 	VkBufferUsageFlagBits GetBufferUsage(uint32 Index) const;
 	VmaMemoryUsage GetMemoryUsage(uint32 Index) const;
@@ -108,6 +129,7 @@ public:
 	* Current frame's index.
 	*/
 	const uint32 GetCurrentFrameIndex() const;
+	const uint32 GetNextSwapchainImageIndex() const;
 
 private:
 

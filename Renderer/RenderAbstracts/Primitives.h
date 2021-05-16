@@ -41,6 +41,7 @@ struct SImageSampler
 
 struct SImage
 {
+	VmaAllocation Allocation;
 	SImageSampler* pSampler;
 	BitSet<EImageUsageFlagBits> Usage;
 	size_t Size;
@@ -50,6 +51,15 @@ struct SImage
 	ETextureType Type;
 	VkImage ImgHnd;
 	VkImageView ImgViewHnd;
+};
+
+struct ImageCreateInfo
+{
+	size_t Identifier = -1; // Ignore for a default generated id.
+	uint32 Width;
+	uint32 Height;
+	uint32 Channels;
+	ETextureType Type;
 };
 
 struct SShader

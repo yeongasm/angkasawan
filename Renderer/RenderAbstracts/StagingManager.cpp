@@ -23,63 +23,78 @@ void IStagingManager::IncrementCommandIndex()
 	NextCmdIndex = (NextCmdIndex + 1) / MAX_TRANSFER_COMMANDS;
 }
 
-void IStagingManager::BufferBarrier(
-	VkCommandBuffer Cmd, 
-	SMemoryBuffer* pBuffer, 
-	size_t Size, 
-	VkAccessFlags SrcAccessMask, 
-	VkAccessFlags DstAccessMask, 
-	VkPipelineStageFlags SrcStageMask, 
-	VkPipelineStageFlags DstStageMask, 
-	uint32 SrcQueue, 
-	uint32 DstQueue
-)
+//void IStagingManager::BufferBarrier(
+//	VkCommandBuffer Cmd, 
+//	SMemoryBuffer* pBuffer, 
+//	size_t Size, 
+//	VkAccessFlags SrcAccessMask, 
+//	VkAccessFlags DstAccessMask, 
+//	VkPipelineStageFlags SrcStageMask, 
+//	VkPipelineStageFlags DstStageMask, 
+//	uint32 SrcQueue, 
+//	uint32 DstQueue
+//)
+//{
+//	VkBufferMemoryBarrier barrier = {};
+//	barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+//	barrier.buffer = pBuffer->Hnd;
+//	barrier.size = Size;
+//	barrier.offset = pBuffer->Offset;
+//	barrier.srcAccessMask = SrcAccessMask;
+//	barrier.dstAccessMask = DstAccessMask;
+//	barrier.srcQueueFamilyIndex = SrcQueue;
+//	barrier.dstQueueFamilyIndex = DstQueue;
+//
+//	vkCmdPipelineBarrier(Cmd, SrcStageMask, DstStageMask, 0, 0, nullptr, 1, &barrier, 0, nullptr);
+//}
+
+//void IStagingManager::ImageBarrier(
+//	VkCommandBuffer Cmd, 
+//	SImage* pImage, 
+//	VkImageSubresourceRange* pSubRange, 
+//	VkImageLayout OldLayout, 
+//	VkImageLayout NewLayout, 
+//	VkPipelineStageFlags SrcStageMask, 
+//	VkPipelineStageFlags DstStageMask, 
+//	uint32 SrcQueue, 
+//	uint32 DstQueue
+//)
+//{
+//	VkImageMemoryBarrier barrier = {};
+//	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+//	barrier.oldLayout = OldLayout;
+//	barrier.newLayout = NewLayout;
+//	barrier.image = pImage->ImgHnd;
+//	barrier.subresourceRange = *pSubRange;
+//	barrier.srcAccessMask = 0;
+//	barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+//	barrier.srcQueueFamilyIndex = SrcQueue;
+//	barrier.dstQueueFamilyIndex = DstQueue;
+//
+//	vkCmdPipelineBarrier(Cmd, SrcStageMask, DstStageMask, 0, 0, nullptr, 0, nullptr, 1, &barrier);
+//}
+
+const IRenderDevice::VulkanQueue* IStagingManager::GetQueueForType(EQueueType QueueType) const
 {
-	VkBufferMemoryBarrier barrier = {};
-	barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
-	barrier.buffer = pBuffer->Hnd;
-	barrier.size = Size;
-	barrier.offset = pBuffer->Offset;
-	barrier.srcAccessMask = SrcAccessMask;
-	barrier.dstAccessMask = DstAccessMask;
-	barrier.srcQueueFamilyIndex = SrcQueue;
-	barrier.dstQueueFamilyIndex = DstQueue;
-
-	vkCmdPipelineBarrier(Cmd, SrcStageMask, DstStageMask, 0, 0, nullptr, 1, &barrier, 0, nullptr);
-}
-
-void IStagingManager::ImageBarrier(
-	VkCommandBuffer Cmd, 
-	SImage* pImage, 
-	VkImageSubresourceRange* pSubRange, 
-	VkImageLayout OldLayout, 
-	VkImageLayout NewLayout, 
-	VkPipelineStageFlags SrcStageMask, 
-	VkPipelineStageFlags DstStageMask, 
-	uint32 SrcQueue, 
-	uint32 DstQueue
-)
-{
-	VkImageMemoryBarrier barrier = {};
-	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-	barrier.oldLayout = OldLayout;
-	barrier.newLayout = NewLayout;
-	barrier.image = pImage->ImgHnd;
-	barrier.subresourceRange = *pSubRange;
-	barrier.srcAccessMask = 0;
-	barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-	barrier.srcQueueFamilyIndex = SrcQueue;
-	barrier.dstQueueFamilyIndex = DstQueue;
-
-	vkCmdPipelineBarrier(Cmd, SrcStageMask, DstStageMask, 0, 0, nullptr, 0, nullptr, 1, &barrier);
+	const IRenderDevice::VulkanQueue* queue = nullptr;
+	switch (QueueType)
+	{
+	case EQueueType::Queue_Type_Graphics:
+		queue = &Renderer.Device->GetGraphicsQueue();
+		break;
+	case EQueueType::Queue_Type_Transfer:
+	default:
+		queue = pQueue;
+		break;
+	}
+	return queue;
 }
 
 IStagingManager::IStagingManager(IRenderSystem& InRenderer) :
 	pQueue(nullptr),
 	Renderer(InRenderer),
 	Pool{},
-	TransferCmd{},
-	GraphicsCmd{},
+	CmdBuf{VK_NULL_HANDLE},
 	Semaphore{},
 	Fences{},
 	Buffer{},
@@ -101,15 +116,11 @@ bool IStagingManager::Initialize(size_t StagingBufferSize)
 		return false; 
 	}
 
-	for (size_t i = 0; i < MAX_TRANSFER_COMMANDS; i++)
+	for (size_t i = 0; i < Staging_Op_Max; i++)
 	{
-		TransferCmd[i] = Renderer.Device->AllocateCommandBuffer(Pool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, 1);
-		GraphicsCmd[i] = Renderer.Device->AllocateCommandBuffer(Pool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, 1);
-
-		if (TransferCmd == VK_NULL_HANDLE || GraphicsCmd == VK_NULL_HANDLE)
+		for (size_t j = 0; j < MAX_TRANSFER_COMMANDS; j++)
 		{
-			VKT_ASSERT(false && "Unable to allocate command buffers for transfer and ownership transfer op.");
-			return false;
+			CmdBuf[i][j] = Renderer.Device->AllocateCommandBuffer(Pool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, 1);
 		}
 	}
 
@@ -144,10 +155,12 @@ void IStagingManager::Terminate()
 		Renderer.Device->DestroyFence(Fences[i]);
 	}
 
-	for (size_t i = 0; i < MAX_TRANSFER_COMMANDS; i++)
+	for (size_t i = 0; i < Staging_Op_Max; i++)
 	{
-		Renderer.Device->ResetCommandBuffer(TransferCmd[i], VK_COMMAND_BUFFER_RESET_RELEASE_RESOURCES_BIT);
-		Renderer.Device->ResetCommandBuffer(GraphicsCmd[i], VK_COMMAND_BUFFER_RESET_RELEASE_RESOURCES_BIT);
+		for (size_t j = 0; j < MAX_TRANSFER_COMMANDS; j++)
+		{
+			Renderer.Device->ResetCommandBuffer(CmdBuf[i][j], VK_COMMAND_BUFFER_RESET_RELEASE_RESOURCES_BIT);
+		}
 	}
 
 	Renderer.Device->DestroyCommandPool(Pool);
@@ -163,7 +176,7 @@ void IStagingManager::ResetStagingBuffer(uint32 Index)
 void IStagingManager::BeginStaging()
 {
 	const uint32 index = Renderer.Device->GetCurrentFrameIndex();
-	VkCommandBuffer cmd = TransferCmd[NextCmdIndex];
+	VkCommandBuffer cmd = CmdBuf[Staging_Op_Upload][NextCmdIndex];
 
 	Renderer.Device->WaitFence(Fences[index]);
 	Renderer.Device->ResetFence(Fences[index]);
@@ -174,26 +187,28 @@ bool IStagingManager::StageVertexData(void* Data, size_t Size)
 {
 	const auto [hnd, pBuffer] = Renderer.VertexBuffer;
 	if (hnd == INVALID_HANDLE) { return false; }
-	return StageDataForBuffer(Data, Size, hnd);
+	return StageDataForBuffer(Data, Size, hnd, EQueueType::Queue_Type_Graphics);
 }
 
 bool IStagingManager::StageIndexData(void* Data, size_t Size)
 {
 	const auto [hnd, pBuffer] = Renderer.IndexBuffer;
 	if (hnd == INVALID_HANDLE) { return false; }
-	return StageDataForBuffer(Data, Size, hnd);
+	return StageDataForBuffer(Data, Size, hnd, EQueueType::Queue_Type_Graphics);
 }
 
 bool IStagingManager::StageInstanceData(void* Data, size_t Size)
 {
 	const auto [hnd, pBuffer] = Renderer.InstanceBuffer;
 	if (hnd == INVALID_HANDLE) { return false; }
-	return StageDataForBuffer(Data, Size, hnd);
+	return StageDataForBuffer(Data, Size, hnd, EQueueType::Queue_Type_Graphics);
 }
 
-bool IStagingManager::StageDataForBuffer(void* Data, size_t Size, Handle<SMemoryBuffer> DstHnd)
+bool IStagingManager::StageDataForBuffer(void* Data, size_t Size, Handle<SMemoryBuffer> DstHnd, EQueueType DstQueue)
 {
-	VkCommandBuffer cmd = TransferCmd[NextCmdIndex];
+	VkCommandBuffer cmd = CmdBuf[Staging_Op_Upload][NextCmdIndex];
+	const IRenderDevice::VulkanQueue* dstQueue = GetQueueForType(DstQueue);
+
 	auto [hnd, pStaging] = Buffer[Renderer.Device->GetCurrentFrameIndex()];
 	SMemoryBuffer* pBuffer = Renderer.Store->GetBuffer(DstHnd);
 	if (!pBuffer) { return false; }
@@ -209,7 +224,7 @@ bool IStagingManager::StageDataForBuffer(void* Data, size_t Size, Handle<SMemory
 		// In the rare event that the staging buffer is full, I need to do another submission and
 		// I would like the queue to wait for the previous one to complete.
 		// Ideally, this operation should not stall the CPU.
-		EndStaging();
+		EndStaging(false);
 		BeginStaging();
 	}
 
@@ -224,16 +239,17 @@ bool IStagingManager::StageDataForBuffer(void* Data, size_t Size, Handle<SMemory
 
 	vkCmdCopyBuffer(cmd, pStaging->Hnd, pBuffer->Hnd, 1, &copy);
 
-	BufferBarrier(
+	Renderer.Device->BufferBarrier(
 		cmd,
-		pBuffer,
+		pBuffer->Hnd,
 		Size,
+		pBuffer->Offset,
 		VK_ACCESS_TRANSFER_WRITE_BIT,
 		VK_ACCESS_TRANSFER_READ_BIT,
 		VK_PIPELINE_STAGE_TRANSFER_BIT,
 		VK_PIPELINE_STAGE_TRANSFER_BIT,
 		pQueue->FamilyIndex,
-		Renderer.Device->GetGraphicsQueue().FamilyIndex
+		dstQueue->FamilyIndex
 	);
 
 	pStaging->Offset += PadToAlignedSize(Size);
@@ -242,9 +258,11 @@ bool IStagingManager::StageDataForBuffer(void* Data, size_t Size, Handle<SMemory
 	return true;
 }
 
-bool IStagingManager::StageDataForImage(void* Data, size_t Size, Handle<SImage> DstImg)
+bool IStagingManager::StageDataForImage(void* Data, size_t Size, Handle<SImage> DstImg, EQueueType DstQueue)
 {
-	VkCommandBuffer cmd = TransferCmd[NextCmdIndex];
+	VkCommandBuffer cmd = CmdBuf[Staging_Op_Upload][NextCmdIndex];
+	const IRenderDevice::VulkanQueue* dstQueue = GetQueueForType(DstQueue);
+
 	auto [hnd, pStaging] = Buffer[Renderer.Device->GetCurrentFrameIndex()];
 	SImage* pImage = Renderer.Store->GetImage(DstImg);
 	if (!pImage) { return false; }
@@ -260,7 +278,7 @@ bool IStagingManager::StageDataForImage(void* Data, size_t Size, Handle<SImage> 
 		// In the rare event that the staging buffer is full, I need to do another submission and
 		// I would like the queue to wait for the previous one to complete.
 		// Ideally, this operation should not stall the CPU.
-		EndStaging();
+		EndStaging(false);
 		BeginStaging();
 	}
 
@@ -275,13 +293,13 @@ bool IStagingManager::StageDataForImage(void* Data, size_t Size, Handle<SImage> 
 	range.levelCount = 1;
 	range.layerCount = 1;
 
-	ImageBarrier(
+	Renderer.Device->ImageBarrier(
 		cmd, 
-		pImage, 
+		pImage->ImgHnd, 
 		&range, 
 		VK_IMAGE_LAYOUT_UNDEFINED, 
 		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 
-		VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 
+		VK_PIPELINE_STAGE_TRANSFER_BIT, 
 		VK_PIPELINE_STAGE_TRANSFER_BIT, 
 		pQueue->FamilyIndex, 
 		pQueue->FamilyIndex
@@ -302,16 +320,16 @@ bool IStagingManager::StageDataForImage(void* Data, size_t Size, Handle<SImage> 
 	// TODO(Ygsm):
 	// To include mip map generation for images.
 
-	ImageBarrier(
+	Renderer.Device->ImageBarrier(
 		cmd, 
-		pImage, 
+		pImage->ImgHnd, 
 		&range, 
 		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 
 		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 
 		VK_PIPELINE_STAGE_TRANSFER_BIT, 
 		VK_PIPELINE_STAGE_TRANSFER_BIT, 
 		pQueue->FamilyIndex, 
-		Renderer.Device->GetGraphicsQueue().FamilyIndex
+		dstQueue->FamilyIndex
 	);
 	
 	pStaging->Offset += PadToAlignedSize(Size);
@@ -319,22 +337,125 @@ bool IStagingManager::StageDataForImage(void* Data, size_t Size, Handle<SImage> 
 	return true;
 }
 
-void IStagingManager::EndStaging()
+void IStagingManager::EndStaging(bool SignalSemaphore)
 {
 	const uint32 index = Renderer.Device->GetCurrentFrameIndex();
-	VkCommandBuffer cmd = TransferCmd[NextCmdIndex];
-	VkSemaphore semaphore = Semaphore[index];
+	VkCommandBuffer cmd = CmdBuf[Staging_Op_Upload][NextCmdIndex];
 
 	VkSubmitInfo info = {};
 	info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 	info.commandBufferCount = 1;
 	info.pCommandBuffers = &cmd;
-	info.signalSemaphoreCount = 1;
-	info.pSignalSemaphores = &semaphore;
+
+	if (SignalSemaphore)
+	{
+		VkSemaphore semaphore = Semaphore[index];
+
+		info.signalSemaphoreCount = 1;
+		info.pSignalSemaphores = &semaphore;
+	}
 
 	Renderer.Device->EndCommandBuffer(cmd);
 	vkQueueSubmit(pQueue->Hnd, 1, &info, Fences[index]);
 
 	IncrementCommandIndex();
 	ResetStagingBuffer(index);
+}
+
+void IStagingManager::BeginTransfer()
+{
+	Renderer.Device->BeginCommandBuffer(
+		CmdBuf[Staging_Op_Ownership_Transfer][NextCmdIndex],
+		VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
+	);
+}
+
+bool IStagingManager::TransferBufferOwnership(Handle<SMemoryBuffer> Hnd, EQueueType Queue)
+{
+	VKT_ASSERT((Queue != EQueueType::Queue_Type_Present && Queue != EQueueType::Queue_Type_Transfer) &&
+		"Ownership transfer is not allowed for the presentation queue and the transfer queue!");
+
+	SMemoryBuffer* pBuffer = Renderer.Store->GetBuffer(Hnd);
+	if (!pBuffer) { return false; }
+
+	const IRenderDevice::VulkanQueue* dstQueue = GetQueueForType(Queue);
+	if (!dstQueue) { return false; }
+
+	VkAccessFlags dstMask = VK_ACCESS_MEMORY_READ_BIT;
+
+	if (pBuffer->Type.Has(Buffer_Type_Vertex))
+	{
+		dstMask = VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT;
+	}
+
+	if (pBuffer->Type.Has(Buffer_Type_Index))
+	{
+		dstMask = VK_ACCESS_INDEX_READ_BIT;
+	}
+
+	Renderer.Device->BufferBarrier(
+		CmdBuf[Staging_Op_Ownership_Transfer][NextCmdIndex], 
+		pBuffer->Hnd, 
+		pBuffer->Size,
+		pBuffer->Offset,
+		VK_ACCESS_TRANSFER_WRITE_BIT, 
+		dstMask, 
+		VK_PIPELINE_STAGE_TRANSFER_BIT, 
+		VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, 
+		dstQueue->FamilyIndex, 
+		dstQueue->FamilyIndex
+	);
+
+	return true;
+}
+
+bool IStagingManager::TransferImageOwnership(Handle<SImage> Hnd, EQueueType Queue)
+{
+	VKT_ASSERT((Queue != EQueueType::Queue_Type_Present && Queue != EQueueType::Queue_Type_Transfer) &&
+		"Ownership transfer is not allowed for the presentation queue and the transfer queue!");
+
+	SImage* pImage = Renderer.Store->GetImage(Hnd);
+	if (!pImage) { return false; }
+
+	const IRenderDevice::VulkanQueue* dstQueue = GetQueueForType(Queue);
+	if (!dstQueue) { return false; }
+
+	VkImageSubresourceRange range = {};
+	range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	range.baseMipLevel = 0;
+	range.baseArrayLayer = 0;
+	range.levelCount = 1;
+	range.layerCount = 1;
+
+	Renderer.Device->ImageBarrier(
+		CmdBuf[Staging_Op_Ownership_Transfer][NextCmdIndex],
+		pImage->ImgHnd,
+		&range,
+		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+		VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+		VK_PIPELINE_STAGE_TRANSFER_BIT,
+		VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+		dstQueue->FamilyIndex,
+		dstQueue->FamilyIndex
+	);
+
+	return true;
+}
+
+void IStagingManager::EndTransfer()
+{
+	const uint32 index = Renderer.Device->GetCurrentFrameIndex();
+	const IRenderDevice::VulkanQueue* pGfxQueue = &Renderer.Device->GetGraphicsQueue();
+	VkPipelineStageFlags waitDstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+
+	VkSubmitInfo info = {};
+	info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	info.commandBufferCount = 1;
+	info.pCommandBuffers = &CmdBuf[Staging_Op_Ownership_Transfer][NextCmdIndex];
+	info.waitSemaphoreCount = 1;
+	info.pWaitSemaphores = &Semaphore[index];
+	info.pWaitDstStageMask = &waitDstStageMask;
+
+	Renderer.Device->EndCommandBuffer(CmdBuf[Staging_Op_Ownership_Transfer][NextCmdIndex]);
+	vkQueueSubmit(pGfxQueue->Hnd, 1, &info, VK_NULL_HANDLE);
 }

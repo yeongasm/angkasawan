@@ -4,8 +4,8 @@
 
 
 #include "Library/Containers/Bitset.h"
-#include "Library/Containers/Map.h"
-#include "Library/Allocators/LinearAllocator.h"
+#include "Library/Containers/Array.h"
+#include "Library/Containers/String.h"
 #include "SubSystem/Resource/Handle.h"
 #include "RenderPlatform/API.h"
 #include "API/RendererFlagBits.h"
@@ -13,79 +13,116 @@
 #include "API/Device.h"
 
 class IFrameGraph;
+class IRenderSystem;
 
-/**
-*
-*/
-class RENDERER_API RenderPass
+struct SRenderPass
 {
-
-	RenderPass(IFrameGraph& Graph, uint32 Order);
-	~RenderPass();
-
-	DELETE_COPY_AND_MOVE(RenderPass)
-
-	void AddColorInput			(const String32& Identifier, RenderPass& From);
-	void AddColorOutput			(const String32& Identifier, const AttachmentCreateInfo& CreateInfo);
-	void AddDepthStencilInput	(const RenderPass& From);
-	void AddDepthStencilOutput	();
-	void NoRender				();
-	void NoColorRender			();
-	void NoDepthStencilRender	();
-
+	using Extent2D = WindowInfo::Extent2D;
+	using Position = WindowInfo::Position;
+	using Attachment = Pair<Handle<SImage>, SImage*>;
 	using VulkanFramebuffer = IRenderDevice::VulkanFramebuffer;
-	using OutputAttachments = Map<size_t, STexture*, XxHash<size_t>, 1>;
-	using InputAttachments	= Map<size_t, STexture*, XxHash<size_t>, 1>;
+	using AttachmentContainer = StaticArray<Attachment, MAX_RENDERPASS_ATTACHMENT_COUNT>;
 
-	IFrameGraph& Owner;
-	BitSet<ERenderPassFlagBits>	Flags;
-	float32	Width;
-	float32	Height;
-	float32	Depth;
-	uint32 Order;
-	uint32 PassType;
-	ERenderPassState State;
-	VkRenderPass RenderPassHnd;
+	//enum ERenderPassOrder : uint32
+	//{
+	//	Render_Pass_Order_First,
+	//	Render_Pass_Order_In_Between,
+	//	Render_Pass_Order_Final
+	//};
+
+	IFrameGraph* pOwner;
+	AttachmentContainer ColorInputs;
+	AttachmentContainer ColorOutputs;
 	VulkanFramebuffer Framebuffer;
-	InputAttachments ColorInputs;
-	OutputAttachments ColorOutputs;
-	STexture* DepthStencilInput;
-	STexture* DepthStencilOutput;
+	Attachment DepthStencilInput;
+	Attachment DepthStencilOutput;
+	VkRenderPass RenderPassHnd;
+	BitSet<ERenderPassFlagBits> Flags;
+	Extent2D Extent;
+	Position Pos;
+	float32 Depth;
+	//ERenderPassOrder Order;
+	ERenderPassType Type;
 };
 
+struct RenderPassCreateInfo
+{
+	String64 Identifier;
+	SRenderPass::Extent2D Extent;
+	SRenderPass::Position Pos;
+	float32 Depth;
+	ERenderPassType Type;
+};
 
+/**
+* NOTE(Ygsm):
+* Compute passes in the frame graph will be synchronous compute using the graphics queue.
+* Create another subsystem for async compute.
+*/
 class RENDERER_API IFrameGraph
 {
+private:
+
+	friend class IRenderSystem;
+
+	using Extent2D = SRenderPass::Extent2D;
+	using RenderPass = Pair<Handle<SRenderPass>, SRenderPass*>;
+	using Attachment = SRenderPass::Attachment;
+	using PassContainer = StaticArray<RenderPass, MAX_FRAMEGRAPH_PASS_COUNT>;
+
+	static size_t _HashSeed;
+
+	IRenderSystem& Renderer;
+	Attachment ColorImage;
+	Attachment DepthStencilImage;
+	PassContainer RenderPasses;
+	Extent2D Extent;
+	bool Built;
+
+	SRenderPass* GetRenderPass(Handle<SRenderPass> Hnd);
+	size_t HashIdentifier(const String64& Identifier);
+
+	// Create a vk framebuffer.
+	bool CreateFramebuffer(SRenderPass* pRenderPass);
+	// Destroys a vk framebuffer.
+	void DestroyFramebuffer(SRenderPass* pRenderPass);
+
+	// Creates a vk renderpass.
+	bool CreateRenderPass(SRenderPass* pRenderPass);
+	// Destroys a vk renderpass.
+	void DestroyRenderPass(SRenderPass* pRenderPass);
+
+
 public:
 
-	IFrameGraph(LinearAllocator& InAllocator, SRDeviceStore& InDeviceStore);
+	IFrameGraph(IRenderSystem& InRenderer);
 	~IFrameGraph();
 
 	DELETE_COPY_AND_MOVE(IFrameGraph)
 
-	Handle<RenderPass>	AddPass				(const String64& Identity);
-	RenderPass&			GetRenderPass		(Handle<RenderPass> Handle);
-	//Handle<HImage>		GetColorImage		()	const;
-	//Handle<HImage>		GetDepthStencilImage()	const;
-	uint32				GetNumRenderPasses	()	const;
-	void				SetOutputExtent		(uint32 Width = 0, uint32 Height = 0);
+	void BeginRenderPass(SRenderPass* pRenderPass);
+	void EndRenderPass(SRenderPass* pRenderPass);
 
-	void OnWindowResize	();
-	void Destroy		();
-	bool Compile		();
-	bool Compiled		() const;
+	bool AddColorInputFrom(const String64& AttId, Handle<SRenderPass> Src, Handle<SRenderPass> Dst);
+	bool AddColorOutput(const String64& AttId, Handle<SRenderPass> Hnd);
+	bool AddDepthStencilInputFrom(Handle<SRenderPass> Src, Handle<SRenderPass> Dst);
+	bool AddDepthStencilOutput(Handle<SRenderPass> Hnd);
+	bool SetRenderPassExtent(Handle<SRenderPass> Hnd, WindowInfo::Extent2D Extent);
+	bool SetRenderPassOrigin(Handle<SRenderPass> Hnd, WindowInfo::Position Origin);
 
-private:			
+	bool NoDefaultRender(Handle<SRenderPass> Hnd);
+	bool NoDefaultColorRender(Handle<SRenderPass> Hnd);
+	bool NoDefaultDepthStencilRender(Handle<SRenderPass> Hnd);
 
-	friend class RenderSystem;
-	using RenderPassTable = Map<size_t, RenderPass*, XxHash<size_t>, 3>;
+	Handle<SRenderPass> AddRenderPass(const RenderPassCreateInfo& CreateInfo);
+	size_t GetNumRenderPasses()	const;
+	void SetOutputExtent(uint32 Width = 0, uint32 Height = 0);
 
-	LinearAllocator&	Allocator;
-	//IDeviceStore&		Device;
-	STexture*			ColorImage;
-	STexture*			DepthStencilImage;
-	RenderPassTable		RenderPasses;
-	bool				IsCompiled;
+	//void OnWindowResize();
+	bool Initialize();
+	void Terminate();
+	bool Build();
+	bool IsBuilt() const;
 };
 
 #endif // !LEARNVK_RENDERER_RENDERGRAPH_RENDER_GRAPH_H

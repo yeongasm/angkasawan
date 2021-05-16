@@ -10,12 +10,14 @@
 #include "RenderAbstracts/Primitives.h"
 
 class IStagingManager;
+class IFrameGraph;
 
 class RENDERER_API IRenderSystem : public SystemInterface
 {
 private:
 
 	friend class IStagingManager;
+	friend class IFrameGraph;
 
 	struct DescriptorUpdate
 	{
@@ -94,6 +96,10 @@ public:
 	bool BuildBuffer(Handle<SMemoryBuffer> Hnd);
 	bool DestroyBuffer(Handle<SMemoryBuffer> Hnd);
 	
+	Handle<SImage> CreateImage(const ImageCreateInfo& CreateInfo);
+	bool BuildImage(Handle<SImage> Hnd);
+	bool DestroyImage(Handle<SImage> Hnd);
+
 	IStagingManager& GetStagingManager() const;
 
 	void FlushVertexBuffer();

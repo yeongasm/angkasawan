@@ -489,6 +489,58 @@ void IRenderDevice::DestroyVkSemaphore(VkSemaphore Hnd)
 	vkDestroySemaphore(Device, Hnd, nullptr);
 }
 
+void IRenderDevice::BufferBarrier(
+	VkCommandBuffer Cmd, 
+	VkBuffer Hnd, 
+	size_t Size, 
+	size_t Offset, 
+	VkAccessFlags SrcAccessMask, 
+	VkAccessFlags DstAccessMask, 
+	VkPipelineStageFlags SrcStageMask, 
+	VkPipelineStageFlags DstStageMask, 
+	uint32 SrcQueue, 
+	uint32 DstQueue
+)
+{
+	VkBufferMemoryBarrier barrier = {};
+	barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+	barrier.buffer = Hnd;
+	barrier.size = Size;
+	barrier.offset = Offset;
+	barrier.srcAccessMask = SrcAccessMask;
+	barrier.dstAccessMask = DstAccessMask;
+	barrier.srcQueueFamilyIndex = SrcQueue;
+	barrier.dstQueueFamilyIndex = DstQueue;
+
+	vkCmdPipelineBarrier(Cmd, SrcStageMask, DstStageMask, 0, 0, nullptr, 1, &barrier, 0, nullptr);
+}
+
+void IRenderDevice::ImageBarrier(
+	VkCommandBuffer Cmd, 
+	VkImage Hnd, 
+	VkImageSubresourceRange* pSubRange, 
+	VkImageLayout OldLayout, 
+	VkImageLayout NewLayout, 
+	VkPipelineStageFlags SrcStageMask, 
+	VkPipelineStageFlags DstStageMask, 
+	uint32 SrcQueue, 
+	uint32 DstQueue
+)
+{
+	VkImageMemoryBarrier barrier = {};
+	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+	barrier.oldLayout = OldLayout;
+	barrier.newLayout = NewLayout;
+	barrier.image = Hnd;
+	barrier.subresourceRange = *pSubRange;
+	barrier.srcAccessMask = 0;
+	barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+	barrier.srcQueueFamilyIndex = SrcQueue;
+	barrier.dstQueueFamilyIndex = DstQueue;
+
+	vkCmdPipelineBarrier(Cmd, SrcStageMask, DstStageMask, 0, 0, nullptr, 0, nullptr, 1, &barrier);
+}
+
 void IRenderDevice::WaitTimelineSempahore(VkSemaphore Hnd, uint64 Value, uint64 Timeout)
 {
 	VkSemaphoreWaitInfo info = {};
@@ -1413,6 +1465,61 @@ const IRenderDevice::VulkanQueue& IRenderDevice::GetPresentationQueue() const
 	return PresentQueue;
 }
 
+VkImageUsageFlags IRenderDevice::GetImageUsage(uint32 Index) const
+{
+	static constexpr VkImageUsageFlags usage[] = {
+		VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+		VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+		VK_IMAGE_USAGE_SAMPLED_BIT,
+		VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+		VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+	};
+	return usage[Index];
+}
+
+VkSampleCountFlagBits IRenderDevice::GetSampleCount(uint32 Index) const
+{
+	static constexpr VkSampleCountFlagBits samples[] = {
+		VK_SAMPLE_COUNT_1_BIT,
+		VK_SAMPLE_COUNT_2_BIT,
+		VK_SAMPLE_COUNT_4_BIT,
+		VK_SAMPLE_COUNT_8_BIT,
+		VK_SAMPLE_COUNT_16_BIT,
+		VK_SAMPLE_COUNT_32_BIT,
+		VK_SAMPLE_COUNT_64_BIT
+	};
+	return samples[Index];
+}
+
+VkPipelineBindPoint IRenderDevice::GetPipelineBindPoint(uint32 Index) const
+{
+	static constexpr VkPipelineBindPoint bindPoints[] = {
+		VK_PIPELINE_BIND_POINT_GRAPHICS,
+		VK_PIPELINE_BIND_POINT_COMPUTE,
+	};
+	return bindPoints[Index];
+}
+
+VkImageType IRenderDevice::GetImageType(uint32 Index) const
+{
+	static constexpr VkImageType types[] = {
+		VK_IMAGE_TYPE_1D,
+		VK_IMAGE_TYPE_2D,
+		VK_IMAGE_TYPE_3D
+	};
+	return types[Index];
+}
+
+VkImageViewType IRenderDevice::GetImageViewType(uint32 Index) const
+{
+	static constexpr VkImageViewType types[] = {
+		VK_IMAGE_VIEW_TYPE_1D,
+		VK_IMAGE_VIEW_TYPE_2D,
+		VK_IMAGE_VIEW_TYPE_3D
+	};
+	return types[Index];
+}
+
 VkDescriptorType IRenderDevice::GetDescriptorType(uint32 Index) const
 {
 	static constexpr VkDescriptorType types[] = {
@@ -1457,4 +1564,9 @@ const VkPhysicalDeviceProperties& IRenderDevice::GetPhysicalDeviceProperties() c
 const uint32 IRenderDevice::GetCurrentFrameIndex() const
 {
 	return CurrentFrameIndex;
+}
+
+const uint32 IRenderDevice::GetNextSwapchainImageIndex() const
+{
+	return NextSwapchainImageIndex
 }
