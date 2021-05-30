@@ -3,6 +3,7 @@
 #define LEARNVK_BUFFER_H
 
 #include "Library/Templates/Templates.h"
+#include "Library/Templates/Types.h"
 #include "Library/Memory/Memory.h"
 
 template <typename ElementType>
@@ -162,5 +163,8 @@ public:
 		return Buf;
 	}
 };
+
+using BinaryBuffer	= Buffer<uint8>;
+using DWordBuffer	= Buffer<uint32>;
 
 #endif // !LEARNVK_BUFFER_H

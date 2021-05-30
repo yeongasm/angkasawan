@@ -12,6 +12,13 @@ enum EBuildStatus
 	Build_Status_Compiled
 };
 
+enum class EBindableType : uint32
+{
+	Bindable_Type_None = 0, // Only during init.
+	Bindable_Type_Descriptor_Set = 1,
+	Bindable_Type_Pipeline = 2
+};
+
 enum class EQueueType : size_t
 {
 	Queue_Type_Graphics = 0,
@@ -48,6 +55,13 @@ enum EColorChannel : size_t
 	Color_Channel_Blue	= 2,
 	Color_Channel_Alpha = 3,
 	Color_Channel_Max	= 4
+};
+
+enum EPipelineBindPoint : uint32
+{
+	Pipeline_Bind_Point_Graphics = 0,
+	Pipeline_Bind_Point_Compute = 1,
+	Pipeline_Bind_Point_Max = 2
 };
 
 enum ERenderPassType : uint32

@@ -3,7 +3,7 @@
 
 size_t IStagingManager::PadToAlignedSize(size_t Size)
 {
-	const size_t minUboAlignment = Renderer.Device->GetPhysicalDeviceProperties().limits.minUniformBufferOffsetAlignment;
+	const size_t minUboAlignment = Renderer.pDevice->GetPhysicalDeviceProperties().limits.minUniformBufferOffsetAlignment;
 	return (Size + minUboAlignment - 1) & ~(minUboAlignment - 1);
 }
 
@@ -80,7 +80,7 @@ const IRenderDevice::VulkanQueue* IStagingManager::GetQueueForType(EQueueType Qu
 	switch (QueueType)
 	{
 	case EQueueType::Queue_Type_Graphics:
-		queue = &Renderer.Device->GetGraphicsQueue();
+		queue = &Renderer.pDevice->GetGraphicsQueue();
 		break;
 	case EQueueType::Queue_Type_Transfer:
 	default:
@@ -107,8 +107,8 @@ IStagingManager::~IStagingManager()
 
 bool IStagingManager::Initialize(size_t StagingBufferSize)
 {
-	pQueue = const_cast<IRenderDevice::VulkanQueue*>(&Renderer.Device->GetTransferQueue());
-	Pool = Renderer.Device->CreateCommandPool(pQueue->FamilyIndex, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
+	pQueue = const_cast<IRenderDevice::VulkanQueue*>(&Renderer.pDevice->GetTransferQueue());
+	Pool = Renderer.pDevice->CreateCommandPool(pQueue->FamilyIndex, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
 
 	if (Pool == VK_NULL_HANDLE) 
 	{ 
@@ -120,7 +120,7 @@ bool IStagingManager::Initialize(size_t StagingBufferSize)
 	{
 		for (size_t j = 0; j < MAX_TRANSFER_COMMANDS; j++)
 		{
-			CmdBuf[i][j] = Renderer.Device->AllocateCommandBuffer(Pool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, 1);
+			CmdBuf[i][j] = Renderer.pDevice->AllocateCommandBuffer(Pool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, 1);
 		}
 	}
 
@@ -137,33 +137,35 @@ bool IStagingManager::Initialize(size_t StagingBufferSize)
 		Handle<SMemoryBuffer> hnd = Renderer.AllocateNewBuffer(allocInfo);
 		Buffer[i] = StagingBuffer(
 			hnd, 
-			Renderer.Store->GetBuffer(hnd)
+			Renderer.pStore->GetBuffer(hnd)
 		);
-		Semaphore[i] = Renderer.Device->CreateVkSemaphore(nullptr);
-		Fences[i] = Renderer.Device->CreateFence();
+		Semaphore[i] = Renderer.pDevice->CreateVkSemaphore(nullptr);
+		Fences[i] = Renderer.pDevice->CreateFence();
 	}
+
+	return true;
 }
 
 void IStagingManager::Terminate()
 {
-	Renderer.Device->DeviceWaitIdle();
+	Renderer.pDevice->DeviceWaitIdle();
 
 	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 	{
 		Renderer.DestroyBuffer(Buffer[i].Key);
-		Renderer.Device->DestroyVkSemaphore(Semaphore[i]);
-		Renderer.Device->DestroyFence(Fences[i]);
+		Renderer.pDevice->DestroyVkSemaphore(Semaphore[i]);
+		Renderer.pDevice->DestroyFence(Fences[i]);
 	}
 
 	for (size_t i = 0; i < Staging_Op_Max; i++)
 	{
 		for (size_t j = 0; j < MAX_TRANSFER_COMMANDS; j++)
 		{
-			Renderer.Device->ResetCommandBuffer(CmdBuf[i][j], VK_COMMAND_BUFFER_RESET_RELEASE_RESOURCES_BIT);
+			Renderer.pDevice->ResetCommandBuffer(CmdBuf[i][j], VK_COMMAND_BUFFER_RESET_RELEASE_RESOURCES_BIT);
 		}
 	}
 
-	Renderer.Device->DestroyCommandPool(Pool);
+	Renderer.pDevice->DestroyCommandPool(Pool);
 }
 
 void IStagingManager::ResetStagingBuffer(uint32 Index)
@@ -175,47 +177,44 @@ void IStagingManager::ResetStagingBuffer(uint32 Index)
 
 void IStagingManager::BeginStaging()
 {
-	const uint32 index = Renderer.Device->GetCurrentFrameIndex();
+	const uint32 index = Renderer.pDevice->GetCurrentFrameIndex();
 	VkCommandBuffer cmd = CmdBuf[Staging_Op_Upload][NextCmdIndex];
 
-	Renderer.Device->WaitFence(Fences[index]);
-	Renderer.Device->ResetFence(Fences[index]);
-	Renderer.Device->BeginCommandBuffer(cmd, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+	Renderer.pDevice->WaitFence(Fences[index]);
+	Renderer.pDevice->ResetFence(Fences[index]);
+	Renderer.pDevice->BeginCommandBuffer(cmd, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 }
 
-bool IStagingManager::StageVertexData(void* Data, size_t Size)
+size_t IStagingManager::StageVertexData(void* Data, size_t Size)
 {
 	const auto [hnd, pBuffer] = Renderer.VertexBuffer;
-	if (hnd == INVALID_HANDLE) { return false; }
 	return StageDataForBuffer(Data, Size, hnd, EQueueType::Queue_Type_Graphics);
 }
 
-bool IStagingManager::StageIndexData(void* Data, size_t Size)
+size_t IStagingManager::StageIndexData(void* Data, size_t Size)
 {
 	const auto [hnd, pBuffer] = Renderer.IndexBuffer;
-	if (hnd == INVALID_HANDLE) { return false; }
 	return StageDataForBuffer(Data, Size, hnd, EQueueType::Queue_Type_Graphics);
 }
 
-bool IStagingManager::StageInstanceData(void* Data, size_t Size)
-{
-	const auto [hnd, pBuffer] = Renderer.InstanceBuffer;
-	if (hnd == INVALID_HANDLE) { return false; }
-	return StageDataForBuffer(Data, Size, hnd, EQueueType::Queue_Type_Graphics);
-}
+//size_t IStagingManager::StageInstanceData(void* Data, size_t Size)
+//{
+//	const auto [hnd, pBuffer] = Renderer.InstanceBuffer;
+//	return StageDataForBuffer(Data, Size, hnd, EQueueType::Queue_Type_Graphics);
+//}
 
-bool IStagingManager::StageDataForBuffer(void* Data, size_t Size, Handle<SMemoryBuffer> DstHnd, EQueueType DstQueue)
+size_t IStagingManager::StageDataForBuffer(void* Data, size_t Size, Handle<SMemoryBuffer> DstHnd, EQueueType DstQueue)
 {
 	VkCommandBuffer cmd = CmdBuf[Staging_Op_Upload][NextCmdIndex];
 	const IRenderDevice::VulkanQueue* dstQueue = GetQueueForType(DstQueue);
 
-	auto [hnd, pStaging] = Buffer[Renderer.Device->GetCurrentFrameIndex()];
-	SMemoryBuffer* pBuffer = Renderer.Store->GetBuffer(DstHnd);
+	auto [hnd, pStaging] = Buffer[Renderer.pDevice->GetCurrentFrameIndex()];
+	SMemoryBuffer* pBuffer = Renderer.pStore->GetBuffer(DstHnd);
 	if (!pBuffer) { return false; }
 	if (Size > pStaging->Size) 
 	{ 
 		VKT_ASSERT(false && "Data size exceeded capacity allowed by staging buffer.");
-		return false; 
+		return -1; 
 	}
 
 	if (!CanContentsFit(*pStaging, Size))
@@ -239,7 +238,7 @@ bool IStagingManager::StageDataForBuffer(void* Data, size_t Size, Handle<SMemory
 
 	vkCmdCopyBuffer(cmd, pStaging->Hnd, pBuffer->Hnd, 1, &copy);
 
-	Renderer.Device->BufferBarrier(
+	Renderer.pDevice->BufferBarrier(
 		cmd,
 		pBuffer->Hnd,
 		Size,
@@ -255,7 +254,7 @@ bool IStagingManager::StageDataForBuffer(void* Data, size_t Size, Handle<SMemory
 	pStaging->Offset += PadToAlignedSize(Size);
 	pBuffer->Offset += PadToAlignedSize(Size);
 
-	return true;
+	return pBuffer->Offset;
 }
 
 bool IStagingManager::StageDataForImage(void* Data, size_t Size, Handle<SImage> DstImg, EQueueType DstQueue)
@@ -263,8 +262,8 @@ bool IStagingManager::StageDataForImage(void* Data, size_t Size, Handle<SImage> 
 	VkCommandBuffer cmd = CmdBuf[Staging_Op_Upload][NextCmdIndex];
 	const IRenderDevice::VulkanQueue* dstQueue = GetQueueForType(DstQueue);
 
-	auto [hnd, pStaging] = Buffer[Renderer.Device->GetCurrentFrameIndex()];
-	SImage* pImage = Renderer.Store->GetImage(DstImg);
+	auto [hnd, pStaging] = Buffer[Renderer.pDevice->GetCurrentFrameIndex()];
+	SImage* pImage = Renderer.pStore->GetImage(DstImg);
 	if (!pImage) { return false; }
 	if (Size > pStaging->Size)
 	{
@@ -293,7 +292,7 @@ bool IStagingManager::StageDataForImage(void* Data, size_t Size, Handle<SImage> 
 	range.levelCount = 1;
 	range.layerCount = 1;
 
-	Renderer.Device->ImageBarrier(
+	Renderer.pDevice->ImageBarrier(
 		cmd, 
 		pImage->ImgHnd, 
 		&range, 
@@ -320,7 +319,7 @@ bool IStagingManager::StageDataForImage(void* Data, size_t Size, Handle<SImage> 
 	// TODO(Ygsm):
 	// To include mip map generation for images.
 
-	Renderer.Device->ImageBarrier(
+	Renderer.pDevice->ImageBarrier(
 		cmd, 
 		pImage->ImgHnd, 
 		&range, 
@@ -339,7 +338,7 @@ bool IStagingManager::StageDataForImage(void* Data, size_t Size, Handle<SImage> 
 
 void IStagingManager::EndStaging(bool SignalSemaphore)
 {
-	const uint32 index = Renderer.Device->GetCurrentFrameIndex();
+	const uint32 index = Renderer.pDevice->GetCurrentFrameIndex();
 	VkCommandBuffer cmd = CmdBuf[Staging_Op_Upload][NextCmdIndex];
 
 	VkSubmitInfo info = {};
@@ -355,16 +354,31 @@ void IStagingManager::EndStaging(bool SignalSemaphore)
 		info.pSignalSemaphores = &semaphore;
 	}
 
-	Renderer.Device->EndCommandBuffer(cmd);
+	Renderer.pDevice->EndCommandBuffer(cmd);
 	vkQueueSubmit(pQueue->Hnd, 1, &info, Fences[index]);
 
 	IncrementCommandIndex();
 	ResetStagingBuffer(index);
 }
 
+size_t IStagingManager::GetVertexBufferOffset() const
+{
+	return Renderer.VertexBuffer.Value->Offset;
+}
+
+size_t IStagingManager::GetIndexBufferOffset() const
+{
+	return Renderer.IndexBuffer.Value->Offset;
+}
+
+//size_t IStagingManager::GetInstanceBufferOffset() const
+//{
+//	return Renderer.InstanceBuffer.Value->Offset;
+//}
+
 void IStagingManager::BeginTransfer()
 {
-	Renderer.Device->BeginCommandBuffer(
+	Renderer.pDevice->BeginCommandBuffer(
 		CmdBuf[Staging_Op_Ownership_Transfer][NextCmdIndex],
 		VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
 	);
@@ -375,7 +389,7 @@ bool IStagingManager::TransferBufferOwnership(Handle<SMemoryBuffer> Hnd, EQueueT
 	VKT_ASSERT((Queue != EQueueType::Queue_Type_Present && Queue != EQueueType::Queue_Type_Transfer) &&
 		"Ownership transfer is not allowed for the presentation queue and the transfer queue!");
 
-	SMemoryBuffer* pBuffer = Renderer.Store->GetBuffer(Hnd);
+	SMemoryBuffer* pBuffer = Renderer.pStore->GetBuffer(Hnd);
 	if (!pBuffer) { return false; }
 
 	const IRenderDevice::VulkanQueue* dstQueue = GetQueueForType(Queue);
@@ -393,7 +407,7 @@ bool IStagingManager::TransferBufferOwnership(Handle<SMemoryBuffer> Hnd, EQueueT
 		dstMask = VK_ACCESS_INDEX_READ_BIT;
 	}
 
-	Renderer.Device->BufferBarrier(
+	Renderer.pDevice->BufferBarrier(
 		CmdBuf[Staging_Op_Ownership_Transfer][NextCmdIndex], 
 		pBuffer->Hnd, 
 		pBuffer->Size,
@@ -414,7 +428,7 @@ bool IStagingManager::TransferImageOwnership(Handle<SImage> Hnd, EQueueType Queu
 	VKT_ASSERT((Queue != EQueueType::Queue_Type_Present && Queue != EQueueType::Queue_Type_Transfer) &&
 		"Ownership transfer is not allowed for the presentation queue and the transfer queue!");
 
-	SImage* pImage = Renderer.Store->GetImage(Hnd);
+	SImage* pImage = Renderer.pStore->GetImage(Hnd);
 	if (!pImage) { return false; }
 
 	const IRenderDevice::VulkanQueue* dstQueue = GetQueueForType(Queue);
@@ -427,7 +441,7 @@ bool IStagingManager::TransferImageOwnership(Handle<SImage> Hnd, EQueueType Queu
 	range.levelCount = 1;
 	range.layerCount = 1;
 
-	Renderer.Device->ImageBarrier(
+	Renderer.pDevice->ImageBarrier(
 		CmdBuf[Staging_Op_Ownership_Transfer][NextCmdIndex],
 		pImage->ImgHnd,
 		&range,
@@ -444,8 +458,8 @@ bool IStagingManager::TransferImageOwnership(Handle<SImage> Hnd, EQueueType Queu
 
 void IStagingManager::EndTransfer()
 {
-	const uint32 index = Renderer.Device->GetCurrentFrameIndex();
-	const IRenderDevice::VulkanQueue* pGfxQueue = &Renderer.Device->GetGraphicsQueue();
+	const uint32 index = Renderer.pDevice->GetCurrentFrameIndex();
+	const IRenderDevice::VulkanQueue* pGfxQueue = &Renderer.pDevice->GetGraphicsQueue();
 	VkPipelineStageFlags waitDstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
 
 	VkSubmitInfo info = {};
@@ -456,6 +470,6 @@ void IStagingManager::EndTransfer()
 	info.pWaitSemaphores = &Semaphore[index];
 	info.pWaitDstStageMask = &waitDstStageMask;
 
-	Renderer.Device->EndCommandBuffer(CmdBuf[Staging_Op_Ownership_Transfer][NextCmdIndex]);
+	Renderer.pDevice->EndCommandBuffer(CmdBuf[Staging_Op_Ownership_Transfer][NextCmdIndex]);
 	vkQueueSubmit(pGfxQueue->Hnd, 1, &info, VK_NULL_HANDLE);
 }

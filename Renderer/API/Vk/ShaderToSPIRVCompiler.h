@@ -2,13 +2,11 @@
 #ifndef LEARNVK_RENDERER_API_VK_SHADER_TO_SPIRV_COMPILER
 #define LEARNVK_RENDERER_API_VK_SHADER_TO_SPIRV_COMPILER
 
+#include "Library/Containers/Buffer.h"
 #include "Library/Containers/Array.h"
 #include "Library/Containers/Deque.h"
 #include "Library/Containers/String.h"
 #include "Src/shaderc.hpp"
-
-using BinaryBuffer = Array<uint8>;
-using DWordBuffer = Array<uint32>;
 
 /**
 * TODO(Ygsm):
@@ -19,8 +17,8 @@ class ShaderToSPIRVCompiler
 {
 public:
 	bool		PreprocessShader(const char* ShaderName, shaderc_shader_kind Type, const char* Code, String& Buf);
-	bool		CompileShaderToAssembly(const char* ShaderName, shaderc_shader_kind Type, const char* Code, BinaryBuffer& Buf);
-	bool		CompileShader(const char* ShaderName, shaderc_shader_kind Type, const char* Code, DWordBuffer& Buf);
+	bool		CompileShaderToAssembly(const char* ShaderName, shaderc_shader_kind Type, const char* Code, Array<uint8>& Buf);
+	bool		CompileShader(const char* ShaderName, shaderc_shader_kind Type, const char* Code, Array<uint32>& Buf);
 	const char* GetLastErrorMessage();
 private:
 	using CompileErrorLogs = Deque<String>;

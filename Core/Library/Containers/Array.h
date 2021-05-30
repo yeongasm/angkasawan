@@ -794,5 +794,4 @@ public:
 	}
 };
 
-
 #endif // !LEARNVK_ARRAY

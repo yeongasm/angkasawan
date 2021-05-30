@@ -6,6 +6,7 @@
 #include "Library/Containers/Bitset.h"
 #include "Library/Containers/Array.h"
 #include "Library/Containers/String.h"
+#include "Library/Containers/Ref.h"
 #include "SubSystem/Resource/Handle.h"
 #include "RenderPlatform/API.h"
 #include "API/RendererFlagBits.h"
@@ -14,22 +15,18 @@
 
 class IFrameGraph;
 class IRenderSystem;
+struct SDescriptorSet;
+struct SPipeline;
 
 struct SRenderPass
 {
 	using Extent2D = WindowInfo::Extent2D;
 	using Position = WindowInfo::Position;
-	using Attachment = Pair<Handle<SImage>, SImage*>;
+	using Attachment = Pair<Handle<SImage>, Ref<SImage>>;
 	using VulkanFramebuffer = IRenderDevice::VulkanFramebuffer;
 	using AttachmentContainer = StaticArray<Attachment, MAX_RENDERPASS_ATTACHMENT_COUNT>;
 
-	//enum ERenderPassOrder : uint32
-	//{
-	//	Render_Pass_Order_First,
-	//	Render_Pass_Order_In_Between,
-	//	Render_Pass_Order_Final
-	//};
-
+	Handle<SRenderPass> Hnd; // Not sure if I like this ... 
 	IFrameGraph* pOwner;
 	AttachmentContainer ColorInputs;
 	AttachmentContainer ColorOutputs;
@@ -38,11 +35,13 @@ struct SRenderPass
 	Attachment DepthStencilOutput;
 	VkRenderPass RenderPassHnd;
 	BitSet<ERenderPassFlagBits> Flags;
+	//Ref<SDescriptorSet> pSet;
+	//Ref<SPipeline> pPipeline;
 	Extent2D Extent;
 	Position Pos;
 	float32 Depth;
-	//ERenderPassOrder Order;
 	ERenderPassType Type;
+	bool Bound = false;
 };
 
 struct RenderPassCreateInfo
@@ -52,12 +51,16 @@ struct RenderPassCreateInfo
 	SRenderPass::Position Pos;
 	float32 Depth;
 	ERenderPassType Type;
+	//Handle<SDescriptorSet> DescriptorSetHnd;
+	//Handle<SPipeline> PipelineHnd;
 };
 
 /**
 * NOTE(Ygsm):
 * Compute passes in the frame graph will be synchronous compute using the graphics queue.
 * Create another subsystem for async compute.
+* 
+* The frame graph will own a descriptor set and slot 0 is reserved for it.
 */
 class RENDERER_API IFrameGraph
 {
@@ -66,7 +69,7 @@ private:
 	friend class IRenderSystem;
 
 	using Extent2D = SRenderPass::Extent2D;
-	using RenderPass = Pair<Handle<SRenderPass>, SRenderPass*>;
+	using RenderPass = Pair<Handle<SRenderPass>, Ref<SRenderPass>>;
 	using Attachment = SRenderPass::Attachment;
 	using PassContainer = StaticArray<RenderPass, MAX_FRAMEGRAPH_PASS_COUNT>;
 
@@ -79,18 +82,19 @@ private:
 	Extent2D Extent;
 	bool Built;
 
-	SRenderPass* GetRenderPass(Handle<SRenderPass> Hnd);
+	Ref<SRenderPass> GetRenderPass(Handle<SRenderPass> Hnd);
+	void ResetRenderPassBindState();
 	size_t HashIdentifier(const String64& Identifier);
 
 	// Create a vk framebuffer.
-	bool CreateFramebuffer(SRenderPass* pRenderPass);
+	bool CreateFramebuffer(Ref<SRenderPass> pRenderPass);
 	// Destroys a vk framebuffer.
-	void DestroyFramebuffer(SRenderPass* pRenderPass);
+	void DestroyFramebuffer(Ref<SRenderPass> pRenderPass);
 
 	// Creates a vk renderpass.
-	bool CreateRenderPass(SRenderPass* pRenderPass);
+	bool CreateRenderPass(Ref<SRenderPass> pRenderPass);
 	// Destroys a vk renderpass.
-	void DestroyRenderPass(SRenderPass* pRenderPass);
+	void DestroyRenderPass(Ref<SRenderPass> pRenderPass);
 
 
 public:
@@ -99,9 +103,6 @@ public:
 	~IFrameGraph();
 
 	DELETE_COPY_AND_MOVE(IFrameGraph)
-
-	void BeginRenderPass(SRenderPass* pRenderPass);
-	void EndRenderPass(SRenderPass* pRenderPass);
 
 	bool AddColorInputFrom(const String64& AttId, Handle<SRenderPass> Src, Handle<SRenderPass> Dst);
 	bool AddColorOutput(const String64& AttId, Handle<SRenderPass> Hnd);
@@ -115,11 +116,17 @@ public:
 	bool NoDefaultDepthStencilRender(Handle<SRenderPass> Hnd);
 
 	Handle<SRenderPass> AddRenderPass(const RenderPassCreateInfo& CreateInfo);
+
+	bool GetRenderPassColorOutputCount(Handle<SRenderPass> Hnd, uint32& Count);
+
 	size_t GetNumRenderPasses()	const;
 	void SetOutputExtent(uint32 Width = 0, uint32 Height = 0);
 
 	//void OnWindowResize();
-	bool Initialize();
+	// 
+	// Creates a CPU side image with the given extent.
+	// Does not create the resource on the GPU.
+	bool Initialize(const Extent2D& Extent);
 	void Terminate();
 	bool Build();
 	bool IsBuilt() const;

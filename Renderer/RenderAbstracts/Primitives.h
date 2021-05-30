@@ -4,10 +4,39 @@
 
 #include "Library/Containers/Array.h"
 #include "Library/Containers/Bitset.h"
+#include "Library/Containers/Ref.h"
+#include "Library/Containers/String.h"
+#include "SubSystem/Resource/Handle.h"
+#include "Engine/Private/Prototype.h"
 #include "API/Common.h"
 #include "API/RendererFlagBits.h"
 #include "API/Definitions.h"
 #include "API/ShaderAttribute.h"
+
+struct SRenderPass;
+struct SDescriptorSetLayout;
+
+struct Viewport
+{
+	float32 x;
+	float32 y;
+	float32 Width;
+	float32 Height;
+	float32 MinDepth;
+	float32 MaxDepth;
+};
+
+struct Offset2D
+{
+	int32 x;
+	int32 y;
+};
+
+struct Rect2D
+{
+	Offset2D Offset;
+	WindowInfo::Extent2D Extent;
+};
 
 struct SMemoryBuffer
 {
@@ -55,7 +84,7 @@ struct SImage
 
 struct ImageCreateInfo
 {
-	size_t Identifier = -1; // Ignore for a default generated id.
+	size_t Identifier = ~0ULL; // Ignore for a default generated id.
 	uint32 Width;
 	uint32 Height;
 	uint32 Channels;
@@ -66,8 +95,15 @@ struct SShader
 {
 	using AttribsContainer = StaticArray<ShaderAttrib, MAX_SHADER_ATTRIBUTES>;
 
+	Array<uint32> SpirV;
 	AttribsContainer Attributes;
 	VkShaderModule Hnd;
+	EShaderType Type;
+};
+
+struct ShaderCreateInfo
+{
+	String pCode;
 	EShaderType Type;
 };
 
@@ -83,18 +119,44 @@ struct SPipeline
 	};
 
 	using VertexInBindings = StaticArray<VertexInputBinding, MAX_VERTEX_INPUT_BINDING>;
-	using LayoutsContainer = StaticArray<SDescriptorSetLayout*, MAX_PIPELINE_DESCRIPTOR_LAYOUT>;
+	using LayoutsContainer = StaticArray<Ref<SDescriptorSetLayout>, MAX_PIPELINE_DESCRIPTOR_LAYOUT>;
 
 	VertexInBindings VertexBindings;
 	LayoutsContainer Layouts;
+	Ref<SRenderPass> pRenderPass;
+	Ref<SShader> pVertexShader;
+	Ref<SShader> pFragmentShader;
+	Ref<SShader> pGeometryShader;
+	Ref<SShader> pComputeShader;
 	VkPipeline Hnd;
+	VkPipelineLayout LayoutHnd;
+	Viewport Viewport;
+	Rect2D Scissor;
 	ESampleCount Samples;
 	ETopologyType Topology;
 	EFrontFaceDir FrontFace;
 	ECullingMode CullMode;
 	EPolygonMode PolygonalMode;
+	EPipelineBindPoint BindPoint;
 	uint32 ColorOutputCount;
-	bool HasDefaultColorOutput;
+	bool HasDepthStencil;
+};
+
+struct PipelineCreateInfo
+{
+	Viewport Viewport;
+	Rect2D Scissor;
+	Handle<SShader> VertexShaderHnd;
+	Handle<SShader> FragmentShaderHnd;
+	Handle<SShader> GeometryShaderHnd;
+	Handle<SShader> ComputeShaderHnd;
+	ESampleCount Samples;
+	ETopologyType Topology;
+	EFrontFaceDir FrontFace;
+	ECullingMode CullMode;
+	EPolygonMode PolygonalMode;
+	EPipelineBindPoint BindPoint;
+	uint32 ColorOutputCount;
 	bool HasDepthStencil;
 };
 
@@ -102,7 +164,7 @@ struct SPushConstant
 {
 	uint8 Data[Push_Constant_Size];
 	size_t Offset;
-	SPipeline* pPipeline;
+	//Ref<SPipeline> pPipeline;
 };
 
 struct SDescriptorPool
@@ -124,18 +186,32 @@ struct SDescriptorSetLayout
 {
 	struct Binding
 	{
-		uint32 Binding;
+		uint32 BindingSlot;
 		uint32 DescriptorCount;
 		size_t Size;
 		size_t Allocated;
 		size_t Offset[MAX_FRAMES_IN_FLIGHT];
 		EDescriptorType Type;
 		BitSet<uint32> ShaderStages;
-		SMemoryBuffer* Buffer;
+		Ref<SMemoryBuffer> pBuffer;
+
+		Binding() :
+			BindingSlot(0),
+			DescriptorCount(0),
+			Size(0),
+			Allocated(0),
+			Offset{0},
+			Type(Descriptor_Type_Max),
+			ShaderStages{},
+			pBuffer{}
+		{}
+
+		~Binding() {};
 	};
 
 	using BindingsContainer = StaticArray<Binding, MAX_DESCRIPTOR_SET_LAYOUT_BINDINGS>;
 	VkDescriptorSetLayout Hnd;
+	Ref<SPipeline> pPipeline;
 	BindingsContainer Bindings;
 };
 
@@ -148,15 +224,15 @@ struct SDescriptorSetLayout
 */
 struct SDescriptorSet
 {
-	SDescriptorPool* pPool;
-	SDescriptorSetLayout* pLayout;
+	Ref<SDescriptorPool> pPool;
+	Ref<SDescriptorSetLayout> pLayout;
 	VkDescriptorSet Hnd[MAX_FRAMES_IN_FLIGHT];
 	uint32 Slot;
 };
 
 struct SDescriptorSetInstance
 {
-	SDescriptorSet* pSet;
+	Ref<SDescriptorSet> pSet;
 	size_t Offset;
 	uint32 Binding;
 };
@@ -165,7 +241,7 @@ struct DescriptorSetLayoutBindingInfo
 {
 	size_t Size;
 	uint32 DescriptorCount;
-	uint32 Binding;
+	uint32 BindingSlot;
 	EDescriptorType Type;
 	Handle<SDescriptorSetLayout> LayoutHnd;
 	Handle<SMemoryBuffer> BufferHnd;
@@ -177,6 +253,34 @@ struct DescriptorSetAllocateInfo
 	Handle<SDescriptorPool> PoolHnd;
 	Handle<SDescriptorSetLayout> LayoutHnd;
 	uint32 Slot;
+};
+
+struct SBindable
+{
+	union
+	{
+		Ref<SDescriptorSet> pSet;
+		Ref<SPipeline> pPipeline;
+	};
+	EBindableType Type;
+	bool Bound;
+
+	SBindable() :
+		pPipeline{}, Type(EBindableType::Bindable_Type_None), Bound(false)
+	{}
+
+	~SBindable() {}
+};
+
+struct DrawCommand
+{
+	uint32 NumVertices;
+	uint32 NumIndices;
+	uint32 VertexOffset;
+	uint32 IndexOffset;
+	uint32 InstanceOffset;
+	uint32 InstanceCount;
+	Ref<SRenderPass> pRenderPass;
 };
 
 #endif // !LEARNVK_RENDERER_RENDER_ABSTRACT_PRIMITIVES_H

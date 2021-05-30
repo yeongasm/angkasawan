@@ -25,7 +25,7 @@ bool ShaderToSPIRVCompiler::PreprocessShader(const char* ShaderName, shaderc_sha
 	return true;
 }
 
-bool ShaderToSPIRVCompiler::CompileShaderToAssembly(const char* ShaderName, shaderc_shader_kind Type, const char* Code, BinaryBuffer& Buf)
+bool ShaderToSPIRVCompiler::CompileShaderToAssembly(const char* ShaderName, shaderc_shader_kind Type, const char* Code, Array<uint8>& Buf)
 {
 	shaderc::Compiler compiler;
 	shaderc::CompileOptions options;
@@ -53,7 +53,7 @@ bool ShaderToSPIRVCompiler::CompileShaderToAssembly(const char* ShaderName, shad
 	return true;
 }
 
-bool ShaderToSPIRVCompiler::CompileShader(const char* ShaderName, shaderc_shader_kind Type, const char* Code, DWordBuffer& Buf)
+bool ShaderToSPIRVCompiler::CompileShader(const char* ShaderName, shaderc_shader_kind Type, const char* Code, Array<uint32>& Buf)
 {
 	shaderc::Compiler compiler;
 	shaderc::CompileOptions options;

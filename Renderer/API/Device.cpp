@@ -1,4 +1,7 @@
 #include "Device.h"
+#include "API/Vk/ShaderToSPIRVCompiler.h"
+#include "RenderAbstracts/Primitives.h"
+#include "RenderAbstracts/FrameGraph.h"
 
 static VkDebugUtilsMessengerEXT g_DebugMessenger;
 
@@ -23,6 +26,34 @@ void PopulateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& Create
 		VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
 	CreateInfo.pfnUserCallback = DebugCallback;
 }
+
+IRenderDevice::IRenderDevice() :
+	Engine{},
+	Dll{},
+	Instance{},
+	Gpu{},
+	Device{},
+	Surface{},
+	Swapchain{},
+	GraphicsQueue{},
+	PresentQueue{},
+	TransferQueue{},
+	DefaultFramebuffer{},
+	DefaultRenderPass{},
+	Semaphores{},
+	Fences{},
+	ImageFences{},
+	Properties{},
+	Allocator{},
+	CommandPool{},
+	CommandBuffers{},
+	DebugMessenger{},
+	NextSwapchainImageIndex{},
+	CurrentFrameIndex{},
+	RenderFrame{}
+{}
+
+IRenderDevice::~IRenderDevice() {}
 
 bool IRenderDevice::Initialize(const EngineImpl& Engine)
 {
@@ -378,6 +409,31 @@ void IRenderDevice::DestroyDefaultFramebuffer()
 
 void IRenderDevice::BeginFrame()
 {
+	RenderFrame = true;
+	WaitFence(Fences[CurrentFrameIndex]);
+	VkResult result = vkAcquireNextImageKHR(
+		Device,
+		Swapchain.Hnd,
+		UINT64_MAX,
+		Semaphores[CurrentFrameIndex][Semaphore_Type_Image_Available],
+		VK_NULL_HANDLE,
+		&NextSwapchainImageIndex
+	);
+
+	switch (result)
+	{
+	case VK_SUCCESS:
+	case VK_SUBOPTIMAL_KHR:
+		break;
+	case VK_ERROR_OUT_OF_DATE_KHR:
+		// Resize window ...
+		break;
+	default:
+		VKT_ASSERT(false && "Problem occured during swap chain image acquisation!");
+		RenderFrame = false;
+		return;
+	}
+
 	VkCommandBuffer cmd = GetCommandBuffer();
 	VkCommandBufferBeginInfo begin = {
 		VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
@@ -389,9 +445,65 @@ void IRenderDevice::BeginFrame()
 	vkBeginCommandBuffer(cmd, &begin);
 }
 
+bool IRenderDevice::RenderThisFrame() const
+{
+	return RenderFrame;
+}
+
 void IRenderDevice::EndFrame()
 {
 	vkEndCommandBuffer(GetCommandBuffer());
+	
+	if (ImageFences[NextSwapchainImageIndex] != VK_NULL_HANDLE)
+	{
+		vkWaitForFences(Device, 1, &ImageFences[NextSwapchainImageIndex], VK_TRUE, UINT64_MAX);
+	}
+
+	ImageFences[NextSwapchainImageIndex] = Fences[CurrentFrameIndex];
+
+	VkPipelineStageFlags waitDstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+
+	VkSubmitInfo submitInfo = {};
+	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	submitInfo.waitSemaphoreCount = 1;
+	submitInfo.pWaitSemaphores = &Semaphores[CurrentFrameIndex][Semaphore_Type_Image_Available];
+	submitInfo.pWaitDstStageMask = &waitDstStageMask;
+	submitInfo.pCommandBuffers = &GetCommandBuffer();
+	submitInfo.commandBufferCount = 1;
+	submitInfo.signalSemaphoreCount = 1;
+	submitInfo.pSignalSemaphores = &Semaphores[CurrentFrameIndex][Semaphore_Type_Render_Complete];
+
+	vkResetFences(Device, 1, &Fences[CurrentFrameIndex]);
+
+	if (vkQueueSubmit(GraphicsQueue.Hnd, 1, &submitInfo, Fences[CurrentFrameIndex]) != VK_SUCCESS)
+	{
+		return;
+	}
+
+	VkPresentInfoKHR presentInfo = {};
+	presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+	presentInfo.waitSemaphoreCount = 1;
+	presentInfo.pWaitSemaphores = &Semaphores[CurrentFrameIndex][Semaphore_Type_Render_Complete];
+	presentInfo.swapchainCount = 1;
+	presentInfo.pSwapchains = &Swapchain.Hnd;
+	presentInfo.pImageIndices = &NextSwapchainImageIndex;
+
+	VkResult result = vkQueuePresentKHR(PresentQueue.Hnd, &presentInfo);
+
+	CurrentFrameIndex = (CurrentFrameIndex + 1) % MAX_FRAMES_IN_FLIGHT;
+
+	switch (result)
+	{
+	case VK_SUCCESS:
+		break;
+	case VK_ERROR_OUT_OF_DATE_KHR:
+	case VK_SUBOPTIMAL_KHR:
+		//OnWindowResize();
+		return;
+	default:
+		VKT_ASSERT("Problem occured during image presentation!" && false);
+		break;
+	}
 }
 
 void IRenderDevice::DeviceWaitIdle()
@@ -452,6 +564,16 @@ VkFence IRenderDevice::CreateFence(VkFenceCreateFlags Flag)
 		return VK_NULL_HANDLE;
 	}
 	return hnd;
+}
+
+const IRenderDevice::VulkanSwapchain& IRenderDevice::GetSwapchain() const
+{
+	return Swapchain;
+}
+
+VkImage IRenderDevice::GetNextImageInSwapchain() const
+{
+	return Swapchain.Images[NextSwapchainImageIndex];
 }
 
 void IRenderDevice::WaitFence(VkFence Hnd, uint64 Timeout)
@@ -573,6 +695,42 @@ void IRenderDevice::BeginCommandBuffer(VkCommandBuffer Hnd, VkCommandBufferUsage
 void IRenderDevice::EndCommandBuffer(VkCommandBuffer Hnd)
 {
 	vkEndCommandBuffer(Hnd);
+}
+
+bool IRenderDevice::ToSpirV(const String& Code, Array<uint32>& SpirV, uint32 ShaderType)
+{
+	constexpr shaderc_shader_kind shaderType[] = {
+		shaderc_vertex_shader,
+		shaderc_fragment_shader,
+		shaderc_geometry_shader,
+		shaderc_compute_shader
+	};
+
+	auto shaderTypeStr = [](shaderc_shader_kind Type) -> const char* {
+		switch (Type)
+		{
+		case shaderc_vertex_shader:
+			return "VertexShader";
+		case shaderc_fragment_shader:
+			return "FragmentShader";
+		case shaderc_geometry_shader:
+			return "GeometryShader";
+		case shaderc_compute_shader:
+		default:
+			break;
+		}
+		return "ComputeShader";
+	};
+
+	ShaderToSPIRVCompiler compiler;
+	if (!compiler.CompileShader(
+		shaderTypeStr(shaderType[ShaderType]), 
+		shaderType[ShaderType], 
+		Code.C_Str(), 
+		SpirV
+	)) { return false; }
+
+	return true;
 }
 
 bool IRenderDevice::LoadVulkanLibrary()
@@ -1114,8 +1272,8 @@ IDeviceStore::IDeviceStore(IAllocator& InAllocator) :
 	ImageSamplers{},
 	Pipelines{},
 	Shaders{},
-	Images{},
-	PushConstants{}
+	Images{}//,
+	//PushConstants{}
 {}
 
 IDeviceStore::~IDeviceStore() {}
@@ -1435,7 +1593,33 @@ bool IDeviceStore::DeleteImage(size_t Id, bool Free)
 	return true;
 }
 
-VkCommandBuffer IRenderDevice::GetCommandBuffer() const
+//SPushConstant* IDeviceStore::NewPushConstant(size_t Id)
+//{
+//	if (DoesPushConstantxist(Id)) { return nullptr; }
+//	SPushConstant* resource = IAllocator::New<SPushConstant>(Allocator);
+//	PushConstant.Insert(Id, resource);
+//	return resource;
+//}
+//
+//SPushConstant* IDeviceStore::GetPushConstantsize_t Id)
+//{
+//	if (!DoesPushConstantxist(Id)) { return nullptr; }
+//	return PushConstant[Id];
+//}
+//
+//bool IDeviceStore::DeletePushConstantsize_t Id, bool Free)
+//{
+//	if (!DoesPushConstantxist(Id)) { return false; }
+//	if (Free)
+//	{
+//		SPushConstant* resource = PushConstant[Id];
+//		IAllocator::Delete<SPushConstant>(resource, Allocator);
+//	}
+//	PushConstant.Remove(Id);
+//	return true;
+//}
+
+const VkCommandBuffer& IRenderDevice::GetCommandBuffer() const
 {
 	return CommandBuffers[CurrentFrameIndex];
 }
@@ -1546,6 +1730,58 @@ VkBufferUsageFlagBits IRenderDevice::GetBufferUsage(uint32 Index) const
 	return flags[Index];
 }
 
+VkVertexInputRate IRenderDevice::GetVertexInputRate(uint32 Index) const
+{
+	static constexpr VkVertexInputRate rate[] = {
+		VK_VERTEX_INPUT_RATE_VERTEX,
+		VK_VERTEX_INPUT_RATE_INSTANCE,
+	};
+	return rate[Index];
+}
+
+VkPrimitiveTopology IRenderDevice::GetPrimitiveTopology(uint32 Index) const
+{
+	static constexpr VkPrimitiveTopology topology[] = {
+		VK_PRIMITIVE_TOPOLOGY_POINT_LIST,
+		VK_PRIMITIVE_TOPOLOGY_LINE_LIST,
+		VK_PRIMITIVE_TOPOLOGY_LINE_STRIP,
+		VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+		VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP,
+		VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN
+	};
+	return topology[Index];
+}
+
+VkPolygonMode IRenderDevice::GetPolygonMode(uint32 Index) const
+{
+	static constexpr VkPolygonMode mode[] = {
+		VK_POLYGON_MODE_FILL,
+		VK_POLYGON_MODE_LINE,
+		VK_POLYGON_MODE_POINT
+	};
+	return mode[Index];
+}
+
+VkFrontFace IRenderDevice::GetFrontFaceMode(uint32 Index) const
+{
+	static constexpr VkFrontFace face[] = {
+		VK_FRONT_FACE_COUNTER_CLOCKWISE,
+		VK_FRONT_FACE_CLOCKWISE
+	};
+	return face[Index];
+}
+
+VkCullModeFlags IRenderDevice::GetCullMode(uint32 Index) const
+{
+	static constexpr VkCullModeFlags mode[] = {
+		VK_CULL_MODE_NONE,
+		VK_CULL_MODE_FRONT_BIT,
+		VK_CULL_MODE_BACK_BIT,
+		VK_CULL_MODE_FRONT_AND_BACK
+	};
+	return mode[Index];
+}
+
 VmaMemoryUsage IRenderDevice::GetMemoryUsage(uint32 Index) const
 {
 	static constexpr VmaMemoryUsage usage[] = {
@@ -1568,5 +1804,5 @@ const uint32 IRenderDevice::GetCurrentFrameIndex() const
 
 const uint32 IRenderDevice::GetNextSwapchainImageIndex() const
 {
-	return NextSwapchainImageIndex
+	return NextSwapchainImageIndex;
 }

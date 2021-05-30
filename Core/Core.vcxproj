@@ -212,6 +212,7 @@ xcopy "$(TargetDir)$(ProjectName).ilk" "$(SolutionDir)Bin\$(Configuration)\" /y 
     <ClInclude Include="Library\Containers\Bitset.h" />
     <ClInclude Include="Library\Containers\Buffer.h" />
     <ClInclude Include="Library\Containers\Node.h" />
+    <ClInclude Include="Library\Containers\Ref.h" />
     <ClInclude Include="Library\Math\Matrix.h" />
     <ClInclude Include="Library\Math\Operations.h" />
     <ClInclude Include="Library\Math\Vector.h" />

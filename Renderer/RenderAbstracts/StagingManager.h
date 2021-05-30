@@ -63,12 +63,16 @@ public:
 	void ResetStagingBuffer(uint32 Index);
 
 	void BeginStaging();
-	bool StageVertexData(void* Data, size_t Size);
-	bool StageIndexData(void* Data, size_t Size);
-	bool StageInstanceData(void* Data, size_t Size);
-	bool StageDataForBuffer(void* Data, size_t Size, Handle<SMemoryBuffer> DstHnd, EQueueType DstQueue);
+	size_t StageVertexData(void* Data, size_t Size);
+	size_t StageIndexData(void* Data, size_t Size);
+	//size_t StageInstanceData(void* Data, size_t Size);
+	size_t StageDataForBuffer(void* Data, size_t Size, Handle<SMemoryBuffer> DstHnd, EQueueType DstQueue);
 	bool StageDataForImage(void* Data, size_t Size, Handle<SImage> DstImg, EQueueType DstQueue);
 	void EndStaging(bool SignalSemaphore = true);
+
+	size_t GetVertexBufferOffset() const;
+	size_t GetIndexBufferOffset() const;
+	//size_t GetInstanceBufferOffset() const;
 
 	void BeginTransfer();
 	bool TransferBufferOwnership(Handle<SMemoryBuffer> Hnd, EQueueType Queue);

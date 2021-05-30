@@ -8,7 +8,7 @@
 * Linear allocator implementation.
 * Currently does not allow memory re-allocation.
 */
-class LinearAllocator final : protected IAllocator
+class LinearAllocator final : public IAllocator
 {
 public:
 

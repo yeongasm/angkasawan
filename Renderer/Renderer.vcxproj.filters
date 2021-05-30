@@ -24,9 +24,6 @@
     <ClCompile Include="Renderer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="API\Vk\VulkanDriver.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="API\Vk\ShaderToSPIRVCompiler.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -42,22 +39,7 @@
     <ClCompile Include="RenderAbstracts\FrameGraph.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="RenderAbstracts\RenderMemory.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="API\Vk\Src\spirv_reflect.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="RenderAbstracts\DrawCommand.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="RenderAbstracts\PipelineManager.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="RenderAbstracts\MaterialManager.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="RenderAbstracts\PushConstant.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="RenderAbstracts\StagingManager.cpp">
@@ -90,9 +72,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Renderer.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="API\Vk\VulkanDriver.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="RenderPlatform\API.h">
@@ -137,16 +116,10 @@
     <ClInclude Include="API\ShaderAttribute.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="RenderAbstracts\DrawCommand.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="RenderAbstracts\FrameGraph.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="RenderAbstracts\Primitives.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="RenderAbstracts\RenderMemory.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="API\Vk\Src\spirv_reflect.h">
@@ -156,15 +129,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="API\Definitions.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="RenderAbstracts\PipelineManager.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="RenderAbstracts\MaterialManager.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="RenderAbstracts\PushConstant.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="RenderAbstracts\StagingManager.h">

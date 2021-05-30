@@ -13,7 +13,7 @@ ENGINE_API void XXHash64(const void* Input, size_t Len, uint64* Out, uint64 Seed
 template <typename Type>
 struct XxHash
 {
-	size_t operator() (const Type Source) const
+	size_t operator() (const Type& Source) const
 	{
 		size_t Hash = 0;
 		XXHash64(Source.First(), Source.Length(), &Hash);

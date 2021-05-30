@@ -40,13 +40,43 @@ struct ForwardNode
 	}
 };
 
-//template <typename ElementType>
-//class Node
-//{
-//private:
-//
-//
-//public:
-//};
+template <typename ElementType>
+struct Node
+{
+	using Type = ElementType;
+	using ConstType = const Type;
+	using NodeType = Node;
+	using ConstNodeType = const NodeType;
+
+	ElementType Data;
+	Node* Previous;
+	Node* Next;
+
+	Node() :
+		Data(), Previous(nullptr), Next(nullptr)
+	{}
+
+	~Node() {}
+
+	Node(const Node& Rhs) { *this = Rhs; }
+	Node(Node&& Rhs) { *this = Rhs; }
+
+	Node& operator=(const Node& Rhs)
+	{
+		Data = Rhs.Data;
+		Previous = Rhs.Previous;
+		Next = Rhs.Next;
+		return *this;
+	}
+
+	Node& operator=(Node&& Rhs)
+	{
+		Data = Move(Rhs.Data);
+		Previous = Rhs.Previous;
+		Next = Rhs.Next;
+		new (&Rhs) Node();
+		return *this;
+	}
+};
 
 #endif // !LEARNVK_NODE

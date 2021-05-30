@@ -2,7 +2,6 @@
 #ifndef ANGKASA1_RENDERER_API_DEVICE_H
 #define ANGKASA1_RENDERER_API_DEVICE_H
 
-
 #include "Engine/Interface.h"
 #include "Common.h"
 #include "Definitions.h"
@@ -65,6 +64,9 @@ public:
 		VkSemaphore Semaphore;
 	};
 
+	IRenderDevice();
+	~IRenderDevice();
+
 	bool Initialize(const EngineImpl& Engine);
 	void Terminate();
 
@@ -77,6 +79,7 @@ public:
 	void DestroyDefaultFramebuffer();
 
 	void BeginFrame();
+	bool RenderThisFrame() const;
 	void EndFrame();
 
 	void DeviceWaitIdle();
@@ -86,6 +89,8 @@ public:
 	VkCommandBuffer AllocateCommandBuffer(VkCommandPool PoolHnd, VkCommandBufferLevel Level, uint32 Count);
 	void ResetCommandBuffer(VkCommandBuffer Hnd, VkCommandBufferResetFlags Flag);
 	VkFence CreateFence(VkFenceCreateFlags Flag = VK_FENCE_CREATE_SIGNALED_BIT);
+	const VulkanSwapchain& GetSwapchain() const;
+	VkImage GetNextImageInSwapchain() const;
 	void WaitFence(VkFence Hnd, uint64 Timeout = UINT64_MAX);
 	void ResetFence(VkFence Hnd);
 	void DestroyFence(VkFence Hnd);
@@ -101,11 +106,13 @@ public:
 	void BeginCommandBuffer(VkCommandBuffer Hnd, VkCommandBufferUsageFlags Flag);
 	void EndCommandBuffer(VkCommandBuffer Hnd);
 
+	bool ToSpirV(const String& Code, Array<uint32>& SpirV, uint32 ShaderType);
+
 	/**
 	* Returns the current frame's command buffer.
 	* Extendable to multi-threaded command buffer recording.
 	*/
-	VkCommandBuffer GetCommandBuffer() const;
+	const VkCommandBuffer& GetCommandBuffer() const;
 
 	VmaAllocator& GetAllocator();
 
@@ -121,6 +128,11 @@ public:
 	VkImageViewType GetImageViewType(uint32 Index) const;
 	VkDescriptorType GetDescriptorType(uint32 Index) const;
 	VkBufferUsageFlagBits GetBufferUsage(uint32 Index) const;
+	VkVertexInputRate GetVertexInputRate(uint32 Index) const;
+	VkPrimitiveTopology GetPrimitiveTopology(uint32 Index) const;
+	VkPolygonMode GetPolygonMode(uint32 Index) const;
+	VkFrontFace GetFrontFaceMode(uint32 Index) const;
+	VkCullModeFlags GetCullMode(uint32 Index) const;
 	VmaMemoryUsage GetMemoryUsage(uint32 Index) const;
 
 	const VkPhysicalDeviceProperties& GetPhysicalDeviceProperties() const;
@@ -133,8 +145,8 @@ public:
 
 private:
 
-	IRenderDevice() = delete;
-	~IRenderDevice() = delete;
+	//IRenderDevice() = delete;
+	//~IRenderDevice() = delete;
 	DELETE_COPY_AND_MOVE(IRenderDevice)
 
 	EngineImpl* Engine;
@@ -193,7 +205,7 @@ struct SDescriptorPool;
 struct SDescriptorSetLayout;
 struct SDescriptorSet;
 struct SImageSampler;
-struct SPushConstant;
+//struct SPushConstant;
 
 struct IDeviceStore
 {
@@ -207,7 +219,7 @@ struct IDeviceStore
 	Map<size_t, SPipeline*> Pipelines;
 	Map<size_t, SShader*> Shaders;
 	Map<size_t, SImage*> Images;
-	Map<size_t, SPushConstant*> PushConstants;
+	//Map<size_t, SPushConstant*> PushConstants;
 
 	IDeviceStore(IAllocator& InAllocator);
 	~IDeviceStore();
