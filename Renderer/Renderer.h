@@ -4,13 +4,18 @@
 
 #include "RenderPlatform/API.h"
 #include "Engine/Interface.h"
-#include "API/Device.h"
+//#include "API/Device.h"
 #include "API/RendererFlagBits.h"
 #include "Library/Containers/Ref.h"
 #include "Library/Containers/Node.h"
 #include "Library/Math/Matrix.h"
 #include "SubSystem/Resource/Handle.h"
 #include "RenderAbstracts/Primitives.h"
+#include "RenderAbstracts/FrameGraph.h"
+#include "RenderAbstracts/StagingManager.h"
+
+class IRenderDevice;
+struct IDeviceStore;
 
 class IStagingManager;
 class IFrameGraph;
@@ -32,10 +37,8 @@ struct DrawInfo
 	math::mat4			Transform;
 	Handle<SRenderPass> Renderpass;
 	VertexInformation*	pVertexInformation;
-	//uint32				VertexInformationCount;
 	IndexInformation*	pIndexInformation;
 	uint32				DrawableCount; // Num of meshes in the model.
-	//uint32				IndexInformationCount;
 	uint32				Id;
 	bool				Instanced = true;
 };
@@ -46,6 +49,7 @@ class RENDERER_API IRenderSystem : public SystemInterface
 {
 private:
 
+	friend struct IStagingParams;
 	friend class IStagingManager;
 	friend class IFrameGraph;
 
@@ -125,6 +129,7 @@ private:
 		// NOTE(Ygsm): Might swap this out for a static array in the future but we'll go with this for now.
 		static LinearAllocator _BindableAllocator;
 		static Map<size_t, BindableRange> _Bindables;
+		static BindableRange _GlobalBindables;
 	};
 
 	using DefaultBuffer = Pair<Handle<SMemoryBuffer>, SMemoryBuffer*>;
@@ -140,11 +145,13 @@ private:
 	DefaultBuffer IndexBuffer;
 	DefaultBuffer InstanceBuffer;
 
-	Array<DrawCommand> DrawCommands;
+	Map<size_t, DrawManager::DrawCommandRange> Drawables;
 
 	uint32 CalcStrideForFormat(EShaderAttribFormat Format);
 	void PreprocessShader(Ref<SShader> pShader);
 	//void GetShaderDescriptorLayoutInformation(Ref<SShader> pShader);
+
+	void IterateBindableRange(BindableManager::BindableRange& Range);
 
 	void BindBindable(SBindable& Bindable);
 	void BindBindablesForRenderpass(Handle<SRenderPass> Hnd);
@@ -155,8 +162,13 @@ private:
 
 	void RecordDrawCommand(const DrawCommand& Command);
 	void PrepareDrawCommands();
+	void PreProcessVertexAndIndexBuffer();
 
 	void Clear();
+
+	uint64 GenHashForImageSampler(const ImageSamplerState& State);
+
+	void BlitToDefault();
 
 public:
 
@@ -182,6 +194,7 @@ public:
 	Handle<SDescriptorSet> CreateDescriptorSet(const DescriptorSetAllocateInfo& AllocInfo);
 	bool DescriptorSetUpdateBuffer(Handle<SDescriptorSet> Hnd, uint32 BindingSlot, Handle<SMemoryBuffer> BufferHnd);
 	bool DescriptorSetUpdateTexture(Handle<SDescriptorSet> Hnd, uint32 BindingSlot, Handle<SImage> ImageHnd);
+	bool DescriptorSetBindToGlobal(Handle<SDescriptorSet> Hnd);
 	bool BuildDescriptorSet(Handle<SDescriptorSet> Hnd);
 	bool DescriptorSetFlushBindingOffset(Handle<SDescriptorSet> Hnd);
 	bool DestroyDescriptorSet(Handle<SDescriptorSet> Hnd);
@@ -189,17 +202,24 @@ public:
 	void UpdateDescriptorSetInQueue();
 
 	Handle<SMemoryBuffer> AllocateNewBuffer(const BufferAllocateInfo& AllocInfo);
+	bool CopyDataToBuffer(Handle<SMemoryBuffer> Hnd, void* Data, size_t Size, size_t Offset);
 	bool BuildBuffer(Handle<SMemoryBuffer> Hnd);
 	bool DestroyBuffer(Handle<SMemoryBuffer> Hnd);
 	
-	Handle<SImage> CreateImage(const ImageCreateInfo& CreateInfo);
+	//Handle<SImage> CreateImage(const ImageCreateInfo& CreateInfo);
+	Handle<SImage> CreateImage(uint32 Width, uint32 Height, uint32 Channels, ETextureType Type);
 	bool BuildImage(Handle<SImage> Hnd);
 	bool DestroyImage(Handle<SImage> Hnd);
+
+	Handle<SImageSampler> CreateImageSampler(const ImageSamplerCreateInfo& CreateInfo);
+	bool BuildImageSampler(Handle<SImageSampler> Hnd);
+	bool DestroyImageSampler(Handle<SImageSampler> Hnd);
 
 	IStagingManager& GetStagingManager() const;
 	IFrameGraph& GetFrameGraph() const;
 
-	Handle<SShader> CreateShader(const ShaderCreateInfo& CreateInfo);
+	//Handle<SShader> CreateShader(const ShaderCreateInfo& CreateInfo);
+	Handle<SShader> CreateShader(const String& Code, EShaderType Type);
 	bool BuildShader(Handle<SShader> Hnd);
 	bool DestroyShader(Handle<SShader> Hnd);
 
@@ -216,6 +236,7 @@ public:
 	bool Draw(const DrawInfo& Info);
 	const uint32 GetMaxDrawablesCount() const;
 	const uint32 GetDrawableCount() const;
+	const uint32 GetCurrentFrameIndex() const;
 
 	//bool BlitToDefault(Handle<SImage> Hnd);
 

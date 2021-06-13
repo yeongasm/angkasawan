@@ -1,10 +1,11 @@
 #include "Renderer.h"
+#include "API/Device.h"
 #include "Library/Containers/Node.h"
 #include "Library/Algorithms/QuickSort.h"
 #include "Library/Random/Xoroshiro.h"
-#include "RenderAbstracts/StagingManager.h"
+//#include "RenderAbstracts/StagingManager.h"
 #include "API/Vk/Src/spirv_reflect.h"
-#include "RenderAbstracts/FrameGraph.h"
+//#include "RenderAbstracts/FrameGraph.h"
 
 Handle<ISystem> g_RenderSystemHandle;
 LinearAllocator g_RenderSystemAllocator;
@@ -22,6 +23,7 @@ Map<size_t, IRenderSystem::DrawManager::EntryContainer> IRenderSystem::DrawManag
 
 LinearAllocator IRenderSystem::BindableManager::_BindableAllocator = {};
 Map<size_t, IRenderSystem::BindableManager::BindableRange> IRenderSystem::BindableManager::_Bindables = {};
+IRenderSystem::BindableManager::BindableRange IRenderSystem::BindableManager::_GlobalBindables = {};
 
 uint32 IRenderSystem::CalcStrideForFormat(EShaderAttribFormat Format)
 {
@@ -115,6 +117,16 @@ void IRenderSystem::PreprocessShader(Ref<SShader> pShader)
 //	}
 //}
 
+void IRenderSystem::IterateBindableRange(BindableManager::BindableRange& Range)
+{
+	ForwardNode<SBindable>* node = Range.pBegin;
+	while (node)
+	{
+		BindBindable(node->Data);
+		node = node->Next;
+	}
+}
+
 void IRenderSystem::BindBindable(SBindable& Bindable)
 {
 	if (Bindable.Bound) { return; }
@@ -162,12 +174,7 @@ void IRenderSystem::BindBindablesForRenderpass(Handle<SRenderPass> Hnd)
 {
 	BindableManager::BindableRange* range = BindableManager::_Bindables.Get(Hnd);
 	VKT_ASSERT(range && "Range with render pass does not exist.");
-	ForwardNode<SBindable>* bindableNode = range->pBegin;
-	while (bindableNode)
-	{
-		BindBindable(bindableNode->Data);
-		bindableNode = bindableNode->Next;
-	}
+	IterateBindableRange(*range);
 }
 
 void IRenderSystem::BindBuffers()
@@ -177,12 +184,12 @@ void IRenderSystem::BindBuffers()
 	vkCmdBindVertexBuffers(cmd, 0, 1, &VertexBuffer.Value->Hnd, &offset);
 	vkCmdBindVertexBuffers(cmd, 1, 1, &InstanceBuffer.Value->Hnd, &offset);
 	vkCmdBindIndexBuffer(cmd, IndexBuffer.Value->Hnd, 0, VK_INDEX_TYPE_UINT32);
+
+	IterateBindableRange(BindableManager::_GlobalBindables);
 }
 
 void IRenderSystem::BeginRenderPass(Ref<SRenderPass> pRenderPass)
 {
-	if (pRenderPass->Bound) { return; }
-
 	using ClearValues = StaticArray<VkClearValue, MAX_RENDERPASS_ATTACHMENT_COUNT>;
 	using DynamicOffsets = StaticArray<uint32, MAX_DESCRIPTOR_SET_LAYOUT_BINDINGS>;
 
@@ -251,14 +258,13 @@ void IRenderSystem::BeginRenderPass(Ref<SRenderPass> pRenderPass)
 	VkRenderPassBeginInfo beginInfo = {};
 	beginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 	beginInfo.renderPass = pRenderPass->RenderPassHnd;
-	beginInfo.framebuffer = pRenderPass->Framebuffer.Hnd[nextSwapchainIndex];
+	beginInfo.framebuffer = pRenderPass->Framebuffer[nextSwapchainIndex];
 	beginInfo.renderArea.offset = { static_cast<int32>(pRenderPass->Pos.x), static_cast<int32>(pRenderPass->Pos.y) };
 	beginInfo.renderArea.extent = { pRenderPass->Extent.Width, pRenderPass->Extent.Height };
 	beginInfo.clearValueCount = static_cast<uint32>(clearValues.Length());
 	beginInfo.pClearValues = clearValues.First();
 
 	vkCmdBeginRenderPass(pDevice->GetCommandBuffer(), &beginInfo, VK_SUBPASS_CONTENTS_INLINE);
-	pRenderPass->Bound = true;
 }
 
 void IRenderSystem::EndRenderPass(Ref<SRenderPass> pRenderPass)
@@ -323,14 +329,14 @@ void IRenderSystem::RecordDrawCommand(const DrawCommand& Command)
 void IRenderSystem::PrepareDrawCommands()
 {
 	const uint32 currentFrameIndex = pDevice->GetCurrentFrameIndex();
-	StaticArray<math::mat4, DrawManager::MaxDrawablesCount> transforms;
+	StaticArray<math::mat4, 500> transforms;
 
 	uint32 baseOffset = DrawManager::MaxDrawablesCount * currentFrameIndex;
 	uint32 firstInstance = 0;
 
-	for (auto& [key, instancedEntries] : DrawManager::_InstancedDraws)
+	for (auto& [renderPass, instancedEntries] : DrawManager::_InstancedDraws)
 	{
-		DrawManager::EntryContainer& nonInstancedEntries = *DrawManager::_NonInstancedDraws.Get(key);
+		DrawManager::EntryContainer& nonInstancedEntries = *DrawManager::_NonInstancedDraws.Get(renderPass);
 
 		for (DrawManager::InstanceEntry& entry : instancedEntries)
 		{
@@ -342,31 +348,70 @@ void IRenderSystem::PrepareDrawCommands()
 			}
 
 			auto& drawCmds = entry.DrawRange;
-			while (drawCmds.pBegin)
+			ForwardNode<DrawCommand>* node = drawCmds.pBegin;
+			DrawManager::DrawCommandRange& range = Drawables[renderPass];
+
+			if (!range.pBegin && !range.pEnd)
 			{
-				drawCmds.pBegin->Data.InstanceOffset = baseOffset + firstInstance;
-				DrawCommands.Push(Move(drawCmds.pBegin->Data));
+				range.pBegin = drawCmds.pBegin;
+				range.pEnd = drawCmds.pEnd;
 			}
+
+			while (node)
+			{
+				node->Data.InstanceOffset = baseOffset + firstInstance;
+				node = node->Next;
+			}
+
+			if (range.pEnd != drawCmds.pEnd)
+			{
+				range.pEnd->Next = drawCmds.pBegin;
+				range.pEnd = drawCmds.pEnd;
+			}
+
 			firstInstance = static_cast<uint32>(transforms.Length());
 		}
 
-		for (DrawManager::InstanceEntry& entry : nonInstancedEntries)
-		{
-			auto& transformRange = entry.TransformRange;
-			transforms.Push(Move(entry.TransformRange.pBegin->Data));
+		//for (DrawManager::InstanceEntry& entry : nonInstancedEntries)
+		//{
+		//	auto& transformRange = entry.TransformRange;
+		//	transforms.Push(Move(entry.TransformRange.pBegin->Data));
 
-			auto& drawCmds = entry.DrawRange;
-			while (drawCmds.pBegin)
-			{
-				drawCmds.pBegin->Data.InstanceOffset = baseOffset + firstInstance;
-				DrawCommands.Push(Move(drawCmds.pBegin->Data));
-			}
-			firstInstance = static_cast<uint32>(transforms.Length());
-		}
+		//	auto& drawCmds = entry.DrawRange;
+
+		//	DrawManager::DrawCommandRange& range = Drawables[renderPass];
+
+		//	if (!range.pBegin && !range.pEnd)
+		//	{
+		//		range.pBegin = drawCmds.pBegin;
+		//		range.pEnd = drawCmds.pBegin;
+		//	}
+
+		//	while (drawCmds.pBegin)
+		//	{
+		//		drawCmds.pBegin->Data.InstanceOffset = baseOffset + firstInstance;
+		//		range.pEnd->Next = drawCmds.pBegin;
+		//		range.pEnd = drawCmds.pBegin;
+		//		drawCmds.pBegin = drawCmds.pBegin->Next;
+		//	}
+		//	firstInstance = static_cast<uint32>(transforms.Length());
+		//}
 	}
 
 	uint8* pData = reinterpret_cast<uint8*>(InstanceBuffer.Value->pData + baseOffset);
 	IMemory::Memcpy(pData, transforms.First(), DrawManager::_NumDrawables * sizeof(math::mat4));
+}
+
+void IRenderSystem::PreProcessVertexAndIndexBuffer()
+{
+	if (pStaging->DrawDataUploaded())
+	{
+		pStaging->BeginTransfer();
+		pStaging->TransferBufferOwnership(VertexBuffer.Key, EQueueType::Queue_Type_Graphics);
+		pStaging->TransferBufferOwnership(IndexBuffer.Key, EQueueType::Queue_Type_Graphics);
+		pStaging->EndTransfer();
+		pStaging->ResetTransferDefaultFlag();
+	}
 }
 
 void IRenderSystem::Clear()
@@ -384,19 +429,111 @@ void IRenderSystem::Clear()
 		pair.Value.Empty();
 	}
 
-	//DrawManager::_InstancedDraws.Empty();
-	//DrawManager::_NonInstancedDraws.Empty();
+	DescriptorUpdate::_Buffers.Empty();
+	DescriptorUpdate::_Images.Empty();
 
 	BindableManager::_BindableAllocator.FlushMemory();
-	
 	for (auto& pair : BindableManager::_Bindables)
 	{
 		pair.Value = {};
 	}
-	//BindableManager::_Bindables.Empty();
+	Drawables.Empty();
+}
 
-	DrawCommands.Empty();
-	pFrameGraph->ResetRenderPassBindState();
+uint64 IRenderSystem::GenHashForImageSampler(const ImageSamplerState& State)
+{
+	constexpr uint64 bitsInBytes = 8;
+	uint64 addmu = static_cast<uint64>(State.AddressModeU) << (bitsInBytes * 0);
+	uint64 addmv = static_cast<uint64>(State.AddressModeV) << (bitsInBytes * 1);
+	uint64 addmw = static_cast<uint64>(State.AddressModeW) << (bitsInBytes * 2);
+	uint64 ani = static_cast<uint64>(State.AnisotropyLvl) << (bitsInBytes * 3);
+	uint64 minf = static_cast<uint64>(State.MinFilter) << (bitsInBytes * 4);
+	uint64 magf = static_cast<uint64>(State.MagFilter) << (bitsInBytes * 5);
+	uint64 cmp = static_cast<uint64>(State.CompareOp) << (bitsInBytes * 6);
+	uint64 hash = addmu | addmv | addmw | ani | minf | magf | cmp;
+	XXHash64(&hash, sizeof(uint64), &hash);
+	return hash;
+}
+
+void IRenderSystem::BlitToDefault()
+{
+	const auto& [hnd, pImg] = pFrameGraph->ColorImage;
+
+	VkImage src = pImg->ImgHnd;
+	VkImage dst = pDevice->GetNextImageInSwapchain();
+
+	VkImageSubresourceRange range = {};
+	range.levelCount = 1;
+	range.layerCount = 1;
+	range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+
+	VkImageMemoryBarrier barrier = {};
+	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+	barrier.srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+	barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+	barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+	barrier.srcQueueFamilyIndex = pDevice->GetGraphicsQueue().FamilyIndex;
+	barrier.dstQueueFamilyIndex = pDevice->GetPresentationQueue().FamilyIndex;
+	barrier.image = dst;
+	barrier.subresourceRange = range;
+
+	const IRenderDevice::VulkanSwapchain& swapchain = pDevice->GetSwapchain();
+
+	VkOffset3D srcOffset = { static_cast<int32>(pImg->Width), static_cast<int32>(pImg->Height), 1 };
+	VkOffset3D dstOffset = { static_cast<int32>(swapchain.Extent.width), static_cast<int32>(swapchain.Extent.height), 1 };
+
+	VkImageBlit region = {};
+	region.srcOffsets[1] = srcOffset;
+	region.dstOffsets[1] = dstOffset;
+	region.srcSubresource.mipLevel = 0;
+	region.srcSubresource.layerCount = 1;
+	region.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	region.dstSubresource.mipLevel = 0;
+	region.dstSubresource.layerCount = 1;
+	region.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+
+	vkCmdPipelineBarrier(
+		pDevice->GetCommandBuffer(),
+		VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+		VK_PIPELINE_STAGE_TRANSFER_BIT,
+		0,
+		0,
+		nullptr,
+		0,
+		nullptr,
+		1,
+		&barrier
+	);
+
+	vkCmdBlitImage(
+		pDevice->GetCommandBuffer(),
+		src,
+		VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+		dst,
+		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+		1,
+		&region,
+		VK_FILTER_LINEAR
+	);
+
+	barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+	barrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+	barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	barrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+	vkCmdPipelineBarrier(
+		pDevice->GetCommandBuffer(),
+		VK_PIPELINE_STAGE_TRANSFER_BIT,
+		VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+		0,
+		0,
+		nullptr,
+		0,
+		nullptr,
+		1,
+		&barrier
+	);
 }
 
 IRenderSystem::IRenderSystem(EngineImpl& InEngine, Handle<ISystem> Hnd) :
@@ -432,6 +569,8 @@ void IRenderSystem::OnInit()
 
 	/* !!! */
 	BindableManager::_BindableAllocator.Initialize(KILOBYTES(16));
+	BindableManager::_Bindables.Reserve(MAX_FRAMEGRAPH_PASS_COUNT);
+	Drawables.Reserve(MAX_FRAMEGRAPH_PASS_COUNT);
 
 	/* !!! */
 	DescriptorUpdate::_Buffers.Reserve(16);
@@ -443,7 +582,10 @@ void IRenderSystem::OnInit()
 	pDevice = IAllocator::New<IRenderDevice>(g_RenderSystemAllocator);
 	pDevice->Initialize(this->Engine);
 
+	pStaging = IAllocator::New<IStagingManager>(g_RenderSystemAllocator, *this);
 	pStaging->Initialize(MEGABYTES(256));
+
+	pFrameGraph = IAllocator::New<IFrameGraph>(g_RenderSystemAllocator, *this);
 	pFrameGraph->Initialize(Engine.GetWindowInformation().Extent);
 
 	/* !!! */
@@ -451,21 +593,21 @@ void IRenderSystem::OnInit()
 	BufferAllocateInfo allocInfo = {};
 	allocInfo.Locality = Buffer_Locality_Gpu;
 	allocInfo.Size = MEGABYTES(256);
-	allocInfo.Type.Assign((1 << Buffer_Type_Vertex) || (1 << Buffer_Type_Transfer_Dst));
+	allocInfo.Type.Assign((1 << Buffer_Type_Vertex) | (1 << Buffer_Type_Transfer_Dst));
 
 	Handle<SMemoryBuffer> hnd = AllocateNewBuffer(allocInfo);
 	VertexBuffer = DefaultBuffer(hnd, pStore->GetBuffer(hnd));
 	BuildBuffer(hnd);
 
 	// Index buffer ...
-	allocInfo.Type.Assign((1 << Buffer_Type_Index) || (1 << Buffer_Type_Transfer_Dst));
+	allocInfo.Type.Assign((1 << Buffer_Type_Index) | (1 << Buffer_Type_Transfer_Dst));
 	hnd = AllocateNewBuffer(allocInfo);
 	IndexBuffer = DefaultBuffer(hnd, pStore->GetBuffer(hnd));
 	BuildBuffer(hnd);
 
 
 	// Instance buffer ...
-	allocInfo.Type.Assign((1 << Buffer_Type_Vertex) || (1 << Buffer_Type_Transfer_Dst));
+	allocInfo.Type.Assign((1 << Buffer_Type_Vertex) | (1 << Buffer_Type_Transfer_Dst));
 	allocInfo.Locality = Buffer_Locality_Cpu_To_Gpu;
 	allocInfo.Size = MEGABYTES(64);
 	hnd = AllocateNewBuffer(allocInfo);
@@ -477,7 +619,8 @@ void IRenderSystem::OnUpdate()
 {
 	// NOTE(Ygsm):
 	// Let the application call the window resizing function for the renderer.
-
+	ForwardNode<DrawCommand>* node = nullptr;
+	PreProcessVertexAndIndexBuffer();
 	UpdateDescriptorSetInQueue();
 	PrepareDrawCommands();
 
@@ -490,25 +633,35 @@ void IRenderSystem::OnUpdate()
 	}
 
 	BindBuffers();
-	
-	for (DrawCommand& drawCommand : DrawCommands)
+	for (auto& [hnd, pRenderPass] : pFrameGraph->RenderPasses)
 	{
-		BeginRenderPass(drawCommand.pRenderPass);
-		BindBindablesForRenderpass(drawCommand.pRenderPass->Hnd);
-		RecordDrawCommand(drawCommand);
-		EndRenderPass(drawCommand.pRenderPass);
+		node = Drawables[hnd].pBegin;
+		BeginRenderPass(pRenderPass);
+		BindBindablesForRenderpass(hnd);
+		while (node)
+		{
+			RecordDrawCommand(node->Data);
+			node = node->Next;
+		}
+		EndRenderPass(pRenderPass);
 	}
-
+	BlitToDefault();
 	pDevice->EndFrame();
 	Clear();
 }
 
 void IRenderSystem::OnTerminate()
 {
+	// Terminate framegraph ...
+	pFrameGraph->Terminate();
+
 	// Destroy default buffers ...
 	DestroyBuffer(VertexBuffer.Key);
 	DestroyBuffer(IndexBuffer.Key);
 	DestroyBuffer(InstanceBuffer.Key);
+	
+	// TODO(Ygsm):
+	// Remove resources from device store.
 
 	g_RenderSystemAllocator.Terminate();
 	pDevice->Terminate();
@@ -525,7 +678,7 @@ Handle<SDescriptorPool> IRenderSystem::CreateDescriptorPool()
 bool IRenderSystem::DescriptorPoolAddSizeType(Handle<SDescriptorPool> Hnd, SDescriptorPool::Size Type)
 {
 	SDescriptorPool* pPool = pStore->GetDescriptorPool(Hnd);
-	if (pPool) 
+	if (!pPool) 
 	{ 
 		VKT_ASSERT(false && "Pool with handle does not exist.");
 		return false; 
@@ -611,17 +764,7 @@ bool IRenderSystem::DescriptorSetLayoutAddBinding(const DescriptorSetLayoutBindi
 	binding.DescriptorCount = BindInfo.DescriptorCount;
 	binding.Type = BindInfo.Type;
 	binding.ShaderStages = BindInfo.ShaderStages;
-
-	if (BindInfo.BufferHnd != INVALID_HANDLE)
-	{
-		SMemoryBuffer* pBuffer = pStore->GetBuffer(BindInfo.BufferHnd);
-		if (!pBuffer)
-		{
-			VKT_ASSERT(false && "Buffer with handle does not exist.");
-			return false;
-		}
-		binding.pBuffer = pBuffer;
-	}
+	binding.Size = BindInfo.Size;
 
 	pSetLayout->Bindings.Push(Move(binding));
 
@@ -710,8 +853,9 @@ bool IRenderSystem::DescriptorSetUpdateBuffer(Handle<SDescriptorSet> Hnd, uint32
 {
 	SDescriptorSet* pSet = pStore->GetDescriptorSet(Hnd);
 	SMemoryBuffer* pBuffer = pStore->GetBuffer(BufferHnd);
+	const uint32 index = pDevice->GetCurrentFrameIndex();
 
-	if (!pSet || pBuffer) { return false; }
+	if (!pSet || !pBuffer) { return false; }
 
 	SDescriptorSetLayout::Binding* pBinding = nullptr;
 	for (SDescriptorSetLayout::Binding& b : pSet->pLayout->Bindings)
@@ -730,7 +874,13 @@ bool IRenderSystem::DescriptorSetUpdateBuffer(Handle<SDescriptorSet> Hnd, uint32
 		return false;
 	}
 
-	DescriptorUpdate::_Buffers[DescriptorUpdate::Key(pSet, pBinding, DescriptorUpdate::CalcKey(Hnd, BindingSlot))].Push(pBuffer);
+	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+	{
+		pBinding->Offset[i] = (pBuffer->Size / MAX_FRAMES_IN_FLIGHT) * i;
+	}
+
+	DescriptorUpdate::Key updateKey(pSet, pBinding, DescriptorUpdate::CalcKey(Hnd, BindingSlot));
+	DescriptorUpdate::_Buffers[updateKey].Push(pBuffer);
 
 	return true;
 }
@@ -759,7 +909,31 @@ bool IRenderSystem::DescriptorSetUpdateTexture(Handle<SDescriptorSet> Hnd, uint3
 		return false;
 	}
 
-	DescriptorUpdate::_Images[DescriptorUpdate::Key(pSet, pBinding, DescriptorUpdate::CalcKey(Hnd, BindingSlot))].Push(pImage);
+	DescriptorUpdate::Key updateKey(pSet, pBinding, DescriptorUpdate::CalcKey(Hnd, BindingSlot));
+	DescriptorUpdate::_Images[updateKey].Push(pImage);
+
+	return true;
+}
+
+bool IRenderSystem::DescriptorSetBindToGlobal(Handle<SDescriptorSet> Hnd)
+{
+	Ref<SDescriptorSet> pSet = pStore->GetDescriptorSet(Hnd);
+	if (!pSet) { return false; }
+
+	ForwardNode<SBindable>* bindableNode = IAllocator::New<ForwardNode<SBindable>>(BindableManager::_BindableAllocator);
+	BindableManager::BindableRange& range = BindableManager::_GlobalBindables;
+
+	bindableNode->Data.Type = EBindableType::Bindable_Type_Descriptor_Set;
+	bindableNode->Data.pSet = pSet;
+
+	if (!range.pBegin && !range.pEnd)
+	{
+		range.pBegin = bindableNode;
+		range.pEnd = bindableNode;
+	}
+
+	range.pEnd->Next = bindableNode;
+	range.pEnd = bindableNode;
 
 	return true;
 }
@@ -833,7 +1007,7 @@ bool IRenderSystem::DestroyDescriptorSet(Handle<SDescriptorSet> Hnd)
 void IRenderSystem::UpdateDescriptorSetInQueue()
 {
 	StaticArray<VkDescriptorBufferInfo, MAX_DESCRIPTOR_BINDING_UPDATES> buffers;
-	StaticArray<VkDescriptorImageInfo, MAX_DESCRIPTOR_BINDING_UPDATES> images;
+	//StaticArray<VkDescriptorImageInfo, MAX_DESCRIPTOR_BINDING_UPDATES> images;
 
 	// Update buffers ....
 	for (auto& [key, container] : DescriptorUpdate::_Buffers)
@@ -841,12 +1015,12 @@ void IRenderSystem::UpdateDescriptorSetInQueue()
 		SDescriptorSet* pSet = key.pSet;
 		SDescriptorSetLayout::Binding* pBinding = key.pBinding;
 
-		for (SMemoryBuffer* buffer : container)
+		for (SMemoryBuffer* pBuffer : container)
 		{
 			buffers.Push({
-				buffer->Hnd,
-				buffer->Offset,
-				buffer->Size
+				pBuffer->Hnd,
+				0,
+				pBuffer->Size
 			});
 		}
 
@@ -865,33 +1039,33 @@ void IRenderSystem::UpdateDescriptorSetInQueue()
 	}
 
 	// Update images ....
-	for (auto& [key, container] : DescriptorUpdate::_Images)
-	{
-		SDescriptorSet* pSet = key.pSet;
-		SDescriptorSetLayout::Binding* pBinding = key.pBinding;
+	//for (auto& [key, container] : DescriptorUpdate::_Images)
+	//{
+	//	SDescriptorSet* pSet = key.pSet;
+	//	SDescriptorSetLayout::Binding* pBinding = key.pBinding;
 
-		for (SImage* image : container)
-		{
-			images.Push({
-				image->pSampler->Hnd,
-				image->ImgViewHnd,
-				VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-			});
-		}
+	//	for (SImage* image : container)
+	//	{
+	//		images.Push({
+	//			image->pSampler->Hnd,
+	//			image->ImgViewHnd,
+	//			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+	//		});
+	//	}
 
-		VkWriteDescriptorSet write = {};
-		write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		write.dstBinding = pBinding->BindingSlot;
-		write.descriptorCount = static_cast<uint32>(images.Length());
-		write.descriptorType = pDevice->GetDescriptorType(pBinding->Type);
-		write.pImageInfo = images.First();
+	//	VkWriteDescriptorSet write = {};
+	//	write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	//	write.dstBinding = pBinding->BindingSlot;
+	//	write.descriptorCount = static_cast<uint32>(images.Length());
+	//	write.descriptorType = pDevice->GetDescriptorType(pBinding->Type);
+	//	write.pImageInfo = images.First();
 
-		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
-		{
-			write.dstSet = pSet->Hnd[i];
-			vkUpdateDescriptorSets(pDevice->GetDevice(), 1, &write, 0, nullptr);
-		}
-	}
+	//	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+	//	{
+	//		write.dstSet = pSet->Hnd[i];
+	//		vkUpdateDescriptorSets(pDevice->GetDevice(), 1, &write, 0, nullptr);
+	//	}
+	//}
 }
 
 Handle<SMemoryBuffer> IRenderSystem::AllocateNewBuffer(const BufferAllocateInfo& AllocInfo)
@@ -906,6 +1080,19 @@ Handle<SMemoryBuffer> IRenderSystem::AllocateNewBuffer(const BufferAllocateInfo&
 	pBuffer->pData = nullptr;
 
 	return id;
+}
+
+bool IRenderSystem::CopyDataToBuffer(Handle<SMemoryBuffer> Hnd, void* Data, size_t Size, size_t Offset)
+{
+	Ref<SMemoryBuffer> pBuffer = pStore->GetBuffer(Hnd);
+	if (!pBuffer) { return false; }
+	if (pBuffer->Size < Offset) { return false; }
+	
+	uint8* pData = pBuffer->pData;
+	pData += Offset;
+	IMemory::Memcpy(pData, Data, Size);
+
+	return true;
 }
 
 bool IRenderSystem::BuildBuffer(Handle<SMemoryBuffer> Hnd)
@@ -941,7 +1128,7 @@ bool IRenderSystem::BuildBuffer(Handle<SMemoryBuffer> Hnd)
 
 	if (pBuffer->Locality != Buffer_Locality_Gpu)
 	{
-		vmaMapMemory(pDevice->GetAllocator(), pBuffer->Allocation, reinterpret_cast<void**>(pBuffer->pData));
+		vmaMapMemory(pDevice->GetAllocator(), pBuffer->Allocation, reinterpret_cast<void**>(&pBuffer->pData));
 		vmaUnmapMemory(pDevice->GetAllocator(), pBuffer->Allocation);
 	}
 
@@ -960,16 +1147,16 @@ bool IRenderSystem::DestroyBuffer(Handle<SMemoryBuffer> Hnd)
 	return true;
 }
 
-Handle<SImage> IRenderSystem::CreateImage(const ImageCreateInfo& CreateInfo)
+Handle<SImage> IRenderSystem::CreateImage(uint32 Width, uint32 Height, uint32 Channels, ETextureType Type)
 {
-	size_t id = (CreateInfo.Identifier == -1) ?  g_Uid() : CreateInfo.Identifier;
+	size_t id = g_Uid();
 	SImage* pImg = pStore->NewImage(id);
 	if (!pImg) { return INVALID_HANDLE; }
 
-	pImg->Width = CreateInfo.Width;
-	pImg->Height = CreateInfo.Height;
-	pImg->Channels = CreateInfo.Channels;
-	pImg->Type = CreateInfo.Type;
+	pImg->Width = Width;
+	pImg->Height = Height;
+	pImg->Channels = Channels;
+	pImg->Type = Type;
 
 	return id;
 }
@@ -1017,6 +1204,11 @@ bool IRenderSystem::BuildImage(Handle<SImage> Hnd)
 	img.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	img.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
+	VmaAllocationCreateInfo alloc = {};
+	alloc.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+
+	vmaCreateImage(pDevice->GetAllocator(), &img, &alloc, &pImg->ImgHnd, &pImg->Allocation, nullptr);
+
 	VkImageViewCreateInfo imgView = {};
 	imgView.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
 	imgView.format = format;
@@ -1026,17 +1218,14 @@ bool IRenderSystem::BuildImage(Handle<SImage> Hnd)
 	imgView.subresourceRange.baseArrayLayer = 0;
 	imgView.subresourceRange.layerCount = 1;
 	imgView.viewType = pDevice->GetImageViewType(pImg->Type);
+	imgView.image = pImg->ImgHnd;
 
 	if (pImg->Usage.Has(Image_Usage_Depth_Stencil_Attachment))
 	{
 		imgView.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
 	}
 
-	VmaAllocationCreateInfo alloc = {};
-	alloc.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-
 	vkCreateImageView(pDevice->GetDevice(), &imgView, nullptr, &pImg->ImgViewHnd);
-	vmaCreateImage(pDevice->GetAllocator(), &img, &alloc, &pImg->ImgHnd, &pImg->Allocation, nullptr);
 
 	return true;
 }
@@ -1055,6 +1244,76 @@ bool IRenderSystem::DestroyImage(Handle<SImage> Hnd)
 	return true;
 }
 
+Handle<SImageSampler> IRenderSystem::CreateImageSampler(const ImageSamplerCreateInfo& CreateInfo)
+{
+	size_t id = g_Uid();
+	uint64 samplerHash = GenHashForImageSampler(CreateInfo);
+	Ref<SImageSampler> pImgSampler = pStore->GetImageSamplerWithHash(samplerHash);
+	if (pImgSampler) { return INVALID_HANDLE; }
+
+	pImgSampler = pStore->NewImageSampler(id);
+	if (!pImgSampler) { return INVALID_HANDLE; }
+
+	pImgSampler->AddressModeU = CreateInfo.AddressModeU;
+	pImgSampler->AddressModeV = CreateInfo.AddressModeV;
+	pImgSampler->AddressModeW = CreateInfo.AddressModeW;
+	pImgSampler->AnisotropyLvl = CreateInfo.AnisotropyLvl;
+	pImgSampler->CompareOp = CreateInfo.CompareOp;
+	pImgSampler->MagFilter = CreateInfo.MagFilter;
+	pImgSampler->MinFilter = CreateInfo.MinFilter;
+	pImgSampler->Hash = samplerHash;
+
+	return id;
+}
+
+bool IRenderSystem::BuildImageSampler(Handle<SImageSampler> Hnd)
+{
+	Ref<SImageSampler> pImgSampler = pStore->GetImageSampler(Hnd);
+	if (!pImgSampler) { return false; }
+
+	VkSamplerCreateInfo createInfo = {};
+	createInfo.addressModeU = pDevice->GetSamplerAddressMode(pImgSampler->AddressModeU);
+	createInfo.addressModeV = pDevice->GetSamplerAddressMode(pImgSampler->AddressModeV);
+	createInfo.addressModeW = pDevice->GetSamplerAddressMode(pImgSampler->AddressModeW);
+	createInfo.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
+	createInfo.minFilter = pDevice->GetFilter(pImgSampler->MinFilter);
+	createInfo.magFilter = pDevice->GetFilter(pImgSampler->MagFilter);
+
+	if (pImgSampler->AnisotropyLvl)
+	{
+		const float32 hardwareAnisotropyLimit = pDevice->GetPhysicalDeviceProperties().limits.maxSamplerAnisotropy;
+		createInfo.anisotropyEnable = VK_TRUE;
+		createInfo.maxAnisotropy = (pImgSampler->AnisotropyLvl > hardwareAnisotropyLimit) ? hardwareAnisotropyLimit : pImgSampler->AnisotropyLvl;
+	}
+
+	if (pImgSampler->CompareOp)
+	{
+		createInfo.compareEnable = VK_TRUE;
+		createInfo.compareOp = pDevice->GetCompareOp(pImgSampler->CompareOp);
+	}
+
+	if (vkCreateSampler(pDevice->GetDevice(), &createInfo, nullptr, &pImgSampler->Hnd) != VK_SUCCESS)
+	{
+		VKT_ASSERT(false && "Failed to create sampler for image");
+		return false;
+	}
+
+	return true;
+}
+
+bool IRenderSystem::DestroyImageSampler(Handle<SImageSampler> Hnd)
+{
+	Ref<SImageSampler> pImgSampler = pStore->GetImageSampler(Hnd);
+	if (!pImgSampler) { return false; }
+
+	vkDeviceWaitIdle(pDevice->GetDevice());
+	vkDestroySampler(pDevice->GetDevice(), pImgSampler->Hnd, nullptr);
+
+	pStore->DeleteImageSampler(Hnd);
+
+	return true;
+}
+
 IStagingManager& IRenderSystem::GetStagingManager() const
 {
 	return *pStaging;
@@ -1065,15 +1324,15 @@ IFrameGraph& IRenderSystem::GetFrameGraph() const
 	return *pFrameGraph;
 }
 
-Handle<SShader> IRenderSystem::CreateShader(const ShaderCreateInfo& CreateInfo)
+Handle<SShader> IRenderSystem::CreateShader(const String& Code, EShaderType Type)
 {
 	size_t id = g_Uid();
 	Ref<SShader> pShader = pStore->NewShader(id);
 
 	if (!pShader) { return INVALID_HANDLE; }
-	pShader->Type = CreateInfo.Type;
+	pShader->Type = Type;
 
-	if (!pDevice->ToSpirV(CreateInfo.pCode, pShader->SpirV, pShader->Type)) 
+	if (!pDevice->ToSpirV(Code, pShader->SpirV, pShader->Type)) 
 	{ 
 		return INVALID_HANDLE; 
 	}
@@ -1100,6 +1359,8 @@ bool IRenderSystem::BuildShader(Handle<SShader> Hnd)
 	{
 		return false;
 	}
+
+	pShader->SpirV.Release();
 
 	return true;
 }
@@ -1168,6 +1429,18 @@ bool IRenderSystem::PipelineAddRenderPass(Handle<SPipeline> Hnd, Handle<SRenderP
 	if (!pPipeline || !pRenderPass) { return false; }
 
 	pPipeline->pRenderPass = pRenderPass;
+	pPipeline->ColorOutputCount = static_cast<uint32>(pRenderPass->ColorOutputs.Length());
+
+	if (!pRenderPass->Flags.Has(RenderPass_Bit_No_Color_Render))
+	{
+		pPipeline->ColorOutputCount++;
+	}
+
+	if (!pRenderPass->Flags.Has(RenderPass_Bit_No_DepthStencil_Render) ||
+		pRenderPass->DepthStencilOutput.Key != INVALID_HANDLE)
+	{
+		pPipeline->HasDepthStencil = true;
+	}
 
 	return true;
 }
@@ -1408,7 +1681,7 @@ bool IRenderSystem::BuildGraphicsPipeline(Handle<SPipeline> Hnd)
 	pipelineCreateInfo.pMultisampleState = &multisampleCreate;
 	pipelineCreateInfo.pDepthStencilState = nullptr;
 	pipelineCreateInfo.pColorBlendState = &colorBlendInfo;
-	pipelineCreateInfo.pDynamicState = &dynamicState;
+	//pipelineCreateInfo.pDynamicState = &dynamicState;
 	pipelineCreateInfo.layout = pPipeline->LayoutHnd;
 	pipelineCreateInfo.renderPass = pPipeline->pRenderPass->RenderPassHnd;
 	pipelineCreateInfo.subpass = 0;							// TODO(Ygsm): Study more about this!
@@ -1460,7 +1733,7 @@ bool IRenderSystem::BindDescriptorSet(Handle<SDescriptorSet> Hnd, Handle<SRender
 	Ref<SRenderPass> pRenderpass = pStore->GetRenderPass(RenderpassHnd);
 	VKT_ASSERT(pSet && pRenderpass && "Invalid handle(s) supplied");
 
-	if (!pSet || pRenderpass) 
+	if (!pSet || !pRenderpass) 
 	{ 
 		return false; 
 	}
@@ -1489,7 +1762,7 @@ bool IRenderSystem::BindPipeline(Handle<SPipeline> Hnd, Handle<SRenderPass> Rend
 	Ref<SRenderPass> pRenderpass = pStore->GetRenderPass(RenderpassHnd);
 	VKT_ASSERT(pPipeline && pRenderpass && "Invalid handle(s) supplied");
 
-	if (!pPipeline || pRenderpass)
+	if (!pPipeline || !pRenderpass)
 	{
 		return false;
 	}
@@ -1518,10 +1791,10 @@ bool IRenderSystem::Draw(const DrawInfo& Info)
 	VKT_ASSERT(pRenderPass && "RenderPass Handle is invalid!");
 	if (!pRenderPass) { return false; }
 
-	VKT_ASSERT(!Info.DrawableCount && "Drawable count can not be zero!");
+	VKT_ASSERT(Info.DrawableCount && "Drawable count can not be zero!");
 	if (!Info.DrawableCount) { return false; }
 
-	VKT_ASSERT((DrawManager::_NumDrawables >= DrawManager::MaxDrawablesCount) && "Maximum ammount of drawables reached!");
+	VKT_ASSERT((DrawManager::_NumDrawables < DrawManager::MaxDrawablesCount) && "Maximum ammount of drawables reached!");
 	if (DrawManager::_NumDrawables >= DrawManager::MaxDrawablesCount) { return false; }
 
 	DrawManager::_NumDrawables++;
@@ -1584,7 +1857,6 @@ bool IRenderSystem::Draw(const DrawInfo& Info)
 		cmd.NumVertices = Info.pVertexInformation[i].NumVertices;
 		cmd.IndexOffset = Info.pIndexInformation[i].IndexOffset;
 		cmd.NumIndices = Info.pIndexInformation[i].NumIndices;
-		cmd.pRenderPass = pRenderPass;
 		cmd.InstanceCount = 1;
 	}
 
@@ -1599,6 +1871,11 @@ const uint32 IRenderSystem::GetMaxDrawablesCount() const
 const uint32 IRenderSystem::GetDrawableCount() const
 {
 	return DrawManager::_NumDrawables;
+}
+
+const uint32 IRenderSystem::GetCurrentFrameIndex() const
+{
+	return pDevice->GetCurrentFrameIndex();
 }
 
 //bool IRenderSystem::BlitToDefault(Handle<SImage> Hnd)

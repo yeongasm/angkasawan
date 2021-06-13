@@ -8,10 +8,21 @@
 #include "Library/Containers/String.h"
 #include "SubSystem/Resource/Handle.h"
 #include "Engine/Private/Prototype.h"
-#include "API/Common.h"
 #include "API/RendererFlagBits.h"
 #include "API/Definitions.h"
 #include "API/ShaderAttribute.h"
+
+using VmaAllocation = struct VmaAllocation_T*;
+using VkBuffer = struct VkBuffer_T*;
+using VkSampler = struct VkSampler_T*;
+using VkImage = struct VkImage_T*;
+using VkImageView = struct VkImageView_T*;
+using VkShaderModule = struct VkShaderModule_T*;
+using VkPipeline = struct VkPipeline_T*;
+using VkPipelineLayout = struct VkPipelineLayout_T*;
+using VkDescriptorPool = struct VkDescriptorPool_T*;
+using VkDescriptorSetLayout = struct VkDescriptorSetLayout_T*;
+using VkDescriptorSet = struct VkDescriptorSet_T*;
 
 struct SRenderPass;
 struct SDescriptorSetLayout;
@@ -56,7 +67,7 @@ struct BufferAllocateInfo
 	size_t Size;
 };
 
-struct SImageSampler
+struct ImageSamplerState
 {
 	ESamplerFilter MinFilter;
 	ESamplerFilter MagFilter;
@@ -65,8 +76,15 @@ struct SImageSampler
 	ESamplerAddressMode AddressModeW;
 	ECompareOp CompareOp;
 	float32 AnisotropyLvl;
-	VkSampler Hnd;
 };
+
+struct SImageSampler : ImageSamplerState
+{
+	VkSampler Hnd;
+	uint64 Hash;
+};
+
+using ImageSamplerCreateInfo = ImageSamplerState;
 
 struct SImage
 {
@@ -82,14 +100,14 @@ struct SImage
 	VkImageView ImgViewHnd;
 };
 
-struct ImageCreateInfo
-{
-	size_t Identifier = ~0ULL; // Ignore for a default generated id.
-	uint32 Width;
-	uint32 Height;
-	uint32 Channels;
-	ETextureType Type;
-};
+//struct ImageCreateInfo
+//{
+//	size_t Identifier = ~0ULL; // Ignore for a default generated id.
+//	uint32 Width;
+//	uint32 Height;
+//	uint32 Channels;
+//	ETextureType Type;
+//};
 
 struct SShader
 {
@@ -193,7 +211,7 @@ struct SDescriptorSetLayout
 		size_t Offset[MAX_FRAMES_IN_FLIGHT];
 		EDescriptorType Type;
 		BitSet<uint32> ShaderStages;
-		Ref<SMemoryBuffer> pBuffer;
+		//Ref<SMemoryBuffer> pBuffer;
 
 		Binding() :
 			BindingSlot(0),
@@ -202,8 +220,8 @@ struct SDescriptorSetLayout
 			Allocated(0),
 			Offset{0},
 			Type(Descriptor_Type_Max),
-			ShaderStages{},
-			pBuffer{}
+			ShaderStages{}//,
+			//pBuffer{}
 		{}
 
 		~Binding() {};
@@ -244,7 +262,7 @@ struct DescriptorSetLayoutBindingInfo
 	uint32 BindingSlot;
 	EDescriptorType Type;
 	Handle<SDescriptorSetLayout> LayoutHnd;
-	Handle<SMemoryBuffer> BufferHnd;
+	//Handle<SMemoryBuffer> BufferHnd;
 	BitSet<EShaderTypeFlagBits> ShaderStages;
 };
 
@@ -280,7 +298,6 @@ struct DrawCommand
 	uint32 IndexOffset;
 	uint32 InstanceOffset;
 	uint32 InstanceCount;
-	Ref<SRenderPass> pRenderPass;
 };
 
 #endif // !LEARNVK_RENDERER_RENDER_ABSTRACT_PRIMITIVES_H

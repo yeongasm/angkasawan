@@ -6,49 +6,54 @@
 #include "Library/Containers/Bitset.h"
 #include "Library/Containers/Array.h"
 #include "Library/Containers/String.h"
+#include "Library/Containers/Pair.h"
 #include "Library/Containers/Ref.h"
 #include "SubSystem/Resource/Handle.h"
 #include "RenderPlatform/API.h"
 #include "API/RendererFlagBits.h"
 #include "API/Definitions.h"
-#include "API/Device.h"
+#include "Engine/Interface.h"
+//#include "API/Device.h"
 
 class IFrameGraph;
 class IRenderSystem;
 struct SDescriptorSet;
 struct SPipeline;
+struct SRenderPass;
+struct SImage;
+
+using Extent2D = WindowInfo::Extent2D;
+using Position = WindowInfo::Position;
+
+using VkRenderPass = struct VkRenderPass_T*;
+using VkFramebuffer = struct VkFramebuffer_T*;
 
 struct SRenderPass
 {
-	using Extent2D = WindowInfo::Extent2D;
-	using Position = WindowInfo::Position;
 	using Attachment = Pair<Handle<SImage>, Ref<SImage>>;
-	using VulkanFramebuffer = IRenderDevice::VulkanFramebuffer;
 	using AttachmentContainer = StaticArray<Attachment, MAX_RENDERPASS_ATTACHMENT_COUNT>;
 
 	Handle<SRenderPass> Hnd; // Not sure if I like this ... 
 	IFrameGraph* pOwner;
 	AttachmentContainer ColorInputs;
 	AttachmentContainer ColorOutputs;
-	VulkanFramebuffer Framebuffer;
+	VkFramebuffer Framebuffer[MAX_FRAMES_IN_FLIGHT];
 	Attachment DepthStencilInput;
 	Attachment DepthStencilOutput;
 	VkRenderPass RenderPassHnd;
 	BitSet<ERenderPassFlagBits> Flags;
-	//Ref<SDescriptorSet> pSet;
-	//Ref<SPipeline> pPipeline;
 	Extent2D Extent;
 	Position Pos;
 	float32 Depth;
 	ERenderPassType Type;
-	bool Bound = false;
+	BitSet<ERenderPassOrderFlagBits> Order;
 };
 
 struct RenderPassCreateInfo
 {
 	String64 Identifier;
-	SRenderPass::Extent2D Extent;
-	SRenderPass::Position Pos;
+	Extent2D Extent;
+	Position Pos;
 	float32 Depth;
 	ERenderPassType Type;
 	//Handle<SDescriptorSet> DescriptorSetHnd;
@@ -68,22 +73,19 @@ private:
 
 	friend class IRenderSystem;
 
-	using Extent2D = SRenderPass::Extent2D;
 	using RenderPass = Pair<Handle<SRenderPass>, Ref<SRenderPass>>;
-	using Attachment = SRenderPass::Attachment;
 	using PassContainer = StaticArray<RenderPass, MAX_FRAMEGRAPH_PASS_COUNT>;
 
 	static size_t _HashSeed;
 
 	IRenderSystem& Renderer;
-	Attachment ColorImage;
-	Attachment DepthStencilImage;
+	SRenderPass::Attachment ColorImage;
+	SRenderPass::Attachment DepthStencilImage;
 	PassContainer RenderPasses;
 	Extent2D Extent;
 	bool Built;
 
 	Ref<SRenderPass> GetRenderPass(Handle<SRenderPass> Hnd);
-	void ResetRenderPassBindState();
 	size_t HashIdentifier(const String64& Identifier);
 
 	// Create a vk framebuffer.
@@ -104,12 +106,12 @@ public:
 
 	DELETE_COPY_AND_MOVE(IFrameGraph)
 
-	bool AddColorInputFrom(const String64& AttId, Handle<SRenderPass> Src, Handle<SRenderPass> Dst);
-	bool AddColorOutput(const String64& AttId, Handle<SRenderPass> Hnd);
+	bool AddColorInputFrom(Handle<SImage> Img, Handle<SRenderPass> Src, Handle<SRenderPass> Dst);
+	Handle<SImage> AddColorOutput(Handle<SRenderPass> Hnd);
 	bool AddDepthStencilInputFrom(Handle<SRenderPass> Src, Handle<SRenderPass> Dst);
 	bool AddDepthStencilOutput(Handle<SRenderPass> Hnd);
-	bool SetRenderPassExtent(Handle<SRenderPass> Hnd, WindowInfo::Extent2D Extent);
-	bool SetRenderPassOrigin(Handle<SRenderPass> Hnd, WindowInfo::Position Origin);
+	bool SetRenderPassExtent(Handle<SRenderPass> Hnd, Extent2D Extent);
+	bool SetRenderPassOrigin(Handle<SRenderPass> Hnd, Position Origin);
 
 	bool NoDefaultRender(Handle<SRenderPass> Hnd);
 	bool NoDefaultColorRender(Handle<SRenderPass> Hnd);

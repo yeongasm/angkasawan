@@ -17,4 +17,7 @@ using uint64 = unsigned __int64;
 using float32 = float;
 using float64 = double;
 
+template <typename T> uint32 SizeOf(const T& Obj) { return static_cast<uint32>(sizeof(T)); }
+template <typename T> uint64 SizeOf(const T& Obj) { return static_cast<uint64>(sizeof(T)); }
+
 #endif // !LEARNVK_PLATFORM_TYPES_ALIAS

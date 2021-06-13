@@ -30,12 +30,6 @@
     <ClCompile Include="API\Vk\Vk.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="External\stb\stb_image.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="External\cgltf\cgltf.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="RenderAbstracts\FrameGraph.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -105,12 +99,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="API\Vk\vk_mem_alloc.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="External\stb\stb_image.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="External\cgltf\cgltf.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="API\ShaderAttribute.h">

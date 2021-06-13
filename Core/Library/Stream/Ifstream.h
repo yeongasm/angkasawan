@@ -18,7 +18,7 @@ public:
 	Ifstream& operator=(Ifstream&& Rhs);
 
 	bool	Open	(const char* Path);
-	bool	Read	(void* Buf, size_t Size);
+	bool	Read	(void* Buf, size_t Size) const;
 	bool	Close	();
 	bool	IsValid	() const;
 	size_t	Size	() const;

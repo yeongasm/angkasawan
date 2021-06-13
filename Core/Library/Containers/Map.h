@@ -201,6 +201,7 @@ private:
 		size_t Constant = 0;
 		size_t Hash		= static_cast<size_t>(Func(Key));
 		size_t Index	= ProbeForIndex(Hash, Constant);
+		size_t Count	= 0;
 
 		ElementNode* Element = &Entries[Index];
 
@@ -208,6 +209,11 @@ private:
 
 		while (Element->Key != Key)
 		{
+			if (Count == Entries.Size()) 
+			{ 
+				return nullptr;
+			}
+
 			if (Element->Status == Bucket_WasDeleted && TombStone == -1)
 			{
 				TombStone = Index;
@@ -215,6 +221,7 @@ private:
 
 			Index = ProbeForIndex(Hash, ++Constant);
 			Element = &Entries[Index];
+			Count++;
 
 			//VKT_ASSERT(Element->Status != Bucket_IsEmpty && Element->Status != Bucket_WasDeleted);
 		}

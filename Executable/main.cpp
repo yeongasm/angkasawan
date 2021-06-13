@@ -7,11 +7,15 @@ bool InitializeEngine(EngineImpl* Engine, const EngineCreationInfo& CreateInfo)
 	Engine->InitializeEngine(CreateInfo);
 
 	Handle<ISystem> hnd;
-	size_t renderSystemSize = sizeof(RenderSystem);
-	RenderSystem* renderer = reinterpret_cast<RenderSystem*>(Engine->AllocateAndRegisterSystem(renderSystemSize, System_Engine_Type, &hnd));
+	IRenderSystem* renderer = reinterpret_cast<IRenderSystem*>(
+		Engine->AllocateAndRegisterSystem(
+			sizeof(IRenderSystem), 
+			System_Engine_Type, 
+			&hnd
+		)
+	);
 	IMemory::InitializeObject(renderer, *Engine, hnd);
 	renderer->OnInit();
-
 	Engine->RegisterGame(CreateInfo);
 	return true;
 }

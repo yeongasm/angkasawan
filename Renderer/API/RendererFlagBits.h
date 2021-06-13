@@ -83,6 +83,7 @@ enum ERenderPassOrder : uint32
 	RenderPass_Order_Last		= 1,
 	RenderPass_Order_InBetween	= 2
 };
+using ERenderPassOrderFlagBits = uint32;
 
 enum ERenderPassOrderValue : uint32
 {

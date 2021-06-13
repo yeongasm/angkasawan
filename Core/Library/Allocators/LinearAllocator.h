@@ -63,6 +63,11 @@ public:
 		return result;
 	}
 
+	/**
+	* DO NOT USE!!! Free-ing a block will cause fragmentation.
+	*/
+	void Free(void* Block) override {}
+
 	void FlushMemory()
 	{
 		IMemory::Memzero(Block, Size);
@@ -79,11 +84,6 @@ private:
 	* DO NOT USE!!! Reallocation is not supported in LinearAllocators. This is to avoid fragmentation.
 	*/
 	void* Realloc(void* Block, size_t Size) override { return nullptr; }
-
-	/**
-	* DO NOT USE!!! Free-ing a block will cause fragmentation.
-	*/
-	void Free(void* Block) override {}
 };
 
 

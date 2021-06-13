@@ -6,10 +6,11 @@
 #include "Library/Containers/Pair.h"
 #include "SubSystem/Resource/Handle.h"
 #include "RenderPlatform/API.h"
-#include "API/Device.h"
+//#include "API/Device.h"
 #include "Primitives.h"
 
 class IRenderSystem;
+class IRenderDevice;
 
 /**
 * NOTE(Ygsm):
@@ -21,24 +22,30 @@ class RENDERER_API IStagingManager
 {
 private:
 
-	enum EStagingOp : uint32
-	{
-		Staging_Op_Upload = 0,
-		Staging_Op_Ownership_Transfer = 1,
-		Staging_Op_Max = 2
-	};
+	friend class IRenderSystem;
 
-	using StagingBuffer = Pair<Handle<SMemoryBuffer>, SMemoryBuffer*>;
+	//enum EStagingOp : uint32
+	//{
+	//	Staging_Op_Upload = 0,
+	//	Staging_Op_Ownership_Transfer = 1,
+	//	Staging_Op_Max = 2
+	//};
 
-	IRenderDevice::VulkanQueue* pQueue;
-	IRenderSystem& Renderer;
-	VkCommandPool Pool;
-	VkCommandBuffer CmdBuf[Staging_Op_Max][MAX_TRANSFER_COMMANDS];
-	VkSemaphore Semaphore[MAX_FRAMES_IN_FLIGHT];
-	VkFence Fences[MAX_FRAMES_IN_FLIGHT];
-	StagingBuffer Buffer[MAX_FRAMES_IN_FLIGHT];
-	uint32 NextCmdIndex;
-	bool TransferDefaults;
+	//using StagingBuffer = Pair<Handle<SMemoryBuffer>, SMemoryBuffer*>;
+	//using VulkanQueue = typename IRenderDevice::VulkanQueue;
+
+	//VulkanQueue* pQueue;
+	//IRenderSystem& Renderer;
+	//VkCommandPool Pool;
+	//VkCommandBuffer CmdBuf[Staging_Op_Max][MAX_TRANSFER_COMMANDS];
+	//VkSemaphore Semaphore[MAX_FRAMES_IN_FLIGHT];
+	//VkFence Fences[MAX_FRAMES_IN_FLIGHT];
+	//StagingBuffer Buffer[MAX_FRAMES_IN_FLIGHT];
+	//uint32 NextCmdIndex;
+	//bool TransferDefaults;
+
+	bool DrawDataUploaded() const;
+	void ResetTransferDefaultFlag();
 
 	size_t PadToAlignedSize(size_t Size);
 	void FlushBuffer(SMemoryBuffer& Buffer);
@@ -48,7 +55,7 @@ private:
 	//void BufferBarrier(VkCommandBuffer Cmd, SMemoryBuffer* pBuffer, size_t Size, VkAccessFlags SrcAccessMask, VkAccessFlags DstAccessMask, VkPipelineStageFlags SrcStageMask, VkPipelineStageFlags DstStageMask, uint32 SrcQueue, uint32 DstQueue);
 	//void ImageBarrier(VkCommandBuffer Cmd, SImage* pImage, VkImageSubresourceRange* pSubRange, VkImageLayout OldLayout, VkImageLayout NewLayout, VkPipelineStageFlags SrcStageMask, VkPipelineStageFlags DstStageMask, uint32 SrcQueue, uint32 DstQueue);
 
-	const IRenderDevice::VulkanQueue* GetQueueForType(EQueueType QueueType) const;
+	//const VulkanQueue* GetQueueForType(EQueueType QueueType) const;
 
 public:
 

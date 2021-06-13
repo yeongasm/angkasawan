@@ -50,7 +50,7 @@ bool Ifstream::Open(const char* Path)
 	return true;
 }
 
-bool Ifstream::Read(void* Buf, size_t Size)
+bool Ifstream::Read(void* Buf, size_t Size) const
 {
 	if (!Stream)
 	{
@@ -60,7 +60,7 @@ bool Ifstream::Read(void* Buf, size_t Size)
 	return true;
 }
 
-bool Ifstream::Close()
+bool Ifstream::Close() 
 {
 	if (!Stream) return false;
 	fclose(Stream);

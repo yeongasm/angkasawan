@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -247,6 +247,7 @@ xcopy "$(TargetDir)$(ProjectName).ilk" "$(SolutionDir)Bin\$(Configuration)\" /y 
     <ClInclude Include="Platform\Sync\Sync.h" />
     <ClInclude Include="SubSystem\Input\IO.h" />
     <ClInclude Include="SubSystem\Resource\ResourceManager.h" />
+    <ClInclude Include="SubSystem\Serializer\Serializer.h" />
     <ClInclude Include="SubSystem\Thread\Thread.h" />
     <ClInclude Include="SubSystem\Thread\ThreadPool.h" />
     <ClInclude Include="SubSystem\Time\ScopedTimer.h" />
@@ -271,6 +272,7 @@ xcopy "$(TargetDir)$(ProjectName).ilk" "$(SolutionDir)Bin\$(Configuration)\" /y 
     <ClCompile Include="SubSystem\Game\GameAppManager.cpp" />
     <ClCompile Include="SubSystem\Input\IO.cpp" />
     <ClCompile Include="SubSystem\Resource\ResourceManager.cpp" />
+    <ClCompile Include="SubSystem\Serializer\Serializer.cpp" />
     <ClCompile Include="SubSystem\Thread\ThreadPool.cpp" />
   </ItemGroup>
   <ItemGroup>

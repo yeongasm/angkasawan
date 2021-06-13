@@ -66,7 +66,7 @@ bool IRenderDevice::Initialize(const EngineImpl& Engine)
 	if (!CreatePresentationSurface(Engine.Window.Handle)) return false;
 	if (!ChoosePhysicalDevice()) return false;
 	if (!CreateLogicalDevice()) return false;
-	if (!LoadVulkanFunctions()) return false;
+	if (!LoadVulkanDeviceFunction()) return false;
 
 	GetDeviceQueues();
 
@@ -456,7 +456,8 @@ void IRenderDevice::EndFrame()
 	
 	if (ImageFences[NextSwapchainImageIndex] != VK_NULL_HANDLE)
 	{
-		vkWaitForFences(Device, 1, &ImageFences[NextSwapchainImageIndex], VK_TRUE, UINT64_MAX);
+		WaitFence(ImageFences[NextSwapchainImageIndex]);
+		//vkWaitForFences(Device, 1, &ImageFences[NextSwapchainImageIndex], VK_TRUE, UINT64_MAX);
 	}
 
 	ImageFences[NextSwapchainImageIndex] = Fences[CurrentFrameIndex];
@@ -474,9 +475,10 @@ void IRenderDevice::EndFrame()
 	submitInfo.pSignalSemaphores = &Semaphores[CurrentFrameIndex][Semaphore_Type_Render_Complete];
 
 	vkResetFences(Device, 1, &Fences[CurrentFrameIndex]);
-
-	if (vkQueueSubmit(GraphicsQueue.Hnd, 1, &submitInfo, Fences[CurrentFrameIndex]) != VK_SUCCESS)
+	VkResult res = vkQueueSubmit(GraphicsQueue.Hnd, 1, &submitInfo, Fences[CurrentFrameIndex]);
+	if (res != VK_SUCCESS)
 	{
+		VKT_ASSERT(false && res);
 		return;
 	}
 
@@ -524,6 +526,11 @@ VkCommandPool IRenderDevice::CreateCommandPool(uint32 QueueFamilyIndex, VkComman
 		return VK_NULL_HANDLE;
 	}
 	return hnd;
+}
+
+VkCommandPool IRenderDevice::GetGraphicsCommandPool()
+{
+	return CommandPool;
 }
 
 void IRenderDevice::DestroyCommandPool(VkCommandPool Hnd)
@@ -1503,6 +1510,18 @@ SImageSampler* IDeviceStore::GetImageSampler(size_t Id)
 	return ImageSamplers[Id];
 }
 
+SImageSampler* IDeviceStore::GetImageSamplerWithHash(uint64 Hash)
+{
+	for (auto& [key, value] : ImageSamplers)
+	{
+		if (value->Hash == Hash)
+		{
+			return value;
+		}
+	}
+	return nullptr;
+}
+
 bool IDeviceStore::DeleteImageSampler(size_t Id, bool Free)
 {
 	if (!DoesImageSamplerExist(Id)) { return false; }
@@ -1790,6 +1809,43 @@ VmaMemoryUsage IRenderDevice::GetMemoryUsage(uint32 Index) const
 		VMA_MEMORY_USAGE_CPU_TO_GPU
 	};
 	return usage[Index];
+}
+
+VkSamplerAddressMode IRenderDevice::GetSamplerAddressMode(uint32 Index) const
+{
+	static constexpr VkSamplerAddressMode mode[] = {
+		VK_SAMPLER_ADDRESS_MODE_REPEAT,
+		VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT,
+		VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+		VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
+		VK_SAMPLER_ADDRESS_MODE_MIRROR_CLAMP_TO_EDGE,
+	};
+	return mode[Index];
+}
+
+VkFilter IRenderDevice::GetFilter(uint32 Index) const
+{
+	static constexpr VkFilter filter[] = {
+		VK_FILTER_NEAREST,
+		VK_FILTER_LINEAR,
+		VK_FILTER_CUBIC_IMG
+	};
+	return filter[Index];
+}
+
+VkCompareOp IRenderDevice::GetCompareOp(uint32 Index) const
+{
+	static constexpr VkCompareOp compareOp[] = {
+		VK_COMPARE_OP_NEVER,
+		VK_COMPARE_OP_LESS,
+		VK_COMPARE_OP_EQUAL,
+		VK_COMPARE_OP_LESS_OR_EQUAL,
+		VK_COMPARE_OP_GREATER,
+		VK_COMPARE_OP_NOT_EQUAL,
+		VK_COMPARE_OP_GREATER_OR_EQUAL,
+		VK_COMPARE_OP_ALWAYS
+	};
+	return compareOp[Index];
 }
 
 const VkPhysicalDeviceProperties& IRenderDevice::GetPhysicalDeviceProperties() const

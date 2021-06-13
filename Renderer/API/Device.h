@@ -85,6 +85,7 @@ public:
 	void DeviceWaitIdle();
 
 	VkCommandPool CreateCommandPool(uint32 QueueFamilyIndex, VkCommandPoolCreateFlags Flags);
+	VkCommandPool GetGraphicsCommandPool();
 	void DestroyCommandPool(VkCommandPool Hnd);
 	VkCommandBuffer AllocateCommandBuffer(VkCommandPool PoolHnd, VkCommandBufferLevel Level, uint32 Count);
 	void ResetCommandBuffer(VkCommandBuffer Hnd, VkCommandBufferResetFlags Flag);
@@ -134,6 +135,9 @@ public:
 	VkFrontFace GetFrontFaceMode(uint32 Index) const;
 	VkCullModeFlags GetCullMode(uint32 Index) const;
 	VmaMemoryUsage GetMemoryUsage(uint32 Index) const;
+	VkSamplerAddressMode GetSamplerAddressMode(uint32 Index) const;
+	VkFilter GetFilter(uint32 Index) const;
+	VkCompareOp GetCompareOp(uint32 Index) const;
 
 	const VkPhysicalDeviceProperties& GetPhysicalDeviceProperties() const;
 
@@ -258,6 +262,7 @@ struct IDeviceStore
 
 	SImageSampler* NewImageSampler(size_t Id);
 	SImageSampler* GetImageSampler(size_t Id);
+	SImageSampler* GetImageSamplerWithHash(uint64 Hash);
 	bool DeleteImageSampler(size_t Id, bool Free = false);
 
 	SPipeline* NewPipeline(size_t Id);

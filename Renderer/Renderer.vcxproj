@@ -23,8 +23,6 @@
     <ClCompile Include="API\Vk\ShaderToSPIRVCompiler.cpp" />
     <ClCompile Include="API\Vk\Src\spirv_reflect.c" />
     <ClCompile Include="API\Vk\Vk.cpp" />
-    <ClCompile Include="External\cgltf\cgltf.cpp" />
-    <ClCompile Include="External\stb\stb_image.cpp" />
     <ClCompile Include="RenderAbstracts\StagingManager.cpp" />
     <ClCompile Include="Renderer.cpp" />
     <ClCompile Include="API\Vk\VulkanFunctions.cpp" />
@@ -47,8 +45,6 @@
     <ClInclude Include="API\Vk\Src\shaderc\status.h" />
     <ClInclude Include="API\Vk\Src\shaderc\visibility.h" />
     <ClInclude Include="API\Vk\Vk.h" />
-    <ClInclude Include="External\cgltf\cgltf.h" />
-    <ClInclude Include="External\stb\stb_image.h" />
     <ClInclude Include="RenderAbstracts\FrameGraph.h" />
     <ClInclude Include="RenderAbstracts\Primitives.h" />
     <ClInclude Include="RenderAbstracts\StagingManager.h" />
