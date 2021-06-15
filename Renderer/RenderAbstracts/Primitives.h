@@ -4,7 +4,7 @@
 
 #include "Library/Containers/Array.h"
 #include "Library/Containers/Bitset.h"
-#include "Library/Containers/Ref.h"
+//#include "Library/Containers/Ref.h"
 #include "Library/Containers/String.h"
 #include "SubSystem/Resource/Handle.h"
 #include "Engine/Private/Prototype.h"
@@ -206,22 +206,22 @@ struct SDescriptorSetLayout
 	{
 		uint32 BindingSlot;
 		uint32 DescriptorCount;
-		size_t Size;
-		size_t Allocated;
-		size_t Offset[MAX_FRAMES_IN_FLIGHT];
+		size_t Stride;							// Stride for data. Ignore for images.
+		//size_t Allocated;
+		size_t Offset[MAX_FRAMES_IN_FLIGHT];	// Offset that's in the buffer for each frame. Ignore for images.
 		EDescriptorType Type;
 		BitSet<uint32> ShaderStages;
-		//Ref<SMemoryBuffer> pBuffer;
+		Ref<SMemoryBuffer> pBuffer;
 
 		Binding() :
 			BindingSlot(0),
 			DescriptorCount(0),
-			Size(0),
-			Allocated(0),
+			Stride(0),
+			//Allocated(0),
 			Offset{0},
 			Type(Descriptor_Type_Max),
-			ShaderStages{}//,
-			//pBuffer{}
+			ShaderStages{},
+			pBuffer{}
 		{}
 
 		~Binding() {};
@@ -257,12 +257,11 @@ struct SDescriptorSetInstance
 
 struct DescriptorSetLayoutBindingInfo
 {
-	size_t Size;
+	size_t Stride;							// Stride for data. Ignore for images.
 	uint32 DescriptorCount;
 	uint32 BindingSlot;
 	EDescriptorType Type;
 	Handle<SDescriptorSetLayout> LayoutHnd;
-	//Handle<SMemoryBuffer> BufferHnd;
 	BitSet<EShaderTypeFlagBits> ShaderStages;
 };
 

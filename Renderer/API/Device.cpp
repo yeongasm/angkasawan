@@ -75,7 +75,7 @@ bool IRenderDevice::Initialize(const EngineImpl& Engine)
 	if (!CreateDefaultRenderpass()) return false;
 	if (!CreateDefaultFramebuffer()) return false;
 	if (!CreateAllocator()) return false;
-	if (!CreateCommandPool()) return false;
+	if (!CreateDefaultCommandPool()) return false;
 	if (!AllocateCommandBuffers()) return false;
 	//if (!CreateTransferOperation()) return false;
 
@@ -85,17 +85,19 @@ bool IRenderDevice::Initialize(const EngineImpl& Engine)
 void IRenderDevice::Terminate()
 {
 	DestroyDefaultFramebuffer();
-	vkDestroyRenderPass(Device, DefaultRenderPass, nullptr);
-	vmaDestroyAllocator(Allocator);
-
+	MoveToZombieList(DefaultRenderPass, EHandleType::Handle_Type_Renderpass);
+	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+	{
+		MoveToZombieList(CommandBuffers[i], CommandPool);
+	}
 	for (size_t i = 0; i < Swapchain.NumOfImages; i++)
 	{
-		vkDestroyImageView(Device, Swapchain.ImageViews[i], nullptr);
+		MoveToZombieList(Swapchain.ImageViews[i], EHandleType::Handle_Type_Image_View);
 	}
+	MoveToZombieList(CommandPool, EHandleType::Handle_Type_Command_Pool);
 
-	vkDestroyCommandPool(Device, CommandPool, nullptr);
-	//vkDestroyCommandPool(Device, TransferOp.CommandPool, nullptr);
-	//vkDestroyFence(Device, TransferOp.Fence, nullptr);
+	ClearZombieList();
+	vmaDestroyAllocator(Allocator);
 
 	for (uint32 i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 	{
@@ -110,11 +112,12 @@ void IRenderDevice::Terminate()
 	{
 		vkDestroySwapchainKHR(Device, Swapchain.Hnd, nullptr);
 	}
-
+#if RENDERER_DEBUG_RENDER_DEVICE
 	if (DebugMessenger != VK_NULL_HANDLE)
 	{
 		vkDestroyDebugUtilsMessengerEXT(Instance, DebugMessenger, nullptr);
 	}
+#endif
 
 	vkDestroyDevice(Device, nullptr);
 	vkDestroySurfaceKHR(Instance, Surface, nullptr);
@@ -399,10 +402,9 @@ bool IRenderDevice::CreateDefaultFramebuffer()
 
 void IRenderDevice::DestroyDefaultFramebuffer()
 {
-	vkDeviceWaitIdle(Device);
 	for (size_t i = 0; i < MAX_SWAPCHAIN_IMAGE_ALLOWED; i++)
 	{
-		vkDestroyFramebuffer(Device, DefaultFramebuffer.Hnd[i], nullptr);
+		MoveToZombieList(DefaultFramebuffer.Hnd[i], EHandleType::Handle_Type_Framebuffer);
 		DefaultFramebuffer.Hnd[i] = VK_NULL_HANDLE;
 	}
 }
@@ -426,7 +428,7 @@ void IRenderDevice::BeginFrame()
 	case VK_SUBOPTIMAL_KHR:
 		break;
 	case VK_ERROR_OUT_OF_DATE_KHR:
-		// Resize window ...
+		OnWindowResize(Swapchain.Extent.width, Swapchain.Extent.height);
 		break;
 	default:
 		VKT_ASSERT(false && "Problem occured during swap chain image acquisation!");
@@ -457,7 +459,6 @@ void IRenderDevice::EndFrame()
 	if (ImageFences[NextSwapchainImageIndex] != VK_NULL_HANDLE)
 	{
 		WaitFence(ImageFences[NextSwapchainImageIndex]);
-		//vkWaitForFences(Device, 1, &ImageFences[NextSwapchainImageIndex], VK_TRUE, UINT64_MAX);
 	}
 
 	ImageFences[NextSwapchainImageIndex] = Fences[CurrentFrameIndex];
@@ -500,17 +501,75 @@ void IRenderDevice::EndFrame()
 		break;
 	case VK_ERROR_OUT_OF_DATE_KHR:
 	case VK_SUBOPTIMAL_KHR:
-		//OnWindowResize();
-		return;
+		OnWindowResize(Swapchain.Extent.width, Swapchain.Extent.height);
+		break;
 	default:
 		VKT_ASSERT("Problem occured during image presentation!" && false);
 		break;
 	}
+	ClearZombieList();
 }
 
 void IRenderDevice::DeviceWaitIdle()
 {
 	vkDeviceWaitIdle(Device);
+}
+
+void IRenderDevice::ClearZombieList()
+{
+	if (!ZombieList.Length()) { return; }
+
+	DeviceWaitIdle();
+	for (const ZombieObject& obj : ZombieList)
+	{
+		switch (obj.Type)
+		{
+		case EHandleType::Handle_Type_Buffer:
+			vmaDestroyBuffer(Allocator, (VkBuffer)obj.Hnd, obj.Allocation);
+			continue;
+		case EHandleType::Handle_Type_Command_Buffer:
+			vkFreeCommandBuffers(Device, obj.CommandPool, 1, (VkCommandBuffer*)&obj.Hnd);
+			continue;
+		case EHandleType::Handle_Type_Command_Pool:
+			vkDestroyCommandPool(Device, (VkCommandPool)obj.Hnd, nullptr);
+			continue;
+		case EHandleType::Handle_Type_Descriptor_Pool:
+			vkDestroyDescriptorPool(Device, (VkDescriptorPool)obj.Hnd, nullptr);
+			continue;
+		case EHandleType::Handle_Type_Descriptor_Set:
+			vkFreeDescriptorSets(Device, obj.DescriptorPool, 1, (VkDescriptorSet*)&obj.Hnd);
+			continue;
+		case EHandleType::Handle_Type_Descriptor_Set_Layout:
+			vkDestroyDescriptorSetLayout(Device, (VkDescriptorSetLayout)obj.Hnd, nullptr);
+			continue;
+		case EHandleType::Handle_Type_Framebuffer:
+			vkDestroyFramebuffer(Device, (VkFramebuffer)obj.Hnd, nullptr);
+			continue;
+		case EHandleType::Handle_Type_Renderpass:
+			vkDestroyRenderPass(Device, (VkRenderPass)obj.Hnd, nullptr);
+			continue;
+		case EHandleType::Handle_Type_Image:
+			vmaDestroyImage(Allocator, (VkImage)obj.Hnd, obj.Allocation);
+			continue;
+		case EHandleType::Handle_Type_Image_Sampler:
+			vkDestroySampler(Device, (VkSampler)obj.Hnd, nullptr);
+			continue;
+		case EHandleType::Handle_Type_Shader:
+			vkDestroyShaderModule(Device, (VkShaderModule)obj.Hnd, nullptr);
+			continue;
+		case EHandleType::Handle_Type_Pipeline:
+			vkDestroyPipeline(Device, (VkPipeline)obj.Hnd, nullptr);
+			continue;
+		case EHandleType::Handle_Type_Pipeline_Layout:
+			vkDestroyPipelineLayout(Device, (VkPipelineLayout)obj.Hnd, nullptr);
+			continue;
+		case EHandleType::Handle_Type_Image_View:
+		default:
+			vkDestroyImageView(Device, (VkImageView)obj.Hnd, nullptr);
+			continue;
+		}
+	}
+	ZombieList.Empty();
 }
 
 VkCommandPool IRenderDevice::CreateCommandPool(uint32 QueueFamilyIndex, VkCommandPoolCreateFlags Flags)
@@ -531,11 +590,6 @@ VkCommandPool IRenderDevice::CreateCommandPool(uint32 QueueFamilyIndex, VkComman
 VkCommandPool IRenderDevice::GetGraphicsCommandPool()
 {
 	return CommandPool;
-}
-
-void IRenderDevice::DestroyCommandPool(VkCommandPool Hnd)
-{
-	vkDestroyCommandPool(Device, Hnd, nullptr);
 }
 
 VkCommandBuffer IRenderDevice::AllocateCommandBuffer(VkCommandPool PoolHnd, VkCommandBufferLevel Level, uint32 Count)
@@ -811,6 +865,10 @@ bool IRenderDevice::CreateVulkanInstance()
 	VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo;
 	PopulateDebugMessengerCreateInfo(debugCreateInfo);
 	createInfo.pNext = reinterpret_cast<VkDebugUtilsMessengerCreateInfoEXT*>(&debugCreateInfo);
+#else
+	const char* layers[] = { "VK_LAYER_LUNARG_monitor" };
+	createInfo.ppEnabledLayerNames = layers;
+	createInfo.enabledLayerCount = 1;
 #endif
 
 	if (vkCreateInstance(&createInfo, nullptr, &Instance) != VK_SUCCESS)
@@ -836,6 +894,7 @@ bool IRenderDevice::LoadVulkanFunctions()
 
 bool IRenderDevice::CreateDebugMessenger()
 {
+#if RENDERER_DEBUG_RENDER_DEVICE
 	VkDebugUtilsMessengerCreateInfoEXT createInfo;
 	PopulateDebugMessengerCreateInfo(createInfo);
 
@@ -844,6 +903,7 @@ bool IRenderDevice::CreateDebugMessenger()
 		VKT_ASSERT("Failed to set up debug messenger" && false);
 		return false;
 	}
+#endif
 	return true;
 }
 
@@ -1219,7 +1279,7 @@ bool IRenderDevice::CreateAllocator()
 //	return true;
 //}
 
-bool IRenderDevice::CreateCommandPool()
+bool IRenderDevice::CreateDefaultCommandPool()
 {
 	VkCommandPoolCreateInfo createInfo = {};
 	createInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
@@ -1269,8 +1329,8 @@ void IRenderDevice::FreeVulkanLibrary()
 	OS::FreeDllLibrary(Dll);
 }
 
-IDeviceStore::IDeviceStore(IAllocator& InAllocator) :
-	Allocator(InAllocator),
+IDeviceStore::IDeviceStore(/*IAllocator& InAllocator*/) :
+	//Allocator(InAllocator),
 	Buffers{},
 	DescriptorSets{},
 	DescriptorPools{},
@@ -1366,151 +1426,139 @@ bool IDeviceStore::DoesImageExist(size_t Id)
 	return false;
 }
 
-SMemoryBuffer* IDeviceStore::NewBuffer(size_t Id)
+Ref<SMemoryBuffer> IDeviceStore::NewBuffer(size_t Id)
 {
-	if (DoesBufferExist(Id)) { return nullptr; }
-	SMemoryBuffer* resource = IAllocator::New<SMemoryBuffer>(Allocator);
-	Buffers.Insert(Id, resource);
-	return resource;
+	if (DoesBufferExist(Id)) { return NullPointer(); }
+	Ref<SMemoryBuffer> ref = Buffers.Insert(
+		Move(Id), 
+		UniquePtr<SMemoryBuffer>(IMemory::New<SMemoryBuffer>())
+	);
+	return ref;
 }
 
-SMemoryBuffer* IDeviceStore::GetBuffer(size_t Id)
+Ref<SMemoryBuffer> IDeviceStore::GetBuffer(size_t Id)
 {
-	if (!DoesBufferExist(Id)) { return nullptr; }
+	if (!DoesBufferExist(Id)) { return NullPointer(); }
 	return Buffers[Id];
 }
 
-bool IDeviceStore::DeleteBuffer(size_t Id, bool Free)
+bool IDeviceStore::DeleteBuffer(size_t Id)
 {
 	if (!DoesBufferExist(Id)) { return false; }
-	if (Free) 
-	{ 
-		SMemoryBuffer* resource = Buffers[Id];
-		IAllocator::Delete<SMemoryBuffer>(resource, Allocator);
-	}
 	Buffers.Remove(Id);
 	return true;
 }
 
-SDescriptorSet* IDeviceStore::NewDescriptorSet(size_t Id)
+Ref<SDescriptorSet> IDeviceStore::NewDescriptorSet(size_t Id)
 {
-	if (DoesDescriptorSetExist(Id)) { return nullptr; }
-	SDescriptorSet* resource = IAllocator::New<SDescriptorSet>(Allocator);
-	DescriptorSets.Insert(Id, resource);
-	return resource;
+	if (DoesDescriptorSetExist(Id)) { return NullPointer(); }
+	Ref<SDescriptorSet> ref = DescriptorSets.Insert(
+		Move(Id), 
+		UniquePtr<SDescriptorSet>(IMemory::New<SDescriptorSet>())
+	);
+	return ref;
 }
 
-SDescriptorSet* IDeviceStore::GetDescriptorSet(size_t Id)
+Ref<SDescriptorSet> IDeviceStore::GetDescriptorSet(size_t Id)
 {
-	if (!DoesDescriptorSetExist(Id)) { return nullptr; }
+	if (!DoesDescriptorSetExist(Id)) { return NullPointer(); }
 	return DescriptorSets[Id];
 }
 
-bool IDeviceStore::DeleteDescriptorSet(size_t Id, bool Free)
+bool IDeviceStore::DeleteDescriptorSet(size_t Id)
 {
+	
 	if (!DoesDescriptorSetExist(Id)) { return false; }
-	if (Free)
-	{
-		SDescriptorSet* resource = DescriptorSets[Id];
-		IAllocator::Delete<SDescriptorSet>(resource, Allocator);
-	}
 	DescriptorSets.Remove(Id);
 	return true;
 }
 
-SDescriptorPool* IDeviceStore::NewDescriptorPool(size_t Id)
+Ref<SDescriptorPool> IDeviceStore::NewDescriptorPool(size_t Id)
 {
-	if (DoesDescriptorPoolExist(Id)) { return nullptr; }
-	SDescriptorPool* resource = IAllocator::New<SDescriptorPool>(Allocator);
-	DescriptorPools.Insert(Id, resource);
-	return resource;
+	if (DoesDescriptorPoolExist(Id)) { return NullPointer(); }
+	Ref<SDescriptorPool> ref = DescriptorPools.Insert(
+		Move(Id), 
+		UniquePtr<SDescriptorPool>(IMemory::New<SDescriptorPool>())
+	);
+	return ref;
 }
 
-SDescriptorPool* IDeviceStore::GetDescriptorPool(size_t Id)
+Ref<SDescriptorPool> IDeviceStore::GetDescriptorPool(size_t Id)
 {
-	if (!DoesDescriptorPoolExist(Id)) { return nullptr; }
+	if (!DoesDescriptorPoolExist(Id)) { return NullPointer(); }
 	return DescriptorPools[Id];
 }
 
-bool IDeviceStore::DeleteDescriptorPool(size_t Id, bool Free)
+bool IDeviceStore::DeleteDescriptorPool(size_t Id)
 {
 	if (!DoesDescriptorPoolExist(Id)) { return false; }
-	if (Free)
-	{
-		SDescriptorPool* resource = DescriptorPools[Id];
-		IAllocator::Delete<SDescriptorPool>(resource, Allocator);
-	}
 	DescriptorPools.Remove(Id);
 	return true;
 }
 
-SDescriptorSetLayout* IDeviceStore::NewDescriptorSetLayout(size_t Id)
+Ref<SDescriptorSetLayout> IDeviceStore::NewDescriptorSetLayout(size_t Id)
 {
-	if (DoesDescriptorSetLayoutExist(Id)) { return nullptr; }
-	SDescriptorSetLayout* resource = IAllocator::New<SDescriptorSetLayout>(Allocator);
-	DescriptorSetLayouts.Insert(Id, resource);
-	return resource;
+	if (DoesDescriptorSetLayoutExist(Id)) { return NullPointer(); }
+	Ref<SDescriptorSetLayout> ref = DescriptorSetLayouts.Insert(
+		Move(Id), 
+		UniquePtr<SDescriptorSetLayout>(IMemory::New<SDescriptorSetLayout>())
+	);
+	return ref;
 }
 
-SDescriptorSetLayout* IDeviceStore::GetDescriptorSetLayout(size_t Id)
+Ref<SDescriptorSetLayout> IDeviceStore::GetDescriptorSetLayout(size_t Id)
 {
-	if (!DoesDescriptorSetLayoutExist(Id)) { return nullptr; }
+	if (!DoesDescriptorSetLayoutExist(Id)) { return NullPointer(); }
 	return DescriptorSetLayouts[Id];
 }
 
-bool IDeviceStore::DeleteDescriptorSetLayout(size_t Id, bool Free)
+bool IDeviceStore::DeleteDescriptorSetLayout(size_t Id)
 {
 	if (!DoesDescriptorSetLayoutExist(Id)) { return false; }
-	if (Free)
-	{
-		SDescriptorSetLayout* resource = DescriptorSetLayouts[Id];
-		IAllocator::Delete<SDescriptorSetLayout>(resource, Allocator);
-	}
 	DescriptorSetLayouts.Remove(Id);
 	return true;
 }
 
-SRenderPass* IDeviceStore::NewRenderPass(size_t Id)
+Ref<SRenderPass> IDeviceStore::NewRenderPass(size_t Id)
 {
-	if (DoesRenderPassExist(Id)) { return nullptr; }
-	SRenderPass* resource = IAllocator::New<SRenderPass>(Allocator);
-	RenderPasses.Insert(Id, resource);
-	return resource;
+	if (DoesRenderPassExist(Id)) { return NullPointer(); }
+	Ref<SRenderPass> ref = RenderPasses.Insert(
+		Move(Id), 
+		UniquePtr<SRenderPass>(IMemory::New<SRenderPass>())
+	);
+	return ref;
 }
 
-SRenderPass* IDeviceStore::GetRenderPass(size_t Id)
+Ref<SRenderPass> IDeviceStore::GetRenderPass(size_t Id)
 {
-	if (!DoesRenderPassExist(Id)) { return nullptr; }
+	if (!DoesRenderPassExist(Id)) { return NullPointer(); }
 	return RenderPasses[Id];
 }
 
-bool IDeviceStore::DeleteRenderPass(size_t Id, bool Free)
+bool IDeviceStore::DeleteRenderPass(size_t Id)
 {
 	if (!DoesRenderPassExist(Id)) { return false; }
-	if (Free)
-	{
-		SRenderPass* resource = RenderPasses[Id];
-		IAllocator::Delete<SRenderPass>(resource, Allocator);
-	}
 	RenderPasses.Remove(Id);
 	return true;
 }
 
-SImageSampler* IDeviceStore::NewImageSampler(size_t Id)
+Ref<SImageSampler> IDeviceStore::NewImageSampler(size_t Id)
 {
-	if (DoesImageSamplerExist(Id)) { return nullptr; }
-	SImageSampler* resource = IAllocator::New<SImageSampler>(Allocator);
-	ImageSamplers.Insert(Id, resource);
-	return resource;
+	if (DoesImageSamplerExist(Id)) { return NullPointer(); }
+	Ref<SImageSampler> ref = ImageSamplers.Insert(
+		Move(Id), 
+		UniquePtr<SImageSampler>(IMemory::New<SImageSampler>())
+	);
+	return ref;
 }
 
-SImageSampler* IDeviceStore::GetImageSampler(size_t Id)
+Ref<SImageSampler> IDeviceStore::GetImageSampler(size_t Id)
 {
-	if (!DoesImageSamplerExist(Id)) { return nullptr; }
+	if (!DoesImageSamplerExist(Id)) { return NullPointer(); }
 	return ImageSamplers[Id];
 }
 
-SImageSampler* IDeviceStore::GetImageSamplerWithHash(uint64 Hash)
+Ref<SImageSampler> IDeviceStore::GetImageSamplerWithHash(uint64 Hash)
 {
 	for (auto& [key, value] : ImageSamplers)
 	{
@@ -1519,95 +1567,81 @@ SImageSampler* IDeviceStore::GetImageSamplerWithHash(uint64 Hash)
 			return value;
 		}
 	}
-	return nullptr;
+	return NullPointer();
 }
 
-bool IDeviceStore::DeleteImageSampler(size_t Id, bool Free)
+bool IDeviceStore::DeleteImageSampler(size_t Id)
 {
 	if (!DoesImageSamplerExist(Id)) { return false; }
-	if (Free)
-	{
-		SImageSampler* resource = ImageSamplers[Id];
-		IAllocator::Delete<SImageSampler>(resource, Allocator);
-	}
 	ImageSamplers.Remove(Id);
 	return true;
 }
 
-SPipeline* IDeviceStore::NewPipeline(size_t Id)
+Ref<SPipeline> IDeviceStore::NewPipeline(size_t Id)
 {
-	if (DoesPipelineExist(Id)) { return nullptr; }
-	SPipeline* resource = IAllocator::New<SPipeline>(Allocator);
-	Pipelines.Insert(Id, resource);
-	return resource;
+	if (DoesPipelineExist(Id)) { return NullPointer(); }
+	Ref<SPipeline> ref = Pipelines.Insert(
+		Move(Id), 
+		UniquePtr<SPipeline>(IMemory::New<SPipeline>())
+	);
+	return ref;
 }
 
-SPipeline* IDeviceStore::GetPipeline(size_t Id)
+Ref<SPipeline> IDeviceStore::GetPipeline(size_t Id)
 {
-	if (!DoesPipelineExist(Id)) { return nullptr; }
+	if (!DoesPipelineExist(Id)) { return NullPointer(); }
 	return Pipelines[Id];
 }
 
-bool IDeviceStore::DeletePipeline(size_t Id, bool Free)
+bool IDeviceStore::DeletePipeline(size_t Id)
 {
 	if (!DoesPipelineExist(Id)) { return false; }
-	if (Free)
-	{
-		SPipeline* resource = Pipelines[Id];
-		IAllocator::Delete<SPipeline>(resource, Allocator);
-	}
 	Pipelines.Remove(Id);
 	return true;
 }
 
-SShader* IDeviceStore::NewShader(size_t Id)
+Ref<SShader> IDeviceStore::NewShader(size_t Id)
 {
-	if (DoesShaderExist(Id)) { return nullptr; }
-	SShader* resource = IAllocator::New<SShader>(Allocator);
-	Shaders.Insert(Id, resource);
-	return resource;
+	if (DoesShaderExist(Id)) { return NullPointer(); }
+	Ref<SShader> ref = Shaders.Insert(
+		Move(Id), 
+		UniquePtr<SShader>(IMemory::New<SShader>())
+	);
+	return ref;
 }
 
-SShader* IDeviceStore::GetShader(size_t Id)
+Ref<SShader> IDeviceStore::GetShader(size_t Id)
 {
-	if (!DoesShaderExist(Id)) { return nullptr; }
+	if (!DoesShaderExist(Id)) { return NullPointer(); }
 	return Shaders[Id];
 }
 
-bool IDeviceStore::DeleteShader(size_t Id, bool Free)
+bool IDeviceStore::DeleteShader(size_t Id)
 {
 	if (!DoesShaderExist(Id)) { return false; }
-	if (Free)
-	{
-		SShader* resource = Shaders[Id];
-		IAllocator::Delete<SShader>(resource, Allocator);
-	}
 	Shaders.Remove(Id);
 	return true;
 }
 
-SImage* IDeviceStore::NewImage(size_t Id)
+Ref<SImage> IDeviceStore::NewImage(size_t Id)
 {
-	if (DoesImageExist(Id)) { return nullptr; }
-	SImage* resource = IAllocator::New<SImage>(Allocator);
-	Images.Insert(Id, resource);
-	return resource;
+	if (DoesImageExist(Id)) { return NullPointer(); }
+	Ref<SImage> ref = Images.Insert(
+		Move(Id), 
+		UniquePtr<SImage>(IMemory::New<SImage>())
+	);
+	return ref;
 }
 
-SImage* IDeviceStore::GetImage(size_t Id)
+Ref<SImage> IDeviceStore::GetImage(size_t Id)
 {
-	if (!DoesImageExist(Id)) { return nullptr; }
+	if (!DoesImageExist(Id)) { return NullPointer(); }
 	return Images[Id];
 }
 
-bool IDeviceStore::DeleteImage(size_t Id, bool Free)
+bool IDeviceStore::DeleteImage(size_t Id)
 {
 	if (!DoesImageExist(Id)) { return false; }
-	if (Free)
-	{
-		SImage* resource = Images[Id];
-		IAllocator::Delete<SImage>(resource, Allocator);
-	}
 	Images.Remove(Id);
 	return true;
 }
@@ -1853,6 +1887,13 @@ const VkPhysicalDeviceProperties& IRenderDevice::GetPhysicalDeviceProperties() c
 	return Properties;
 }
 
+void IRenderDevice::OnWindowResize(uint32 Width, uint32 Height)
+{
+	DestroyDefaultFramebuffer();
+	CreateSwapchain(Width, Height);
+	CreateDefaultFramebuffer();
+}
+
 const uint32 IRenderDevice::GetCurrentFrameIndex() const
 {
 	return CurrentFrameIndex;
@@ -1862,3 +1903,45 @@ const uint32 IRenderDevice::GetNextSwapchainImageIndex() const
 {
 	return NextSwapchainImageIndex;
 }
+
+IRenderDevice::ZombieObject::ZombieObject() :
+	Hnd(nullptr), 
+	Type(EHandleType::Handle_Type_None), 
+	CommandPool{}, 
+	DescriptorPool{}, 
+	Allocation{}
+{}
+
+IRenderDevice::ZombieObject::ZombieObject(void* Handle, EHandleType Type) :
+	Hnd(Handle), 
+	Type(Type),
+	CommandPool{},
+	DescriptorPool{},
+	Allocation{}
+{}
+
+IRenderDevice::ZombieObject::ZombieObject(void* Handle, VkCommandPool Pool) :
+	Hnd(Handle), 
+	Type(EHandleType::Handle_Type_Command_Buffer), 
+	CommandPool(Pool), 
+	DescriptorPool{}, 
+	Allocation{}
+{}
+
+IRenderDevice::ZombieObject::ZombieObject(void* Handle, VkDescriptorPool Pool) :
+	Hnd(Handle), 
+	Type(EHandleType::Handle_Type_Descriptor_Set), 
+	CommandPool{}, 
+	DescriptorPool(Pool), 
+	Allocation{}
+{}
+
+IRenderDevice::ZombieObject::ZombieObject(void* Handle, EHandleType Type, VmaAllocation Allocation) :
+	Hnd(Handle), 
+	Type(Type), 
+	CommandPool{}, 
+	DescriptorPool{}, 
+	Allocation(Allocation)
+{}
+
+IRenderDevice::ZombieObject::~ZombieObject() {}

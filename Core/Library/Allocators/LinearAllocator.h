@@ -70,7 +70,7 @@ public:
 
 	void FlushMemory()
 	{
-		IMemory::Memzero(Block, Size);
+		//IMemory::Memzero(Block, Size);
 		Offset = 0;
 	}
 

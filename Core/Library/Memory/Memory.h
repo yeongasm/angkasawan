@@ -29,6 +29,15 @@ struct ENGINE_API IMemory
 	static size_t	CalculatePadding	(const uintptr_t BaseAddress, size_t Alignment);
 
 	template <typename T>
+	static T* New() { return new T(); }
+
+	template <typename T>
+	static T* New(size_t Count) { return new T[Count]; }
+
+	template <typename T>
+	static void Delete(T* Resource) { delete Resource; }
+
+	template <typename T>
 	static void	InitializeObject(T* Object) 
 	{
 		Memzero(Object, sizeof(T));
@@ -55,21 +64,78 @@ struct ENGINE_API IMemory
 	}
 };
 
-//struct ENGINE_API MemoryBlock
-//{
-//	uint8*	Block;
-//	size_t	Size;
-//
-//	MemoryBlock() : Block(nullptr), Size(0) {}
-//	~MemoryBlock() {}
-//	MemoryBlock(const MemoryBlock& Rhs)				= delete;
-//	MemoryBlock(MemoryBlock&& Rhs)					= delete;
-//	MemoryBlock& operator=(const MemoryBlock& Rhs)	= delete;
-//	MemoryBlock& operator=(MemoryBlock&& Rhs)		= delete;
-//
-//	void*	Malloc	(size_t Size);
-//	void*	Realloc	(void* Block, size_t Size);
-//	void	Free	();
-//};
+struct NullPointer {};
+
+template <typename T>
+class Ref;
+
+template <typename T>
+class UniquePtr
+{
+private:
+	friend class Ref<T>;
+	T* _Ptr;
+public:
+	UniquePtr() : _Ptr(nullptr) {}
+	UniquePtr(T* Object) : _Ptr(Object) {}
+	~UniquePtr() { if (_Ptr) { IMemory::Delete(_Ptr); } }
+
+	UniquePtr(const UniquePtr& Rhs) = delete;
+	UniquePtr& operator=(const UniquePtr& Rhs) = delete;
+
+	//UniquePtr(const UniquePtr& Rhs) { *this = Rhs; };
+	//UniquePtr& operator=(const UniquePtr& Rhs)
+	//{
+	//	if (this != &Rhs) { _Ptr = Rhs._Ptr; }
+	//	return *this;
+	//}
+
+	UniquePtr(UniquePtr&& Rhs) { *this = Move(Rhs); }
+	UniquePtr& operator=(UniquePtr&& Rhs)
+	{
+		if (this != &Rhs) { _Ptr = Rhs._Ptr; new (&Rhs) UniquePtr(); }
+		return *this;
+	}
+	T* operator->() { return _Ptr; }
+	const T* operator->() const { return _Ptr; }
+	bool operator==(const UniquePtr& Rhs) { return _Ptr == Rhs._Ptr; }
+	bool operator!=(const UniquePtr& Rhs) { return _Ptr != Rhs._Ptr; }
+	explicit operator bool() const { return _Ptr; }
+};
+
+template <typename T>
+class Ref
+{
+private:
+	T* _Ptr;
+public:
+	Ref() : _Ptr(nullptr) {}
+	~Ref() { _Ptr = nullptr; }
+	Ref(NullPointer) : _Ptr(nullptr) {}
+	Ref(T* Src) : _Ptr(Src) {} // Temporary solution ...
+	Ref(UniquePtr<T>& Src) : _Ptr(Src._Ptr) {}
+	Ref(const UniquePtr<T>& Src) : _Ptr(Src._Ptr) {}
+	Ref(const Ref& Rhs) { *this = Rhs; }
+	Ref(Ref&& Rhs) { *this = Move(Rhs); }
+	Ref& operator=(const Ref& Rhs)
+	{
+		if (this != &Rhs) { _Ptr = Rhs._Ptr; }
+		return *this;
+	}
+	Ref& operator=(Ref&& Rhs)
+	{
+		if (this != &Rhs) { _Ptr = Rhs._Ptr; new (&Rhs) Ref(); }
+		return *this;
+	}
+	Ref& operator=(T* Src) { _Ptr = Src; return *this; }	// Temporary solution ...
+	Ref& operator=(UniquePtr<T> Src) { _Ptr = Src._Ptr; return *this; }
+	T* operator->() { return _Ptr; }
+	const T* operator->() const { return _Ptr; }
+	bool operator==(NullPointer) const { return  _Ptr == nullptr; }
+	bool operator!=(NullPointer) const { return _Ptr != nullptr; }
+	bool operator==(const Ref& Rhs) const { return _Ptr == Rhs._Ptr; }
+	bool operator!=(const Ref& Rhs) const { return _Ptr != Rhs._Ptr; }
+	explicit operator bool() const { return _Ptr; }
+};
 
 #endif // !LEARNVK_MEMORY

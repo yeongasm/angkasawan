@@ -83,6 +83,8 @@ private:
 
 			return *this;
 		}
+
+
 	};
 
 	using This			= Map<KeyType, ValueType, HashAlgorithm, BucketSlack>;
@@ -161,9 +163,12 @@ private:
 			Entries.Reserve(NewCapacity);
 		}
 
+		ElementNode Temp(Forward<ForwardType>(Element)...);
+
 		HashFunc Func;
 		size_t Constant = 0;
-		size_t Hash		= static_cast<size_t>(Func(KeyType(Element.Key)...));
+		//size_t Hash		= static_cast<size_t>(Func(KeyType(Element.Key)...));
+		size_t Hash		= static_cast<size_t>(Func(Temp.Key));
 		size_t Index	= ProbeForIndex(Hash, Constant);
 			
 		ElementNode* Entry = &Entries[Index];
@@ -174,14 +179,15 @@ private:
 			Entry = &Entries[Index];
 		}
 		
-		//*Entry = ElementNode(Forward<ForwardType>(Element)...);
-		new (Entry) ElementNode(Element...);
+		*Entry = Move(Temp);
+		//new (Entry) ElementNode(Forward<ForwardType>(Element)...);
 		Entry->Status = Bucket_IsOccupied;
 		NumBuckets--;
 
 		if (!First && !Last)
 		{
 			First = Last = Entry;
+			First->Next = Last;
 		}
 		else
 		{
@@ -242,14 +248,13 @@ private:
 		
 		if (!Element) { return; }
 
-		if (Last == Element)
+		if (Last == Element)	{ Last = Last->Previous; }
+		if (First == Element)	{ First = First->Next; }
+
+		NumBuckets++;
+		if (NumBuckets == Entries.Size())
 		{
-			Last = Last->Previous;
-		}
-		
-		if (First == Element)
-		{
-			First = First->Next;
+			First = Last = nullptr;
 		}
 
 		Element->Key.~KeyType();
@@ -258,8 +263,6 @@ private:
 		new (Element) ElementNode();
 
 		Element->Status = Bucket_WasDeleted;
-
-		NumBuckets++;
 	}
 
 
@@ -279,68 +282,69 @@ public:
 
 	ValueType& operator[] (const KeyType& Key)
 	{
+		KeyType KeyCopy = Key;
 		ValueType* Value = Get(Key);
 		if (!Value) 
 		{
-			Value = &Add(Key, {}).Value;
+			Value = &Add(Move(KeyCopy), {}).Value;
 		}
 		return *Value;
 	}
 
+	ValueType& operator[] (KeyType&& Key)
+	{
+		ValueType* Value = Get(Key);
+		if (!Value)
+		{
+			Value = &Add(Move(Key), {}).Value;
+		}
+		return *Value;
+	}
 
 	const ValueType& operator[] (const KeyType& Key) const
 	{
 		return *Get(Key);
 	}
 
-
 	ElementType& Add(const Pair<KeyType, ValueType>& Element)
 	{
-		ElementType& Result = StoreObjectInMap(Element);
-		return Result;
+		return StoreObjectInMap(Element);
 	}
-
 
 	ElementType& Add(ElementType&& Element)
 	{
-		ElementType& Result = StoreObjectInMap(Move(Element));
-		return Result;
+		return StoreObjectInMap(Move(Element));
 	}
 
 
 	ElementType& Add(const KeyType& Key, const ValueType& Value)
 	{
-		ElementType& Result = StoreObjectInMap(ElementType(Key, Value));
-		return Result;
+		return StoreObjectInMap(Key, Value);
 	}
-
 
 	ElementType& Add(KeyType&& Key, ValueType&& Value)
 	{
-		ElementType& Result = StoreObjectInMap(ElementNode(Move(Key), Move(Value)));
-		return Result;
+		return StoreObjectInMap(Move(Key), Move(Value));
 	}
-
 
 	ValueType& Insert(const ElementType& Element)
 	{
-		return Add(Element).Value;
+		return StoreObjectInMap(Element).Value;
 	}
-
 
 	ValueType& Insert(ElementType&& Element)
 	{
-		return Add(Move(Element)).Value;
+		return StoreObjectInMap(Forward<ElementType>(Element)).Value;
 	}
 
 	ValueType& Insert(const KeyType& Key, const ValueType& Value)
 	{
-		return Add(Key, Value).Value;
+		return StoreObjectInMap(Key, Value).Value;
 	}
 
 	ValueType& Insert(KeyType&& Key, ValueType&& Value)
 	{
-		return Add(Move(Key), Move(Value)).Value;
+		return StoreObjectInMap(Move(Key), Move(Value)).Value;
 	}
 
 	/**

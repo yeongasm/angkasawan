@@ -13,24 +13,50 @@ class IRenderDevice
 {
 public:
 
+	enum class EHandleType : uint32
+	{
+		Handle_Type_None,
+		Handle_Type_Command_Buffer,
+		Handle_Type_Command_Pool,
+		Handle_Type_Framebuffer,
+		Handle_Type_Renderpass,
+		Handle_Type_Image,
+		Handle_Type_Image_View,
+		Handle_Type_Image_Sampler,
+		Handle_Type_Buffer,
+		Handle_Type_Descriptor_Pool,
+		Handle_Type_Descriptor_Set_Layout,
+		Handle_Type_Descriptor_Set,
+		Handle_Type_Shader,
+		Handle_Type_Pipeline,
+		Handle_Type_Pipeline_Layout
+	};
+
+	struct ZombieObject
+	{
+		union
+		{
+			size_t Mem;
+			void* Hnd;
+		};
+		VkCommandPool CommandPool;
+		VkDescriptorPool DescriptorPool;
+		VmaAllocation Allocation; // Only for buffer & image types;
+		EHandleType Type;
+
+		ZombieObject();
+		ZombieObject(void* Handle, EHandleType Type);
+		ZombieObject(void* Handle, VkCommandPool Pool);
+		ZombieObject(void* Handle, VkDescriptorPool Pool);
+		ZombieObject(void* Handle, EHandleType Type, VmaAllocation Allocation);
+		~ZombieObject();
+	};
+
 	enum ESemaphoreType : uint32
 	{
 		Semaphore_Type_Image_Available = 0,
 		Semaphore_Type_Render_Complete = 1,
 		Semaphore_Type_Max = 2
-	};
-
-	enum class EHandleType : uint32
-	{
-		Handle_Type_Command_Buffer,
-		Handle_Type_Framebuffer,
-		Handle_Type_Renderpass,
-		Handle_Type_Image,
-		Handle_Type_Image_View,
-		Handle_Type_Buffer,
-		Handle_Type_Descriptor_Pool,
-		Handle_Type_Descriptor_Set_Layout,
-		Handle_Type_Descriptor_Set
 	};
 
 	struct VulkanFramebuffer
@@ -84,9 +110,16 @@ public:
 
 	void DeviceWaitIdle();
 
+	template <typename... Types>
+	void MoveToZombieList(Types&&... Args)
+	{
+		ZombieList.Push(ZombieObject(Forward<Types>(Args)...));
+	}
+
+	void ClearZombieList();
+
 	VkCommandPool CreateCommandPool(uint32 QueueFamilyIndex, VkCommandPoolCreateFlags Flags);
 	VkCommandPool GetGraphicsCommandPool();
-	void DestroyCommandPool(VkCommandPool Hnd);
 	VkCommandBuffer AllocateCommandBuffer(VkCommandPool PoolHnd, VkCommandBufferLevel Level, uint32 Count);
 	void ResetCommandBuffer(VkCommandBuffer Hnd, VkCommandBufferResetFlags Flag);
 	VkFence CreateFence(VkFenceCreateFlags Flag = VK_FENCE_CREATE_SIGNALED_BIT);
@@ -141,6 +174,8 @@ public:
 
 	const VkPhysicalDeviceProperties& GetPhysicalDeviceProperties() const;
 
+	void OnWindowResize(uint32 Width, uint32 Height);
+
 	/**
 	* Current frame's index.
 	*/
@@ -153,6 +188,7 @@ private:
 	//~IRenderDevice() = delete;
 	DELETE_COPY_AND_MOVE(IRenderDevice)
 
+	Array<ZombieObject> ZombieList;
 	EngineImpl* Engine;
 	OS::DllHandle Dll;
 	VkInstance Instance;
@@ -192,7 +228,7 @@ private:
 	bool CreateDefaultRenderpass();
 	bool CreateAllocator();
 	//bool CreateTransferOperation();
-	bool CreateCommandPool();
+	bool CreateDefaultCommandPool();
 	bool AllocateCommandBuffers();
 	void FreeVulkanLibrary();
 
@@ -213,19 +249,19 @@ struct SImageSampler;
 
 struct IDeviceStore
 {
-	IAllocator& Allocator;
-	Map<size_t, SMemoryBuffer*> Buffers;
-	Map<size_t, SDescriptorSet*> DescriptorSets;
-	Map<size_t, SDescriptorPool*> DescriptorPools;
-	Map<size_t, SDescriptorSetLayout*> DescriptorSetLayouts;
-	Map<size_t, SRenderPass*> RenderPasses;
-	Map<size_t, SImageSampler*> ImageSamplers;
-	Map<size_t, SPipeline*> Pipelines;
-	Map<size_t, SShader*> Shaders;
-	Map<size_t, SImage*> Images;
+	//IAllocator& Allocator;
+	Map<size_t, UniquePtr<SMemoryBuffer>> Buffers;
+	Map<size_t, UniquePtr<SDescriptorSet>> DescriptorSets;
+	Map<size_t, UniquePtr<SDescriptorPool>> DescriptorPools;
+	Map<size_t, UniquePtr<SDescriptorSetLayout>> DescriptorSetLayouts;
+	Map<size_t, UniquePtr<SRenderPass>> RenderPasses;
+	Map<size_t, UniquePtr<SImageSampler>> ImageSamplers;
+	Map<size_t, UniquePtr<SPipeline>> Pipelines;
+	Map<size_t, UniquePtr<SShader>> Shaders;
+	Map<size_t, UniquePtr<SImage>> Images;
 	//Map<size_t, SPushConstant*> PushConstants;
 
-	IDeviceStore(IAllocator& InAllocator);
+	IDeviceStore(/*IAllocator& InAllocator*/);
 	~IDeviceStore();
 
 	DELETE_COPY_AND_MOVE(IDeviceStore)
@@ -240,42 +276,42 @@ struct IDeviceStore
 	bool DoesShaderExist(size_t Id);
 	bool DoesImageExist(size_t Id);
 
-	SMemoryBuffer* NewBuffer(size_t Id);
-	SMemoryBuffer* GetBuffer(size_t Id);
-	bool DeleteBuffer(size_t Id, bool Free = false);
+	Ref<SMemoryBuffer> NewBuffer(size_t Id);
+	Ref<SMemoryBuffer> GetBuffer(size_t Id);
+	bool DeleteBuffer(size_t Id);
 
-	SDescriptorSet* NewDescriptorSet(size_t Id);
-	SDescriptorSet* GetDescriptorSet(size_t Id);
-	bool DeleteDescriptorSet(size_t Id, bool Free = false);
+	Ref<SDescriptorSet> NewDescriptorSet(size_t Id);
+	Ref<SDescriptorSet> GetDescriptorSet(size_t Id);
+	bool DeleteDescriptorSet(size_t Id);
 
-	SDescriptorPool* NewDescriptorPool(size_t Id);
-	SDescriptorPool* GetDescriptorPool(size_t Id);
-	bool DeleteDescriptorPool(size_t Id, bool Free = false);
+	Ref<SDescriptorPool> NewDescriptorPool(size_t Id);
+	Ref<SDescriptorPool> GetDescriptorPool(size_t Id);
+	bool DeleteDescriptorPool(size_t Id);
 
-	SDescriptorSetLayout* NewDescriptorSetLayout(size_t Id);
-	SDescriptorSetLayout* GetDescriptorSetLayout(size_t Id);
-	bool DeleteDescriptorSetLayout(size_t Id, bool Free = false);
+	Ref<SDescriptorSetLayout> NewDescriptorSetLayout(size_t Id);
+	Ref<SDescriptorSetLayout> GetDescriptorSetLayout(size_t Id);
+	bool DeleteDescriptorSetLayout(size_t Id);
 
-	SRenderPass* NewRenderPass(size_t Id);
-	SRenderPass* GetRenderPass(size_t Id);
-	bool DeleteRenderPass(size_t Id, bool Free = false);
+	Ref<SRenderPass> NewRenderPass(size_t Id);
+	Ref<SRenderPass> GetRenderPass(size_t Id);
+	bool DeleteRenderPass(size_t Id);
 
-	SImageSampler* NewImageSampler(size_t Id);
-	SImageSampler* GetImageSampler(size_t Id);
-	SImageSampler* GetImageSamplerWithHash(uint64 Hash);
-	bool DeleteImageSampler(size_t Id, bool Free = false);
+	Ref<SImageSampler> NewImageSampler(size_t Id);
+	Ref<SImageSampler> GetImageSampler(size_t Id);
+	Ref<SImageSampler> GetImageSamplerWithHash(uint64 Hash);
+	bool DeleteImageSampler(size_t Id);
 
-	SPipeline* NewPipeline(size_t Id);
-	SPipeline* GetPipeline(size_t Id);
-	bool DeletePipeline(size_t Id, bool Free = false);
+	Ref<SPipeline> NewPipeline(size_t Id);
+	Ref<SPipeline> GetPipeline(size_t Id);
+	bool DeletePipeline(size_t Id);
 
-	SShader* NewShader(size_t Id);
-	SShader* GetShader(size_t Id);
-	bool DeleteShader(size_t Id, bool Free = false);
+	Ref<SShader> NewShader(size_t Id);
+	Ref<SShader> GetShader(size_t Id);
+	bool DeleteShader(size_t Id);
 
-	SImage* NewImage(size_t Id);
-	SImage* GetImage(size_t Id);
-	bool DeleteImage(size_t Id, bool Free = false);
+	Ref<SImage> NewImage(size_t Id);
+	Ref<SImage> GetImage(size_t Id);
+	bool DeleteImage(size_t Id);
 };
 
 #endif // !ANGKASA1_RENDERER_API_DEVICE_H

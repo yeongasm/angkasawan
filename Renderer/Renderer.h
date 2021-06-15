@@ -4,9 +4,7 @@
 
 #include "RenderPlatform/API.h"
 #include "Engine/Interface.h"
-//#include "API/Device.h"
 #include "API/RendererFlagBits.h"
-#include "Library/Containers/Ref.h"
 #include "Library/Containers/Node.h"
 #include "Library/Math/Matrix.h"
 #include "SubSystem/Resource/Handle.h"
@@ -57,12 +55,12 @@ private:
 	{
 		struct Key
 		{
-			SDescriptorSet* pSet;
-			SDescriptorSetLayout::Binding* pBinding;
+			Ref<SDescriptorSet> pSet;
+			Ref<SDescriptorSetLayout::Binding> pBinding;
 			size_t _Key;
 
 			Key();
-			Key(SDescriptorSet* InSet, SDescriptorSetLayout::Binding* InBinding, size_t InKey);
+			Key(Ref<SDescriptorSet> InSet, Ref<SDescriptorSetLayout::Binding> InBinding, size_t InKey);
 			~Key();
 
 			bool operator==(const Key& Rhs) { return _Key == Rhs._Key; }
@@ -78,10 +76,10 @@ private:
 		};
 
 		template <typename UpdateObject>
-		using Container = Map<Key, StaticArray<UpdateObject, MAX_DESCRIPTOR_BINDING_UPDATES>, XxHash<Key>>;
+		using Container = Map<Key, UpdateObject, XxHash<Key>>;
 
-		static Container<SImage*> _Images;
-		static Container<SMemoryBuffer*> _Buffers;
+		//static Container<SImage*> _Images;
+		static Container<Ref<SMemoryBuffer>> _Buffers;
 		
 		static size_t CalcKey(Handle<SDescriptorSet> SetHnd, uint32 Binding);
 	};
@@ -132,7 +130,7 @@ private:
 		static BindableRange _GlobalBindables;
 	};
 
-	using DefaultBuffer = Pair<Handle<SMemoryBuffer>, SMemoryBuffer*>;
+	using DefaultBuffer = Pair<Handle<SMemoryBuffer>, Ref<SMemoryBuffer>>;
 
 	EngineImpl& Engine;
 	IRenderDevice* pDevice;
@@ -156,19 +154,23 @@ private:
 	void BindBindable(SBindable& Bindable);
 	void BindBindablesForRenderpass(Handle<SRenderPass> Hnd);
 
+	void DynamicStateSetup(Ref<SRenderPass> pRenderPass);
+
 	void BindBuffers();
 	void BeginRenderPass(Ref<SRenderPass> pRenderPass);
 	void EndRenderPass(Ref<SRenderPass> pRenderPass);
 
 	void RecordDrawCommand(const DrawCommand& Command);
-	void PrepareDrawCommands();
-	void PreProcessVertexAndIndexBuffer();
+	//void PrepareDrawCommands();
+	//void MakeTransferToGpu();
 
 	void Clear();
 
 	uint64 GenHashForImageSampler(const ImageSamplerState& State);
 
 	void BlitToDefault();
+
+	void CopyToBuffer(Ref<SMemoryBuffer> pBuffer, void* Data, size_t Size, size_t Offset, bool Update = false);
 
 public:
 
@@ -181,39 +183,43 @@ public:
 	void OnUpdate		() override;
 	void OnTerminate	() override;
 
+	size_t PadToAlignedSize(size_t Size);
+
 	Handle<SDescriptorPool> CreateDescriptorPool();
 	bool DescriptorPoolAddSizeType(Handle<SDescriptorPool> Hnd, SDescriptorPool::Size Type);
 	bool BuildDescriptorPool(Handle<SDescriptorPool> Hnd);
-	bool DestroyDescriptorPool(Handle<SDescriptorPool> Hnd);
+	bool DestroyDescriptorPool(Handle<SDescriptorPool>& Hnd);
 
 	Handle<SDescriptorSetLayout> CreateDescriptorSetLayout();
 	bool DescriptorSetLayoutAddBinding(const DescriptorSetLayoutBindingInfo& BindInfo);
 	bool BuildDescriptorSetLayout(Handle<SDescriptorSetLayout> Hnd);
-	bool DestroyDescriptorSetLayout(Handle<SDescriptorSetLayout> Hnd);
+	bool DestroyDescriptorSetLayout(Handle<SDescriptorSetLayout>& Hnd);
 
 	Handle<SDescriptorSet> CreateDescriptorSet(const DescriptorSetAllocateInfo& AllocInfo);
-	bool DescriptorSetUpdateBuffer(Handle<SDescriptorSet> Hnd, uint32 BindingSlot, Handle<SMemoryBuffer> BufferHnd);
-	bool DescriptorSetUpdateTexture(Handle<SDescriptorSet> Hnd, uint32 BindingSlot, Handle<SImage> ImageHnd);
+	bool DescriptorSetMapToBuffer(Handle<SDescriptorSet> Hnd, uint32 BindingSlot, Handle<SMemoryBuffer> BufferHnd, size_t Offset0 = 0, size_t Offset1 = 0);
+	//bool DescriptorSetUpdateTexture(Handle<SDescriptorSet> Hnd, uint32 BindingSlot, Handle<SImage> ImageHnd);
 	bool DescriptorSetBindToGlobal(Handle<SDescriptorSet> Hnd);
 	bool BuildDescriptorSet(Handle<SDescriptorSet> Hnd);
 	bool DescriptorSetFlushBindingOffset(Handle<SDescriptorSet> Hnd);
-	bool DestroyDescriptorSet(Handle<SDescriptorSet> Hnd);
+	bool DestroyDescriptorSet(Handle<SDescriptorSet>& Hnd);
+
+	bool DescriptorSetUpdateDataAtBinding(Handle<SDescriptorSet> Hnd, uint32 BindingSlot, void* Data, size_t Size);
 
 	void UpdateDescriptorSetInQueue();
 
 	Handle<SMemoryBuffer> AllocateNewBuffer(const BufferAllocateInfo& AllocInfo);
 	bool CopyDataToBuffer(Handle<SMemoryBuffer> Hnd, void* Data, size_t Size, size_t Offset);
 	bool BuildBuffer(Handle<SMemoryBuffer> Hnd);
-	bool DestroyBuffer(Handle<SMemoryBuffer> Hnd);
+	bool DestroyBuffer(Handle<SMemoryBuffer>& Hnd);
 	
 	//Handle<SImage> CreateImage(const ImageCreateInfo& CreateInfo);
 	Handle<SImage> CreateImage(uint32 Width, uint32 Height, uint32 Channels, ETextureType Type);
 	bool BuildImage(Handle<SImage> Hnd);
-	bool DestroyImage(Handle<SImage> Hnd);
+	bool DestroyImage(Handle<SImage>& Hnd);
 
 	Handle<SImageSampler> CreateImageSampler(const ImageSamplerCreateInfo& CreateInfo);
 	bool BuildImageSampler(Handle<SImageSampler> Hnd);
-	bool DestroyImageSampler(Handle<SImageSampler> Hnd);
+	bool DestroyImageSampler(Handle<SImageSampler>& Hnd);
 
 	IStagingManager& GetStagingManager() const;
 	IFrameGraph& GetFrameGraph() const;
@@ -221,14 +227,14 @@ public:
 	//Handle<SShader> CreateShader(const ShaderCreateInfo& CreateInfo);
 	Handle<SShader> CreateShader(const String& Code, EShaderType Type);
 	bool BuildShader(Handle<SShader> Hnd);
-	bool DestroyShader(Handle<SShader> Hnd);
+	bool DestroyShader(Handle<SShader>& Hnd);
 
 	Handle<SPipeline> CreatePipeline(const PipelineCreateInfo& CreateInfo);
 	bool PipelineAddVertexInputBinding(Handle<SPipeline> Hnd, SPipeline::VertexInputBinding Input);
 	bool PipelineAddRenderPass(Handle<SPipeline> Hnd, Handle<SRenderPass> RenderPass);
 	bool PipelineAddDescriptorSetLayout(Handle<SPipeline> Hnd, Handle<SDescriptorSetLayout> Layout);
 	bool BuildGraphicsPipeline(Handle<SPipeline> Hnd);
-	bool DestroyPipeline(Handle<SPipeline> Hnd);
+	bool DestroyPipeline(Handle<SPipeline>& Hnd);
 
 	bool BindDescriptorSet(Handle<SDescriptorSet> Hnd, Handle<SRenderPass> RenderpassHnd);
 	bool BindPipeline(Handle<SPipeline> Hnd, Handle<SRenderPass> RenderpassHnd);
@@ -237,6 +243,9 @@ public:
 	const uint32 GetMaxDrawablesCount() const;
 	const uint32 GetDrawableCount() const;
 	const uint32 GetCurrentFrameIndex() const;
+
+	void PrepareDrawCommands();
+	void MakeTransferToGpu();
 
 	//bool BlitToDefault(Handle<SImage> Hnd);
 

@@ -156,9 +156,6 @@
     <ClInclude Include="Library\Algorithms\Private\xxhash.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Library\Containers\Ref.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="SubSystem\Serializer\Serializer.h">
       <Filter>Header Files</Filter>
     </ClInclude>

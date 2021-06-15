@@ -24,7 +24,7 @@ struct Pair
 	Pair(const std::initializer_list<Pair<KeyType, ValueType>>& InitList) :
 		Key(InitList[0]), Value(InitList[1]) {}
 
-	Pair(const std::initializer_list<Pair<KeyType, ValueType>>&& InitList) :
+	Pair(std::initializer_list<Pair<KeyType, ValueType>>&& InitList) :
 		Key(Move(InitList[0])), Value(Move(InitList[1])) {}
 
 	Pair(const Pair& Rhs)	{ *this = Rhs; }

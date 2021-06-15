@@ -123,7 +123,7 @@
     <PostBuildEvent>
       <Command>xcopy "$(TargetDir)$(ProjectName).dll" "$(SolutionDir)Bin\$(Configuration)\" /y /q
 xcopy "$(TargetDir)$(ProjectName).pdb" "$(SolutionDir)Bin\$(Configuration)\" /y /q
-xcopy "$(TargetDir)$(ProjectName).ilk" "$(SolutionDir)Bin\$(Configuration)\" /y /q</Command>
+</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -173,7 +173,7 @@ xcopy "$(TargetDir)$(ProjectName).ilk" "$(SolutionDir)Bin\$(Configuration)\" /y 
     <PostBuildEvent>
       <Command>xcopy "$(TargetDir)$(ProjectName).dll" "$(SolutionDir)Bin\$(Configuration)\" /y /q
 xcopy "$(TargetDir)$(ProjectName).pdb" "$(SolutionDir)Bin\$(Configuration)\" /y /q
-xcopy "$(TargetDir)$(ProjectName).ilk" "$(SolutionDir)Bin\$(Configuration)\" /y /q</Command>
+</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -212,7 +212,6 @@ xcopy "$(TargetDir)$(ProjectName).ilk" "$(SolutionDir)Bin\$(Configuration)\" /y 
     <ClInclude Include="Library\Containers\Bitset.h" />
     <ClInclude Include="Library\Containers\Buffer.h" />
     <ClInclude Include="Library\Containers\Node.h" />
-    <ClInclude Include="Library\Containers\Ref.h" />
     <ClInclude Include="Library\Math\Matrix.h" />
     <ClInclude Include="Library\Math\Operations.h" />
     <ClInclude Include="Library\Math\Vector.h" />

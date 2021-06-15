@@ -444,9 +444,9 @@ public:
 		VKT_ASSERT(Element >= Data && Element < Data + Capacity);
 
 		// The specified object should reside at an address that is an even multiple of of the Type's size.
-		VKT_ASSERT(reinterpret_cast<uint8*>(Element) - reinterpret_cast<uint8*>(Data) % sizeof(ElementType) == 0);
+		VKT_ASSERT(((uint8*)Element - (uint8*)Data) % sizeof(ElementType) == 0);
 
-		return reinterpret_cast<size_t>(Element - Data);
+		return static_cast<size_t>(Element - Data);
 	}
 
 	/**
@@ -741,6 +741,19 @@ public:
 	{
 		Destruct(0, Len, Reconstruct);
 		Len = 0;
+	}
+
+	inline size_t IndexOf(const ElementType& Element) const
+	{
+		return IndexOf(&Element);
+	}
+
+	inline size_t IndexOf(const ElementType* Element) const
+	{
+		const ElementType* Base = &Data[0];
+		VKT_ASSERT(Element >= Base && Element < Base + Capacity);
+		VKT_ASSERT(((uint8*)Element - (uint8*)Base) % sizeof(ElementType) == 0);
+		return static_cast<size_t>(Element - Base);
 	}
 
 	size_t Length() const

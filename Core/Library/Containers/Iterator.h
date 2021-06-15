@@ -459,7 +459,6 @@ public:
 		{
 			return true;
 		}
-
 		return Data != Rhs.Data;
 	}
 

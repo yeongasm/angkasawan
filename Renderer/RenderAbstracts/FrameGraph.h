@@ -7,13 +7,11 @@
 #include "Library/Containers/Array.h"
 #include "Library/Containers/String.h"
 #include "Library/Containers/Pair.h"
-#include "Library/Containers/Ref.h"
 #include "SubSystem/Resource/Handle.h"
 #include "RenderPlatform/API.h"
 #include "API/RendererFlagBits.h"
 #include "API/Definitions.h"
 #include "Engine/Interface.h"
-//#include "API/Device.h"
 
 class IFrameGraph;
 class IRenderSystem;
@@ -30,16 +28,28 @@ using VkFramebuffer = struct VkFramebuffer_T*;
 
 struct SRenderPass
 {
-	using Attachment = Pair<Handle<SImage>, Ref<SImage>>;
-	using AttachmentContainer = StaticArray<Attachment, MAX_RENDERPASS_ATTACHMENT_COUNT>;
+	struct OAttachment
+	{
+		Handle<SImage> Hnd;
+		Ref<SImage> pImg;
+	};
+
+	struct IAttachment
+	{
+		Ref<SRenderPass> pOwner;
+		uint32 AtIndex;
+	};
+
+	using OutputAttachments = StaticArray<OAttachment, MAX_RENDERPASS_ATTACHMENT_COUNT>;
+	using InputAttachments = StaticArray<IAttachment, MAX_RENDERPASS_ATTACHMENT_COUNT>;
 
 	Handle<SRenderPass> Hnd; // Not sure if I like this ... 
 	IFrameGraph* pOwner;
-	AttachmentContainer ColorInputs;
-	AttachmentContainer ColorOutputs;
+	InputAttachments ColorInputs;
+	OutputAttachments ColorOutputs;
 	VkFramebuffer Framebuffer[MAX_FRAMES_IN_FLIGHT];
-	Attachment DepthStencilInput;
-	Attachment DepthStencilOutput;
+	IAttachment DepthStencilInput;
+	OAttachment DepthStencilOutput;
 	VkRenderPass RenderPassHnd;
 	BitSet<ERenderPassFlagBits> Flags;
 	Extent2D Extent;
@@ -47,6 +57,7 @@ struct SRenderPass
 	float32 Depth;
 	ERenderPassType Type;
 	BitSet<ERenderPassOrderFlagBits> Order;
+	bool Rebuild = false;
 };
 
 struct RenderPassCreateInfo
@@ -56,8 +67,6 @@ struct RenderPassCreateInfo
 	Position Pos;
 	float32 Depth;
 	ERenderPassType Type;
-	//Handle<SDescriptorSet> DescriptorSetHnd;
-	//Handle<SPipeline> PipelineHnd;
 };
 
 /**
@@ -79,8 +88,8 @@ private:
 	static size_t _HashSeed;
 
 	IRenderSystem& Renderer;
-	SRenderPass::Attachment ColorImage;
-	SRenderPass::Attachment DepthStencilImage;
+	SRenderPass::OAttachment ColorImage;
+	SRenderPass::OAttachment DepthStencilImage;
 	PassContainer RenderPasses;
 	Extent2D Extent;
 	bool Built;
@@ -98,6 +107,7 @@ private:
 	// Destroys a vk renderpass.
 	void DestroyRenderPass(Ref<SRenderPass> pRenderPass);
 
+	void SetupAttachments(Ref<SImage> pColor, Ref<SImage> pDepthStencil);
 
 public:
 
@@ -124,8 +134,8 @@ public:
 	size_t GetNumRenderPasses()	const;
 	void SetOutputExtent(uint32 Width = 0, uint32 Height = 0);
 
-	//void OnWindowResize();
-	// 
+	void OnWindowResize();
+	
 	// Creates a CPU side image with the given extent.
 	// Does not create the resource on the GPU.
 	bool Initialize(const Extent2D& Extent);

@@ -54,7 +54,7 @@ bool IFrameGraph::CreateFramebuffer(Ref<SRenderPass> pRenderPass)
 
 	if (!pRenderPass->Flags.Has(RenderPass_Bit_No_Color_Render))
 	{
-		imageViews.Push(pRenderPass->pOwner->ColorImage.Value->ImgViewHnd);
+		imageViews.Push(pRenderPass->pOwner->ColorImage.pImg->ImgViewHnd);
 	}
 
 	for (auto& [hnd, pImg] : pRenderPass->ColorOutputs)
@@ -64,13 +64,13 @@ bool IFrameGraph::CreateFramebuffer(Ref<SRenderPass> pRenderPass)
 
 	if (pRenderPass->Flags.Has(RenderPass_Bit_DepthStencil_Output))
 	{
-		imageViews.Push(pRenderPass->DepthStencilOutput.Value->ImgViewHnd);
+		imageViews.Push(pRenderPass->DepthStencilOutput.pImg->ImgViewHnd);
 	}
 	else
 	{
 		if (!pRenderPass->Flags.Has(RenderPass_Bit_No_DepthStencil_Render))
 		{
-			imageViews.Push(pRenderPass->pOwner->DepthStencilImage.Value->ImgViewHnd);
+			imageViews.Push(pRenderPass->pOwner->DepthStencilImage.pImg->ImgViewHnd);
 		}
 	}
 
@@ -98,10 +98,9 @@ bool IFrameGraph::CreateFramebuffer(Ref<SRenderPass> pRenderPass)
 void IFrameGraph::DestroyFramebuffer(Ref<SRenderPass> pRenderPass)
 {
 	const VkDevice device = Renderer.pDevice->GetDevice();
-	vkDeviceWaitIdle(device);
 	for (size_t i = 0; i < MAX_SWAPCHAIN_IMAGE_ALLOWED; i++)
 	{
-		vkDestroyFramebuffer(device, pRenderPass->Framebuffer[i], nullptr);
+		Renderer.pDevice->MoveToZombieList(pRenderPass->Framebuffer[i], IRenderDevice::EHandleType::Handle_Type_Framebuffer);
 		pRenderPass->Framebuffer[i] = VK_NULL_HANDLE;
 	}
 }
@@ -246,8 +245,17 @@ bool IFrameGraph::CreateRenderPass(Ref<SRenderPass> pRenderPass)
 void IFrameGraph::DestroyRenderPass(Ref<SRenderPass> pRenderPass)
 {
 	const VkDevice device = Renderer.pDevice->GetDevice();
-	vkDeviceWaitIdle(device);
-	vkDestroyRenderPass(device, pRenderPass->RenderPassHnd, nullptr);
+	Renderer.pDevice->MoveToZombieList(pRenderPass->RenderPassHnd, IRenderDevice::EHandleType::Handle_Type_Renderpass);
+	pRenderPass->RenderPassHnd = VK_NULL_HANDLE;
+}
+
+void IFrameGraph::SetupAttachments(Ref<SImage> pColor, Ref<SImage> pDepthStencil)
+{
+	pColor->Usage.Set(Image_Usage_Transfer_Src);
+	pColor->Usage.Set(Image_Usage_Sampled);
+	pDepthStencil->Usage = pColor->Usage;
+	pColor->Usage.Set(Image_Usage_Color_Attachment);
+	pDepthStencil->Usage.Set(Image_Usage_Depth_Stencil_Attachment);
 }
 
 IFrameGraph::IFrameGraph(IRenderSystem& InRenderer) :
@@ -267,18 +275,22 @@ bool IFrameGraph::AddColorInputFrom(Handle<SImage> Img, Handle<SRenderPass> Src,
 	Ref<SRenderPass> dst = GetRenderPass(Dst);
 	if (!src || !dst) { return false; }
 	
-	Ref<SImage> img;
+	SRenderPass::OAttachment* outAtt = nullptr;
 
-	for (auto [hnd, pImg] : src->ColorOutputs) 
+	for (auto& att : src->ColorOutputs) 
 	{
-		if (Img != hnd) { continue; }
-		img = pImg;
+		if (att.Hnd != Img) { continue; }
+		outAtt = &att;
 		break;
 	}
 
-	if (!img) { return false; }
+	if (!outAtt) { return false; }
 
-	dst->ColorInputs.Push(SRenderPass::Attachment(Img, img));
+	SRenderPass::IAttachment in = {};
+	in.AtIndex = static_cast<uint32>(src->ColorOutputs.IndexOf(outAtt));
+	in.pOwner = src;
+
+	dst->ColorInputs.Push(Move(in));
 
 	return true;
 }
@@ -295,13 +307,13 @@ Handle<SImage> IFrameGraph::AddColorOutput(Handle<SRenderPass> Hnd)
 		Texture_Type_2D
 	);
 
-	SImage* pImg = Renderer.pStore->GetImage(hnd);
+	Ref<SImage> pImg = Renderer.pStore->GetImage(hnd);
 	VKT_ASSERT(pImg);
 
 	pImg->Usage.Set(Image_Usage_Sampled);
 	pImg->Usage.Set(Image_Usage_Color_Attachment);
 
-	pRenderPass->ColorOutputs.Push(SRenderPass::Attachment(hnd, pImg));
+	pRenderPass->ColorOutputs.Push({ hnd, pImg });
 
 	return hnd;
 }
@@ -315,7 +327,11 @@ bool IFrameGraph::AddDepthStencilInputFrom(Handle<SRenderPass> Src, Handle<SRend
 	auto [hnd, pImg] = src->DepthStencilOutput;
 	if (!pImg) { return false; }
 
-	dst->DepthStencilInput = src->DepthStencilOutput;
+	SRenderPass::IAttachment in = {};
+	in.pOwner = src;
+	in.AtIndex = 0;
+
+	dst->DepthStencilInput = Move(in);
 
 	return true;
 }
@@ -324,7 +340,7 @@ bool IFrameGraph::AddDepthStencilOutput(Handle<SRenderPass> Hnd)
 {
 	Ref<SRenderPass> pRenderPass = GetRenderPass(Hnd);
 	if (!pRenderPass) { return false; }
-	if (pRenderPass->DepthStencilOutput.Key != INVALID_HANDLE) { return false; }
+	if (pRenderPass->DepthStencilOutput.Hnd != INVALID_HANDLE) { return false; }
 
 	Handle<SImage> hnd = Renderer.CreateImage(
 										pRenderPass->Extent.Width,
@@ -335,7 +351,10 @@ bool IFrameGraph::AddDepthStencilOutput(Handle<SRenderPass> Hnd)
 
 	if (hnd == INVALID_HANDLE) { return false; }
 
-	SImage* pImg = Renderer.pStore->GetImage(hnd);
+	Ref<SImage> pImg = Renderer.pStore->GetImage(hnd);
+
+	pImg->Usage.Set(Image_Usage_Sampled);
+	pImg->Usage.Set(Image_Usage_Depth_Stencil_Attachment);
 
 	pRenderPass->DepthStencilOutput = { hnd, pImg };
 
@@ -344,17 +363,18 @@ bool IFrameGraph::AddDepthStencilOutput(Handle<SRenderPass> Hnd)
 
 bool IFrameGraph::SetRenderPassExtent(Handle<SRenderPass> Hnd, Extent2D Extent)
 {
-	SRenderPass* renderPass = Renderer.pStore->GetRenderPass(Hnd);
+	Ref<SRenderPass> renderPass = Renderer.pStore->GetRenderPass(Hnd);
 	if (!renderPass) { return false; }
 
 	renderPass->Extent = Extent;
+	renderPass->Rebuild = true;
 
 	return true;
 }
 
 bool IFrameGraph::SetRenderPassOrigin(Handle<SRenderPass> Hnd, Position Origin)
 {
-	SRenderPass* renderPass = Renderer.pStore->GetRenderPass(Hnd);
+	Ref<SRenderPass> renderPass = Renderer.pStore->GetRenderPass(Hnd);
 	if (!renderPass) { return false; }
 
 	renderPass->Pos = Origin;
@@ -364,7 +384,7 @@ bool IFrameGraph::SetRenderPassOrigin(Handle<SRenderPass> Hnd, Position Origin)
 
 bool IFrameGraph::NoDefaultRender(Handle<SRenderPass> Hnd)
 {
-	SRenderPass* renderPass = Renderer.pStore->GetRenderPass(Hnd);
+	Ref<SRenderPass> renderPass = Renderer.pStore->GetRenderPass(Hnd);
 	if (!renderPass) { return false; }
 
 	renderPass->Flags.Set(RenderPass_Bit_No_Color_Render);
@@ -375,7 +395,7 @@ bool IFrameGraph::NoDefaultRender(Handle<SRenderPass> Hnd)
 
 bool IFrameGraph::NoDefaultColorRender(Handle<SRenderPass> Hnd)
 {
-	SRenderPass* renderPass = Renderer.pStore->GetRenderPass(Hnd);
+	Ref<SRenderPass> renderPass = Renderer.pStore->GetRenderPass(Hnd);
 	if (!renderPass) { return false; }
 
 	renderPass->Flags.Set(RenderPass_Bit_No_Color_Render);
@@ -385,7 +405,7 @@ bool IFrameGraph::NoDefaultColorRender(Handle<SRenderPass> Hnd)
 
 bool IFrameGraph::NoDefaultDepthStencilRender(Handle<SRenderPass> Hnd)
 {
-	SRenderPass* renderPass = Renderer.pStore->GetRenderPass(Hnd);
+	Ref<SRenderPass> renderPass = Renderer.pStore->GetRenderPass(Hnd);
 	if (!renderPass) { return false; }
 
 	renderPass->Flags.Set(RenderPass_Bit_No_DepthStencil_Render);
@@ -396,7 +416,7 @@ bool IFrameGraph::NoDefaultDepthStencilRender(Handle<SRenderPass> Hnd)
 Handle<SRenderPass> IFrameGraph::AddRenderPass(const RenderPassCreateInfo& CreateInfo)
 {
 	Handle<SRenderPass> hnd = HashIdentifier(CreateInfo.Identifier);
-	SRenderPass* pRenderPass = Renderer.pStore->NewRenderPass(hnd);
+	Ref<SRenderPass> pRenderPass = Renderer.pStore->NewRenderPass(hnd);
 
 	if (!pRenderPass) { return INVALID_HANDLE; }
 
@@ -432,13 +452,68 @@ bool IFrameGraph::IsBuilt() const
 
 void IFrameGraph::SetOutputExtent(uint32 Width, uint32 Height)
 {
-	Ref<SImage> colorImg = ColorImage.Value;
-	Ref<SImage> depthStencilImg = DepthStencilImage.Value;
+	Extent.Width = Width;
+	Extent.Height = Height;
+	Built = false;
+}
 
-	colorImg->Width = Width;
-	colorImg->Height = Height;
-	depthStencilImg->Width = Width;
-	depthStencilImg->Height = Height;
+void IFrameGraph::OnWindowResize()
+{
+	if (!Built)
+	{
+		Renderer.DestroyImage(ColorImage.Hnd);
+		Renderer.DestroyImage(DepthStencilImage.Hnd);	
+
+		ColorImage.Hnd = Renderer.CreateImage(Extent.Width, Extent.Height, 4, Texture_Type_2D);
+		DepthStencilImage.Hnd = Renderer.CreateImage(Extent.Width, Extent.Height, 4, Texture_Type_2D);
+
+		ColorImage.pImg = Renderer.pStore->GetImage(ColorImage.Hnd);
+		DepthStencilImage.pImg = Renderer.pStore->GetImage(DepthStencilImage.Hnd);
+
+		SetupAttachments(ColorImage.pImg, DepthStencilImage.pImg);
+
+		Renderer.BuildImage(ColorImage.Hnd);
+		Renderer.BuildImage(DepthStencilImage.Hnd);
+
+		Built = true;
+	}
+
+	for (auto& [key, pRenderPass] : RenderPasses)
+	{
+		if (pRenderPass->Rebuild)
+		{
+			const Extent2D& extent = pRenderPass->Extent;
+			for (SRenderPass::OAttachment& attachment : pRenderPass->ColorOutputs)
+			{
+				Renderer.DestroyImage(attachment.Hnd);
+				attachment.Hnd = Renderer.CreateImage(extent.Width, extent.Height, 4, Texture_Type_2D);
+				attachment.pImg = Renderer.pStore->GetImage(attachment.Hnd);
+
+				attachment.pImg->Usage.Set(Image_Usage_Sampled);
+				attachment.pImg->Usage.Set(Image_Usage_Color_Attachment);
+
+				Renderer.BuildImage(attachment.Hnd);
+			}
+
+			if (pRenderPass->DepthStencilOutput.Hnd != INVALID_HANDLE)
+			{
+				SRenderPass::OAttachment& outDepthStencil = pRenderPass->DepthStencilOutput;
+				Renderer.DestroyImage(outDepthStencil.Hnd);
+				outDepthStencil.Hnd = Renderer.CreateImage(extent.Width, extent.Height, 4, Texture_Type_2D);
+				outDepthStencil.pImg = Renderer.pStore->GetImage(outDepthStencil.Hnd);
+
+				outDepthStencil.pImg->Usage.Set(Image_Usage_Sampled);
+				outDepthStencil.pImg->Usage.Set(Image_Usage_Depth_Stencil_Attachment);
+
+				Renderer.BuildImage(outDepthStencil.Hnd);
+			}
+
+			DestroyFramebuffer(pRenderPass);
+			CreateFramebuffer(pRenderPass);
+
+			pRenderPass->Rebuild = false;
+		}
+	}
 }
 
 bool IFrameGraph::Initialize(const Extent2D& Extent)
@@ -458,13 +533,7 @@ bool IFrameGraph::Initialize(const Extent2D& Extent)
 
 	if (!pColorImg || !pDepthStencilImg) { return false; }
 
-	pColorImg->Usage.Set(Image_Usage_Transfer_Src);
-	pColorImg->Usage.Set(Image_Usage_Sampled);
-
-	pDepthStencilImg->Usage = pColorImg->Usage;
-
-	pColorImg->Usage.Set(Image_Usage_Color_Attachment);
-	pDepthStencilImg->Usage.Set(Image_Usage_Depth_Stencil_Attachment);
+	SetupAttachments(pColorImg, pDepthStencilImg);
 
 	ColorImage = { colorImgHnd, pColorImg };
 	DepthStencilImage = { depthStencilImgHnd, pDepthStencilImg };
@@ -483,8 +552,8 @@ void IFrameGraph::Terminate()
 		DestroyRenderPass(pRenderPass);
 		DestroyFramebuffer(pRenderPass);
 	}
-	Renderer.DestroyImage(ColorImage.Key);
-	Renderer.DestroyImage(DepthStencilImage.Key);
+	Renderer.DestroyImage(ColorImage.Hnd);
+	Renderer.DestroyImage(DepthStencilImage.Hnd);
 }
 
 bool IFrameGraph::Build()
@@ -492,8 +561,8 @@ bool IFrameGraph::Build()
 	if (!RenderPasses.Length()) { return false; }
 	if (IsBuilt()) { return false; }
 
-	if (!Renderer.BuildImage(ColorImage.Key)) { return false; }
-	if (!Renderer.BuildImage(DepthStencilImage.Key)) { return false; }
+	if (!Renderer.BuildImage(ColorImage.Hnd)) { return false; }
+	if (!Renderer.BuildImage(DepthStencilImage.Hnd)) { return false; }
 
 	// NOTE(Ygsm):
 	// Should probably sort them according to dependencies in the future.
@@ -527,7 +596,7 @@ bool IFrameGraph::Build()
 
 		if (pRenderPass->Flags.Has(RenderPass_Bit_DepthStencil_Output))
 		{
-			if (!Renderer.BuildImage(pRenderPass->DepthStencilOutput.Key)) { return false; }
+			if (!Renderer.BuildImage(pRenderPass->DepthStencilOutput.Hnd)) { return false; }
 		}
 
 		if (!CreateRenderPass(pRenderPass)) { return false; }
