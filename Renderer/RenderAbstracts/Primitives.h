@@ -89,7 +89,7 @@ using ImageSamplerCreateInfo = ImageSamplerState;
 struct SImage
 {
 	VmaAllocation Allocation;
-	SImageSampler* pSampler;
+	Ref<SImageSampler> pSampler;
 	BitSet<EImageUsageFlagBits> Usage;
 	size_t Size;
 	uint32 Width;
@@ -98,6 +98,8 @@ struct SImage
 	ETextureType Type;
 	VkImage ImgHnd;
 	VkImageView ImgViewHnd;
+	uint32 MipLevels = 1;
+	bool MipMaps;
 };
 
 //struct ImageCreateInfo

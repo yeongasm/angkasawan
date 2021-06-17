@@ -68,9 +68,19 @@ namespace math
 		return num % denom;
 	}
 
+	float FLog2(const float num)
+	{
+		return log2f(num);;
+	}
+
 	float FMod(const float num, const float denom)
 	{
 		return fmodf(num, denom);
+	}
+
+	float FFloor(const float num)
+	{
+		return floorf(num);
 	}
 
 	float Pi()

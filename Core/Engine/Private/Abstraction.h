@@ -65,6 +65,7 @@ public:
 	void SetMousePosition(float32 x, float32 y);
 	bool IsWindowFocused() const;
 	bool HasWindowSizeChanged() const;
+	bool IsWindowMoving() const;
 	void* AllocateAndRegisterSystem(size_t Size, SystemType Type, Handle<ISystem>* Hnd);
 	SystemInterface* GetRegisteredSystem(SystemType Type, Handle<ISystem> Hnd);
 

@@ -1,4 +1,5 @@
 #include <new>
+#include <cstdio>
 #include "CameraBase.h"
 
 using vec3 = math::vec3;
@@ -128,7 +129,6 @@ void CameraBase::Rotate(vec3 Angle, float32 Timestep)
 	float32 pitch	= Angle.y * Sensitivity * Timestep;
 	float32 roll	= Angle.z * Sensitivity * Timestep;
 
-
 	Angles.x += yaw;
 	Angles.y += pitch;
 	Angles.z += roll;
@@ -137,9 +137,19 @@ void CameraBase::Rotate(vec3 Angle, float32 Timestep)
 	Angles.y = math::FMod(Angles.y, 360.0f);
 	Angles.z = math::FMod(Angles.z, 360.0f);
 
-	quat pitchQuat	= math::AngleAxis(math::Radians(Angles.y), vec3(-1.0f, 0.0f, 0.0f));
-	quat yawQuat	= math::AngleAxis(math::Radians(Angles.x), vec3(0.0f, -1.0f, 0.0f));
+	quat pitchQuat	= math::AngleAxis(math::Radians(Angles.y), vec3(1.0f, 0.0f, 0.0f));
+	quat yawQuat	= math::AngleAxis(math::Radians(Angles.x), vec3(0.0f, 1.0f, 0.0f));
 	quat rollQuat	= math::AngleAxis(math::Radians(Angles.z), vec3(0.0f, 0.0f, 1.0f));
+
+	if (math::Dot(Orientation, pitchQuat) < 0.0f)	
+	{ 
+		pitchQuat *= -1.0f; 
+	}
+
+	if (math::Dot(Orientation, yawQuat) < 0.0f)		
+	{ 
+		yawQuat *= -1.0f; 
+	}
 
 	Orientation = rollQuat * unitQuat * pitchQuat * unitQuat * yawQuat;
 	Orientation = math::Normalized(Orientation);

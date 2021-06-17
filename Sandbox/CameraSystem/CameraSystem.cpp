@@ -26,7 +26,8 @@ namespace sandbox
 		ProjType(Projection_Mode_None),
 		Hnd(Hnd),
 		KeyCallback{},
-		MouseCallback{}
+		MouseCallback{},
+		CachedMouseDelta{}
 	{}
 
 	CameraSystem::~CameraSystem() {}
@@ -39,24 +40,18 @@ namespace sandbox
 		SetNear(0.1f);
 		SetFar(1000.0f);
 		SetFieldOfView(45.0f);
-		SetMoveSpeed(10.0f);
-		SetSensitivity(100.0f);
+		SetMoveSpeed(30.0f);
+		SetSensitivity(2.0f);
 		SetPosition({ 0.0f, -5.0f, -30.0f });
 		Rotate(vec3(0.0f, -10.0f, 0.0f), 1.0f / 60.0f);
 		SetWidth(800.0f);
 		SetHeight(600.0f);
+		SetState(Camera_State_IsDirty);
 	}
 
 	void CameraSystem::OnUpdate()
 	{
-		//IOSystem& io = Engine.GetIO();
-		//float32 wndWidth = static_cast<float32>(Engine.GetWindowInformation().Extent.Width);
-		//float32 wndHeight = static_cast<float32>(Engine.GetWindowInformation().Extent.Width);
-		//const uint32 frameIndex = Renderer.GetCurrentFrameIndex();
-
-		//SetWidth(800.0f);
-		//SetHeight(600.0f);
-
+		// Need to do this in the future.
 		//if (!math::InBounds(io.MousePos, { 0.0f, 0.0f }, { wndWidth, wndHeight })) { return; }
 
 		CallbackFuncArgs args = { Engine, *this, Engine.Clock.FTimestep() };
@@ -67,10 +62,11 @@ namespace sandbox
 			KeyCallback(args);
 		}
 
-		//if (!State.Has(Camera_State_IsDirty)) { return; }
-
-		UpdateProjection(true);
-		UpdateView();
+		if (CheckState(Camera_State_IsDirty))
+		{
+			UpdateProjection(true);
+			UpdateView();
+		}
 
 		CameraUbo ubo;
 		ubo.ViewProj = Projection * View;
@@ -83,7 +79,7 @@ namespace sandbox
 			sizeof(CameraUbo)
 		);
 
-		//State.Remove(Camera_State_IsDirty);
+		ResetState(Camera_State_IsDirty);
 	}
 
 	void CameraSystem::OnTerminate()
@@ -92,6 +88,29 @@ namespace sandbox
 	void CameraSystem::SetCameraProjection(ProjectionMode Mode)
 	{
 		ProjType = Mode;
+	}
+
+	void CameraSystem::CacheMouseDelta(vec2 Pos)
+	{
+		static uint32 index = 0;
+		CachedMouseDelta[index] = Pos;
+		index = ++index % 32;
+	}
+
+	vec2 CameraSystem::GetMouseDeltaAverage()
+	{
+		vec2 total{ 0.0f };
+		for (uint32 i = 0; i < 32; i++)
+		{
+			total += CachedMouseDelta[i];
+		}
+		return total / 32;
+	}
+
+	void CameraSystem::ClearMouseDragDeltaCache()
+	{
+		constexpr size_t count = sizeof(math::vec2) * 32;
+		IMemory::Memzero(&CachedMouseDelta, count);
 	}
 
 	void CameraSystem::SetWidth(float32 Value)
@@ -152,6 +171,21 @@ namespace sandbox
 	void CameraSystem::SetMouseOffsetDelta(vec2 Value)
 	{
 		Offsets = Value;
+	}
+
+	void CameraSystem::SetState(ECameraStates State)
+	{
+		this->State.Set(State);
+	}
+
+	void CameraSystem::ResetState(ECameraStates State)
+	{
+		this->State.Remove(State);
+	}
+
+	bool CameraSystem::CheckState(ECameraStates State)
+	{
+		return this->State.Has(State);
 	}
 
 	float32 CameraSystem::GetWidth() const

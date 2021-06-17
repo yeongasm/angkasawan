@@ -196,6 +196,7 @@ void EngineImpl::OnEvent(const OS::Event& e)
 		case OS::Event::Type::WINDOW_MOVE:
 			Window.Pos.x = e.WinMove.x;
 			Window.Pos.y = e.WinMove.y;
+			Window.IsMoving = true;
 			//Window.IsFullScreened = OS::IsWindowMaximized(Window.Handle);
 			break;
 		case OS::Event::Type::WINDOW_RESIZE:
@@ -262,6 +263,7 @@ void EngineImpl::EndFrame()
 {
 	Io.MouseWheel = 0.0f;
 	Window.WindowSizeChanged = false;
+	Window.IsMoving = false;
 }
 
 void EngineImpl::InitializeEngine(const EngineCreationInfo& Info)
@@ -446,6 +448,11 @@ bool EngineImpl::IsWindowFocused() const
 bool EngineImpl::HasWindowSizeChanged() const
 {
 	return Window.WindowSizeChanged;
+}
+
+bool EngineImpl::IsWindowMoving() const
+{
+	return Window.IsMoving;
 }
 
 void EngineImpl::ShowCursor(bool Show)

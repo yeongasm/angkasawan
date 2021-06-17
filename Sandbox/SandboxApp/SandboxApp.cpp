@@ -44,24 +44,13 @@ namespace sandbox
 
 		pCamera->OnInit();
 		pCamera->MouseCallback = [](CameraSystem::CallbackArgs& Args) {
-			static bool firstMouse = true;
-
-			enum CameraMouseModes : uint32
-			{
-				Camera_Mouse_Mode_NoMode = 0,
-				Camera_Mouse_Mode_MoveFBAndRotateLR = 1,
-				Camera_Mouse_Mode_RotateOnHold = 2
-			};
-
 			uint32 mode = Camera_Mouse_Mode_NoMode;
 			IOSystem& io = Args.Engine.GetIO();
+			const vec2 originPos = Args.Camera.GetOriginPosition();
+			vec2 mousePos = io.MousePos;
+			vec2 cameraCentre = vec2((originPos.x + Args.Camera.GetWidth()) * 0.5f, (originPos.y + Args.Camera.GetHeight()) * 0.5f);
 
 			const float32 timestep = Args.Timestep;
-
-			float32 horizontalRange = Args.Camera.GetWidth() - io.MousePos.x;
-			float32 verticalRange = Args.Camera.GetHeight() - io.MousePos.y;
-			vec2 viewportOffset(0.f);
-			vec2 captMousePos = Args.Camera.GetCapturedMousePos();
 
 			Args.Camera.Zoom(io.MouseWheel);
 
@@ -77,35 +66,31 @@ namespace sandbox
 
 			if (!mode)
 			{
-				if (!firstMouse)
+				if (!Args.Camera.CheckState(Camera_State_FirstMove))
 				{
+					const vec2 captMousePos = Args.Camera.GetCapturedMousePos();
 					Args.Engine.ShowCursor();
 					Args.Engine.SetMousePosition(captMousePos.x, captMousePos.y);
 					Args.Camera.SetCapturedMousePos(vec2(0.f));
-					firstMouse = true;
+					Args.Camera.SetState(Camera_State_FirstMove);
+					Args.Camera.ClearMouseDragDeltaCache();
 				}
-
 				return;
 			}
 
-			if (mode && firstMouse)
+			if (Args.Camera.CheckState(Camera_State_FirstMove))
 			{
-				const vec2 originPos = Args.Camera.GetOriginPosition();
-				vec2 cameraCentre = vec2((originPos.x + Args.Camera.GetWidth()) * 0.5f, (originPos.y + Args.Camera.GetHeight()) * 0.5f);
-
-				Args.Camera.SetCapturedMousePos(io.MousePos);
-
-				Args.Engine.SetMousePosition(cameraCentre.x, cameraCentre.y);
-				Args.Engine.ShowCursor(false);
-
-				Args.Camera.SetLastMousePos(io.MousePos);
-				firstMouse = false;
+				Args.Camera.SetCapturedMousePos(mousePos);
+				Args.Camera.ResetState(Camera_State_FirstMove);
+				mousePos = cameraCentre;
 			}
 
-			Args.Camera.SetMouseOffsetDelta(io.MousePos - Args.Camera.GetLastMousePos());;
-			Args.Camera.SetLastMousePos(io.MousePos);
+			Args.Engine.ShowCursor(false);
+			Args.Engine.SetMousePosition(cameraCentre.x, cameraCentre.y);
 
-			const vec2 delta = Args.Camera.GetMouseOffsetDelta();
+			vec2 delta = mousePos - cameraCentre;
+			Args.Camera.CacheMouseDelta(delta);
+			delta = Args.Camera.GetMouseDeltaAverage();
 
 			switch (mode)
 			{
@@ -120,6 +105,8 @@ namespace sandbox
 			default:
 				break;
 			}
+
+			Args.Camera.SetState(Camera_State_IsDirty);
 		};
 
 		pCamera->KeyCallback = [](CameraSystem::CallbackArgs& Args) {
@@ -218,13 +205,6 @@ namespace sandbox
 		{
 			HandleWindowResize();
 		}
-		//if (pEngine->HasWindowSizeChanged())
-		//{
-		//	const WindowInfo::Extent2D extent = pEngine->GetWindowInformation().Extent;
-		//	pCamera->SetWidth(static_cast<float32>(extent.Width));
-		//	pCamera->SetHeight(static_cast<float32>(extent.Height));
-		//	pRenderer->GetFrameGraph().SetOutputExtent(extent.Width, extent.Height);
-		//}
 
 		pRenderer->BindPipeline(
 			Setup.GetColorPass().GetPipelineHandle(),
@@ -238,8 +218,8 @@ namespace sandbox
 		Ref<Model> pZelda = AssetManager.GetModelWithHandle(zeldaModel);
 		VKT_ASSERT(pZelda);
 
-		math::mat4 transform(1.0f);
-		math::Scale(transform, math::vec3(0.075f));
+		//math::mat4 transform(1.0f);
+		//math::Scale(transform, math::vec3(0.075f));
 		//math::Rotate(transform, pEngine->Clock.FElapsedTime(), math::vec3(0.f, 1.f, 0.f));
 
 		DrawInfo info = {};
@@ -248,10 +228,38 @@ namespace sandbox
 		info.Instanced = true;
 		info.pVertexInformation = pZelda->VertexInformations.First();
 		info.pIndexInformation = pZelda->IndexInformation.First();
-		info.Transform = transform;
 		info.Renderpass = Setup.GetColorPass().GetRenderPassHandle();
 
+		math::mat4 transform(1.0f);
+		//math::Translate(transform, math::vec3(15.0f * i, 0.0f, 15.0f * j));
+		math::Scale(transform, math::vec3(0.075f));
+
+		//if ((i + j % 3) == 0)
+		//{
+		//	math::Rotate(transform, pEngine->Clock.FElapsedTime(), math::vec3(0.f, 1.f, 0.f));
+		//}
+
+		info.Transform = transform;
 		pRenderer->Draw(info);
+
+		//for (size_t i = 0; i < 10; i++)
+		//{
+		//	for (size_t j = 0; j < 10; j++)
+		//	{
+		//		math::mat4 transform(1.0f);
+		//		math::Translate(transform, math::vec3(15.0f * i, 0.0f, 15.0f * j));
+		//		math::Scale(transform, math::vec3(0.075f));
+
+		//		if ((i + j % 3) == 0)
+		//		{
+		//			math::Rotate(transform, pEngine->Clock.FElapsedTime(), math::vec3(0.f, 1.f, 0.f));
+		//		}
+
+		//		info.Transform = transform;
+		//		pRenderer->Draw(info);
+		//	}
+		//}
+
 		firstFrame = false;
 	}
 
@@ -267,6 +275,7 @@ namespace sandbox
 		IFrameGraph& frameGraph = pRenderer->GetFrameGraph();
 		pCamera->SetWidth(static_cast<float32>(wndExtent.Width));
 		pCamera->SetHeight(static_cast<float32>(wndExtent.Height));
+		pCamera->SetState(Camera_State_IsDirty);
 		frameGraph.SetOutputExtent(wndExtent.Width, wndExtent.Height);
 		frameGraph.SetRenderPassExtent(
 			Setup.GetColorPass().GetRenderPassHandle(),

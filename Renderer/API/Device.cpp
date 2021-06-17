@@ -72,8 +72,8 @@ bool IRenderDevice::Initialize(const EngineImpl& Engine)
 
 	if (!CreateSwapchain(Engine.Window.Extent.Width, Engine.Window.Extent.Height)) return false;
 	if (!CreateSyncObjects()) return false;
-	if (!CreateDefaultRenderpass()) return false;
-	if (!CreateDefaultFramebuffer()) return false;
+	//if (!CreateDefaultRenderpass()) return false;
+	//if (!CreateDefaultFramebuffer()) return false;
 	if (!CreateAllocator()) return false;
 	if (!CreateDefaultCommandPool()) return false;
 	if (!AllocateCommandBuffers()) return false;
@@ -84,8 +84,8 @@ bool IRenderDevice::Initialize(const EngineImpl& Engine)
 
 void IRenderDevice::Terminate()
 {
-	DestroyDefaultFramebuffer();
-	MoveToZombieList(DefaultRenderPass, EHandleType::Handle_Type_Renderpass);
+	//DestroyDefaultFramebuffer();
+	//MoveToZombieList(DefaultRenderPass, EHandleType::Handle_Type_Renderpass);
 	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 	{
 		MoveToZombieList(CommandBuffers[i], CommandPool);
@@ -1098,14 +1098,25 @@ bool IRenderDevice::CreateLogicalDevice()
 		queueCreateInfos.Push(Move(info));
 	}
 
-	const char* extensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
+	const char* extensions[] = { VK_KHR_SWAPCHAIN_EXTENSION_NAME, VK_KHR_IMAGELESS_FRAMEBUFFER_EXTENSION_NAME };
+
+	//VkPhysicalDeviceImagelessFramebufferFeatures imagelessFramebuffer = {};
+	//imagelessFramebuffer.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGELESS_FRAMEBUFFER_FEATURES;
+	//imagelessFramebuffer.imagelessFramebuffer = VK_TRUE;
+
+	VkPhysicalDeviceVulkan12Features deviceFeatures = {};
+	deviceFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+	deviceFeatures.imagelessFramebuffer = VK_TRUE;
+	deviceFeatures.descriptorIndexing = VK_TRUE;
+	deviceFeatures.drawIndirectCount = VK_TRUE;
 
 	VkDeviceCreateInfo deviceCreateInfo = {};
 	deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+	deviceCreateInfo.pNext = &deviceFeatures;
 	deviceCreateInfo.queueCreateInfoCount = static_cast<uint32>(queueCreateInfos.Length());
 	deviceCreateInfo.pQueueCreateInfos = queueCreateInfos.First();
-	deviceCreateInfo.ppEnabledExtensionNames = &extensions;
-	deviceCreateInfo.enabledExtensionCount = 1;
+	deviceCreateInfo.ppEnabledExtensionNames = extensions;
+	deviceCreateInfo.enabledExtensionCount = 2;
 
 	if (vkCreateDevice(Gpu, &deviceCreateInfo, nullptr, &Device) != VK_SUCCESS)
 	{
@@ -1889,9 +1900,9 @@ const VkPhysicalDeviceProperties& IRenderDevice::GetPhysicalDeviceProperties() c
 
 void IRenderDevice::OnWindowResize(uint32 Width, uint32 Height)
 {
-	DestroyDefaultFramebuffer();
+	//DestroyDefaultFramebuffer();
 	CreateSwapchain(Width, Height);
-	CreateDefaultFramebuffer();
+	//CreateDefaultFramebuffer();
 }
 
 const uint32 IRenderDevice::GetCurrentFrameIndex() const

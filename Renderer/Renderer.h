@@ -172,6 +172,9 @@ private:
 
 	void CopyToBuffer(Ref<SMemoryBuffer> pBuffer, void* Data, size_t Size, size_t Offset, bool Update = false);
 
+	uint32 GetImageUsageFlags(Ref<SImage> pImg);
+	uint32 GetImageFormat(Ref<SImage> pImg);
+
 public:
 
 	IRenderSystem(EngineImpl& InEngine, Handle<ISystem> Hnd);
@@ -213,7 +216,7 @@ public:
 	bool DestroyBuffer(Handle<SMemoryBuffer>& Hnd);
 	
 	//Handle<SImage> CreateImage(const ImageCreateInfo& CreateInfo);
-	Handle<SImage> CreateImage(uint32 Width, uint32 Height, uint32 Channels, ETextureType Type);
+	Handle<SImage> CreateImage(uint32 Width, uint32 Height, uint32 Channels, ETextureType Type, bool GenMips = false);
 	bool BuildImage(Handle<SImage> Hnd);
 	bool DestroyImage(Handle<SImage>& Hnd);
 

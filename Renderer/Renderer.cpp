@@ -1,11 +1,10 @@
 #include "Renderer.h"
 #include "API/Device.h"
+#include "Library/Math/Operations.h"
 #include "Library/Containers/Node.h"
 #include "Library/Algorithms/QuickSort.h"
 #include "Library/Random/Xoroshiro.h"
-//#include "RenderAbstracts/StagingManager.h"
 #include "API/Vk/Src/spirv_reflect.h"
-//#include "RenderAbstracts/FrameGraph.h"
 #include "SubSystem/Time/ScopedTimer.h"
 
 Handle<ISystem> g_RenderSystemHandle;
@@ -191,8 +190,8 @@ void IRenderSystem::DynamicStateSetup(Ref<SRenderPass> pRenderPass)
 	vkCmdSetViewport(cmd, 0, 1, &viewport);
 
 	VkRect2D rect = {};
-	rect.offset.x = static_cast<int32>(pRenderPass->Pos.x);
-	rect.offset.y = static_cast<int32>(pRenderPass->Pos.y);
+	rect.offset.x = pRenderPass->Pos.x;
+	rect.offset.y = pRenderPass->Pos.y;
 	rect.extent.width = pRenderPass->Extent.Width;
 	rect.extent.height = pRenderPass->Extent.Height;
 	vkCmdSetScissor(cmd, 0, 1, &rect);
@@ -216,6 +215,7 @@ void IRenderSystem::BeginRenderPass(Ref<SRenderPass> pRenderPass)
 
 	ClearValues clearValues;
 	DynamicOffsets dynamicOffsets;
+	StaticArray<VkImageView, 10> attImgViews;
 
 	bool hasDepthStencil = false;
 	const uint32 nextSwapchainIndex = pDevice->GetNextSwapchainImageIndex();
@@ -226,6 +226,12 @@ void IRenderSystem::BeginRenderPass(Ref<SRenderPass> pRenderPass)
 	if (!pRenderPass->Flags.Has(RenderPass_Bit_No_Color_Render))
 	{
 		numClearValues++;
+		attImgViews.Push(pRenderPass->pOwner->ColorImage.pImg->ImgViewHnd);
+	}
+
+	for (auto& [hnd, pImg] : pRenderPass->ColorOutputs)
+	{
+		attImgViews.Push(pImg->ImgViewHnd);
 	}
 
 	if (pRenderPass->Flags.Has(RenderPass_Bit_DepthStencil_Output) &&
@@ -233,11 +239,13 @@ void IRenderSystem::BeginRenderPass(Ref<SRenderPass> pRenderPass)
 	{
 		numClearValues++;
 		hasDepthStencil = true;
+		attImgViews.Push(pRenderPass->DepthStencilOutput.pImg->ImgViewHnd);
 	}
 	else if (!pRenderPass->Flags.Has(RenderPass_Bit_No_DepthStencil_Render))
 	{
-		hasDepthStencil = true;
 		numClearValues++;
+		hasDepthStencil = true;
+		attImgViews.Push(pRenderPass->pOwner->DepthStencilImage.pImg->ImgViewHnd);
 	}
 
 	for (size_t i = 0; i < numClearValues; i++)
@@ -276,11 +284,18 @@ void IRenderSystem::BeginRenderPass(Ref<SRenderPass> pRenderPass)
 	//	);
 	//}
 
+	VkRenderPassAttachmentBeginInfo attInfo = {};
+	attInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_ATTACHMENT_BEGIN_INFO;
+	attInfo.attachmentCount = static_cast<uint32>(attImgViews.Length());
+	attInfo.pAttachments = attImgViews.First();
+
 	VkRenderPassBeginInfo beginInfo = {};
 	beginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+	beginInfo.pNext = &attInfo;
 	beginInfo.renderPass = pRenderPass->RenderPassHnd;
-	beginInfo.framebuffer = pRenderPass->Framebuffer[nextSwapchainIndex];
-	beginInfo.renderArea.offset = { static_cast<int32>(pRenderPass->Pos.x), static_cast<int32>(pRenderPass->Pos.y) };
+	//beginInfo.framebuffer = pRenderPass->Framebuffer[nextSwapchainIndex];
+	beginInfo.framebuffer = pRenderPass->Framebuffer;
+	beginInfo.renderArea.offset = { pRenderPass->Pos.x, pRenderPass->Pos.y };
 	beginInfo.renderArea.extent = { pRenderPass->Extent.Width, pRenderPass->Extent.Height };
 	beginInfo.clearValueCount = static_cast<uint32>(clearValues.Length());
 	beginInfo.pClearValues = clearValues.First();
@@ -621,6 +636,38 @@ void IRenderSystem::CopyToBuffer(Ref<SMemoryBuffer> pBuffer, void* Data, size_t 
 	uint8* data = reinterpret_cast<uint8*>(pBuffer->pData + Offset);
 	IMemory::Memcpy(data, Data, Size);
 	if (Update) { pBuffer->Offset += Offset; }
+}
+
+uint32 IRenderSystem::GetImageUsageFlags(Ref<SImage> pImg)
+{
+	VkImageUsageFlags usage = 0;
+	for (uint32 i = 0; i < Image_Usage_Max; i++)
+	{
+		if (!pImg->Usage.Has(i)) { continue; }
+		usage |= pDevice->GetImageUsage(i);
+	}
+	return usage;
+}
+
+uint32 IRenderSystem::GetImageFormat(Ref<SImage> pImg)
+{
+	VkFormat format = VK_FORMAT_R8G8B8A8_SRGB;
+	//switch (pImg->Channels)
+	//{
+	//case 1:
+	//	format = VK_FORMAT_R8_SRGB;
+	//	break;
+	//case 2:
+	//	format = VK_FORMAT_R8G8_SRGB;
+	//	break;
+	//default:
+	//	break;
+	//}
+	if (pImg->Usage.Has(Image_Usage_Depth_Stencil_Attachment))
+	{
+		format = VK_FORMAT_D24_UNORM_S8_UINT;
+	}
+	return format;
 }
 
 IRenderSystem::IRenderSystem(EngineImpl& InEngine, Handle<ISystem> Hnd) :
@@ -1277,7 +1324,7 @@ bool IRenderSystem::DestroyBuffer(Handle<SMemoryBuffer>& Hnd)
 	return true;
 }
 
-Handle<SImage> IRenderSystem::CreateImage(uint32 Width, uint32 Height, uint32 Channels, ETextureType Type)
+Handle<SImage> IRenderSystem::CreateImage(uint32 Width, uint32 Height, uint32 Channels, ETextureType Type, bool GenMips)
 {
 	size_t id = g_Uid();
 	Ref<SImage> pImg = pStore->NewImage(id);
@@ -1287,6 +1334,7 @@ Handle<SImage> IRenderSystem::CreateImage(uint32 Width, uint32 Height, uint32 Ch
 	pImg->Height = Height;
 	pImg->Channels = Channels;
 	pImg->Type = Type;
+	pImg->MipMaps = GenMips;
 
 	return id;
 }
@@ -1296,29 +1344,23 @@ bool IRenderSystem::BuildImage(Handle<SImage> Hnd)
 	Ref<SImage> pImg = pStore->GetImage(Hnd);
 	if (!pImg) { return false; }
 
-	VkFormat format = VK_FORMAT_R8G8B8A8_SRGB;
-	switch (pImg->Channels)
-	{
-	case 1:
-		format = VK_FORMAT_R8_SRGB;
-		break;
-	case 2:
-		format = VK_FORMAT_R8G8_SRGB;
-		break;
-	default:
-		break;
-	}
+	VkFormat format = static_cast<VkFormat>(GetImageFormat(pImg));
+	VkImageUsageFlags usage = GetImageUsageFlags(pImg);
 
-	if (pImg->Usage.Has(Image_Usage_Depth_Stencil_Attachment))
-	{
-		format = VK_FORMAT_D24_UNORM_S8_UINT;
-	}
+	//uint32 lvlOfMips = 1;
 
-	VkImageUsageFlags usage = 0;
-	for (uint32 i = 0; i < Image_Usage_Max; i++)
+	if (pImg->MipMaps)
 	{
-		if (!pImg->Usage.Has(i)) { continue; }
-		usage |= pDevice->GetImageUsage(i);
+		const float32 texWidth = static_cast<float32>(pImg->Width);
+		const float32 texHeight = static_cast<float32>(pImg->Height);
+		pImg->MipLevels = static_cast<uint32>(math::FFloor(math::FLog2(Max<float32>(texWidth, texHeight)))) + 1;
+
+		if (pImg->MipLevels > MAX_IMAGE_MIP_MAP_LEVEL)
+		{
+			pImg->MipLevels = MAX_IMAGE_MIP_MAP_LEVEL;
+		}
+
+		pImg->Usage.Set(Image_Usage_Transfer_Dst);
 	}
 
 	VkImageCreateInfo img = {};
@@ -1328,7 +1370,7 @@ bool IRenderSystem::BuildImage(Handle<SImage> Hnd)
 	img.samples = VK_SAMPLE_COUNT_1_BIT;
 	img.extent = { pImg->Width, pImg->Height, 1 };
 	img.tiling = VK_IMAGE_TILING_OPTIMAL;
-	img.mipLevels = 1;
+	img.mipLevels = pImg->MipLevels;
 	img.usage = usage;
 	img.arrayLayers = 1;
 	img.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
@@ -1344,7 +1386,7 @@ bool IRenderSystem::BuildImage(Handle<SImage> Hnd)
 	imgView.format = format;
 	imgView.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 	imgView.subresourceRange.baseMipLevel = 0;
-	imgView.subresourceRange.levelCount = 1;
+	imgView.subresourceRange.levelCount = pImg->MipLevels;
 	imgView.subresourceRange.baseArrayLayer = 0;
 	imgView.subresourceRange.layerCount = 1;
 	imgView.viewType = pDevice->GetImageViewType(pImg->Type);

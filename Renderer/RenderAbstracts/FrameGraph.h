@@ -47,7 +47,8 @@ struct SRenderPass
 	IFrameGraph* pOwner;
 	InputAttachments ColorInputs;
 	OutputAttachments ColorOutputs;
-	VkFramebuffer Framebuffer[MAX_FRAMES_IN_FLIGHT];
+	//VkFramebuffer Framebuffer[MAX_SWAPCHAIN_IMAGE_ALLOWED];
+	VkFramebuffer Framebuffer;
 	IAttachment DepthStencilInput;
 	OAttachment DepthStencilOutput;
 	VkRenderPass RenderPassHnd;

@@ -28,8 +28,8 @@ struct WindowInfo
 {
 	struct Position
 	{
-		uint32 x;
-		uint32 y;
+		int32 x;
+		int32 y;
 	};
 
 	struct Extent2D
@@ -43,6 +43,7 @@ struct WindowInfo
 	Extent2D	Extent;
 	bool		IsFullScreened;
 	bool		WindowSizeChanged;
+	bool		IsMoving;
 };
 
 struct EngineBase : public ApplicationInterface

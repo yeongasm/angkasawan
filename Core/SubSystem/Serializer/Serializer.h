@@ -9,23 +9,23 @@
 
 class Ifstream;
 
-struct FloatInt
-{
-	union
-	{
-		int32 Int = 0;
-		float32 Float;
-	};
-};
-
-struct FloatInt64
-{
-	union
-	{
-		int64 Int = 0;
-		float64 Float;
-	};
-};
+//struct FloatInt
+//{
+//	union
+//	{
+//		int32 Int = 0;
+//		float32 Float;
+//	};
+//};
+//
+//struct FloatInt64
+//{
+//	union
+//	{
+//		int64 Int = 0;
+//		float64 Float;
+//	};
+//};
 
 struct FileHeader
 {

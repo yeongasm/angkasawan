@@ -22,7 +22,7 @@ namespace sandbox
 		colorPassInfo.Depth = 1.0f;
 		//colorPassInfo.Pos = windowInfo.Pos;
 		colorPassInfo.Pos = { 0, 0 };
-		colorPassInfo.Extent = windowInfo.Extent;
+		colorPassInfo.Extent = { 800, 600 };
 
 		Extent = windowInfo.Extent;
 

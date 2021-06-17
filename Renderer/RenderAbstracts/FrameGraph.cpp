@@ -50,46 +50,87 @@ bool IFrameGraph::CreateFramebuffer(Ref<SRenderPass> pRenderPass)
 	size_t totalOutputs = (pRenderPass->Flags.Has(RenderPass_Bit_DepthStencil_Output)) ?
 		pRenderPass->ColorOutputs.Length() + 1 : pRenderPass->ColorOutputs.Length();
 
-	Array<VkImageView> imageViews(totalOutputs);
+	StaticArray<VkFramebufferAttachmentImageInfo, MAX_RENDERPASS_ATTACHMENT_COUNT> attImgInfos;
+
+	VkFormat colorFormat = VK_FORMAT_R8G8B8A8_SRGB;
+	VkFormat depthStencilFormat = VK_FORMAT_D24_UNORM_S8_UINT;
+	VkFramebufferAttachmentImageInfo attImgInfo = {};
+	attImgInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_ATTACHMENT_IMAGE_INFO;
+	attImgInfo.width = pRenderPass->Extent.Width;
+	attImgInfo.height = pRenderPass->Extent.Height;
+	attImgInfo.layerCount = 1;
+	attImgInfo.viewFormatCount = 1;
+	attImgInfo.pViewFormats = &colorFormat;
 
 	if (!pRenderPass->Flags.Has(RenderPass_Bit_No_Color_Render))
 	{
-		imageViews.Push(pRenderPass->pOwner->ColorImage.pImg->ImgViewHnd);
+		attImgInfo.usage = Renderer.GetImageUsageFlags(ColorImage.pImg);
+		attImgInfos.Push(attImgInfo);
 	}
 
 	for (auto& [hnd, pImg] : pRenderPass->ColorOutputs)
 	{
-		imageViews.Push(pImg->ImgViewHnd);
+		attImgInfo.usage = Renderer.GetImageUsageFlags(pImg);
+		attImgInfos.Push(attImgInfo);
 	}
 
 	if (pRenderPass->Flags.Has(RenderPass_Bit_DepthStencil_Output))
 	{
-		imageViews.Push(pRenderPass->DepthStencilOutput.pImg->ImgViewHnd);
+		attImgInfo.usage = Renderer.GetImageUsageFlags(pRenderPass->DepthStencilOutput.pImg);
+		attImgInfo.pViewFormats = &depthStencilFormat;
+		attImgInfos.Push(attImgInfo);
 	}
-	else
+	else if (!pRenderPass->Flags.Has(RenderPass_Bit_No_DepthStencil_Render))
 	{
-		if (!pRenderPass->Flags.Has(RenderPass_Bit_No_DepthStencil_Render))
-		{
-			imageViews.Push(pRenderPass->pOwner->DepthStencilImage.pImg->ImgViewHnd);
-		}
+	
+		attImgInfo.usage = Renderer.GetImageUsageFlags(pRenderPass->pOwner->DepthStencilImage.pImg);
+		attImgInfo.pViewFormats = &depthStencilFormat;
+		attImgInfos.Push(attImgInfo);
 	}
+
+	//Array<VkImageView> imageViews(totalOutputs);
+
+	//if (!pRenderPass->Flags.Has(RenderPass_Bit_No_Color_Render))
+	//{
+	//	imageViews.Push(pRenderPass->pOwner->ColorImage.pImg->ImgViewHnd);
+	//}
+
+	//for (auto& [hnd, pImg] : pRenderPass->ColorOutputs)
+	//{
+	//	imageViews.Push(pImg->ImgViewHnd);
+	//}
+
+	//if (pRenderPass->Flags.Has(RenderPass_Bit_DepthStencil_Output))
+	//{
+	//	imageViews.Push(pRenderPass->DepthStencilOutput.pImg->ImgViewHnd);
+	//}
+	//else
+	//{
+	//	if (!pRenderPass->Flags.Has(RenderPass_Bit_No_DepthStencil_Render))
+	//	{
+	//		imageViews.Push(pRenderPass->pOwner->DepthStencilImage.pImg->ImgViewHnd);
+	//	}
+	//}
+
+	VkFramebufferAttachmentsCreateInfo attCreateInfo = {};
+	attCreateInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_ATTACHMENTS_CREATE_INFO;
+	attCreateInfo.attachmentImageInfoCount = static_cast<uint32>(attImgInfos.Length());
+	attCreateInfo.pAttachmentImageInfos = attImgInfos.First();
 
 	VkFramebufferCreateInfo info = {};
 	info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+	info.flags = VK_FRAMEBUFFER_CREATE_IMAGELESS_BIT;
+	info.pNext = &attCreateInfo;
 	info.width = pRenderPass->Extent.Width;
 	info.height = pRenderPass->Extent.Height;
 	info.layers = 1;
-	info.pAttachments = imageViews.First();
-	info.attachmentCount = static_cast<uint32>(imageViews.Length());
+	info.attachmentCount = attCreateInfo.attachmentImageInfoCount;
 	info.renderPass = pRenderPass->RenderPassHnd;
 
-	for (size_t i = 0; i < MAX_SWAPCHAIN_IMAGE_ALLOWED; i++)
+	if (vkCreateFramebuffer(Renderer.pDevice->GetDevice(), &info, nullptr, &pRenderPass->Framebuffer) != VK_SUCCESS)
 	{
-		if (vkCreateFramebuffer(Renderer.pDevice->GetDevice(), &info, nullptr, &pRenderPass->Framebuffer[i]) != VK_SUCCESS)
-		{
-			VKT_ASSERT("Unable to create framebuffer" && false);
-			return false;
-		}
+		VKT_ASSERT("Unable to create framebuffer" && false);
+		return false;
 	}
 
 	return true;
@@ -97,12 +138,10 @@ bool IFrameGraph::CreateFramebuffer(Ref<SRenderPass> pRenderPass)
 
 void IFrameGraph::DestroyFramebuffer(Ref<SRenderPass> pRenderPass)
 {
-	const VkDevice device = Renderer.pDevice->GetDevice();
-	for (size_t i = 0; i < MAX_SWAPCHAIN_IMAGE_ALLOWED; i++)
-	{
-		Renderer.pDevice->MoveToZombieList(pRenderPass->Framebuffer[i], IRenderDevice::EHandleType::Handle_Type_Framebuffer);
-		pRenderPass->Framebuffer[i] = VK_NULL_HANDLE;
-	}
+	Renderer.pDevice->MoveToZombieList(
+		pRenderPass->Framebuffer, 
+		IRenderDevice::EHandleType::Handle_Type_Framebuffer
+	);
 }
 
 bool IFrameGraph::CreateRenderPass(Ref<SRenderPass> pRenderPass)
@@ -244,8 +283,10 @@ bool IFrameGraph::CreateRenderPass(Ref<SRenderPass> pRenderPass)
 
 void IFrameGraph::DestroyRenderPass(Ref<SRenderPass> pRenderPass)
 {
-	const VkDevice device = Renderer.pDevice->GetDevice();
-	Renderer.pDevice->MoveToZombieList(pRenderPass->RenderPassHnd, IRenderDevice::EHandleType::Handle_Type_Renderpass);
+	Renderer.pDevice->MoveToZombieList(
+		pRenderPass->RenderPassHnd, 
+		IRenderDevice::EHandleType::Handle_Type_Renderpass
+	);
 	pRenderPass->RenderPassHnd = VK_NULL_HANDLE;
 }
 

@@ -19,7 +19,9 @@ namespace math
 	ENGINE_API int Abs(const int num);
 	ENGINE_API float FAbs(const float num);
 	ENGINE_API int Mod(const int num, const int denom);
+	ENGINE_API float FLog2(const float num);
 	ENGINE_API float FMod(const float num, const float denom);
+	ENGINE_API float FFloor(const float num);
 	ENGINE_API float Pi();
 	ENGINE_API float HalfPi();
 	ENGINE_API float Tau();

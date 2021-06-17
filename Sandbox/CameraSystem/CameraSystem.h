@@ -11,11 +11,12 @@
 namespace sandbox
 {
 
-	enum CameraStates : uint32
+	enum ECameraStates : uint32
 	{
 		Camera_State_IsDirty = 0,
 		Camera_State_FirstMove = 1
 	};
+	using ECameraStatesFlagBits = uint32;
 
 	enum ProjectionMode : uint32
 	{
@@ -24,6 +25,12 @@ namespace sandbox
 		//Projection_Mode_Orthographic	= 2
 	};
 
+	enum CameraMouseModes : uint32
+	{
+		Camera_Mouse_Mode_NoMode = 0,
+		Camera_Mouse_Mode_MoveFBAndRotateLR = 1,
+		Camera_Mouse_Mode_RotateOnHold = 2
+	};
 
 	class CameraSystem : public SystemInterface, public CameraBase
 	{
@@ -33,7 +40,7 @@ namespace sandbox
 		{
 			EngineImpl& Engine;
 			CameraSystem& Camera;
-			float32			Timestep;
+			float32	Timestep;
 		};
 
 		using CallbackFunc = void(*)(CallbackFuncArgs&);
@@ -46,9 +53,10 @@ namespace sandbox
 		vec2 LastMousePos;
 		vec2 Offsets;
 		vec2 OriginPos;
-		BitSet<uint32> State;
+		BitSet<ECameraStatesFlagBits> State;
 		uint32 ProjType;
 		Handle<ISystem> Hnd;
+		math::vec2 CachedMouseDelta[32];
 
 	public:
 
@@ -72,6 +80,9 @@ namespace sandbox
 		//void OnEvent		(const OS::Event& e) override;
 
 		void SetCameraProjection(ProjectionMode Mode);
+		void CacheMouseDelta(vec2 Pos);
+		vec2 GetMouseDeltaAverage();
+		void ClearMouseDragDeltaCache();
 		void SetWidth(float32 Value);
 		void SetHeight(float32 Value);
 		void SetNear(float32 Value);
@@ -84,7 +95,9 @@ namespace sandbox
 		void SetCapturedMousePos(vec2 Value);
 		void SetLastMousePos(vec2 Value);
 		void SetMouseOffsetDelta(vec2 Value);
-
+		void SetState(ECameraStates State);
+		void ResetState(ECameraStates State);
+		bool CheckState(ECameraStates State);
 
 		float32 GetWidth() const;
 		float32 GetHeight() const;
