@@ -59,6 +59,7 @@
     <ClInclude Include="API\Vk\VulkanFunctions.h" />
   </ItemGroup>
   <ItemGroup>
+    <None Include=".editorconfig" />
     <None Include="API\Vk\VkFuncDecl.inl" />
   </ItemGroup>
   <ItemGroup>

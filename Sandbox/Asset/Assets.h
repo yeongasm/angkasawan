@@ -5,6 +5,7 @@
 #include "Library/Containers/Buffer.h"
 #include "SubSystem/Resource/Handle.h"
 #include "RenderAbstracts/StagingManager.h"
+#include "SandboxApp/Definitions.h"
 #include "Renderer.h"
 
 class ResourceManager;
@@ -72,60 +73,129 @@ namespace sandbox
 		uint32 Channels;
 	};
 
-	struct MaxTextureBindingSlot
-	{
-		enum { Value = 8 };
-	};
+  enum class EPbrMaterialType : uint32
+  {
+    Material_Type_Albedo = 0,
+    Material_Type_Roughness = 1,
+    Material_Type_Metallic = 2,
+    Material_Type_Ao = 3
+  };
+  using EPbrMaterialTypeFlagBit = uint32;
+  using EMaterialTypeFlagBit = uint32;
 
-	class Material
-	{
-	private:
-		friend class MaterialDefinition;
+  struct MaterialType
+  {
+    EMaterialTypeFlagBit Type;
+    uint32 Binding;
+    Array<Ref<Texture>> Textures;
+  };
 
-		using TextureSlots = StaticArray<Ref<Texture>, MaxTextureBindingSlot::Value>;
-		TextureSlots Textures;
-		String128 Name;
-	public:
-		Material();
-		Material(String128 Name);
-		~Material();
+  using MaterialTypeTable = StaticArray<MaterialType, SANDBOX_MAX_MATERIAL_TYPE_IN_DEFINITION>;
 
-		void AddTextureToSlot(Ref<Texture> pTexture, size_t Type);
-	};
+  struct MaterialDef
+  {
+    MaterialTypeTable MatTypes;
+    Handle<SPipeline> PipelineHnd;
+    Handle<SDescriptorSet> SetHnd;
+    Handle<SImageSampler> SamplerHnd;
+  };
 
-	class MaterialDefinition
-	{
-	private:
+  /* Defines the relation between a material type and it's BINDING SLOT in the shader */
+  struct MaterialTypeBindingInfo
+  {
+    EMaterialTypeFlagBit Type;
+    uint32 Binding;
+  };
 
-		using BindingSlot = uint32;
-		using TypeToBindSlots = StaticArray<BindingSlot, MaxTextureBindingSlot::Value>;
+  struct MaterialDefCreateInfo
+  {
+    MaterialTypeBindingInfo* pTypeBindings;
+    uint32 NumOfTypeBindings;
+    Handle<SPipeline> PipelineHnd;
+    Handle<SDescriptorSet> SetHnd;
+    Handle<SImageSampler> SamplerHnd;
+  };
 
-		Array<Material> Materials;
-		TypeToBindSlots Slots;
-		Handle<SDescriptorSet> DescriptorSetHnd;
-		Handle<SDescriptorSetLayout> DescriptorSetLayoutHnd;
-		Handle<SPipeline> PipelineHnd;
+  /* Defines the relationship between a material type and it's INDEX in it's definition. */
+  struct MaterialTypeIndexInfo
+  {
+    EMaterialTypeFlagBit Type;
+    uint32 Slot;
+  };
 
-	public:
+  using MaterialIndexTable = StaticArray<MaterialTypeIndexInfo, SANDBOX_MAX_MATERIAL_TYPE_IN_DEFINITION>;
 
-		MaterialDefinition();
-		~MaterialDefinition();
+  struct Material
+  {
+    MaterialIndexTable MatIndices;
+    Ref<MaterialDef> pDefinition;
+    union
+    {
+      uint8 _mem[128] = { 0 };
+      uint8 Constants;
+    };
+  };
 
-		Ref<Material> CreateMaterialFromDefinition(const String128& Name);
-		Ref<Material> GetMaterial(const String128& Name);
-		const Handle<SDescriptorSet> GetDescriptorSetHandle() const;
-		const Handle<SDescriptorSetLayout> GetDescriptorSetLayoutHandle() const;
-		const Handle<SPipeline> GetPipelineHandle() const;
+  struct MaterialCreateInfo
+  {
 
-	};
+    Handle<MaterialDef> DefinitionHnd;
+  };
 
-	struct MaterialDefinitionCreateInfo
-	{
-		Handle<SDescriptorSet> DescriptorSetHnd;
-		Handle<SDescriptorSetLayout> DescriptorSetLayoutHnd;
-		Handle<SPipeline> PipelineHnd;
-		StaticArray<uint32, MaxTextureBindingSlot::Value> Slots;
-	};
+	//struct MaxTextureBindingSlot
+	//{
+	//	enum { Value = 8 };
+	//};
+
+	//class Material
+	//{
+	//private:
+	//	friend class MaterialDefinition;
+
+	//	using TextureSlots = StaticArray<Ref<Texture>, MaxTextureBindingSlot::Value>;
+	//	TextureSlots Textures;
+	//	String128 Name;
+	//public:
+	//	Material();
+	//	Material(String128 Name);
+	//	~Material();
+
+	//	void AddTextureToSlot(Ref<Texture> pTexture, size_t Type);
+	//};
+
+	//class MaterialDefinition
+	//{
+	//private:
+
+	//	using BindingSlot = uint32;
+	//	using TypeToBindSlots = StaticArray<BindingSlot, MaxTextureBindingSlot::Value>;
+
+	//	Array<Material> Materials;
+	//	TypeToBindSlots Slots;
+	//	Handle<SDescriptorSet> DescriptorSetHnd;
+	//	Handle<SDescriptorSetLayout> DescriptorSetLayoutHnd;
+	//	Handle<SPipeline> PipelineHnd;
+
+	//public:
+
+	//	MaterialDefinition();
+	//	~MaterialDefinition();
+
+	//	Ref<Material> CreateMaterialFromDefinition(const String128& Name);
+	//	Ref<Material> GetMaterial(const String128& Name);
+	//	const Handle<SDescriptorSet> GetDescriptorSetHandle() const;
+	//	const Handle<SDescriptorSetLayout> GetDescriptorSetLayoutHandle() const;
+	//	const Handle<SPipeline> GetPipelineHandle() const;
+
+	//};
+
+	//struct MaterialDefinitionCreateInfo
+	//{
+	//	Handle<SDescriptorSet> DescriptorSetHnd;
+	//	Handle<SDescriptorSetLayout> DescriptorSetLayoutHnd;
+	//	Handle<SPipeline> PipelineHnd;
+	//	StaticArray<uint32, MaxTextureBindingSlot::Value> Slots;
+	//};
 
 	//void SerializeModel(WriteMemoryStream& Stream, const Model& Src, const FilePath& DstPath);
 	//void SerializeShader(WriteMemoryStream& Stream, const Shader& Src, const FilePath& DstPath);

@@ -128,6 +128,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="API\Vk\VkFuncDecl.inl" />
+    <None Include=".editorconfig" />
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="vk_mem_alloc.natvis" />

@@ -227,6 +227,7 @@
     <None Include="SubSystem\Game\GameAppManager.inl">
       <Filter>Header Files</Filter>
     </None>
+    <None Include=".editorconfig" />
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="Orion.natvis" />

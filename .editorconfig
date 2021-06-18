@@ -1,0 +1,14 @@
+# Rules in this file were initially inferred by Visual Studio IntelliCode from the C:\Angkasawan\Sandbox\ codebase based on best match to current usage at 6/18/2021
+# You can modify the rules from these initially generated values to suit your own policies
+# You can learn more about editorconfig here: https://docs.microsoft.com/en-us/visualstudio/ide/editorconfig-code-style-settings-reference
+root = true
+
+[*.{c++,cc,cpp,cxx,h,h++,hh,hpp,hxx,inl,ipp,tlh,tli}]
+
+indent_size = 2
+indent_style = space
+tab_width = 2
+end_of_line = crlf
+charset = utf-8
+trim_trailing_whitespace = true
+insert_final_newline = true

@@ -275,6 +275,7 @@ xcopy "$(TargetDir)$(ProjectName).pdb" "$(SolutionDir)Bin\$(Configuration)\" /y 
     <ClCompile Include="SubSystem\Thread\ThreadPool.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <None Include=".editorconfig" />
     <None Include="cpp.hint" />
     <None Include="SubSystem\Game\GameAppManager.inl" />
   </ItemGroup>

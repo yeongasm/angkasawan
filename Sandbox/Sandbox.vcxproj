@@ -252,6 +252,7 @@ xcopy "$(ProjectDir)Data" "C:\Angkasawan\Bin\$(Configuration)\Data" /e /i /y /q<
     <ClCompile Include="External\cgltf\cgltf.cpp" />
     <ClCompile Include="External\stb\stb_image.cpp" />
     <ClCompile Include="Importer\Importer.cpp" />
+    <ClCompile Include="Material\MaterialController.cpp" />
     <ClCompile Include="Sandbox.cpp" />
     <ClCompile Include="SandboxApp\SandboxApp.cpp" />
     <ClCompile Include="SandboxApp\SandboxRenderConfig.cpp" />
@@ -263,12 +264,16 @@ xcopy "$(ProjectDir)Data" "C:\Angkasawan\Bin\$(Configuration)\Data" /e /i /y /q<
     <ClInclude Include="External\cgltf\cgltf.h" />
     <ClInclude Include="External\stb\stb_image.h" />
     <ClInclude Include="Importer\Importer.h" />
+    <ClInclude Include="Material\MaterialController.h" />
+    <ClInclude Include="Material\MaterialObject.h" />
     <ClInclude Include="Sandbox.h" />
+    <ClInclude Include="SandboxApp\Definitions.h" />
     <ClInclude Include="SandboxApp\SandboxApp.h" />
     <ClInclude Include="SandboxApp\SandboxRenderConfig.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include=".cfg" />
+    <None Include=".editorconfig" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -70,7 +70,7 @@ template <typename T>
 class Ref;
 
 template <typename T>
-class UniquePtr
+class UniquePtr final
 {
 private:
 	friend class Ref<T>;
@@ -106,7 +106,7 @@ public:
 template <typename T>
 class Ref
 {
-private:
+protected:
 	T* _Ptr;
 public:
 	Ref() : _Ptr(nullptr) {}
