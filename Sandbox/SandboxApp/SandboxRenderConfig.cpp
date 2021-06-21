@@ -112,8 +112,8 @@ namespace sandbox
 		pRenderer->DestroyShader(pFragment->Hnd);
 		pRenderer->DestroyShader(pVertex->Hnd);
 
-		pAssetManager->DeleteShader(FragmentShader);
-		pAssetManager->DeleteShader(VertexShader);
+		pAssetManager->DestroyShader(FragmentShader);
+		pAssetManager->DestroyShader(VertexShader);
 	}
 
 	const Handle<SRenderPass> CColorPass::GetRenderPassHandle() const
@@ -243,9 +243,7 @@ namespace sandbox
 
 	void RendererSetup::Terminate()
 	{
-		//IFrameGraph& frameGraph = pRenderer->GetFrameGraph();
 		ColorPass.Terminate();
-		//frameGraph.Terminate();
 		pRenderer->DestroyBuffer(CameraUboHnd);
 		pRenderer->DestroyDescriptorSet(SetHnd);
 		pRenderer->DestroyDescriptorSetLayout(SetLayoutHnd);

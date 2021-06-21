@@ -56,7 +56,7 @@ namespace sandbox
 
 		DELETE_COPY_AND_MOVE(ModelImporter)
 
-		Handle<Model> ImportModelFromPath(const FilePath& Path, Ref<IAssetManager> pAssetManager);
+		RefHnd<Model> ImportModelFromPath(const FilePath& Path, Ref<IAssetManager> pAssetManager);
 
 		/**
 		* Retrieves the relative path to the textures referenced by the imported model.
@@ -76,7 +76,7 @@ namespace sandbox
 
 		DELETE_COPY_AND_MOVE(TextureImporter)
 
-		Handle<Texture> ImportTextureFromPath(const FilePath& Path, Ref<IAssetManager> pAssetManager);
+		RefHnd<Texture> ImportTextureFromPath(const FilePath& Path, Ref<IAssetManager> pAssetManager);
 	};
 
 	class ShaderImporter
@@ -88,7 +88,7 @@ namespace sandbox
 
 		DELETE_COPY_AND_MOVE(ShaderImporter)
 
-		Handle<Shader> ImportShaderFromPath(const FilePath& Path, EShaderType Type, Ref<IAssetManager> pAssetManager);
+		RefHnd<Shader> ImportShaderFromPath(const FilePath& Path, EShaderType Type, Ref<IAssetManager> pAssetManager);
 	};
 
 }

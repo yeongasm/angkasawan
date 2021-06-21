@@ -1,8 +1,6 @@
 #include "Assets.h"
 #include "Library/Algorithms/Hash.h"
 
-static uint32 g_HashSeed = static_cast<uint32>(OS::GetPerfCounter());
-
 namespace sandbox
 {
 
@@ -12,9 +10,9 @@ namespace sandbox
 		Textures(),
 		Engine(Engine)
 	{
-		this->Engine.CreateNewResourceCache(Renderer_Asset_Model);
-		this->Engine.CreateNewResourceCache(Renderer_Asset_Shader);
-		this->Engine.CreateNewResourceCache(Renderer_Asset_Texture);
+		this->Engine.CreateNewResourceCache(Sandbox_Asset_Model);
+		this->Engine.CreateNewResourceCache(Sandbox_Asset_Shader);
+		this->Engine.CreateNewResourceCache(Sandbox_Asset_Texture);
 
 		Shaders.Reserve(32);
 		Models.Reserve(32);
@@ -27,14 +25,14 @@ namespace sandbox
 		Models.Release();
 		Textures.Release();
 
-		Engine.DeleteResourceCacheForType(Renderer_Asset_Model);
-		Engine.DeleteResourceCacheForType(Renderer_Asset_Shader);
-		Engine.DeleteResourceCacheForType(Renderer_Asset_Texture);
+		Engine.DeleteResourceCacheForType(Sandbox_Asset_Model);
+		Engine.DeleteResourceCacheForType(Sandbox_Asset_Shader);
+		Engine.DeleteResourceCacheForType(Sandbox_Asset_Texture);
 	}
 
-	Handle<Shader> IAssetManager::CreateNewShader(const Shader& Src)
+	Handle<Shader> IAssetManager::CreateShader(const Shader& Src)
 	{
-		ResourceCache* shaderCache = Engine.FetchResourceCacheForType(Renderer_Asset_Shader);
+		ResourceCache* shaderCache = Engine.FetchResourceCacheForType(Sandbox_Asset_Shader);
 		
 		//if (shaderCache->Find(Src.Path))
 		//{
@@ -44,7 +42,7 @@ namespace sandbox
 		uint32 id = shaderCache->Create();
 		Resource* resource = shaderCache->Get(id);
 		//resource->Path = Src.Path;
-		resource->Type = Renderer_Asset_Shader;
+		resource->Type = Sandbox_Asset_Shader;
 
 		Shaders.Add(id, Src);
 
@@ -56,9 +54,9 @@ namespace sandbox
 		return &Shaders[Hnd];
 	}
 
-	bool IAssetManager::DeleteShader(Handle<Shader> Hnd)
+	bool IAssetManager::DestroyShader(Handle<Shader> Hnd)
 	{
-		ResourceCache* shaderCache = Engine.FetchResourceCacheForType(Renderer_Asset_Shader);
+		ResourceCache* shaderCache = Engine.FetchResourceCacheForType(Sandbox_Asset_Shader);
 		Resource* res = shaderCache->Get(Hnd);
 
 		if (res->RefCount != 1)
@@ -73,9 +71,9 @@ namespace sandbox
 		return true;
 	}
 
-	Handle<Model> IAssetManager::CreateNewModel(const Model& Src)
+	Handle<Model> IAssetManager::CreateModel(const Model& Src)
 	{
-		ResourceCache* modelCache = Engine.FetchResourceCacheForType(Renderer_Asset_Model);
+		ResourceCache* modelCache = Engine.FetchResourceCacheForType(Sandbox_Asset_Model);
 
 		//if (modelCache->Find(Src.Path))
 		//{
@@ -85,7 +83,7 @@ namespace sandbox
 		uint32 id = modelCache->Create();
 		Resource* resource = modelCache->Get(id);
 		//resource->Path = Src.Path;
-		resource->Type = Renderer_Asset_Model;
+		resource->Type = Sandbox_Asset_Model;
 
 		Models.Add(id, Src);
 
@@ -97,9 +95,9 @@ namespace sandbox
 		return &Models[Hnd];
 	}
 
-	bool IAssetManager::DeleteModel(Handle<Model> Hnd)
+	bool IAssetManager::DestroyModel(Handle<Model> Hnd)
 	{
-		ResourceCache* modelCache = Engine.FetchResourceCacheForType(Renderer_Asset_Model);
+		ResourceCache* modelCache = Engine.FetchResourceCacheForType(Sandbox_Asset_Model);
 		Resource* resource = modelCache->Get(Hnd);
 
 		if (resource->RefCount != 1)
@@ -123,11 +121,11 @@ namespace sandbox
 
 	//	if (!vtxBuf || !idxBuf) { return INVALID_HANDLE; }
 
-	//	ResourceCache* meshCache = Manager.FetchCacheForType(Renderer_Asset_Mesh);
+	//	ResourceCache* meshCache = Manager.FetchCacheForType(Sandbox_Asset_Mesh);
 
 	//	uint32 id = meshCache->Create();
 	//	Resource* resource = meshCache->Get(id);
-	//	resource->Type = Renderer_Asset_Mesh;
+	//	resource->Type = Sandbox_Asset_Mesh;
 
 	//	Mesh& mesh = MeshStore.Add(id, Mesh()).Value;
 
@@ -182,7 +180,7 @@ namespace sandbox
 
 	//bool IAssetManager::DeleteMesh(Handle<Mesh> Hnd)
 	//{
-	//	ResourceCache* meshCache = Manager.FetchCacheForType(Renderer_Asset_Mesh);
+	//	ResourceCache* meshCache = Manager.FetchCacheForType(Sandbox_Asset_Mesh);
 	//	Resource* resource = meshCache->Get(Hnd);
 
 	//	if (resource->RefCount != 1)
@@ -198,7 +196,7 @@ namespace sandbox
 
 	//void IAssetManager::PushMeshIntoModel(Handle<Mesh> MeshHnd, Handle<Model> ModelHnd)
 	//{
-	//	ResourceCache* meshCache = Manager.FetchCacheForType(Renderer_Asset_Mesh);
+	//	ResourceCache* meshCache = Manager.FetchCacheForType(Sandbox_Asset_Mesh);
 
 	//	meshCache->AddRef(MeshHnd);
 
@@ -210,7 +208,7 @@ namespace sandbox
 
 	//bool IAssetManager::RemoveMeshFromModel(Handle<Mesh> MeshHnd, Handle<Model> ModelHnd)
 	//{
-	//	ResourceCache* meshCache = Manager.FetchCacheForType(Renderer_Asset_Mesh);
+	//	ResourceCache* meshCache = Manager.FetchCacheForType(Sandbox_Asset_Mesh);
 
 	//	Mesh& toDelete = MeshStore[MeshHnd];
 	//	Model& model = ModelStore[ModelHnd];
@@ -241,9 +239,9 @@ namespace sandbox
 	//	return true;
 	//}
 
-	Handle<Texture> IAssetManager::CreateNewTexture(const Texture& Src)
+	Handle<Texture> IAssetManager::CreateTexture(const Texture& Src)
 	{
-		ResourceCache* textureCache = Engine.FetchResourceCacheForType(Renderer_Asset_Texture);
+		ResourceCache* textureCache = Engine.FetchResourceCacheForType(Sandbox_Asset_Texture);
 
 		//if (textureCache->Find(Src.Path))
 		//{
@@ -253,7 +251,7 @@ namespace sandbox
 		uint32 id = textureCache->Create();
 		Resource* resource = textureCache->Get(id);
 		//resource->Path = Src.Path;
-		resource->Type = Renderer_Asset_Texture;
+		resource->Type = Sandbox_Asset_Texture;
 
 		Textures.Add(id, Src);
 
@@ -265,9 +263,9 @@ namespace sandbox
 		return &Textures[Hnd];
 	}
 
-	bool IAssetManager::DeleteTexture(Handle<Texture> Hnd)
+	bool IAssetManager::DestroyTexture(Handle<Texture> Hnd)
 	{
-		ResourceCache* textureCache = Engine.FetchResourceCacheForType(Renderer_Asset_Texture);
+		ResourceCache* textureCache = Engine.FetchResourceCacheForType(Sandbox_Asset_Texture);
 		Resource* resource = textureCache->Get(Hnd);
 
 		if (resource->RefCount != 1)
@@ -302,61 +300,61 @@ namespace sandbox
 	//	}
 	//}
 
-	Material::Material() :
-		Textures{}
-	{}
+	//Material::Material() :
+	//	Textures{}
+	//{}
 
-	Material::Material(String128 Name) :
-		Textures{}, Name(Name)
-	{}
+	//Material::Material(String128 Name) :
+	//	Textures{}, Name(Name)
+	//{}
 
-	Material::~Material() {}
+	//Material::~Material() {}
 
-	void Material::AddTextureToSlot(Ref<Texture> pTexture, size_t Type)
-	{
-		this->Textures[Type] = pTexture;
-	}
+	//void Material::AddTextureToSlot(Ref<Texture> pTexture, size_t Type)
+	//{
+	//	this->Textures[Type] = pTexture;
+	//}
 
-	MaterialDefinition::MaterialDefinition() :
-		Materials{},
-		Slots{},
-		DescriptorSetHnd{},
-		DescriptorSetLayoutHnd{},
-		PipelineHnd{}
-	{}
+	//MaterialDefinition::MaterialDefinition() :
+	//	Materials{},
+	//	Slots{},
+	//	DescriptorSetHnd{},
+	//	DescriptorSetLayoutHnd{},
+	//	PipelineHnd{}
+	//{}
 
-	MaterialDefinition::~MaterialDefinition() {}
+	//MaterialDefinition::~MaterialDefinition() {}
 
-	Ref<Material> MaterialDefinition::CreateMaterialFromDefinition(const String128& Name)
-	{
-		Material& material = Materials.Insert(Material(Name));
-		return &material;
-	}
+	//Ref<Material> MaterialDefinition::CreateMaterialFromDefinition(const String128& Name)
+	//{
+	//	Material& material = Materials.Insert(Material(Name));
+	//	return &material;
+	//}
 
-	Ref<Material> MaterialDefinition::GetMaterial(const String128& Name)
-	{
-		for (Material& material : Materials)
-		{
-			if (material.Name == Name)
-			{
-				return &material;
-			}
-		}
-		return Ref<Material>();
-	}
+	//Ref<Material> MaterialDefinition::GetMaterial(const String128& Name)
+	//{
+	//	for (Material& material : Materials)
+	//	{
+	//		if (material.Name == Name)
+	//		{
+	//			return &material;
+	//		}
+	//	}
+	//	return Ref<Material>();
+	//}
 
-	const Handle<SDescriptorSet> MaterialDefinition::GetDescriptorSetHandle() const
-	{
-		return DescriptorSetHnd;
-	}
+	//const Handle<SDescriptorSet> MaterialDefinition::GetDescriptorSetHandle() const
+	//{
+	//	return DescriptorSetHnd;
+	//}
 
-	const Handle<SDescriptorSetLayout> MaterialDefinition::GetDescriptorSetLayoutHandle() const
-	{
-		return DescriptorSetLayoutHnd;
-	}
+	//const Handle<SDescriptorSetLayout> MaterialDefinition::GetDescriptorSetLayoutHandle() const
+	//{
+	//	return DescriptorSetLayoutHnd;
+	//}
 
-	const Handle<SPipeline> MaterialDefinition::GetPipelineHandle() const
-	{
-		return PipelineHnd;
-	}
+	//const Handle<SPipeline> MaterialDefinition::GetPipelineHandle() const
+	//{
+	//	return PipelineHnd;
+	//}
 }

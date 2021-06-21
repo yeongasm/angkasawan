@@ -32,9 +32,9 @@ namespace sandbox
 	{
 	private:
 
-		Handle<Shader> VertexShader;
-		Handle<Shader> FragmentShader;
-		Handle<SImage> OutputAtt;
+		RefHnd<Shader> VertexShader;
+		RefHnd<Shader> FragmentShader;
+		//Handle<SImage> OutputAtt;
 
 	public:
 		

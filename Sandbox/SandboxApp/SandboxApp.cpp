@@ -218,10 +218,6 @@ namespace sandbox
 		Ref<Model> pZelda = AssetManager.GetModelWithHandle(zeldaModel);
 		VKT_ASSERT(pZelda);
 
-		//math::mat4 transform(1.0f);
-		//math::Scale(transform, math::vec3(0.075f));
-		//math::Rotate(transform, pEngine->Clock.FElapsedTime(), math::vec3(0.f, 1.f, 0.f));
-
 		DrawInfo info = {};
 		info.Id = static_cast<uint32>(zeldaModel);
 		info.DrawableCount = pZelda->NumDrawables;
@@ -231,34 +227,10 @@ namespace sandbox
 		info.Renderpass = Setup.GetColorPass().GetRenderPassHandle();
 
 		math::mat4 transform(1.0f);
-		//math::Translate(transform, math::vec3(15.0f * i, 0.0f, 15.0f * j));
 		math::Scale(transform, math::vec3(0.075f));
-
-		//if ((i + j % 3) == 0)
-		//{
-		//	math::Rotate(transform, pEngine->Clock.FElapsedTime(), math::vec3(0.f, 1.f, 0.f));
-		//}
 
 		info.Transform = transform;
 		pRenderer->Draw(info);
-
-		//for (size_t i = 0; i < 10; i++)
-		//{
-		//	for (size_t j = 0; j < 10; j++)
-		//	{
-		//		math::mat4 transform(1.0f);
-		//		math::Translate(transform, math::vec3(15.0f * i, 0.0f, 15.0f * j));
-		//		math::Scale(transform, math::vec3(0.075f));
-
-		//		if ((i + j % 3) == 0)
-		//		{
-		//			math::Rotate(transform, pEngine->Clock.FElapsedTime(), math::vec3(0.f, 1.f, 0.f));
-		//		}
-
-		//		info.Transform = transform;
-		//		pRenderer->Draw(info);
-		//	}
-		//}
 
 		firstFrame = false;
 	}

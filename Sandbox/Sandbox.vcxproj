@@ -86,17 +86,17 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
-    <OutDir>C:\Angkasawan\Modules\$(ProjectName)\</OutDir>
-    <IntDir>C:\Angkasawan\Modules\$(ProjectName)\Intermediaries\</IntDir>
-    <IncludePath>C:\Angkasawan\Core;C:\Angkasawan\Renderer;C:\Angkasawan\Sandbox;$(IncludePath)</IncludePath>
-    <LibraryPath>C:\Angkasawan\Modules\Core;C:\Angkasawan\Modules\Renderer;$(LibraryPath)</LibraryPath>
+    <OutDir>$(SolutionDir)Modules\$(ProjectName)\</OutDir>
+    <IntDir>$(SolutionDir)\Modules\$(ProjectName)\Intermediaries\</IntDir>
+    <IncludePath>$(SolutionDir)Core;$(SolutionDir)Renderer;$(SolutionDir)Sandbox;$(IncludePath)</IncludePath>
+    <LibraryPath>$(SolutionDir)Modules\Core;$(SolutionDir)Modules\Renderer;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
-    <OutDir>C:\Angkasawan\Modules\$(ProjectName)\</OutDir>
-    <IntDir>C:\Angkasawan\Modules\$(ProjectName)\Intermediaries\</IntDir>
-    <IncludePath>C:\Angkasawan\Core;C:\Angkasawan\Renderer;C:\Angkasawan\Sandbox;$(IncludePath)</IncludePath>
-    <LibraryPath>C:\Angkasawan\Modules\Core;C:\Angkasawan\Modules\Renderer;$(LibraryPath)</LibraryPath>
+    <OutDir>$(SolutionDir)Modules\$(ProjectName)\</OutDir>
+    <IntDir>$(SolutionDir)Modules\$(ProjectName)\Intermediaries\</IntDir>
+    <IncludePath>$(SolutionDir)Core;$(SolutionDir)Renderer;$(SolutionDir)Sandbox;$(IncludePath)</IncludePath>
+    <LibraryPath>$(SolutionDir)Modules\Core;$(SolutionDir)Modules\Renderer;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -180,22 +180,22 @@ xcopy "$(ProjectDir)Data" "C:\Angkasawan\Bin\$(Configuration)\Data" /e /i /y /q<
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <LanguageStandard>stdcpp17</LanguageStandard>
-      <AdditionalIncludeDirectories>C:\Angkasawan\Core;C:\Angkasawan\Renderer;C:\Angkasawan\Sandbox;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)Core;$(SolutionDir)Renderer;$(SolutionDir)Sandbox;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalOptions>/FS %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <SubSystem>NotSet</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
-      <AdditionalLibraryDirectories>C:\Angkasawan\Modules\Core;C:\Angkasawan\Modules\Renderer;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(SolutionDir)Modules\Core;$(SolutionDir)Modules\Renderer;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>Core.lib;Renderer.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <ProgramDatabaseFile>$(OutDir)$(TargetName).pdb</ProgramDatabaseFile>
     </Link>
     <PostBuildEvent>
-      <Command>xcopy "$(TargetDir)$(ProjectName).dll" "C:\Angkasawan\Bin\$(Configuration)\" /y /q
-xcopy "$(TargetDir)*.pdb" "C:\Angkasawan\Bin\$(Configuration)\" /y /q
-xcopy "$(ProjectDir).cfg" "C:\Angkasawan\Bin\$(Configuration)\" /y /q
-xcopy "$(ProjectDir)Data" "C:\Angkasawan\Bin\$(Configuration)\Data" /e /i /y /q</Command>
+      <Command>xcopy "$(TargetDir)$(ProjectName).dll" "$(SolutionDir)Bin\$(Configuration)\" /y /q
+xcopy "$(TargetDir)*.pdb" "$(SolutionDir)Bin\$(Configuration)\" /y /q
+xcopy "$(ProjectDir).cfg" "$(SolutionDir)Bin\$(Configuration)\" /y /q
+xcopy "$(ProjectDir)Data" "$(SolutionDir)Bin\$(Configuration)\Data" /e /i /y /q</Command>
     </PostBuildEvent>
     <PreBuildEvent>
       <Command>
@@ -216,7 +216,7 @@ xcopy "$(ProjectDir)Data" "C:\Angkasawan\Bin\$(Configuration)\Data" /e /i /y /q<
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <LanguageStandard>stdcpp17</LanguageStandard>
-      <AdditionalIncludeDirectories>C:\Angkasawan\Core;C:\Angkasawan\Renderer;C:\Angkasawan\Sandbox;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)Core;$(SolutionDir)Renderer;$(SolutionDir)Sandbox;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalOptions>/FS %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
@@ -230,11 +230,11 @@ xcopy "$(ProjectDir)Data" "C:\Angkasawan\Bin\$(Configuration)\Data" /e /i /y /q<
       <ProgramDatabaseFile>$(OutDir)$(TargetName).pdb</ProgramDatabaseFile>
     </Link>
     <PostBuildEvent>
-      <Command>xcopy "$(TargetDir)$(ProjectName).dll" "C:\Angkasawan\Bin\$(Configuration)\" /y /q
-xcopy "$(TargetDir)*.pdb" "C:\Angkasawan\Bin\$(Configuration)\" /y /q
-xcopy "$(TargetDir)$(ProjectName).ilk" "C:\Angkasawan\Bin\$(Configuration)\" /y /q
-xcopy "$(ProjectDir).cfg" "C:\Angkasawan\Bin\$(Configuration)\" /y /q
-xcopy "$(ProjectDir)Data" "C:\Angkasawan\Bin\$(Configuration)\Data" /e /i /y /q</Command>
+      <Command>xcopy "$(TargetDir)$(ProjectName).dll" "$(SolutionDir)Bin\$(Configuration)\" /y /q
+xcopy "$(TargetDir)*.pdb" "$(SolutionDir)Bin\$(Configuration)\" /y /q
+xcopy "$(TargetDir)$(ProjectName).ilk" "$(SolutionDir)Bin\$(Configuration)\" /y /q
+xcopy "$(ProjectDir).cfg" "$(SolutionDir)Bin\$(Configuration)\" /y /q
+xcopy "$(ProjectDir)Data" "$(SolutionDir)Bin\$(Configuration)\Data" /e /i /y /q</Command>
     </PostBuildEvent>
     <PreBuildEvent>
       <Command>

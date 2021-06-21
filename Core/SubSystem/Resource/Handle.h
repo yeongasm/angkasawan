@@ -43,17 +43,14 @@ protected:
 	size_t Value;
 };
 
-template <typename Type>
-class RefHnd final : protected Handle<Type>, protected Ref<Type>
+template <typename T>
+class RefHnd final : public Handle<T>, public Ref<T>
 {
-private:
-  using Base0 = Handle<Type>;
-  using Base1 = Ref<Type>;
 public:
-  RefHnd() : Base0(), Base1() {}
-  ~RefHnd();
-  RefHnd(size_t i, T* Src) : Handle(i), Ref(Src) {}
-  RefHnd(NullPointer) : Handle(INVALID_HANDLE), Ref(NullPointer()) {}
+  RefHnd() : Handle<T>(), Ref<T>() {}
+  ~RefHnd() {}
+  RefHnd(Handle<T> i, Ref<T> Src) : Handle<T>(i), Ref<T>(Src) {}
+  RefHnd(NullPointer) : Handle<T>(INVALID_HANDLE), Ref<T>(NullPointer()) {}
   RefHnd(const RefHnd& Rhs) { *this = Rhs; }
   RefHnd(RefHnd&& Rhs) { *this = Move(Rhs); }
 
@@ -61,8 +58,8 @@ public:
   {
     if (this != &Rhs)
     {
-      Handle<Type>::operator=(Rhs);
-      Ref<Type>::operator=(Rhs);
+      Handle<T>::operator=(Rhs);
+      Ref<T>::operator=(Rhs);
     }
     return *this;
   }
@@ -71,15 +68,20 @@ public:
   {
     if (this != &Rhs)
     {
-      Handle<Type>::operator=(Move(Rhs));
-      Ref<Type>::operator=(Move(Rhs));
+      Handle<T>::operator=(Move(Rhs));
+      Ref<T>::operator=(Move(Rhs));
     }
-    return* this;
+    return *this;
   }
 
-  using 
-
-
+  using Handle<T>::operator==;
+  using Handle<T>::operator!=;
+  using Ref<T>::operator==;
+  using Ref<T>::operator!=;
+  using Ref<T>::operator->;
+  using Handle<T>::operator size_t;
+  using Handle<T>::operator uint32;
+  using Ref<T>::operator bool;
 };
 
 #endif // !ANGKASA1_ASSETS_HANDLE

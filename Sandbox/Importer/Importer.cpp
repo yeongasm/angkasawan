@@ -206,19 +206,19 @@ namespace sandbox
 		TexCoords.Release();
 	}
 
-	Handle<Model> ModelImporter::ImportModelFromPath(const FilePath& Path, Ref<IAssetManager> pAssetManager)
+	RefHnd<Model> ModelImporter::ImportModelFromPath(const FilePath& Path, Ref<IAssetManager> pAssetManager)
 	{
 		Ifstream ifstream;
 		String buf;
 
 		if (!pAssetManager || !Path.Length())
 		{
-			return INVALID_HANDLE;
+			return NullPointer();
 		}
 
 		if (!ifstream.Open(Path.C_Str()))
 		{
-			return INVALID_HANDLE;
+			return NullPointer();
 		}
 
 		size_t fileSize = ifstream.Size();
@@ -230,21 +230,21 @@ namespace sandbox
 		cgltf_options options = {};
 		cgltf_result result = cgltf_parse(&options, buf.First(), fileSize, &Data);
 
-		if (result != cgltf_result_success) { return false; }
+		if (result != cgltf_result_success) { return NullPointer(); }
 
 		result = cgltf_load_buffers(&options, Data, Path.C_Str());
 
-		if (result != cgltf_result_success) { return false; }
+		if (result != cgltf_result_success) { return NullPointer(); }
 
 		result = cgltf_validate(Data);
 
-		if (result != cgltf_result_success) { return false; }
+		if (result != cgltf_result_success) { return NullPointer(); }
 
-		if (!Data->meshes_count) { return false; }
+		if (!Data->meshes_count) { return NullPointer(); }
 
 		//LoadTexturePathsFromGLTF();
 
-		Handle<Model> hnd = pAssetManager->CreateNewModel(Model());
+		Handle<Model> hnd = pAssetManager->CreateModel(Model());
 		Ref<Model> pModel = pAssetManager->GetModelWithHandle(hnd);
 
 		cgltf_node* node = nullptr;
@@ -260,7 +260,7 @@ namespace sandbox
 			}
 		}
 
-		return hnd;
+		return RefHnd<Model>(hnd, pModel);
 	}
 
 	//size_t ModelImporter::PathsToTextures(Array<FilePath>* Out)
@@ -299,16 +299,16 @@ namespace sandbox
 
 	TextureImporter::~TextureImporter() {}
 
-	Handle<Texture> TextureImporter::ImportTextureFromPath(const FilePath& Path, Ref<IAssetManager> pAssetManager)
+	RefHnd<Texture> TextureImporter::ImportTextureFromPath(const FilePath& Path, Ref<IAssetManager> pAssetManager)
 	{
 		if (!pAssetManager || !Path.Length())
 		{
-			return INVALID_HANDLE;
+			return NullPointer();
 		}
 
 		Ifstream ifstream;
 
-		if (!ifstream.Open(Path.C_Str())) { return INVALID_HANDLE; }
+		if (!ifstream.Open(Path.C_Str())) { return NullPointer(); }
 
 		const size_t fileSize = ifstream.Size();
 
@@ -323,9 +323,9 @@ namespace sandbox
 
 		uint8* data = stbi_load_from_memory(temp, static_cast<int32>(fileSize), &width, &height, &channels, STBI_rgb_alpha);
 
-		if (!data) { return false; }
+		if (!data) { return NullPointer(); }
 
-		Handle<Texture> hnd = pAssetManager->CreateNewTexture(Texture());
+		Handle<Texture> hnd = pAssetManager->CreateTexture(Texture());
 		Ref<Texture> pTexture = pAssetManager->GetTextureWithHandle(hnd);
 
 		pTexture->Width = width;
@@ -336,7 +336,7 @@ namespace sandbox
 
 		//stbi_image_free(data);
 
-		return hnd;
+		return RefHnd<Texture>(hnd, pTexture);
 	}
 
 	ShaderImporter::ShaderImporter() {}
@@ -348,18 +348,18 @@ namespace sandbox
 
 	ShaderImporter::~ShaderImporter() {}
 
-	Handle<Shader> ShaderImporter::ImportShaderFromPath(const FilePath& Path, EShaderType Type, Ref<IAssetManager> pAssetManager)
+	RefHnd<Shader> ShaderImporter::ImportShaderFromPath(const FilePath& Path, EShaderType Type, Ref<IAssetManager> pAssetManager)
 	{
 		if (!pAssetManager || !Path.Length())
 		{
-			return INVALID_HANDLE;
+			return NullPointer();
 		}
 
 		Ifstream ifstream;
-		if (!ifstream.Open(Path.C_Str())) { return INVALID_HANDLE; }
+		if (!ifstream.Open(Path.C_Str())) { return NullPointer(); }
 		
 		const size_t fileSize = ifstream.Size();
-		Handle<Shader> hnd = pAssetManager->CreateNewShader(Shader());
+		Handle<Shader> hnd = pAssetManager->CreateShader(Shader());
 		Ref<Shader> pShader = pAssetManager->GetShaderWithHandle(hnd);
 
 		pShader->Code.Reserve(fileSize + 1);
@@ -370,6 +370,6 @@ namespace sandbox
 		pShader->Type = Type;
 		pShader->Code[fileSize] = '\0';
 
-		return hnd;
+		return RefHnd<Shader>(hnd, pShader);
 	}
 }
