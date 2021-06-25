@@ -132,7 +132,7 @@ public:
 	void DestroyVkSemaphore(VkSemaphore Hnd);
 
 	void BufferBarrier(VkCommandBuffer Cmd, VkBuffer Hnd, size_t Size, size_t Offset, VkAccessFlags SrcAccessMask, VkAccessFlags DstAccessMask, VkPipelineStageFlags SrcStageMask, VkPipelineStageFlags DstStageMask, uint32 SrcQueue, uint32 DstQueue);
-	void ImageBarrier(VkCommandBuffer Cmd, VkImage Hnd, VkImageSubresourceRange* pSubRange, VkImageLayout OldLayout, VkImageLayout NewLayout, VkPipelineStageFlags SrcStageMask, VkPipelineStageFlags DstStageMask, uint32 SrcQueue, uint32 DstQueue);
+	void ImageBarrier(VkCommandBuffer Cmd, VkImage Hnd, VkImageSubresourceRange* pSubRange, VkImageLayout OldLayout, VkImageLayout NewLayout, VkPipelineStageFlags SrcStageMask, VkPipelineStageFlags DstStageMask, uint32 SrcQueue, uint32 DstQueue, VkAccessFlags SrcAccessMask = 0, VkAccessFlags DstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT);
 
 	void WaitTimelineSempahore(VkSemaphore Hnd, uint64 Value, uint64 Timeout = UINT64_MAX);
 	void SignalTimelineSemaphore(VkSemaphore Hnd, uint64 Value);

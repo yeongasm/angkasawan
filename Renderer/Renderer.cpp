@@ -15,15 +15,56 @@ LinearAllocator IRenderSystem::DrawManager::_DrawCommandAllocator = {};
 LinearAllocator IRenderSystem::DrawManager::_TransformAllocator = {};
 uint32 IRenderSystem::DrawManager::_NumDrawables = 0;
 
-//IRenderSystem::DescriptorUpdate::Container<SImage*>  IRenderSystem::DescriptorUpdate::_Images = {};
-IRenderSystem::DescriptorUpdate::Container<Ref<SMemoryBuffer>>  IRenderSystem::DescriptorUpdate::_Buffers = {};
-
 Map<size_t, IRenderSystem::DrawManager::EntryContainer> IRenderSystem::DrawManager::_InstancedDraws = {};
 Map<size_t, IRenderSystem::DrawManager::EntryContainer> IRenderSystem::DrawManager::_NonInstancedDraws = {};
 
 LinearAllocator IRenderSystem::BindableManager::_BindableAllocator = {};
 Map<size_t, IRenderSystem::BindableManager::BindableRange> IRenderSystem::BindableManager::_Bindables = {};
 IRenderSystem::BindableManager::BindableRange IRenderSystem::BindableManager::_GlobalBindables = {};
+
+struct DescriptorUpdate
+{
+  struct Key
+  {
+    Ref<SDescriptorSet> pSet;
+    Ref<SDescriptorSetLayout::Binding> pBinding;
+    size_t _Key;
+    uint32 _FirstImage;
+
+    Key() : pSet{}, pBinding{}, _Key{ 0 }, _FirstImage{ 0 } {}
+    Key(Ref<SDescriptorSet> InSet, Ref<SDescriptorSetLayout::Binding> InBinding, size_t InKey) :
+      pSet{ InSet }, pBinding{ InBinding }, _Key{ InKey }, _FirstImage{ 0 } {}
+    ~Key()
+    {
+      pSet.~Ref();
+      pBinding.~Ref();
+      _Key = _FirstImage = 0;
+    }
+
+    bool operator==(const Key& Rhs) { return _Key == Rhs._Key; }
+    bool operator!=(const Key& Rhs) { return _Key != Rhs._Key; }
+
+    /**
+    * NOTE(Ygsm):
+    * These functions are needed to make hashing custom structs work.
+    */
+    size_t*       First()         { return &_Key; }
+    const size_t* First()   const { return &_Key; }
+    size_t        Length()  const { return sizeof(size_t); }
+  };
+
+  template <typename UpdateObject>
+  using Container = Map<Key, UpdateObject, XxHash<Key>>;
+
+  static size_t CalculateKey(Handle<SDescriptorSet> SetHnd, uint32 Binding)
+  {
+    size_t binding = static_cast<size_t>(Binding);
+    return (static_cast<size_t>(SetHnd) << binding) | binding;
+  }
+};
+
+DescriptorUpdate::Container<Array<VkDescriptorImageInfo>> g_DescriptorImageInfos;
+DescriptorUpdate::Container<VkDescriptorBufferInfo>       g_DescriptorBufferInfos;
 
 uint32 IRenderSystem::CalcStrideForFormat(EShaderAttribFormat Format)
 {
@@ -362,6 +403,19 @@ void IRenderSystem::RecordDrawCommand(const DrawCommand& Command)
 	vkCmdDrawIndexed(cmd, Command.NumIndices, Command.InstanceCount, Command.IndexOffset, Command.VertexOffset, Command.InstanceOffset);
 }
 
+void IRenderSystem::BindPushConstant(const DrawCommand& Command)
+{
+  const VkCommandBuffer& cmd = pDevice->GetCommandBuffer();
+  vkCmdPushConstants(
+    cmd,
+    Command.pPipeline->LayoutHnd,
+    VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+    0,
+    128,
+    &Command.Constants
+  );
+}
+
 void IRenderSystem::PrepareDrawCommands()
 {
 	constexpr size_t mat4Size = sizeof(math::mat4);
@@ -381,7 +435,6 @@ void IRenderSystem::PrepareDrawCommands()
 			auto& transformRange = entry.TransformRange;
 			while (transformRange.pBegin)
 			{
-				//transforms.Push(Move(entry.TransformRange.pBegin->Data));
 				const size_t pos = static_cast<size_t>(baseOffset) + static_cast<size_t>(updateCount);
 				CopyToBuffer(
 					InstanceBuffer.Value, 
@@ -415,7 +468,6 @@ void IRenderSystem::PrepareDrawCommands()
 				range.pEnd = drawCmds.pEnd;
 			}
 			firstInstance = updateCount;
-			//firstInstance = static_cast<uint32>(transforms.Length());
 		}
 
 		//for (DrawManager::InstanceEntry& entry : nonInstancedEntries)
@@ -443,18 +495,11 @@ void IRenderSystem::PrepareDrawCommands()
 		//	firstInstance = static_cast<uint32>(transforms.Length());
 		//}
 	}
-
-	//CopyToBuffer(
-	//	InstanceBuffer.Value, 
-	//	transforms.First(), 
-	//	DrawManager::_NumDrawables * sizeof(math::mat4), 
-	//	baseOffset * sizeof(math::mat4)
-	//);
 }
 
 void IRenderSystem::MakeTransferToGpu()
 {
-	if (!pStaging->ShouldMakeTransfer()) { return; }
+	if (!pStaging->MakeTransfers.Value()) { return; }
 
 	VkCommandBuffer cmd = pDevice->AllocateCommandBuffer(
 		pDevice->GetGraphicsCommandPool(), 
@@ -464,32 +509,83 @@ void IRenderSystem::MakeTransferToGpu()
 	if (cmd == VK_NULL_HANDLE) { return; }
 	pDevice->BeginCommandBuffer(cmd, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 
-	pDevice->BufferBarrier(
-		cmd,
-		VertexBuffer.Value->Hnd,
-		VertexBuffer.Value->Size,
-		0,
-		VK_ACCESS_TRANSFER_WRITE_BIT,
-		VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT,
-		VK_PIPELINE_STAGE_TRANSFER_BIT,
-		VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
-		pDevice->GetGraphicsQueue().FamilyIndex,
-		pDevice->GetGraphicsQueue().FamilyIndex
-	);
+  if (pStaging->MakeTransfers.Has(Ownership_Transfer_Type_Vertex_Buffer))
+  {
+	  pDevice->BufferBarrier(
+		  cmd,
+		  VertexBuffer.Value->Hnd,
+		  VertexBuffer.Value->Size,
+		  0,
+		  VK_ACCESS_TRANSFER_WRITE_BIT,
+		  VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT,
+		  VK_PIPELINE_STAGE_TRANSFER_BIT,
+		  VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
+		  pDevice->GetGraphicsQueue().FamilyIndex,
+		  pDevice->GetGraphicsQueue().FamilyIndex
+	  );
+  }
 
-	pDevice->BufferBarrier(
-		cmd,
-		IndexBuffer.Value->Hnd,
-		IndexBuffer.Value->Size,
-		0,
-		VK_ACCESS_TRANSFER_WRITE_BIT,
-		VK_ACCESS_INDEX_READ_BIT,
-		VK_PIPELINE_STAGE_TRANSFER_BIT,
-		VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
-		pDevice->GetGraphicsQueue().FamilyIndex,
-		pDevice->GetGraphicsQueue().FamilyIndex
-	);
+  if (pStaging->MakeTransfers.Has(Ownership_Transfer_Type_Index_Buffer))
+  {
+    pDevice->BufferBarrier(
+      cmd,
+      IndexBuffer.Value->Hnd,
+      IndexBuffer.Value->Size,
+      0,
+      VK_ACCESS_TRANSFER_WRITE_BIT,
+      VK_ACCESS_INDEX_READ_BIT,
+      VK_PIPELINE_STAGE_TRANSFER_BIT,
+      VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
+      pDevice->GetGraphicsQueue().FamilyIndex,
+      pDevice->GetGraphicsQueue().FamilyIndex
+    );
+  }
 
+  if (pStaging->MakeTransfers.Has(Ownership_Transfer_Type_Buffer_Or_Image))
+  {
+    for (const auto& transfer : pStaging->GetOwnershipTransfers())
+    {
+      if (transfer.Type == Staging_Upload_Type_Buffer)
+      {
+        pDevice->BufferBarrier(
+          cmd,
+          transfer.pBuffer->Hnd,
+          transfer.pBuffer->Size,
+          0,
+          VK_ACCESS_TRANSFER_WRITE_BIT,
+          VK_ACCESS_MEMORY_READ_BIT,
+          VK_PIPELINE_STAGE_TRANSFER_BIT,
+          VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
+          pDevice->GetGraphicsQueue().FamilyIndex,
+          pDevice->GetGraphicsQueue().FamilyIndex
+        );
+      }
+
+      if (transfer.Type == Staging_Upload_Type_Image)
+      {
+        VkImageSubresourceRange range = {};
+        range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        range.baseMipLevel = 0;
+        range.levelCount = transfer.pImage->MipLevels;
+        range.baseArrayLayer = 0;
+        range.layerCount = 1;
+
+        pDevice->ImageBarrier(
+          cmd,
+          transfer.pImage->ImgHnd,
+          &range,
+          VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+          VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+          VK_PIPELINE_STAGE_TRANSFER_BIT,
+          VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+          pDevice->GetGraphicsQueue().FamilyIndex,
+          pDevice->GetGraphicsQueue().FamilyIndex,
+          VK_ACCESS_TRANSFER_WRITE_BIT,
+          VK_ACCESS_SHADER_READ_BIT
+        );
+      }
+    }
+  }
 
 	VkSubmitInfo submit = {};
 	submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -505,7 +601,7 @@ void IRenderSystem::MakeTransferToGpu()
 	);
 	vkQueueWaitIdle(pDevice->GetGraphicsQueue().Hnd);
 	pDevice->MoveToZombieList(cmd, pDevice->GetGraphicsCommandPool());
-	pStaging->MakeTransfer = false;
+  pStaging->MakeTransfers.Assign(0);
 }
 
 void IRenderSystem::Clear()
@@ -524,8 +620,8 @@ void IRenderSystem::Clear()
 		pair.Value.Empty();
 	}
 
-	DescriptorUpdate::_Buffers.Empty();
-	//DescriptorUpdate::_Images.Empty();
+  g_DescriptorBufferInfos.Empty();
+  g_DescriptorImageInfos.Empty();
 
 	for (auto& pair : BindableManager::_Bindables)
 	{
@@ -652,17 +748,6 @@ uint32 IRenderSystem::GetImageUsageFlags(Ref<SImage> pImg)
 uint32 IRenderSystem::GetImageFormat(Ref<SImage> pImg)
 {
 	VkFormat format = VK_FORMAT_R8G8B8A8_SRGB;
-	//switch (pImg->Channels)
-	//{
-	//case 1:
-	//	format = VK_FORMAT_R8_SRGB;
-	//	break;
-	//case 2:
-	//	format = VK_FORMAT_R8G8_SRGB;
-	//	break;
-	//default:
-	//	break;
-	//}
 	if (pImg->Usage.Has(Image_Usage_Depth_Stencil_Attachment))
 	{
 		format = VK_FORMAT_D24_UNORM_S8_UINT;
@@ -710,9 +795,9 @@ void IRenderSystem::OnInit()
 	Drawables.Reserve(MAX_FRAMEGRAPH_PASS_COUNT);
 
 	/* !!! */
-	DescriptorUpdate::_Buffers.Reserve(16);
+  g_DescriptorImageInfos.Reserve(16);
+  g_DescriptorBufferInfos.Reserve(16);
 	/* !!! */
-	//DescriptorUpdate::_Images.Reserve(16);
 
 	pStore = IAllocator::New<IDeviceStore>(g_RenderSystemAllocator);
 
@@ -742,7 +827,6 @@ void IRenderSystem::OnInit()
 	IndexBuffer = DefaultBuffer(hnd, pStore->GetBuffer(hnd));
 	BuildBuffer(hnd);
 
-
 	// Instance buffer ...
 	allocInfo.Type.Assign((1 << Buffer_Type_Vertex) | (1 << Buffer_Type_Transfer_Dst));
 	allocInfo.Locality = Buffer_Locality_Cpu_To_Gpu;
@@ -754,10 +838,6 @@ void IRenderSystem::OnInit()
 
 void IRenderSystem::OnUpdate()
 {
-	// NOTE(Ygsm):
-	// Let the application call the window resizing function for the renderer.
-	// 
-	// This one needs to be done regardless.
 	if (Engine.HasWindowSizeChanged())
 	{
 		const Extent2D& extent = Engine.GetWindowInformation().Extent;
@@ -785,6 +865,7 @@ void IRenderSystem::OnUpdate()
 		DynamicStateSetup(pRenderPass);
 		while (node)
 		{
+      BindPushConstant(node->Data);
 			RecordDrawCommand(node->Data);
 			node = node->Next;
 		}
@@ -996,7 +1077,6 @@ bool IRenderSystem::DescriptorSetMapToBuffer(Handle<SDescriptorSet> Hnd, uint32 
 {
 	Ref<SDescriptorSet> pSet = pStore->GetDescriptorSet(Hnd);
 	Ref<SMemoryBuffer> pBuffer = pStore->GetBuffer(BufferHnd);
-	const uint32 index = pDevice->GetCurrentFrameIndex();
 
 	if (!pSet || !pBuffer) { return false; }
 
@@ -1028,41 +1108,57 @@ bool IRenderSystem::DescriptorSetMapToBuffer(Handle<SDescriptorSet> Hnd, uint32 
 
 	pBinding->pBuffer = pBuffer;
 
-	DescriptorUpdate::Key updateKey(pSet, pBinding, DescriptorUpdate::CalcKey(Hnd, BindingSlot));
-	DescriptorUpdate::_Buffers[updateKey] = pBuffer;
+	DescriptorUpdate::Key key(pSet, pBinding, DescriptorUpdate::CalculateKey(Hnd, BindingSlot));
+
+  VkDescriptorBufferInfo bufferInfo = {};
+  bufferInfo.buffer = pBuffer->Hnd;
+  bufferInfo.offset = pBinding->Offset[0];
+  bufferInfo.range = pBinding->Stride;
+
+  g_DescriptorBufferInfos[key] = bufferInfo;
 
 	return true;
 }
 
-//bool IRenderSystem::DescriptorSetUpdateTexture(Handle<SDescriptorSet> Hnd, uint32 BindingSlot, Handle<SImage> ImageHnd)
-//{
-//	SDescriptorSet* pSet = pStore->GetDescriptorSet(Hnd);
-//	SImage* pImage = pStore->GetImage(ImageHnd);
-//
-//	if (!pSet || pImage) { return false; }
-//
-//	SDescriptorSetLayout::Binding* pBinding = nullptr;
-//	for (SDescriptorSetLayout::Binding& b : pSet->pLayout->Bindings)
-//	{
-//		if (b.BindingSlot != BindingSlot) { continue; }
-//		pBinding = &b;
-//		break;
-//	}
-//
-//	if (!pBinding) { return false; }
-//
-//	if (pBinding->Type != Descriptor_Type_Sampler ||
-//		pBinding->Type != Descriptor_Type_Input_Attachment ||
-//		pBinding->Type != Descriptor_Type_Sampled_Image)
-//	{
-//		return false;
-//	}
-//
-//	DescriptorUpdate::Key updateKey(pSet, pBinding, DescriptorUpdate::CalcKey(Hnd, BindingSlot));
-//	DescriptorUpdate::_Images[updateKey].Push(pImage);
-//
-//	return true;
-//}
+bool IRenderSystem::DescriptorSetMapToImage(Handle<SDescriptorSet> Hnd, uint32 BindingSlot, Handle<SImage>* pImgHnd, uint32 NumImages, Handle<SImageSampler> ImgSamplerHnd, uint32 DstIndex)
+{
+  if (!NumImages) { return false; }
+  Ref<SDescriptorSet> pSet = pStore->GetDescriptorSet(Hnd);
+  if (!pSet) { return false; }
+
+  Ref<SDescriptorSetLayout::Binding> pBinding;
+  for (SDescriptorSetLayout::Binding& b : pSet->pLayout->Bindings)
+  {
+    if (b.BindingSlot != BindingSlot) { continue; }
+    pBinding = &b;
+    break;
+  }
+
+  if (!pBinding) { return false; }
+
+  VKT_ASSERT(pBinding->Type == Descriptor_Type_Sampled_Image);
+  if (pBinding->Type != Descriptor_Type_Sampled_Image)
+  {
+    return false;
+  }
+ 
+  Ref<SImageSampler> pSampler = pStore->GetImageSampler(ImgSamplerHnd);
+  DescriptorUpdate::Key key(pSet, pBinding, DescriptorUpdate::CalculateKey(Hnd, BindingSlot));
+  key._FirstImage = DstIndex;
+
+  for (uint32 i = 0; i < NumImages; i++)
+  {
+    Ref<SImage> pImg = pStore->GetImage(pImgHnd[i]);
+    VkDescriptorImageInfo imageInfo = {};
+    imageInfo.sampler = pSampler->Hnd;
+    imageInfo.imageView = pImg->ImgViewHnd;
+    imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+    g_DescriptorImageInfos[key].Push(imageInfo);
+  }
+
+  return true;
+}
 
 bool IRenderSystem::DescriptorSetBindToGlobal(Handle<SDescriptorSet> Hnd)
 {
@@ -1191,26 +1287,18 @@ size_t IRenderSystem::PadToAlignedSize(size_t Size)
 
 void IRenderSystem::UpdateDescriptorSetInQueue()
 {
-	//StaticArray<VkDescriptorBufferInfo, MAX_DESCRIPTOR_BINDING_UPDATES> buffers;
-	//StaticArray<VkDescriptorImageInfo, MAX_DESCRIPTOR_BINDING_UPDATES> images;
-
 	// Update buffers ....
-	for (auto& [key, pBuffer] : DescriptorUpdate::_Buffers)
+	for (auto& [key, info] : g_DescriptorBufferInfos)
 	{
 		Ref<SDescriptorSet> pSet = key.pSet;
 		Ref<SDescriptorSetLayout::Binding> pBinding = key.pBinding;
-
-		VkDescriptorBufferInfo bufferInfo = {};
-		bufferInfo.buffer = pBuffer->Hnd;
-		bufferInfo.offset = key.pBinding->Offset[0];
-		bufferInfo.range = key.pBinding->Stride;
 
 		VkWriteDescriptorSet write = {};
 		write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 		write.dstBinding = pBinding->BindingSlot;
 		write.descriptorCount = 1;
 		write.descriptorType = pDevice->GetDescriptorType(pBinding->Type);
-		write.pBufferInfo = &bufferInfo;
+		write.pBufferInfo = &info;
 
 		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 		{
@@ -1220,33 +1308,27 @@ void IRenderSystem::UpdateDescriptorSetInQueue()
 	}
 
 	// Update images ....
-	//for (auto& [key, container] : DescriptorUpdate::_Images)
-	//{
-	//	SDescriptorSet* pSet = key.pSet;
-	//	SDescriptorSetLayout::Binding* pBinding = key.pBinding;
+	for (auto& [key, container] : g_DescriptorImageInfos)
+	{
+		Ref<SDescriptorSet> pSet = key.pSet;
+		Ref<SDescriptorSetLayout::Binding> pBinding = key.pBinding;
 
-	//	for (SImage* image : container)
-	//	{
-	//		images.Push({
-	//			image->pSampler->Hnd,
-	//			image->ImgViewHnd,
-	//			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-	//		});
-	//	}
+		VkWriteDescriptorSet write = {};
+		write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		write.dstBinding = pBinding->BindingSlot;
+		write.descriptorCount = static_cast<uint32>(container.Length());
+		write.descriptorType = pDevice->GetDescriptorType(pBinding->Type);
+		write.pImageInfo = container.First();
+    write.dstArrayElement = key._FirstImage;
 
-	//	VkWriteDescriptorSet write = {};
-	//	write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	//	write.dstBinding = pBinding->BindingSlot;
-	//	write.descriptorCount = static_cast<uint32>(images.Length());
-	//	write.descriptorType = pDevice->GetDescriptorType(pBinding->Type);
-	//	write.pImageInfo = images.First();
+		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+		{
+			write.dstSet = pSet->Hnd[i];
+			vkUpdateDescriptorSets(pDevice->GetDevice(), 1, &write, 0, nullptr);
+		}
 
-	//	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
-	//	{
-	//		write.dstSet = pSet->Hnd[i];
-	//		vkUpdateDescriptorSets(pDevice->GetDevice(), 1, &write, 0, nullptr);
-	//	}
-	//}
+    container.Release();
+	}
 }
 
 Handle<SMemoryBuffer> IRenderSystem::AllocateNewBuffer(const BufferAllocateInfo& AllocInfo)
@@ -1334,7 +1416,10 @@ Handle<SImage> IRenderSystem::CreateImage(uint32 Width, uint32 Height, uint32 Ch
 	pImg->Height = Height;
 	pImg->Channels = Channels;
 	pImg->Type = Type;
+  pImg->Size = (size_t)Width * (size_t)Height * (size_t)Channels;
 	pImg->MipMaps = GenMips;
+  pImg->Usage.Set(Image_Usage_Transfer_Dst);
+  pImg->Usage.Set(Image_Usage_Sampled);
 
 	return id;
 }
@@ -1347,8 +1432,6 @@ bool IRenderSystem::BuildImage(Handle<SImage> Hnd)
 	VkFormat format = static_cast<VkFormat>(GetImageFormat(pImg));
 	VkImageUsageFlags usage = GetImageUsageFlags(pImg);
 
-	//uint32 lvlOfMips = 1;
-
 	if (pImg->MipMaps)
 	{
 		const float32 texWidth = static_cast<float32>(pImg->Width);
@@ -1359,9 +1442,10 @@ bool IRenderSystem::BuildImage(Handle<SImage> Hnd)
 		{
 			pImg->MipLevels = MAX_IMAGE_MIP_MAP_LEVEL;
 		}
-
-		pImg->Usage.Set(Image_Usage_Transfer_Dst);
+		//pImg->Usage.Set(Image_Usage_Transfer_Dst);
 	}
+
+  usage = GetImageUsageFlags(pImg);
 
 	VkImageCreateInfo img = {};
 	img.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -1443,6 +1527,7 @@ bool IRenderSystem::BuildImageSampler(Handle<SImageSampler> Hnd)
 	if (!pImgSampler) { return false; }
 
 	VkSamplerCreateInfo createInfo = {};
+  createInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
 	createInfo.addressModeU = pDevice->GetSamplerAddressMode(pImgSampler->AddressModeU);
 	createInfo.addressModeV = pDevice->GetSamplerAddressMode(pImgSampler->AddressModeV);
 	createInfo.addressModeW = pDevice->GetSamplerAddressMode(pImgSampler->AddressModeW);
@@ -2007,9 +2092,12 @@ bool IRenderSystem::Draw(const DrawInfo& Info)
 	entry.TransformRange.pBegin = transform;
 	entry.TransformRange.pEnd = transform;
 
+  Ref<SPipeline> pPipeline = pStore->GetPipeline(Info.PipelineHnd);
+
 	for (uint32 i = 0; i < Info.DrawableCount; i++)
 	{
 		ForwardNode<DrawCommand>* drawCmdNode = IAllocator::New<ForwardNode<DrawCommand>>(DrawManager::_DrawCommandAllocator);
+
 		if (!entry.DrawRange.pBegin && !entry.DrawRange.pEnd)
 		{
 			entry.DrawRange.pBegin = drawCmdNode;
@@ -2027,6 +2115,15 @@ bool IRenderSystem::Draw(const DrawInfo& Info)
 		cmd.IndexOffset = Info.pIndexInformation[i].IndexOffset;
 		cmd.NumIndices = Info.pIndexInformation[i].NumIndices;
 		cmd.InstanceCount = 1;
+    cmd.pPipeline = pPipeline;
+
+    if (Info.ConstantsCount)
+    {
+      uint8* pSrc = reinterpret_cast<uint8*>(Info.pConstants) + (sizeof(uint32) * i);
+      uint8* pDst = cmd.Constants;
+      IMemory::Memcpy(pDst, pSrc, Info.ConstantSize);
+      cmd.HasPushConstants = true;
+    }
 	}
 
 	return true;
@@ -2046,88 +2143,6 @@ const uint32 IRenderSystem::GetCurrentFrameIndex() const
 {
 	return pDevice->GetCurrentFrameIndex();
 }
-
-//bool IRenderSystem::BlitToDefault(Handle<SImage> Hnd)
-//{
-//	Ref<SImage> pImg = pStore->GetImage(Hnd);
-//	if (!pImg) { return false; }
-//
-//	VkImage src = pImg->ImgHnd;
-//	VkImage dst = pDevice->GetNextImageInSwapchain();
-//
-//	VkImageSubresourceRange range = {};
-//	range.levelCount = 1;
-//	range.layerCount = 1;
-//	range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-//
-//	VkImageMemoryBarrier barrier = {};
-//	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-//	barrier.srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
-//	barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-//	barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-//	barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-//	barrier.srcQueueFamilyIndex = pDevice->GetGraphicsQueue().FamilyIndex;
-//	barrier.dstQueueFamilyIndex = pDevice->GetPresentationQueue().FamilyIndex;
-//	barrier.image = dst;
-//	barrier.subresourceRange = range;
-//
-//	VkOffset3D srcOffset = { pImg->Width, pImg->Height, 1 };
-//	VkOffset3D dstOffset = { pDevice->GetSwapchain().Extent.width, pDevice->GetSwapchain().Extent.height, 1 };
-//
-//	VkImageBlit region = {};
-//	region.srcOffsets[1] = srcOffset;
-//	region.dstOffsets[1] = dstOffset;
-//	region.srcSubresource.mipLevel = 0;
-//	region.srcSubresource.layerCount = 1;
-//	region.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-//	region.dstSubresource.mipLevel = 0;
-//	region.dstSubresource.layerCount = 1;
-//	region.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-//
-//	vkCmdPipelineBarrier(
-//		pDevice->GetCommandBuffer(),
-//		VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-//		VK_PIPELINE_STAGE_TRANSFER_BIT,
-//		0,
-//		0,
-//		nullptr,
-//		0,
-//		nullptr,
-//		1,
-//		&barrier
-//	);
-//
-//	vkCmdBlitImage(
-//		pDevice->GetCommandBuffer(),
-//		src,
-//		VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-//		dst,
-//		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-//		1,
-//		&region,
-//		VK_FILTER_LINEAR
-//	);
-//
-//	barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-//	barrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
-//	barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-//	barrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-//
-//	vkCmdPipelineBarrier(
-//		pDevice->GetCommandBuffer(),
-//		VK_PIPELINE_STAGE_TRANSFER_BIT,
-//		VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-//		0,
-//		0,
-//		nullptr,
-//		0,
-//		nullptr,
-//		1,
-//		&barrier
-//	);
-//
-//	return true;
-//}
 
 void IRenderSystem::FlushVertexBuffer()
 {
@@ -2164,42 +2179,4 @@ namespace ao
 		SystemInterface* system = engine.GetRegisteredSystem(System_Engine_Type, handle);
 		return *(reinterpret_cast<IRenderSystem*>(system));
 	}
-}
-
-IRenderSystem::DescriptorUpdate::Key::Key() :
-	pSet{}, pBinding{}, _Key(0)
-{}
-
-IRenderSystem::DescriptorUpdate::Key::Key(	Ref<SDescriptorSet> InSet,
-											Ref<SDescriptorSetLayout::Binding> InBinding,
-											size_t InKey ) :
-	pSet(InSet), pBinding(InBinding), _Key(InKey)
-{}
-
-IRenderSystem::DescriptorUpdate::Key::~Key()
-{
-	pSet = nullptr;
-	pBinding = nullptr;
-	_Key = -1;
-}
-
-size_t* IRenderSystem::DescriptorUpdate::Key::First()
-{
-	return &_Key;
-}
-
-const size_t* IRenderSystem::DescriptorUpdate::Key::First() const
-{
-	return &_Key;
-}
-
-size_t IRenderSystem::DescriptorUpdate::Key::Length() const 
-{
-	return sizeof(size_t);
-}
-
-size_t IRenderSystem::DescriptorUpdate::CalcKey(Handle<SDescriptorSet> SetHnd, uint32 Binding)
-{
-	size_t binding = static_cast<size_t>(Binding);
-	return (static_cast<size_t>(SetHnd) << binding) | binding;
 }

@@ -57,6 +57,7 @@ namespace sandbox
 		Handle<SDescriptorSetLayout> SetLayoutHnd;
 		Handle<SDescriptorSet> SetHnd;
 		Handle<SMemoryBuffer> CameraUboHnd;
+    Handle<SImageSampler> ModelTexImgSamplerHnd;
 		Ref<EngineImpl> pEngine;
 		Ref<IRenderSystem> pRenderer;
 		Ref<IAssetManager> pAssetManager;
@@ -75,6 +76,7 @@ namespace sandbox
 		const Handle<SDescriptorSetLayout> GetDescriptorSetLayoutHandle() const;
 		const Handle<SDescriptorSet> GetDescriptorSetHandle() const;
 		const Handle<SMemoryBuffer> GetCameraUboHandle() const;
+    const Handle<SImageSampler> GetTextureImageSampler() const;
 		bool Build();
 		void Terminate();
 
@@ -82,17 +84,5 @@ namespace sandbox
 	};
 
 }
-
-//struct SandboxRenderConfig
-//{
-//	SandboxRenderConfig();
-//	~SandboxRenderConfig();
-//
-//	DELETE_COPY_AND_MOVE(SandboxRenderConfig)
-//
-//	void CreateRenderingPipeline();
-//	void GenerateRenderGroups();
-//	void FinalizeRenderingPipeline();
-//};
 
 #endif // !LEARNVK_SANDBOX_SANDBOX_APP_SANDBOX_RENDER_CONFIG_H

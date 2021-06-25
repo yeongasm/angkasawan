@@ -11,7 +11,8 @@ namespace sandbox
     Sandbox_Asset_Model   = 0,
     Sandbox_Asset_Shader  = 1,
     Sandbox_Asset_Texture = 2,
-    Sandbox_Asset_Material = 3
+    Sandbox_Asset_Material_Definition = 3,
+    Sandbox_Asset_Material = 4
   };
 
   enum class EPbrMaterialType : uint32

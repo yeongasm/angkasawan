@@ -58,7 +58,7 @@ Resource* ResourceCache::Get(uint32 Id)
 
 bool ResourceCache::IsReferenced(uint32 Id)
 {
-	return &Cache[Id].RefCount;
+	return Cache[Id].RefCount > 1;
 }
 
 void ResourceCache::AddRef(uint32 Id)

@@ -146,12 +146,12 @@ namespace sandbox
 		dynamicUniformBuffer.Count = 1;
 		dynamicUniformBuffer.Type = Descriptor_Type_Dynamic_Uniform_Buffer;
 
-		//SDescriptorPool::Size bindlessTextures;
-		//bindlessTextures.Count = 128;
-		//bindlessTextures.Type = Descriptor_Type_Sampled_Image;
+		SDescriptorPool::Size bindlessTextures;
+		bindlessTextures.Count = 128;
+		bindlessTextures.Type = Descriptor_Type_Sampled_Image;
 
 		pRenderer->DescriptorPoolAddSizeType(PoolHandle, dynamicUniformBuffer);
-		//pRenderer->DescriptorPoolAddSizeType(PoolHandle, bindlessTextures);
+		pRenderer->DescriptorPoolAddSizeType(PoolHandle, bindlessTextures);
 
 		SetLayoutHnd = pRenderer->CreateDescriptorSetLayout();
 
@@ -170,18 +170,17 @@ namespace sandbox
 		bindingInfo.DescriptorCount = 1;
 		bindingInfo.BindingSlot = 0;
 		bindingInfo.LayoutHnd = SetLayoutHnd;
-		//layoutInfo.BufferHnd = CameraUboHnd;
 
 		pRenderer->DescriptorSetLayoutAddBinding(bindingInfo);
 		
-		//layoutInfo = {};
-		//layoutInfo.ShaderStages.Set(Shader_Type_Fragment);
-		//layoutInfo.Type = Descriptor_Type_Sampled_Image;
-		//layoutInfo.DescriptorCount = 1000;
-		//layoutInfo.BindingSlot = 1;
-		//layoutInfo.LayoutHnd = SetLayoutHnd;
+    bindingInfo = {};
+    bindingInfo.ShaderStages.Set(Shader_Type_Fragment);
+    bindingInfo.Type = Descriptor_Type_Sampled_Image;
+    bindingInfo.DescriptorCount = 1000;
+    bindingInfo.BindingSlot = 1;
+    bindingInfo.LayoutHnd = SetLayoutHnd;
 
-		//pRenderer->DescriptorSetLayoutAddBinding(layoutInfo);
+    pRenderer->DescriptorSetLayoutAddBinding(bindingInfo);
 
 		DescriptorSetAllocateInfo setInfo = {};
 		setInfo.LayoutHnd = SetLayoutHnd;
@@ -191,12 +190,21 @@ namespace sandbox
 		SetHnd = pRenderer->CreateDescriptorSet(setInfo);
 		if (SetHnd == INVALID_HANDLE) { return false; }
 
-		// Update camera ubo ...
-		pRenderer->DescriptorSetMapToBuffer(SetHnd, 0, CameraUboHnd, 0, pRenderer->PadToAlignedSize(sizeof(CameraUbo)));
-
 		if (!ColorPass.Initialize(pEngine, pRenderer, pAssetManager)) { return false; }
 
 		pRenderer->PipelineAddDescriptorSetLayout(ColorPass.GetPipelineHandle(), SetLayoutHnd);
+
+    ImageSamplerCreateInfo samplerInfo = {};
+    samplerInfo.AnisotropyLvl = 16.0f;
+    samplerInfo.AddressModeU = Sampler_Address_Mode_Clamp_To_Edge;
+    samplerInfo.AddressModeV = Sampler_Address_Mode_Clamp_To_Edge;
+    samplerInfo.AddressModeW = Sampler_Address_Mode_Clamp_To_Edge;
+    samplerInfo.CompareOp = Compare_Op_Less_Or_Equal;
+    samplerInfo.MinFilter = Sampler_Filter_Nearest;
+    samplerInfo.MagFilter = Sampler_Filter_Linear;
+
+    ModelTexImgSamplerHnd = pRenderer->CreateImageSampler(samplerInfo);
+    if (ModelTexImgSamplerHnd == INVALID_HANDLE) { return false; }
 
 		return true;
 	}
@@ -221,6 +229,11 @@ namespace sandbox
 		return CameraUboHnd;
 	}
 
+  const Handle<SImageSampler> RendererSetup::GetTextureImageSampler() const
+  {
+    return ModelTexImgSamplerHnd;
+  }
+
 	bool RendererSetup::Build()
 	{
 		IFrameGraph& frameGraph = pRenderer->GetFrameGraph();
@@ -237,6 +250,7 @@ namespace sandbox
 		if (!pRenderer->BuildShader(pFragment->Hnd)) { return false; }
 		if (!pRenderer->BuildShader(pVertex->Hnd)) { return false; }
 		if (!pRenderer->BuildGraphicsPipeline(ColorPass.GetPipelineHandle())) { return false; }
+    if (!pRenderer->BuildImageSampler(ModelTexImgSamplerHnd)) { return false; }
 
 		return true;
 	}
@@ -244,6 +258,7 @@ namespace sandbox
 	void RendererSetup::Terminate()
 	{
 		ColorPass.Terminate();
+    pRenderer->DestroyImageSampler(ModelTexImgSamplerHnd);
 		pRenderer->DestroyBuffer(CameraUboHnd);
 		pRenderer->DestroyDescriptorSet(SetHnd);
 		pRenderer->DestroyDescriptorSetLayout(SetLayoutHnd);

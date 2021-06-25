@@ -707,7 +707,9 @@ void IRenderDevice::ImageBarrier(
 	VkPipelineStageFlags SrcStageMask, 
 	VkPipelineStageFlags DstStageMask, 
 	uint32 SrcQueue, 
-	uint32 DstQueue
+	uint32 DstQueue,
+  VkAccessFlags SrcAccessMask,
+  VkAccessFlags DstAccessMask
 )
 {
 	VkImageMemoryBarrier barrier = {};
@@ -715,11 +717,15 @@ void IRenderDevice::ImageBarrier(
 	barrier.oldLayout = OldLayout;
 	barrier.newLayout = NewLayout;
 	barrier.image = Hnd;
-	barrier.subresourceRange = *pSubRange;
-	barrier.srcAccessMask = 0;
-	barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+	barrier.srcAccessMask = SrcAccessMask;
+  barrier.dstAccessMask = DstAccessMask;
 	barrier.srcQueueFamilyIndex = SrcQueue;
 	barrier.dstQueueFamilyIndex = DstQueue;
+
+  if (pSubRange)
+  {
+	  barrier.subresourceRange = *pSubRange;
+  }
 
 	vkCmdPipelineBarrier(Cmd, SrcStageMask, DstStageMask, 0, 0, nullptr, 0, nullptr, 1, &barrier);
 }
@@ -1098,17 +1104,18 @@ bool IRenderDevice::CreateLogicalDevice()
 		queueCreateInfos.Push(Move(info));
 	}
 
-	const char* extensions[] = { VK_KHR_SWAPCHAIN_EXTENSION_NAME, VK_KHR_IMAGELESS_FRAMEBUFFER_EXTENSION_NAME };
+	const char* extensions[] = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
 
-	//VkPhysicalDeviceImagelessFramebufferFeatures imagelessFramebuffer = {};
-	//imagelessFramebuffer.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGELESS_FRAMEBUFFER_FEATURES;
-	//imagelessFramebuffer.imagelessFramebuffer = VK_TRUE;
+	VkPhysicalDeviceVulkan12Features deviceFeatures12 = {};
+  deviceFeatures12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+  deviceFeatures12.imagelessFramebuffer = VK_TRUE;
+  deviceFeatures12.descriptorIndexing = VK_TRUE;
+  deviceFeatures12.drawIndirectCount = VK_TRUE;
 
-	VkPhysicalDeviceVulkan12Features deviceFeatures = {};
-	deviceFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
-	deviceFeatures.imagelessFramebuffer = VK_TRUE;
-	deviceFeatures.descriptorIndexing = VK_TRUE;
-	deviceFeatures.drawIndirectCount = VK_TRUE;
+  VkPhysicalDeviceFeatures2 deviceFeatures = {};
+  deviceFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+  deviceFeatures.features.samplerAnisotropy = VK_TRUE;
+  deviceFeatures.pNext = &deviceFeatures12;
 
 	VkDeviceCreateInfo deviceCreateInfo = {};
 	deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -1116,7 +1123,7 @@ bool IRenderDevice::CreateLogicalDevice()
 	deviceCreateInfo.queueCreateInfoCount = static_cast<uint32>(queueCreateInfos.Length());
 	deviceCreateInfo.pQueueCreateInfos = queueCreateInfos.First();
 	deviceCreateInfo.ppEnabledExtensionNames = extensions;
-	deviceCreateInfo.enabledExtensionCount = 2;
+	deviceCreateInfo.enabledExtensionCount = 1;
 
 	if (vkCreateDevice(Gpu, &deviceCreateInfo, nullptr, &Device) != VK_SUCCESS)
 	{
@@ -1439,214 +1446,215 @@ bool IDeviceStore::DoesImageExist(size_t Id)
 
 Ref<SMemoryBuffer> IDeviceStore::NewBuffer(size_t Id)
 {
-	if (DoesBufferExist(Id)) { return NullPointer(); }
-	Ref<SMemoryBuffer> ref = Buffers.Insert(
-		Move(Id), 
-		UniquePtr<SMemoryBuffer>(IMemory::New<SMemoryBuffer>())
-	);
-	return ref;
+	if (DoesBufferExist(Id)) { return NULLPTR;
+  }
+  Ref<SMemoryBuffer> ref = Buffers.Insert(
+    Move(Id),
+    UniquePtr<SMemoryBuffer>(IMemory::New<SMemoryBuffer>())
+  );
+  return ref;
 }
 
 Ref<SMemoryBuffer> IDeviceStore::GetBuffer(size_t Id)
 {
-	if (!DoesBufferExist(Id)) { return NullPointer(); }
-	return Buffers[Id];
+  if (!DoesBufferExist(Id)) { return NULLPTR; }
+  return Buffers[Id];
 }
 
 bool IDeviceStore::DeleteBuffer(size_t Id)
 {
-	if (!DoesBufferExist(Id)) { return false; }
-	Buffers.Remove(Id);
-	return true;
+  if (!DoesBufferExist(Id)) { return false; }
+  Buffers.Remove(Id);
+  return true;
 }
 
 Ref<SDescriptorSet> IDeviceStore::NewDescriptorSet(size_t Id)
 {
-	if (DoesDescriptorSetExist(Id)) { return NullPointer(); }
-	Ref<SDescriptorSet> ref = DescriptorSets.Insert(
-		Move(Id), 
-		UniquePtr<SDescriptorSet>(IMemory::New<SDescriptorSet>())
-	);
-	return ref;
+  if (DoesDescriptorSetExist(Id)) { return NULLPTR; }
+  Ref<SDescriptorSet> ref = DescriptorSets.Insert(
+    Move(Id),
+    UniquePtr<SDescriptorSet>(IMemory::New<SDescriptorSet>())
+  );
+  return ref;
 }
 
 Ref<SDescriptorSet> IDeviceStore::GetDescriptorSet(size_t Id)
 {
-	if (!DoesDescriptorSetExist(Id)) { return NullPointer(); }
-	return DescriptorSets[Id];
+  if (!DoesDescriptorSetExist(Id)) { return NULLPTR; }
+  return DescriptorSets[Id];
 }
 
 bool IDeviceStore::DeleteDescriptorSet(size_t Id)
 {
-	
-	if (!DoesDescriptorSetExist(Id)) { return false; }
-	DescriptorSets.Remove(Id);
-	return true;
+
+  if (!DoesDescriptorSetExist(Id)) { return false; }
+  DescriptorSets.Remove(Id);
+  return true;
 }
 
 Ref<SDescriptorPool> IDeviceStore::NewDescriptorPool(size_t Id)
 {
-	if (DoesDescriptorPoolExist(Id)) { return NullPointer(); }
-	Ref<SDescriptorPool> ref = DescriptorPools.Insert(
-		Move(Id), 
-		UniquePtr<SDescriptorPool>(IMemory::New<SDescriptorPool>())
-	);
-	return ref;
+  if (DoesDescriptorPoolExist(Id)) { return NULLPTR; }
+  Ref<SDescriptorPool> ref = DescriptorPools.Insert(
+    Move(Id),
+    UniquePtr<SDescriptorPool>(IMemory::New<SDescriptorPool>())
+  );
+  return ref;
 }
 
 Ref<SDescriptorPool> IDeviceStore::GetDescriptorPool(size_t Id)
 {
-	if (!DoesDescriptorPoolExist(Id)) { return NullPointer(); }
-	return DescriptorPools[Id];
+  if (!DoesDescriptorPoolExist(Id)) { return NULLPTR; }
+  return DescriptorPools[Id];
 }
 
 bool IDeviceStore::DeleteDescriptorPool(size_t Id)
 {
-	if (!DoesDescriptorPoolExist(Id)) { return false; }
-	DescriptorPools.Remove(Id);
-	return true;
+  if (!DoesDescriptorPoolExist(Id)) { return false; }
+  DescriptorPools.Remove(Id);
+  return true;
 }
 
 Ref<SDescriptorSetLayout> IDeviceStore::NewDescriptorSetLayout(size_t Id)
 {
-	if (DoesDescriptorSetLayoutExist(Id)) { return NullPointer(); }
-	Ref<SDescriptorSetLayout> ref = DescriptorSetLayouts.Insert(
-		Move(Id), 
-		UniquePtr<SDescriptorSetLayout>(IMemory::New<SDescriptorSetLayout>())
-	);
-	return ref;
+  if (DoesDescriptorSetLayoutExist(Id)) { return NULLPTR; }
+  Ref<SDescriptorSetLayout> ref = DescriptorSetLayouts.Insert(
+    Move(Id),
+    UniquePtr<SDescriptorSetLayout>(IMemory::New<SDescriptorSetLayout>())
+  );
+  return ref;
 }
 
 Ref<SDescriptorSetLayout> IDeviceStore::GetDescriptorSetLayout(size_t Id)
 {
-	if (!DoesDescriptorSetLayoutExist(Id)) { return NullPointer(); }
-	return DescriptorSetLayouts[Id];
+  if (!DoesDescriptorSetLayoutExist(Id)) { return NULLPTR; }
+  return DescriptorSetLayouts[Id];
 }
 
 bool IDeviceStore::DeleteDescriptorSetLayout(size_t Id)
 {
-	if (!DoesDescriptorSetLayoutExist(Id)) { return false; }
-	DescriptorSetLayouts.Remove(Id);
-	return true;
+  if (!DoesDescriptorSetLayoutExist(Id)) { return false; }
+  DescriptorSetLayouts.Remove(Id);
+  return true;
 }
 
 Ref<SRenderPass> IDeviceStore::NewRenderPass(size_t Id)
 {
-	if (DoesRenderPassExist(Id)) { return NullPointer(); }
-	Ref<SRenderPass> ref = RenderPasses.Insert(
-		Move(Id), 
-		UniquePtr<SRenderPass>(IMemory::New<SRenderPass>())
-	);
-	return ref;
+  if (DoesRenderPassExist(Id)) { return NULLPTR; }
+  Ref<SRenderPass> ref = RenderPasses.Insert(
+    Move(Id),
+    UniquePtr<SRenderPass>(IMemory::New<SRenderPass>())
+  );
+  return ref;
 }
 
 Ref<SRenderPass> IDeviceStore::GetRenderPass(size_t Id)
 {
-	if (!DoesRenderPassExist(Id)) { return NullPointer(); }
-	return RenderPasses[Id];
+  if (!DoesRenderPassExist(Id)) { return NULLPTR; }
+  return RenderPasses[Id];
 }
 
 bool IDeviceStore::DeleteRenderPass(size_t Id)
 {
-	if (!DoesRenderPassExist(Id)) { return false; }
-	RenderPasses.Remove(Id);
-	return true;
+  if (!DoesRenderPassExist(Id)) { return false; }
+  RenderPasses.Remove(Id);
+  return true;
 }
 
 Ref<SImageSampler> IDeviceStore::NewImageSampler(size_t Id)
 {
-	if (DoesImageSamplerExist(Id)) { return NullPointer(); }
-	Ref<SImageSampler> ref = ImageSamplers.Insert(
-		Move(Id), 
-		UniquePtr<SImageSampler>(IMemory::New<SImageSampler>())
-	);
-	return ref;
+  if (DoesImageSamplerExist(Id)) { return NULLPTR; }
+  Ref<SImageSampler> ref = ImageSamplers.Insert(
+    Move(Id),
+    UniquePtr<SImageSampler>(IMemory::New<SImageSampler>())
+  );
+  return ref;
 }
 
 Ref<SImageSampler> IDeviceStore::GetImageSampler(size_t Id)
 {
-	if (!DoesImageSamplerExist(Id)) { return NullPointer(); }
-	return ImageSamplers[Id];
+  if (!DoesImageSamplerExist(Id)) { return NULLPTR; }
+  return ImageSamplers[Id];
 }
 
 Ref<SImageSampler> IDeviceStore::GetImageSamplerWithHash(uint64 Hash)
 {
-	for (auto& [key, value] : ImageSamplers)
-	{
-		if (value->Hash == Hash)
-		{
-			return value;
-		}
-	}
-	return NullPointer();
+  for (auto& [key, value] : ImageSamplers)
+  {
+    if (value->Hash == Hash)
+    {
+      return value;
+    }
+  }
+  return NULLPTR;
 }
 
 bool IDeviceStore::DeleteImageSampler(size_t Id)
 {
-	if (!DoesImageSamplerExist(Id)) { return false; }
-	ImageSamplers.Remove(Id);
-	return true;
+  if (!DoesImageSamplerExist(Id)) { return false; }
+  ImageSamplers.Remove(Id);
+  return true;
 }
 
 Ref<SPipeline> IDeviceStore::NewPipeline(size_t Id)
 {
-	if (DoesPipelineExist(Id)) { return NullPointer(); }
-	Ref<SPipeline> ref = Pipelines.Insert(
-		Move(Id), 
-		UniquePtr<SPipeline>(IMemory::New<SPipeline>())
-	);
-	return ref;
+  if (DoesPipelineExist(Id)) { return NULLPTR; }
+  Ref<SPipeline> ref = Pipelines.Insert(
+    Move(Id),
+    UniquePtr<SPipeline>(IMemory::New<SPipeline>())
+  );
+  return ref;
 }
 
 Ref<SPipeline> IDeviceStore::GetPipeline(size_t Id)
 {
-	if (!DoesPipelineExist(Id)) { return NullPointer(); }
-	return Pipelines[Id];
+  if (!DoesPipelineExist(Id)) { return NULLPTR; }
+  return Pipelines[Id];
 }
 
 bool IDeviceStore::DeletePipeline(size_t Id)
 {
-	if (!DoesPipelineExist(Id)) { return false; }
-	Pipelines.Remove(Id);
-	return true;
+  if (!DoesPipelineExist(Id)) { return false; }
+  Pipelines.Remove(Id);
+  return true;
 }
 
 Ref<SShader> IDeviceStore::NewShader(size_t Id)
 {
-	if (DoesShaderExist(Id)) { return NullPointer(); }
-	Ref<SShader> ref = Shaders.Insert(
-		Move(Id), 
-		UniquePtr<SShader>(IMemory::New<SShader>())
-	);
-	return ref;
+  if (DoesShaderExist(Id)) { return NULLPTR; }
+  Ref<SShader> ref = Shaders.Insert(
+    Move(Id),
+    UniquePtr<SShader>(IMemory::New<SShader>())
+  );
+  return ref;
 }
 
 Ref<SShader> IDeviceStore::GetShader(size_t Id)
 {
-	if (!DoesShaderExist(Id)) { return NullPointer(); }
-	return Shaders[Id];
+  if (!DoesShaderExist(Id)) { return NULLPTR; }
+  return Shaders[Id];
 }
 
 bool IDeviceStore::DeleteShader(size_t Id)
 {
-	if (!DoesShaderExist(Id)) { return false; }
-	Shaders.Remove(Id);
-	return true;
+  if (!DoesShaderExist(Id)) { return false; }
+  Shaders.Remove(Id);
+  return true;
 }
 
 Ref<SImage> IDeviceStore::NewImage(size_t Id)
 {
-	if (DoesImageExist(Id)) { return NullPointer(); }
-	Ref<SImage> ref = Images.Insert(
-		Move(Id), 
-		UniquePtr<SImage>(IMemory::New<SImage>())
-	);
-	return ref;
+  if (DoesImageExist(Id)) { return NULLPTR; }
+  Ref<SImage> ref = Images.Insert(
+    Move(Id),
+    UniquePtr<SImage>(IMemory::New<SImage>())
+  );
+  return ref;
 }
 
 Ref<SImage> IDeviceStore::GetImage(size_t Id)
 {
-	if (!DoesImageExist(Id)) { return NullPointer(); }
+  if (!DoesImageExist(Id)) { return NULLPTR; }
 	return Images[Id];
 }
 

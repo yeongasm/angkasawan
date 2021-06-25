@@ -64,7 +64,22 @@ struct ENGINE_API IMemory
 	}
 };
 
-struct NullPointer {};
+class alignas(void*) NullPointer
+{
+//public:
+//  template <typename T>
+//  operator T* () const { return nullptr; }
+//  template <typename T, typename U>
+//  operator T U::* () const { return nullptr; }
+//  operator void* () const { return nullptr; }
+//  bool operator==(const NullPointer&) const { return true; }
+//  bool operator!=(const NullPointer&) const { return false; }
+//  explicit operator bool() const { return false; }
+//private:
+//  void* _Padding;
+};
+
+#define NULLPTR NullPointer()
 
 template <typename T>
 class Ref;

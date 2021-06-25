@@ -28,6 +28,7 @@ namespace sandbox
     Handle<SDescriptorSet> SetHnd;
     Handle<SImageSampler> SamplerHnd;
     uint32 MatHash = 0;
+    uint32 NumOfMaterials = 0;
   };
 
   /* Defines the relation between a material type and it's BINDING SLOT in the shader */
@@ -58,7 +59,7 @@ namespace sandbox
   struct Material
   {
     MaterialIndexTable MatIndices;
-    RefHnd<MaterialDef> pDefinition;
+    Ref<MaterialDef> pDefinition;
     union
     {
       uint8 _mem[128] = { 0 };
@@ -68,7 +69,7 @@ namespace sandbox
 
   struct TextureTypeInfo
   {
-    ETextureType Type;
+    EMaterialTypeFlagBit Type;
     RefHnd<Texture> Hnd;
   };
 

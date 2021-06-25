@@ -32,17 +32,19 @@ struct IndexInformation
 
 struct DrawInfo
 {
-	math::mat4			Transform;
+	math::mat4 Transform;
 	Handle<SRenderPass> Renderpass;
-	VertexInformation*	pVertexInformation;
-	IndexInformation*	pIndexInformation;
-	uint32				DrawableCount; // Num of meshes in the model.
-	uint32				Id;
-	bool				Instanced = true;
+	VertexInformation* pVertexInformation;
+	IndexInformation* pIndexInformation;
+  Handle<SPipeline> PipelineHnd;
+  void* pConstants;
+  size_t ConstantSize;
+	uint32 DrawableCount; // Num of meshes in the model.
+  uint32 ConstantsCount;
+	uint32 Id;
+	bool Instanced = true;
 };
 
-// NOTE(Ygsm):
-// There needs to be a capability for objects to be soft deleted.
 class RENDERER_API IRenderSystem : public SystemInterface
 {
 private:
@@ -50,39 +52,6 @@ private:
 	friend struct IStagingParams;
 	friend class IStagingManager;
 	friend class IFrameGraph;
-
-	struct DescriptorUpdate
-	{
-		struct Key
-		{
-			Ref<SDescriptorSet> pSet;
-			Ref<SDescriptorSetLayout::Binding> pBinding;
-			size_t _Key;
-
-			Key();
-			Key(Ref<SDescriptorSet> InSet, Ref<SDescriptorSetLayout::Binding> InBinding, size_t InKey);
-			~Key();
-
-			bool operator==(const Key& Rhs) { return _Key == Rhs._Key; }
-			bool operator!=(const Key& Rhs) { return _Key != Rhs._Key; }
-
-			/**
-			* NOTE(Ygsm):
-			* These functions are needed to make hashing custom structs work.
-			*/
-			size_t* First();
-			const size_t* First() const;
-			size_t Length() const;
-		};
-
-		template <typename UpdateObject>
-		using Container = Map<Key, UpdateObject, XxHash<Key>>;
-
-		//static Container<SImage*> _Images;
-		static Container<Ref<SMemoryBuffer>> _Buffers;
-		
-		static size_t CalcKey(Handle<SDescriptorSet> SetHnd, uint32 Binding);
-	};
 	
 	struct DrawManager
 	{
@@ -147,7 +116,6 @@ private:
 
 	uint32 CalcStrideForFormat(EShaderAttribFormat Format);
 	void PreprocessShader(Ref<SShader> pShader);
-	//void GetShaderDescriptorLayoutInformation(Ref<SShader> pShader);
 
 	void IterateBindableRange(BindableManager::BindableRange& Range);
 
@@ -161,8 +129,7 @@ private:
 	void EndRenderPass(Ref<SRenderPass> pRenderPass);
 
 	void RecordDrawCommand(const DrawCommand& Command);
-	//void PrepareDrawCommands();
-	//void MakeTransferToGpu();
+  void BindPushConstant(const DrawCommand& Command);
 
 	void Clear();
 
@@ -200,14 +167,13 @@ public:
 
 	Handle<SDescriptorSet> CreateDescriptorSet(const DescriptorSetAllocateInfo& AllocInfo);
 	bool DescriptorSetMapToBuffer(Handle<SDescriptorSet> Hnd, uint32 BindingSlot, Handle<SMemoryBuffer> BufferHnd, size_t Offset0 = 0, size_t Offset1 = 0);
-	//bool DescriptorSetUpdateTexture(Handle<SDescriptorSet> Hnd, uint32 BindingSlot, Handle<SImage> ImageHnd);
+  bool DescriptorSetMapToImage(Handle<SDescriptorSet> Hnd, uint32 BindingSlot, Handle<SImage>* pImgHnd, uint32 NumImages, Handle<SImageSampler> ImgSamplerHnd, uint32 DstIndex = 0);
 	bool DescriptorSetBindToGlobal(Handle<SDescriptorSet> Hnd);
 	bool BuildDescriptorSet(Handle<SDescriptorSet> Hnd);
 	bool DescriptorSetFlushBindingOffset(Handle<SDescriptorSet> Hnd);
 	bool DestroyDescriptorSet(Handle<SDescriptorSet>& Hnd);
 
 	bool DescriptorSetUpdateDataAtBinding(Handle<SDescriptorSet> Hnd, uint32 BindingSlot, void* Data, size_t Size);
-
 	void UpdateDescriptorSetInQueue();
 
 	Handle<SMemoryBuffer> AllocateNewBuffer(const BufferAllocateInfo& AllocInfo);
@@ -215,7 +181,6 @@ public:
 	bool BuildBuffer(Handle<SMemoryBuffer> Hnd);
 	bool DestroyBuffer(Handle<SMemoryBuffer>& Hnd);
 	
-	//Handle<SImage> CreateImage(const ImageCreateInfo& CreateInfo);
 	Handle<SImage> CreateImage(uint32 Width, uint32 Height, uint32 Channels, ETextureType Type, bool GenMips = false);
 	bool BuildImage(Handle<SImage> Hnd);
 	bool DestroyImage(Handle<SImage>& Hnd);
@@ -227,7 +192,6 @@ public:
 	IStagingManager& GetStagingManager() const;
 	IFrameGraph& GetFrameGraph() const;
 
-	//Handle<SShader> CreateShader(const ShaderCreateInfo& CreateInfo);
 	Handle<SShader> CreateShader(const String& Code, EShaderType Type);
 	bool BuildShader(Handle<SShader> Hnd);
 	bool DestroyShader(Handle<SShader>& Hnd);
@@ -249,8 +213,6 @@ public:
 
 	void PrepareDrawCommands();
 	void MakeTransferToGpu();
-
-	//bool BlitToDefault(Handle<SImage> Hnd);
 
 	void FlushVertexBuffer();
 	void FlushIndexBuffer();

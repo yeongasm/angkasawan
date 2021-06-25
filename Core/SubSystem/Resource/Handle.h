@@ -50,7 +50,7 @@ public:
   RefHnd() : Handle<T>(), Ref<T>() {}
   ~RefHnd() {}
   RefHnd(Handle<T> i, Ref<T> Src) : Handle<T>(i), Ref<T>(Src) {}
-  RefHnd(NullPointer) : Handle<T>(INVALID_HANDLE), Ref<T>(NullPointer()) {}
+  RefHnd(NullPointer) : Handle<T>(INVALID_HANDLE), Ref<T>(NULLPTR) {}
   RefHnd(const RefHnd& Rhs) { *this = Rhs; }
   RefHnd(RefHnd&& Rhs) { *this = Move(Rhs); }
 

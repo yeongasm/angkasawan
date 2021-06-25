@@ -145,19 +145,18 @@ namespace sandbox
 		}
 	}
 
-	//void ModelImporter::LoadTexturePathsFromGLTF()
-	//{
-	//	cgltf_image* image = nullptr;
-	//	if (!Data->images_count) { return; }
-	//	//String imagePath;
-	//	for (size_t i = 0; i < Data->images_count; i++)
-	//	{
-	//		image = &Data->images[i];
-	//		//imagePath.Format("%s%s", Directory.C_Str(), image->uri);
-	//		//TextureFiles.Push(FilePath(image->uri));
-	//		//imagePath.Empty();
-	//	}
-	//}
+	void ModelImporter::LoadTexturePathsFromGLTF()
+	{
+    TextureFiles.Empty();
+		cgltf_image* image = nullptr;
+		if (!Data->images_count) { return; }
+
+		for (size_t i = 0; i < Data->images_count; i++)
+		{
+			image = &Data->images[i];
+      TextureFiles.Push(MeshTexture(static_cast<uint32>(i), image->uri));
+		}
+	}
 
 	//size_t ModelImporter::FindMeshTextureMapIndex(Handle<Mesh> MeshHandle)
 	//{
@@ -182,6 +181,7 @@ namespace sandbox
 		Tangent(),
 		TexCoords(),
 		TextureFiles(),
+    Directory(),
 		PosCount(0),
 		NormalsCount(0),
 		TangentCount(0),
@@ -213,12 +213,12 @@ namespace sandbox
 
 		if (!pAssetManager || !Path.Length())
 		{
-			return NullPointer();
+			return NULLPTR;
 		}
 
 		if (!ifstream.Open(Path.C_Str()))
 		{
-			return NullPointer();
+			return NULLPTR;
 		}
 
 		size_t fileSize = ifstream.Size();
@@ -230,19 +230,21 @@ namespace sandbox
 		cgltf_options options = {};
 		cgltf_result result = cgltf_parse(&options, buf.First(), fileSize, &Data);
 
-		if (result != cgltf_result_success) { return NullPointer(); }
+		if (result != cgltf_result_success) { return NULLPTR; }
 
 		result = cgltf_load_buffers(&options, Data, Path.C_Str());
 
-		if (result != cgltf_result_success) { return NullPointer(); }
+		if (result != cgltf_result_success) { return NULLPTR; }
 
 		result = cgltf_validate(Data);
 
-		if (result != cgltf_result_success) { return NullPointer(); }
+		if (result != cgltf_result_success) { return NULLPTR; }
 
-		if (!Data->meshes_count) { return NullPointer(); }
+		if (!Data->meshes_count) { return NULLPTR; }
 
-		//LoadTexturePathsFromGLTF();
+    Directory.~FilePath();
+    Directory = Path.Directory();
+		LoadTexturePathsFromGLTF();
 
 		Handle<Model> hnd = pAssetManager->CreateModel(Model());
 		Ref<Model> pModel = pAssetManager->GetModelWithHandle(hnd);
@@ -263,17 +265,17 @@ namespace sandbox
 		return RefHnd<Model>(hnd, pModel);
 	}
 
-	//size_t ModelImporter::PathsToTextures(Array<FilePath>* Out)
-	//{
-	//	String texturePath;
-	//	if (!Out) { return TextureFiles.Length(); }
-	//	for (const FilePath& path : TextureFiles)
-	//	{
-	//		texturePath.Format("%s%s", Directory.C_Str(), path.C_Str());
-	//		Out->Push(texturePath.C_Str());
-	//	}
-	//	return 1;
-	//}
+	size_t ModelImporter::PathsToTextures(Array<FilePath>* Out)
+	{
+    String256 texturePath;
+		if (!Out) { return TextureFiles.Length(); }
+		for (auto& [i, path] : TextureFiles)
+		{
+			texturePath.Format("%s%s", Directory.C_Str(), path.C_Str());
+			Out->Push(texturePath.C_Str());
+		}
+		return 1;
+	}
 
 	//bool ModelImporter::TexturesReferencedByMesh(Handle<Mesh> MeshHandle, Array<FilePath>& Out)
 	//{
@@ -303,12 +305,12 @@ namespace sandbox
 	{
 		if (!pAssetManager || !Path.Length())
 		{
-			return NullPointer();
+			return NULLPTR;
 		}
 
 		Ifstream ifstream;
 
-		if (!ifstream.Open(Path.C_Str())) { return NullPointer(); }
+		if (!ifstream.Open(Path.C_Str())) { return NULLPTR; }
 
 		const size_t fileSize = ifstream.Size();
 
@@ -323,7 +325,7 @@ namespace sandbox
 
 		uint8* data = stbi_load_from_memory(temp, static_cast<int32>(fileSize), &width, &height, &channels, STBI_rgb_alpha);
 
-		if (!data) { return NullPointer(); }
+		if (!data) { return NULLPTR; }
 
 		Handle<Texture> hnd = pAssetManager->CreateTexture(Texture());
 		Ref<Texture> pTexture = pAssetManager->GetTextureWithHandle(hnd);
@@ -332,9 +334,20 @@ namespace sandbox
 		pTexture->Height = height;
 		pTexture->Channels = channels;
 
-		IMemory::Memcpy(pTexture->Data.Data(), data, width * height * channels);
+    if (pTexture->Channels == 3)
+    {
+      pTexture->Channels = 4;
+    }
 
-		//stbi_image_free(data);
+    pTexture->Size = (size_t)pTexture->Width * (size_t)pTexture->Height * (size_t)pTexture->Channels;
+
+    // TODO(Ygsm):
+    // Fix broken buffer class.
+    new (&pTexture->Data) BinaryBuffer();
+    pTexture->Data.Alloc(pTexture->Size);
+		IMemory::Memcpy(pTexture->Data.Data(), data, pTexture->Size);
+
+		stbi_image_free(data);
 
 		return RefHnd<Texture>(hnd, pTexture);
 	}
@@ -352,11 +365,11 @@ namespace sandbox
 	{
 		if (!pAssetManager || !Path.Length())
 		{
-			return NullPointer();
+			return NULLPTR;
 		}
 
 		Ifstream ifstream;
-		if (!ifstream.Open(Path.C_Str())) { return NullPointer(); }
+		if (!ifstream.Open(Path.C_Str())) { return NULLPTR; }
 		
 		const size_t fileSize = ifstream.Size();
 		Handle<Shader> hnd = pAssetManager->CreateShader(Shader());
@@ -372,4 +385,12 @@ namespace sandbox
 
 		return RefHnd<Shader>(hnd, pShader);
 	}
+
+  ModelImporter::MeshTexture::MeshTexture() :
+    MeshIndex(0), TexturePath()
+  {}
+
+  ModelImporter::MeshTexture::MeshTexture(uint32 Index, const char* Uri) :
+    MeshIndex(Index), TexturePath(Uri)
+  {}
 }

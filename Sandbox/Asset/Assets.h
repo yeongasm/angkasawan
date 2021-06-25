@@ -61,6 +61,7 @@ namespace sandbox
     uint32 Width;
     uint32 Height;
     uint32 Channels;
+    size_t Size;
   };
 
 	//void SerializeModel(WriteMemoryStream& Stream, const Model& Src, const FilePath& DstPath);

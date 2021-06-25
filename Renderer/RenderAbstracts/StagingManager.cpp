@@ -12,14 +12,130 @@ decltype(auto) IStagingManager::GetQueueForType(EQueueType Type)
 	return &pRenderer->pDevice->GetTransferQueue();
 }
 
-bool IStagingManager::ShouldMakeTransfer() const
+//bool IStagingManager::ShouldMakeTransfer() const
+//{
+//	return MakeTransfer;
+//}
+
+IStagingManager::OwnershipTransferContext::OwnershipTransferContext() :
+  pBuffer{}, Type{ Staging_Upload_Type_None }
+{}
+
+IStagingManager::OwnershipTransferContext::OwnershipTransferContext(Ref<SMemoryBuffer> pInBuffer) :
+  pBuffer{ pInBuffer }, Type{ Staging_Upload_Type_Buffer }
+{}
+
+IStagingManager::OwnershipTransferContext::OwnershipTransferContext(Ref<SImage> pInImage) :
+  pImage{ pInImage }, Type{ Staging_Upload_Type_Image }
+{}
+
+IStagingManager::OwnershipTransferContext::~OwnershipTransferContext()
 {
-	return MakeTransfer;
+  if (Type == Staging_Upload_Type_Image)
+  {
+    pImage = NULLPTR;
+  }
+  if (Type == Staging_Upload_Type_Buffer)
+  {
+    pBuffer = NULLPTR;
+  }
+  Type = Staging_Upload_Type_None;
+}
+
+void IStagingManager::UploadToBuffer(VkCommandBuffer CmdBuffer, UploadContext& Ctx)
+{
+  auto dstQueue = GetQueueForType(Ctx.DstQueue);
+  VkBufferCopy region = {};
+  region.size = Ctx.Size;
+  region.srcOffset = 0;
+  region.dstOffset = Ctx.pDstBuf->Offset;
+
+  vkCmdCopyBuffer(
+    CmdBuffer,
+    Ctx.SrcBuffer.Hnd,
+    Ctx.pDstBuf->Hnd,
+    1,
+    &region
+  );
+
+  pRenderer->pDevice->BufferBarrier(
+    CmdBuffer,
+    Ctx.pDstBuf->Hnd,
+    Ctx.Size,
+    Ctx.pDstBuf->Offset,
+    VK_ACCESS_TRANSFER_WRITE_BIT,
+    VK_ACCESS_TRANSFER_READ_BIT,
+    VK_PIPELINE_STAGE_TRANSFER_BIT,
+    VK_PIPELINE_STAGE_TRANSFER_BIT,
+    pRenderer->pDevice->GetTransferQueue().FamilyIndex,
+    dstQueue->FamilyIndex
+  );
+
+  Ctx.pDstBuf->Offset += Ctx.Size;
+}
+
+void IStagingManager::UploadToImage(VkCommandBuffer CmdBuffer, UploadContext& Ctx)
+{
+  auto dstQueue = GetQueueForType(Ctx.DstQueue);
+
+  VkImageSubresourceRange subresourceRange = {};
+  subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+  subresourceRange.baseMipLevel = 0;
+  subresourceRange.levelCount = Ctx.pDstImg->MipLevels;
+  subresourceRange.baseArrayLayer = 0;
+  subresourceRange.layerCount = 1;
+
+  pRenderer->pDevice->ImageBarrier(
+    CmdBuffer,
+    Ctx.pDstImg->ImgHnd,
+    &subresourceRange,
+    VK_IMAGE_LAYOUT_UNDEFINED,
+    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+    VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+    VK_PIPELINE_STAGE_TRANSFER_BIT,
+    pRenderer->pDevice->GetTransferQueue().FamilyIndex,
+    pRenderer->pDevice->GetTransferQueue().FamilyIndex
+  );
+
+  VkBufferImageCopy copyRegion = {};
+  copyRegion.bufferOffset = 0;
+  copyRegion.bufferRowLength = 0;
+  copyRegion.bufferImageHeight = 0;
+  copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+  copyRegion.imageSubresource.mipLevel = 0;
+  copyRegion.imageSubresource.baseArrayLayer = 0;
+  copyRegion.imageSubresource.layerCount = 1;
+  copyRegion.imageExtent = { Ctx.pDstImg->Width, Ctx.pDstImg->Height, 1 };
+
+  vkCmdCopyBufferToImage(
+    CmdBuffer,
+    Ctx.SrcBuffer.Hnd,
+    Ctx.pDstImg->ImgHnd,
+    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+    1,
+    &copyRegion
+  );
+
+  pRenderer->pDevice->ImageBarrier(
+    CmdBuffer,
+    Ctx.pDstImg->ImgHnd,
+    &subresourceRange,
+    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+    VK_PIPELINE_STAGE_TRANSFER_BIT,
+    VK_PIPELINE_STAGE_TRANSFER_BIT,
+    pRenderer->pDevice->GetTransferQueue().FamilyIndex,
+    dstQueue->FamilyIndex,
+    VK_ACCESS_TRANSFER_WRITE_BIT
+  );
 }
 
 IStagingManager::IStagingManager(IRenderSystem& InRenderer) :
+  Uploads{},
+  OwnershipTransfers{},
 	pRenderer(&InRenderer),
-	TxPool{}
+	TxPool{},
+  MakeTransfers{}
 {}
 
 IStagingManager::~IStagingManager()
@@ -52,14 +168,14 @@ void IStagingManager::Terminate()
 
 bool IStagingManager::StageVertexData(void* Data, size_t Size)
 {
-	MakeTransfer = true;
+  MakeTransfers.Set(Ownership_Transfer_Type_Vertex_Buffer);
 	const auto [hnd, pBuffer] = pRenderer->VertexBuffer;
 	return StageDataForBuffer(Data, Size, hnd, EQueueType::Queue_Type_Graphics);
 }
 
 bool IStagingManager::StageIndexData(void* Data, size_t Size)
 {
-	MakeTransfer = true;
+  MakeTransfers.Set(Ownership_Transfer_Type_Index_Buffer);
 	const auto [hnd, pBuffer] = pRenderer->IndexBuffer;
 	return StageDataForBuffer(Data, Size, hnd, EQueueType::Queue_Type_Graphics);
 }
@@ -99,13 +215,64 @@ bool IStagingManager::StageDataForBuffer(void* Data, size_t Size, Handle<SMemory
 	IMemory::Memcpy(temp.pData, Data, Size);
 
 	UploadContext upload = {};
-	upload.DstBuffer = dst;
+	upload.pDstBuf = dst;
 	upload.DstQueue = DstQueue;
 	upload.Size = Size;
 	upload.SrcBuffer = Move(temp);
+  upload.Type = Staging_Upload_Type_Buffer;
 	Uploads.Push(Move(upload));
 
 	return true;
+}
+
+const Array<IStagingManager::OwnershipTransferContext>& IStagingManager::GetOwnershipTransfers() const
+{
+  return OwnershipTransfers;
+}
+
+bool IStagingManager::StageDataForImage(void* Data, size_t Size, Handle<SImage> DstHnd, EQueueType DstQueue)
+{
+  const IRenderDevice::VulkanQueue* dstQueue = GetQueueForType(DstQueue);
+  Ref<SImage> pImg = pRenderer->pStore->GetImage(DstHnd);
+  if (!pImg) { return false; }
+
+  VkBufferCreateInfo info = {};
+  info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+  info.size = Size;
+  info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+  info.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+
+  VmaAllocationCreateInfo alloc = {};
+  alloc.usage = VMA_MEMORY_USAGE_CPU_ONLY;
+
+  SMemoryBuffer temp;
+
+  if (vmaCreateBuffer(
+    pRenderer->pDevice->GetAllocator(),
+    &info,
+    &alloc,
+    &temp.Hnd,
+    &temp.Allocation,
+    nullptr
+  ) != VK_SUCCESS)
+  {
+    return false;
+  }
+
+  vmaMapMemory(pRenderer->pDevice->GetAllocator(), temp.Allocation, reinterpret_cast<void**>(&temp.pData));
+  vmaUnmapMemory(pRenderer->pDevice->GetAllocator(), temp.Allocation);
+
+  IMemory::Memcpy(temp.pData, Data, Size);
+
+  UploadContext upload = {};
+  upload.pDstImg = pImg;
+  upload.DstQueue = DstQueue;
+  upload.Size = Size;
+  upload.SrcBuffer = Move(temp);
+  upload.Type = Staging_Upload_Type_Image;
+  Uploads.Push(Move(upload));
+
+  return true;
 }
 
 //bool IStagingManager::StageDataForImage(void* Data, size_t Size, Handle<SImage> DstImg, EQueueType DstQueue)
@@ -226,34 +393,14 @@ bool IStagingManager::Upload()
 
 	for (UploadContext& upload : Uploads)
 	{
-		auto dstQueue = GetQueueForType(upload.DstQueue);
-		VkBufferCopy region = {};
-		region.size = upload.Size;
-		region.srcOffset = 0;
-		region.dstOffset = upload.DstBuffer->Offset;
-
-		vkCmdCopyBuffer(
-			cmd,
-			upload.SrcBuffer.Hnd,
-			upload.DstBuffer->Hnd,
-			1,
-			&region
-		);
-
-		pRenderer->pDevice->BufferBarrier(
-			cmd,
-			upload.DstBuffer->Hnd,
-			upload.Size,
-			upload.DstBuffer->Offset,
-			VK_ACCESS_TRANSFER_WRITE_BIT,
-			VK_ACCESS_TRANSFER_READ_BIT,
-			VK_PIPELINE_STAGE_TRANSFER_BIT,
-			VK_PIPELINE_STAGE_TRANSFER_BIT,
-			pRenderer->pDevice->GetTransferQueue().FamilyIndex,
-			dstQueue->FamilyIndex
-		);
-
-		upload.DstBuffer->Offset += upload.Size;
+    if (upload.Type == Staging_Upload_Type_Buffer)
+    {
+      UploadToBuffer(cmd, upload);
+    }
+    if (upload.Type == Staging_Upload_Type_Image)
+    {
+      UploadToImage(cmd, upload);
+    }
 	}
 
 	VkSubmitInfo submit = {};
@@ -285,97 +432,27 @@ bool IStagingManager::Upload()
 	return true;
 }
 
-//void IStagingManager::BeginTransfer()
-//{
-//	pRenderer->pDevice->BeginCommandBuffer(
-//		_StagingParams.CmdBuf[IStagingParams::EStagingOp::Staging_Op_Ownership_Transfer][_StagingParams.NextCmdIndex],
-//		VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
-//	);
-//}
-//
-//bool IStagingManager::TransferBufferOwnership(Handle<SMemoryBuffer> Hnd, EQueueType Queue)
-//{
-//	SMemoryBuffer* pBuffer = pRenderer->pStore->GetBuffer(Hnd);
-//	if (!pBuffer) { return false; }
-//
-//	const IRenderDevice::VulkanQueue* dstQueue = GetQueueForType(Queue);
-//	if (!dstQueue) { return false; }
-//
-//	VkAccessFlags dstMask = VK_ACCESS_MEMORY_READ_BIT;
-//
-//	if (pBuffer->Type.Has(Buffer_Type_Vertex))
-//	{
-//		dstMask = VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT;
-//	}
-//
-//	if (pBuffer->Type.Has(Buffer_Type_Index))
-//	{
-//		dstMask = VK_ACCESS_INDEX_READ_BIT;
-//	}
-//
-//	pRenderer->pDevice->BufferBarrier(
-//		_StagingParams.CmdBuf[IStagingParams::EStagingOp::Staging_Op_Ownership_Transfer][_StagingParams.NextCmdIndex],
-//		pBuffer->Hnd, 
-//		pBuffer->Size,
-//		0,
-//		VK_ACCESS_TRANSFER_WRITE_BIT, 
-//		dstMask, 
-//		VK_PIPELINE_STAGE_TRANSFER_BIT, 
-//		VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, 
-//		dstQueue->FamilyIndex, 
-//		dstQueue->FamilyIndex
-//	);
-//
-//	return true;
-//}
-//
-//bool IStagingManager::TransferImageOwnership(Handle<SImage> Hnd, EQueueType Queue)
-//{
-//	VKT_ASSERT((Queue != EQueueType::Queue_Type_Present && Queue != EQueueType::Queue_Type_Transfer) &&
-//		"Ownership transfer is not allowed for the presentation queue and the transfer queue!");
-//
-//	SImage* pImage = _StagingParams.pRenderer->pStore->GetImage(Hnd);
-//	if (!pImage) { return false; }
-//
-//	const IRenderDevice::VulkanQueue* dstQueue = _StagingParams.GetQueueForType(Queue);
-//	if (!dstQueue) { return false; }
-//
-//	VkImageSubresourceRange range = {};
-//	range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-//	range.baseMipLevel = 0;
-//	range.baseArrayLayer = 0;
-//	range.levelCount = 1;
-//	range.layerCount = 1;
-//
-//	_StagingParams.pRenderer->pDevice->ImageBarrier(
-//		_StagingParams.CmdBuf[IStagingParams::EStagingOp::Staging_Op_Ownership_Transfer][_StagingParams.NextCmdIndex],
-//		pImage->ImgHnd,
-//		&range,
-//		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-//		VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-//		VK_PIPELINE_STAGE_TRANSFER_BIT,
-//		VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-//		dstQueue->FamilyIndex,
-//		dstQueue->FamilyIndex
-//	);
-//
-//	return true;
-//}
-//
-//void IStagingManager::EndTransfer()
-//{
-//	const uint32 index = pRenderer->pDevice->GetCurrentFrameIndex();
-//	const IRenderDevice::VulkanQueue* pGfxQueue = &pRenderer->pDevice->GetGraphicsQueue();
-//	VkPipelineStageFlags waitDstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-//
-//	VkSubmitInfo info = {};
-//	info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-//	info.commandBufferCount = 1;
-//	info.pCommandBuffers = &_StagingParams.CmdBuf[IStagingParams::EStagingOp::Staging_Op_Ownership_Transfer][_StagingParams.NextCmdIndex];
-//	info.waitSemaphoreCount = 1;
-//	info.pWaitSemaphores = &_StagingParams.Semaphore[index];
-//	info.pWaitDstStageMask = &waitDstStageMask;
-//
-//	pRenderer->pDevice->EndCommandBuffer();
-//	vkQueueSubmit(pGfxQueue->Hnd, 1, &info, VK_NULL_HANDLE);
-//}
+bool IStagingManager::TransferBufferOwnership(Handle<SMemoryBuffer> Hnd)
+{
+  if (Hnd == INVALID_HANDLE) { return false; }
+  Ref<SMemoryBuffer> pBuffer = pRenderer->pStore->GetBuffer(Hnd);
+  if (!pBuffer) { return false; }
+  OwnershipTransfers.Push(OwnershipTransferContext(pBuffer));
+  MakeTransfers.Set(Ownership_Transfer_Type_Buffer_Or_Image);
+  return true;
+}
+
+bool IStagingManager::TransferImageOwnership(Handle<SImage> Hnd)
+{
+  if (Hnd == INVALID_HANDLE) { return false; }
+  Ref<SImage> pImg = pRenderer->pStore->GetImage(Hnd);
+  if (!pImg) { return false; }
+  OwnershipTransfers.Push(OwnershipTransferContext(pImg));
+  MakeTransfers.Set(Ownership_Transfer_Type_Buffer_Or_Image);
+  return true;
+}
+
+void IStagingManager::ClearOwnershipTransfers()
+{
+  OwnershipTransfers.Empty();
+}

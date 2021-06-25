@@ -64,6 +64,7 @@ public:
 			{
 				Alloc(Rhs.Count());
 			}
+      Len = Rhs.Len;
 			for (size_t i = 0; i < Count(); i++)
 			{
 				*this[i] = Rhs[i];
@@ -140,7 +141,7 @@ public:
 	{
 		if (!Buf) { return; }
 		IMemory::Free(Buf);
-		Buf = nullptr;
+    new (this) Buffer();
 	}
 	
 	size_t Size() const

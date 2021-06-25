@@ -15,18 +15,20 @@ namespace sandbox
 	/**
 	* TODO(Ygsm):
 	* [x] Include functions to get textures specified in GLTF file (17.02.2021, 2251Hrs).
-	* [ ] Need to store mesh to texture data.
+	* [x] Need to store mesh to texture data.
 	* [ ] To calculate tangent and bitangent.
 	*/
 	class ModelImporter
 	{
 	private:
-		//using MeshTextureMaps = Array<Pair<Handle<Mesh>, Array<FilePath*>>>;
 
 		struct MeshTexture
 		{
 			uint32		MeshIndex;
 			FilePath	TexturePath;
+
+      MeshTexture();
+      MeshTexture(uint32 Index, const char* Uri);
 		};
 
 		cgltf_data* Data;
@@ -35,6 +37,7 @@ namespace sandbox
 		Buffer<float32> Tangent;
 		Buffer<float32> TexCoords;
 		Array<MeshTexture> TextureFiles;
+    FilePath Directory;
 		size_t PosCount;
 		size_t NormalsCount;
 		size_t TangentCount;
@@ -44,7 +47,7 @@ namespace sandbox
 		void LoadBufferData(cgltf_attribute* Attribute, size_t& Count, Buffer<float32>& Buffer);
 		void LoadGLTFNodeMeshData(cgltf_mesh* InMesh, Ref<Model> pModel, Ref<IAssetManager> pAssetManager);
 		void LoadGLTFNode(cgltf_node* Node, Ref<Model> pModel, Ref<IAssetManager> pAssetManager);
-		//void LoadTexturePathsFromGLTF();
+		void LoadTexturePathsFromGLTF();
 
 		//size_t FindMeshTextureMapIndex(Handle<Mesh> MeshHandle);
 
@@ -62,7 +65,7 @@ namespace sandbox
 		* Retrieves the relative path to the textures referenced by the imported model.
 		* If nullptr is specified for the container, only the number of textures referenced by the imported model is returned.
 		*/
-		//size_t PathsToTextures(Array<FilePath>* Out);
+		size_t PathsToTextures(Array<FilePath>* Out);
 
 		//bool TexturesReferencedByMesh(Handle<Mesh> MeshHandle, Array<FilePath>& Out);
 	};

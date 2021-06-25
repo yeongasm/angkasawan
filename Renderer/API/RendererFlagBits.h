@@ -309,6 +309,21 @@ enum EPushConstantSize : size_t
 	Push_Constant_Size = 128
 };
 
+enum EStagingUploadType : uint32
+{
+  Staging_Upload_Type_None = 0,
+  Staging_Upload_Type_Buffer = 1,
+  Staging_Upload_Type_Image = 2,
+};
+
+enum EOwnershipTransferType : uint32
+{
+  Ownership_Transfer_Type_Vertex_Buffer = 0,
+  Ownership_Transfer_Type_Index_Buffer = 1,
+  Ownership_Transfer_Type_Buffer_Or_Image = 2
+};
+using EOwnershipTransferTypeFlagBits = uint32;
+
 // Depth testing
 // Blending
 // Front facing

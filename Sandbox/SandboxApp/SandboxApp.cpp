@@ -7,9 +7,12 @@ namespace sandbox
 {
 
 	Handle<Model> zeldaModel;
+  Handle<MaterialDef> pbrMatDefinition;
+  Array<Handle<Material>> zeldaMaterialHandles;
 
 	SandboxApp::SandboxApp() :
-		AssetManager(ao::FetchEngineCtx()),
+    AssetManager{ ao::FetchEngineCtx() },
+    MatController(this->AssetManager, ao::FetchEngineCtx()),
 		Setup(),
 		pRenderer(),
 		pCamera()
@@ -155,12 +158,19 @@ namespace sandbox
 			return;
 		}
 
-		IStagingManager& staging = renderer.GetStagingManager();
-		ModelImporter importer;
-		zeldaModel = importer.ImportModelFromPath("Data/Models/zelda_-_breath_of_the_wild/scene.gltf", &AssetManager);
+    if (!CreateMaterialDefinition(pbrMatDefinition))
+    {
+      VKT_ASSERT(false && "Failed to create PBR material definition");
+      engine.State = AppState::Exit;
+      return;
+    }
+
+		IStagingManager& staging = pRenderer->GetStagingManager();
+		ModelImporter modelImporter;
+		zeldaModel = modelImporter.ImportModelFromPath("Data/Models/zelda_-_breath_of_the_wild/scene.gltf", &AssetManager);
 		//zeldaModel = importer.ImportModelFromPath("Data/Models/sponza/Sponza.gltf", &AssetManager);
 		Ref<Model> pZelda = AssetManager.GetModelWithHandle(zeldaModel);
-		
+
 		uint32 previousVertexOffset = 0;
 		uint32 previousIndexOffset = 0;
 
@@ -190,6 +200,59 @@ namespace sandbox
 			mesh.Vertices.Release();
 			mesh.Indices.Release();
 		}
+
+    TextureImporter textureImporter;
+    Array<FilePath> zeldaTexPaths;
+    modelImporter.PathsToTextures(&zeldaTexPaths);
+
+    for (const FilePath& path : zeldaTexPaths)
+    {
+      RefHnd<Texture> texHnd = textureImporter.ImportTextureFromPath(path, &AssetManager);
+
+      texHnd->ImageHnd = pRenderer->CreateImage(texHnd->Width, texHnd->Height, texHnd->Channels, Texture_Type_2D);
+      pRenderer->BuildImage(texHnd->ImageHnd);
+
+      staging.StageDataForImage(texHnd->Data, texHnd->Size, texHnd->ImageHnd, EQueueType::Queue_Type_Graphics);
+      staging.TransferImageOwnership(texHnd->ImageHnd);
+      texHnd->Data.Release();
+
+      TextureTypeInfo textureInfo = {};
+      textureInfo.Hnd = texHnd;
+      textureInfo.Type = Pbr_Texture_Type_Albedo;
+
+      MaterialCreateInfo zeldaMatInfo = {};
+      zeldaMatInfo.DefinitionHnd = pbrMatDefinition;
+      zeldaMatInfo.NumTextureTypes = 1;
+      zeldaMatInfo.pInfo = &textureInfo;
+
+      Handle<Material> hnd = MatController.CreateMaterial(zeldaMatInfo);
+      zeldaMaterialHandles.Push(hnd);
+    }
+
+    Array<Handle<SImage>> imageHandles;
+    Ref<MaterialDef> pbrDefinition = MatController.GetMaterialDefinition(pbrMatDefinition);
+
+    // Update camera ubo ...
+    Handle<SDescriptorSet> setHnd = Setup.GetDescriptorSetHandle();
+    Handle<SMemoryBuffer> cameraUboHnd = Setup.GetCameraUboHandle();
+    pRenderer->DescriptorSetMapToBuffer(setHnd, 0, cameraUboHnd, 0, pRenderer->PadToAlignedSize(sizeof(RendererSetup::CameraUbo)));
+
+    for (const MaterialType& type : pbrDefinition->MatTypes)
+    {
+      for (Ref<Texture> texture : type.Textures)
+      {
+        imageHandles.Push(texture->ImageHnd);
+      }
+      pRenderer->DescriptorSetMapToImage(
+        setHnd,
+        type.Binding,
+        imageHandles.First(),
+        static_cast<uint32>(imageHandles.Length()),
+        pbrDefinition->SamplerHnd
+      );
+      imageHandles.Empty();
+    }
+
 		staging.Upload();
 	}
 
@@ -218,6 +281,8 @@ namespace sandbox
 		Ref<Model> pZelda = AssetManager.GetModelWithHandle(zeldaModel);
 		VKT_ASSERT(pZelda);
 
+    uint32 textureIndices[] = { 0, 1, 2, 3, 4, 5, 3 };
+
 		DrawInfo info = {};
 		info.Id = static_cast<uint32>(zeldaModel);
 		info.DrawableCount = pZelda->NumDrawables;
@@ -225,6 +290,9 @@ namespace sandbox
 		info.pVertexInformation = pZelda->VertexInformations.First();
 		info.pIndexInformation = pZelda->IndexInformation.First();
 		info.Renderpass = Setup.GetColorPass().GetRenderPassHandle();
+    info.pConstants = textureIndices;
+    info.ConstantsCount = 7;
+    info.PipelineHnd = Setup.GetColorPass().GetPipelineHandle();
 
 		math::mat4 transform(1.0f);
 		math::Scale(transform, math::vec3(0.075f));
@@ -237,6 +305,19 @@ namespace sandbox
 
 	void SandboxApp::Terminate()
 	{
+    Ref<MaterialDef> pbrDefinition = MatController.GetMaterialDefinition(pbrMatDefinition);
+
+    for (auto& types : pbrDefinition->MatTypes)
+    {
+      for (RefHnd<Texture> texture : types.Textures)
+      {
+        pRenderer->DestroyImage(texture->ImageHnd);
+        AssetManager.DestroyTexture(texture);
+      }
+      types.Textures.Release();
+    }
+
+    MatController.DestroyMaterialDefinition(pbrMatDefinition);
 		pCamera->OnTerminate();
 		Setup.Terminate();
 	}
@@ -255,4 +336,23 @@ namespace sandbox
 		);
 		frameGraph.OnWindowResize();
 	}
+
+  bool SandboxApp::CreateMaterialDefinition(Handle<MaterialDef>& DefHnd)
+  {
+    MaterialTypeBindingInfo albedoTypeBinding;
+    albedoTypeBinding.Binding = 1;
+    albedoTypeBinding.Type = Pbr_Texture_Type_Albedo;
+
+    MaterialDefCreateInfo definitionCreateInfo = {};
+    definitionCreateInfo.PipelineHnd = Setup.GetColorPass().GetPipelineHandle();
+    definitionCreateInfo.SamplerHnd = Setup.GetTextureImageSampler();
+    definitionCreateInfo.SetHnd = Setup.GetDescriptorSetHandle();
+    definitionCreateInfo.NumOfTypeBindings = 1;
+    definitionCreateInfo.pTypeBindings = &albedoTypeBinding;
+
+    DefHnd = MatController.CreateMaterialDefinition(definitionCreateInfo);
+    if (DefHnd == INVALID_HANDLE) { return false; }
+
+    return true;
+  }
 }

@@ -89,7 +89,6 @@ using ImageSamplerCreateInfo = ImageSamplerState;
 struct SImage
 {
 	VmaAllocation Allocation;
-	Ref<SImageSampler> pSampler;
 	BitSet<EImageUsageFlagBits> Usage;
 	size_t Size;
 	uint32 Width;
@@ -209,7 +208,6 @@ struct SDescriptorSetLayout
 		uint32 BindingSlot;
 		uint32 DescriptorCount;
 		size_t Stride;							// Stride for data. Ignore for images.
-		//size_t Allocated;
 		size_t Offset[MAX_FRAMES_IN_FLIGHT];	// Offset that's in the buffer for each frame. Ignore for images.
 		EDescriptorType Type;
 		BitSet<uint32> ShaderStages;
@@ -219,7 +217,6 @@ struct SDescriptorSetLayout
 			BindingSlot(0),
 			DescriptorCount(0),
 			Stride(0),
-			//Allocated(0),
 			Offset{0},
 			Type(Descriptor_Type_Max),
 			ShaderStages{},
@@ -293,12 +290,15 @@ struct SBindable
 
 struct DrawCommand
 {
+  Ref<SPipeline> pPipeline;
+  uint8  Constants[128];
 	uint32 NumVertices;
 	uint32 NumIndices;
 	uint32 VertexOffset;
 	uint32 IndexOffset;
 	uint32 InstanceOffset;
 	uint32 InstanceCount;
+  bool   HasPushConstants = false;
 };
 
 #endif // !LEARNVK_RENDERER_RENDER_ABSTRACT_PRIMITIVES_H

@@ -253,8 +253,6 @@ namespace sandbox
 		//resource->Path = Src.Path;
 		resource->Type = Sandbox_Asset_Texture;
 
-		Textures.Add(id, Src);
-
 		return Handle<Texture>(static_cast<size_t>(id));
 	}
 

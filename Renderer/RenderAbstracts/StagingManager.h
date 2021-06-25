@@ -12,6 +12,7 @@ class IRenderSystem;
 class IRenderDevice;
 
 using VkCommandPool = struct VkCommandPool_T*;
+using VkCommandBuffer = struct VkCommandBuffer_T*;
 using VkBuffer = struct VkBuffer_T*;
 
 class RENDERER_API IStagingManager
@@ -23,19 +24,39 @@ private:
 	struct UploadContext
 	{
 		SMemoryBuffer SrcBuffer;
-		Ref<SMemoryBuffer> DstBuffer;
+		Ref<SMemoryBuffer> pDstBuf;
+    Ref<SImage> pDstImg;
 		size_t Size;
+    EStagingUploadType Type;
 		EQueueType DstQueue;
 	};
 
+  struct OwnershipTransferContext
+  {
+    Ref<SMemoryBuffer> pBuffer;
+    Ref<SImage> pImage;
+    EStagingUploadType Type;
+
+    OwnershipTransferContext();
+    OwnershipTransferContext(Ref<SMemoryBuffer> pInBuffer);
+    OwnershipTransferContext(Ref<SImage> pInImage);
+    ~OwnershipTransferContext();
+  };
+
 	Array<UploadContext> Uploads;
+  Array<OwnershipTransferContext> OwnershipTransfers;
 	Ref<IRenderSystem> pRenderer;
 	VkCommandPool TxPool;
-	bool MakeTransfer;
+  BitSet<EOwnershipTransferTypeFlagBits> MakeTransfers;
 
 	decltype(auto) GetQueueForType(EQueueType Type);
 
-	bool ShouldMakeTransfer() const;
+	//bool ShouldMakeTransfer() const;
+  void UploadToBuffer(VkCommandBuffer CmdBuffer, UploadContext& Ctx);
+  void UploadToImage(VkCommandBuffer CmdBuffer, UploadContext& Ctx);
+
+  const Array<OwnershipTransferContext>& GetOwnershipTransfers() const;
+  void ClearOwnershipTransfers();
 
 public:
 
@@ -49,7 +70,14 @@ public:
 	bool StageVertexData(void* Data, size_t Size);
 	bool StageIndexData(void* Data, size_t Size);
 	bool StageDataForBuffer(void* Data, size_t Size, Handle<SMemoryBuffer> DstHnd, EQueueType DstQueue);
+  bool StageDataForImage(void* Data, size_t Size, Handle<SImage> DstHnd, EQueueType DstQueue);
 	bool Upload();
+
+  // NOTE(Ygsm):
+  // For now, we will only transfer to the graphics queue.
+  // Will be enhanced in the future.
+  bool TransferBufferOwnership(Handle<SMemoryBuffer> Hnd);
+  bool TransferImageOwnership(Handle<SImage> Hnd);
 };
 
 #endif // !LEARNVK_RENDERER_RENDER_ABSTRACT_STAGING_MANAGER_H
