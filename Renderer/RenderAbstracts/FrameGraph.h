@@ -47,7 +47,6 @@ struct SRenderPass
 	IFrameGraph* pOwner;
 	InputAttachments ColorInputs;
 	OutputAttachments ColorOutputs;
-	//VkFramebuffer Framebuffer[MAX_SWAPCHAIN_IMAGE_ALLOWED];
 	VkFramebuffer Framebuffer;
 	IAttachment DepthStencilInput;
 	OAttachment DepthStencilOutput;
@@ -58,6 +57,7 @@ struct SRenderPass
 	float32 Depth;
 	ERenderPassType Type;
 	BitSet<ERenderPassOrderFlagBits> Order;
+  uint32 IndexForDraw;
 	bool Rebuild = false;
 };
 

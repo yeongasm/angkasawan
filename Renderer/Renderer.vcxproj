@@ -45,6 +45,7 @@
     <ClInclude Include="API\Vk\Src\shaderc\status.h" />
     <ClInclude Include="API\Vk\Src\shaderc\visibility.h" />
     <ClInclude Include="API\Vk\Vk.h" />
+    <ClInclude Include="RenderAbstracts\DrawCommand.h" />
     <ClInclude Include="RenderAbstracts\FrameGraph.h" />
     <ClInclude Include="RenderAbstracts\Primitives.h" />
     <ClInclude Include="RenderAbstracts\StagingManager.h" />

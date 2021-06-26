@@ -281,24 +281,41 @@ namespace sandbox
 		Ref<Model> pZelda = AssetManager.GetModelWithHandle(zeldaModel);
 		VKT_ASSERT(pZelda);
 
+    math::mat4 transform0(1.0f);
+    math::Scale(transform0, math::vec3(0.05f));
+
+    math::mat4 transform1 = transform0;
+    math::Translate(transform1, vec3(250.0f, 0.0f, 0.0f));
+    math::Rotate(transform1, pEngine->Clock.FElapsedTime(), vec3(0.0f, 1.0f, 0.0f));
+
+    math::mat4 transform[] = { transform0, transform1 };
+
     uint32 textureIndices[] = { 0, 1, 2, 3, 4, 5, 3 };
 
-		DrawInfo info = {};
-		info.Id = static_cast<uint32>(zeldaModel);
-		info.DrawableCount = pZelda->NumDrawables;
-		info.Instanced = true;
+		DrawSubmissionInfo info = {};
+    info.DrawCount = pZelda->NumDrawables;
 		info.pVertexInformation = pZelda->VertexInformations.First();
 		info.pIndexInformation = pZelda->IndexInformation.First();
-		info.Renderpass = Setup.GetColorPass().GetRenderPassHandle();
-    info.pConstants = textureIndices;
-    info.ConstantsCount = 7;
+		info.RenderPassHnd = Setup.GetColorPass().GetRenderPassHandle();
     info.PipelineHnd = Setup.GetColorPass().GetPipelineHandle();
+    info.pConstants = textureIndices;
+    info.ConstantsCount = 6;
+    info.ConstantTypeSize = sizeof(uint32);
+    info.pTransforms = transform;
+    info.TransformCount = 2;
 
-		math::mat4 transform(1.0f);
-		math::Scale(transform, math::vec3(0.075f));
-
-		info.Transform = transform;
 		pRenderer->Draw(info);
+
+    DrawSubmissionInfo info2 = info;
+
+    math::mat4 transform2 = transform0;
+    math::Translate(transform2, math::vec3(-250.0f, 0.0f, 0.0f));
+    math::Rotate(transform2, 45.0f, math::vec3(0.0f, 1.0f, 0.0f));
+
+    info2.pTransforms = &transform2;
+    info2.TransformCount = 1;
+
+    pRenderer->Draw(info2);
 
 		firstFrame = false;
 	}

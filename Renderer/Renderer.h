@@ -11,39 +11,11 @@
 #include "RenderAbstracts/Primitives.h"
 #include "RenderAbstracts/FrameGraph.h"
 #include "RenderAbstracts/StagingManager.h"
+#include "RenderAbstracts/DrawCommand.h"
 
 class IRenderDevice;
 struct IDeviceStore;
 
-class IStagingManager;
-class IFrameGraph;
-
-struct VertexInformation
-{
-	uint32 VertexOffset;
-	uint32 NumVertices;
-};
-
-struct IndexInformation
-{
-	uint32 IndexOffset;
-	uint32 NumIndices;
-};
-
-struct DrawInfo
-{
-	math::mat4 Transform;
-	Handle<SRenderPass> Renderpass;
-	VertexInformation* pVertexInformation;
-	IndexInformation* pIndexInformation;
-  Handle<SPipeline> PipelineHnd;
-  void* pConstants;
-  size_t ConstantSize;
-	uint32 DrawableCount; // Num of meshes in the model.
-  uint32 ConstantsCount;
-	uint32 Id;
-	bool Instanced = true;
-};
 
 class RENDERER_API IRenderSystem : public SystemInterface
 {
@@ -52,39 +24,6 @@ private:
 	friend struct IStagingParams;
 	friend class IStagingManager;
 	friend class IFrameGraph;
-	
-	struct DrawManager
-	{
-		struct DrawCommandRange
-		{
-			ForwardNode<DrawCommand>* pBegin;
-			ForwardNode<DrawCommand>* pEnd;
-		};
-
-		struct TransformRange
-		{
-			ForwardNode<math::mat4>* pBegin;
-			ForwardNode<math::mat4>* pEnd;
-		};
-
-		struct InstanceEntry
-		{
-			uint32 Id;
-			TransformRange TransformRange;
-			DrawCommandRange DrawRange;
-		};
-
-		using EntryContainer = StaticArray<InstanceEntry, MAX_INSTANCING_COUNT>;
-
-		static constexpr uint32 MaxDrawablesCount = MAX_DRAWABLE_COUNT;
-
-		// NOTE(Ygsm): Might swap these out for a static array in the future but we'll go with this for now.
-		static LinearAllocator _DrawCommandAllocator;
-		static LinearAllocator _TransformAllocator;
-		static Map<size_t, EntryContainer> _InstancedDraws;
-		static Map<size_t, EntryContainer> _NonInstancedDraws;
-		static uint32 _NumDrawables;
-	};
 	
 	struct BindableManager
 	{
@@ -99,20 +38,18 @@ private:
 		static BindableRange _GlobalBindables;
 	};
 
-	using DefaultBuffer = Pair<Handle<SMemoryBuffer>, Ref<SMemoryBuffer>>;
+	using DefaultBuffer = RefHnd<SMemoryBuffer>;
 
+  Array<Array<DrawCommand>> Drawables;
 	EngineImpl& Engine;
-	IRenderDevice* pDevice;
-	IDeviceStore* pStore;
-	IStagingManager* pStaging;
-	IFrameGraph* pFrameGraph;
+  DefaultBuffer VertexBuffer;
+  DefaultBuffer IndexBuffer;
+  DefaultBuffer InstanceBuffer;
+  UniquePtr<IRenderDevice> pDevice;
+  UniquePtr<IDeviceStore> pStore;
+  UniquePtr<IStagingManager> pStaging;
+  UniquePtr<IFrameGraph> pFrameGraph;
 	Handle<ISystem>	Hnd;
-
-	DefaultBuffer VertexBuffer;
-	DefaultBuffer IndexBuffer;
-	DefaultBuffer InstanceBuffer;
-
-	Map<size_t, DrawManager::DrawCommandRange> Drawables;
 
 	uint32 CalcStrideForFormat(EShaderAttribFormat Format);
 	void PreprocessShader(Ref<SShader> pShader);
@@ -189,8 +126,8 @@ public:
 	bool BuildImageSampler(Handle<SImageSampler> Hnd);
 	bool DestroyImageSampler(Handle<SImageSampler>& Hnd);
 
-	IStagingManager& GetStagingManager() const;
-	IFrameGraph& GetFrameGraph() const;
+	IStagingManager& GetStagingManager();
+	IFrameGraph& GetFrameGraph();
 
 	Handle<SShader> CreateShader(const String& Code, EShaderType Type);
 	bool BuildShader(Handle<SShader> Hnd);
@@ -206,12 +143,12 @@ public:
 	bool BindDescriptorSet(Handle<SDescriptorSet> Hnd, Handle<SRenderPass> RenderpassHnd);
 	bool BindPipeline(Handle<SPipeline> Hnd, Handle<SRenderPass> RenderpassHnd);
 
-	bool Draw(const DrawInfo& Info);
-	const uint32 GetMaxDrawablesCount() const;
-	const uint32 GetDrawableCount() const;
+	void Draw(const DrawSubmissionInfo& Info);
+	//const uint32 GetMaxDrawablesCount() const;
+	//const uint32 GetDrawableCount() const;
 	const uint32 GetCurrentFrameIndex() const;
 
-	void PrepareDrawCommands();
+	//void PrepareDrawCommands();
 	void MakeTransferToGpu();
 
 	void FlushVertexBuffer();

@@ -288,17 +288,4 @@ struct SBindable
 	~SBindable() {}
 };
 
-struct DrawCommand
-{
-  Ref<SPipeline> pPipeline;
-  uint8  Constants[128];
-	uint32 NumVertices;
-	uint32 NumIndices;
-	uint32 VertexOffset;
-	uint32 IndexOffset;
-	uint32 InstanceOffset;
-	uint32 InstanceCount;
-  bool   HasPushConstants = false;
-};
-
 #endif // !LEARNVK_RENDERER_RENDER_ABSTRACT_PRIMITIVES_H

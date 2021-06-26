@@ -176,7 +176,7 @@ namespace sandbox
     bindingInfo = {};
     bindingInfo.ShaderStages.Set(Shader_Type_Fragment);
     bindingInfo.Type = Descriptor_Type_Sampled_Image;
-    bindingInfo.DescriptorCount = 1000;
+    bindingInfo.DescriptorCount = 128;
     bindingInfo.BindingSlot = 1;
     bindingInfo.LayoutHnd = SetLayoutHnd;
 

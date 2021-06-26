@@ -1111,6 +1111,7 @@ bool IRenderDevice::CreateLogicalDevice()
   deviceFeatures12.imagelessFramebuffer = VK_TRUE;
   deviceFeatures12.descriptorIndexing = VK_TRUE;
   deviceFeatures12.drawIndirectCount = VK_TRUE;
+  deviceFeatures12.descriptorBindingPartiallyBound = VK_TRUE;
 
   VkPhysicalDeviceFeatures2 deviceFeatures = {};
   deviceFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;

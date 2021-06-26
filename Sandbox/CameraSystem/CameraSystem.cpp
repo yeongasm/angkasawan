@@ -94,22 +94,22 @@ namespace sandbox
 	{
 		static uint32 index = 0;
 		CachedMouseDelta[index] = Pos;
-		index = ++index % 32;
+		index = ++index % 8;
 	}
 
 	vec2 CameraSystem::GetMouseDeltaAverage()
 	{
 		vec2 total{ 0.0f };
-		for (uint32 i = 0; i < 32; i++)
+		for (uint32 i = 0; i < 8; i++)
 		{
 			total += CachedMouseDelta[i];
 		}
-		return total / 32;
+		return total / 8;
 	}
 
 	void CameraSystem::ClearMouseDragDeltaCache()
 	{
-		constexpr size_t count = sizeof(math::vec2) * 32;
+		constexpr size_t count = sizeof(math::vec2) * 8;
 		IMemory::Memzero(&CachedMouseDelta, count);
 	}
 

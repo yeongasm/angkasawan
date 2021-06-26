@@ -56,7 +56,7 @@ namespace sandbox
 		BitSet<ECameraStatesFlagBits> State;
 		uint32 ProjType;
 		Handle<ISystem> Hnd;
-		math::vec2 CachedMouseDelta[32];
+		math::vec2 CachedMouseDelta[8];
 
 	public:
 

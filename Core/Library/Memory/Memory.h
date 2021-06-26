@@ -111,6 +111,8 @@ public:
 		if (this != &Rhs) { _Ptr = Rhs._Ptr; new (&Rhs) UniquePtr(); }
 		return *this;
 	}
+  T& operator*() { return *_Ptr; }
+  const T& operator*() const { return *_Ptr; }
 	T* operator->() { return _Ptr; }
 	const T* operator->() const { return _Ptr; }
 	bool operator==(const UniquePtr& Rhs) { return _Ptr == Rhs._Ptr; }

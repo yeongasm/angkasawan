@@ -627,6 +627,8 @@ bool IFrameGraph::Build()
 		}
 	}
 
+  Renderer.Drawables.Reserve(RenderPasses.Length());
+
 	for (auto [hnd, pRenderPass] : RenderPasses)
 	{
 		size_t handleValue = hnd;
@@ -643,8 +645,8 @@ bool IFrameGraph::Build()
 		if (!CreateRenderPass(pRenderPass)) { return false; }
 		if (!CreateFramebuffer(pRenderPass)) { return false; }
 
-		IRenderSystem::DrawManager::_InstancedDraws.Insert(handleValue, {});
-		IRenderSystem::DrawManager::_NonInstancedDraws.Insert(handleValue, {});
+    size_t index = Renderer.Drawables.Push(Array<DrawCommand>());
+    pRenderPass->IndexForDraw = static_cast<uint32>(index);
 	}
 
 	Built = true;

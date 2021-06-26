@@ -169,15 +169,13 @@ void IStagingManager::Terminate()
 bool IStagingManager::StageVertexData(void* Data, size_t Size)
 {
   MakeTransfers.Set(Ownership_Transfer_Type_Vertex_Buffer);
-	const auto [hnd, pBuffer] = pRenderer->VertexBuffer;
-	return StageDataForBuffer(Data, Size, hnd, EQueueType::Queue_Type_Graphics);
+	return StageDataForBuffer(Data, Size, pRenderer->VertexBuffer, EQueueType::Queue_Type_Graphics);
 }
 
 bool IStagingManager::StageIndexData(void* Data, size_t Size)
 {
   MakeTransfers.Set(Ownership_Transfer_Type_Index_Buffer);
-	const auto [hnd, pBuffer] = pRenderer->IndexBuffer;
-	return StageDataForBuffer(Data, Size, hnd, EQueueType::Queue_Type_Graphics);
+	return StageDataForBuffer(Data, Size, pRenderer->IndexBuffer, EQueueType::Queue_Type_Graphics);
 }
 
 bool IStagingManager::StageDataForBuffer(void* Data, size_t Size, Handle<SMemoryBuffer> DstHnd, EQueueType DstQueue)
