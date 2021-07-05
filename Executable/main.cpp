@@ -14,7 +14,7 @@ bool InitializeEngine(EngineImpl* Engine, const EngineCreationInfo& CreateInfo)
 			&hnd
 		)
 	);
-	IMemory::InitializeObject(renderer, *Engine, hnd);
+	astl::IMemory::InitializeObject(renderer, *Engine, hnd);
 	renderer->OnInit();
 	Engine->RegisterGame(CreateInfo);
 	return true;
@@ -30,8 +30,8 @@ int main(int argc, char* argv[])
 		return -1;
 	}
 
-	EngineImpl* engine = reinterpret_cast<EngineImpl*>(IMemory::Malloc(sizeof(EngineImpl)));
-	IMemory::InitializeObject(engine);
+	EngineImpl* engine = reinterpret_cast<EngineImpl*>(astl::IMemory::Malloc(sizeof(EngineImpl)));
+	astl::IMemory::InitializeObject(engine);
 
 	if (!InitializeEngine(engine, createInfo))
 	{

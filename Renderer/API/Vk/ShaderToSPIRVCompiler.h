@@ -16,12 +16,12 @@
 class ShaderToSPIRVCompiler
 {
 public:
-	bool		PreprocessShader(const char* ShaderName, shaderc_shader_kind Type, const char* Code, String& Buf);
-	bool		CompileShaderToAssembly(const char* ShaderName, shaderc_shader_kind Type, const char* Code, Array<uint8>& Buf);
-	bool		CompileShader(const char* ShaderName, shaderc_shader_kind Type, const char* Code, Array<uint32>& Buf);
+	bool		PreprocessShader(const char* ShaderName, shaderc_shader_kind Type, const char* Code, astl::String& Buf);
+	bool		CompileShaderToAssembly(const char* ShaderName, shaderc_shader_kind Type, const char* Code, astl::Array<uint8>& Buf);
+	bool		CompileShader(const char* ShaderName, shaderc_shader_kind Type, const char* Code, astl::Array<uint32>& Buf);
 	const char* GetLastErrorMessage();
 private:
-	using CompileErrorLogs = Deque<String>;
+	using CompileErrorLogs = astl::Deque<astl::String>;
 	CompileErrorLogs ErrorLogs;
 
 	void CacheToErrorLog(const char* Msg);

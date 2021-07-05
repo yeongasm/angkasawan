@@ -1,116 +1,126 @@
 #include <math.h>
 #include "Operations.h"
 
-namespace math
+namespace astl
 {
-	float Cos(const float num)
-	{
-		return cosf(num);
-	}
 
-	float Sin(const float num)
-	{
-		return sinf(num);
-	}
+  namespace math
+  {
+    float Cos(const float num)
+    {
+      return cosf(num);
+    }
 
-	float Tan(const float num)
-	{
-		return tanf(num);
-	}
+    float Sin(const float num)
+    {
+      return sinf(num);
+    }
 
-	float Acos(const float num)
-	{
-		return acosf(num);
-	}
+    float Tan(const float num)
+    {
+      return tanf(num);
+    }
 
-	float Asin(const float num)
-	{
-		return asinf(num);
-	}
+    float Acos(const float num)
+    {
+      return acosf(num);
+    }
 
-	float Atan(const float num)
-	{
-		return atanf(num);
-	}
+    float Asin(const float num)
+    {
+      return asinf(num);
+    }
 
-	float Sqrt(const float num)
-	{
-		return sqrtf(num);
-	}
+    float Atan(const float num)
+    {
+      return atanf(num);
+    }
 
-	float Sqr(const float num)
-	{
-		return num * num;
-	}
+    float Sqrt(const float num)
+    {
+      return sqrtf(num);
+    }
 
-	float Cbrt(const float num)
-	{
-		return cbrtf(num);
-	}
+    float Sqr(const float num)
+    {
+      return num * num;
+    }
 
-	float Pow(const float num, float exp)
-	{
-		return powf(num, exp);
-	}
+    float Cbrt(const float num)
+    {
+      return cbrtf(num);
+    }
 
-	int Abs(const int num)
-	{
-		return abs(num);
-	}
+    float Pow(const float num, float exp)
+    {
+      return powf(num, exp);
+    }
 
-	float FAbs(const float num)
-	{
-		return fabsf(num);
-	}
+    int Abs(const int num)
+    {
+      return abs(num);
+    }
 
-	int Mod(const int num, const int denom)
-	{
-		return num % denom;
-	}
+    float FAbs(const float num)
+    {
+      return fabsf(num);
+    }
 
-	float FLog2(const float num)
-	{
-		return log2f(num);;
-	}
+    int Mod(const int num, const int denom)
+    {
+      return num % denom;
+    }
 
-	float FMod(const float num, const float denom)
-	{
-		return fmodf(num, denom);
-	}
+    float FLog2(const float num)
+    {
+      return log2f(num);;
+    }
 
-	float FFloor(const float num)
-	{
-		return floorf(num);
-	}
+    float FMod(const float num, const float denom)
+    {
+      return fmodf(num, denom);
+    }
 
-	float Pi()
-	{
-		return atanf(1.f) * 4.f;
-	}
+    float FFloor(const float num)
+    {
+      return floorf(num);
+    }
 
-	float HalfPi()
-	{
-		return Pi() * 0.5f;
-	}
+    float FCeil(const float num)
+    {
+      return ceilf(num);
+    }
 
-	float Tau()
-	{
-		return Pi() * 2.0f;
-	}
+    float Pi()
+    {
+      return atanf(1.f) * 4.f;
+    }
 
-	float TwoPi()
-	{
-		return Tau();
-	}
+    float HalfPi()
+    {
+      return Pi() * 0.5f;
+    }
 
-	float Radians(const float deg)
-	{
-		return deg * (Pi() / 180.f);
-	}
+    float Tau()
+    {
+      return Pi() * 2.0f;
+    }
 
-	float Degrees(const float rad)
-	{
-		return rad * (180.f / Pi());
-	}
+    float TwoPi()
+    {
+      return Tau();
+    }
+
+    float Radians(const float deg)
+    {
+      return deg * (Pi() / 180.f);
+    }
+
+    float Degrees(const float rad)
+    {
+      return rad * (180.f / Pi());
+    }
+
+  }
 
 }

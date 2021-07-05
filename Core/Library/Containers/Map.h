@@ -1,413 +1,389 @@
 #pragma once
-#ifndef LEARNVK_HASH_MAP
-#define LEARNVK_HASH_MAP
+#ifndef ANGKASA1_HASH_MAP
+#define ANGKASA1_HASH_MAP
 
 #include "Library/Algorithms/Hash.h"
 #include "Pair.h"
 #include "Array.h"
 
-
-template <typename KeyType, typename ValueType, typename HashAlgorithm = XxHash<KeyType>, size_t BucketSlack = 5>
-class Map
+namespace astl
 {
-public:
-
-	enum BucketStatus : uint8
-	{
-		Bucket_IsEmpty		= 0x00,
-		Bucket_IsOccupied	= 0x01,
-		Bucket_WasDeleted	= 0x02
-	};
-
-	using ElementType = Pair<KeyType, ValueType>;
-
-private:
-
-	struct PairNode : public Pair<KeyType, ValueType>
-	{
-		using Super = Pair<KeyType, ValueType>;
-
-		BucketStatus	Status;
-		PairNode*		Previous;
-		PairNode*		Next;
-
-		PairNode() :
-			Super(), Status(Bucket_IsEmpty), Previous(nullptr), Next(nullptr)
-		{}
-
-		~PairNode()
-		{}
-
-		PairNode(const KeyType& Key, const ValueType& Value) :
-			Super(Key, Value), Status(Bucket_IsEmpty), Previous(nullptr), Next(nullptr)
-		{}
-
-		PairNode(KeyType&& Key, ValueType&& Value) :
-			Super(Move(Key), Move(Value)), Status(Bucket_IsEmpty), Previous(nullptr), Next(nullptr)
-		{}
-
-		PairNode(const Super& Pair) :
-			Super(Pair), Status(Bucket_IsEmpty), Previous(nullptr), Next(nullptr)
-		{}
-
-		PairNode(Super&& Pair) :
-			Super(Move(Pair)), Status(Bucket_IsEmpty), Previous(nullptr), Next(nullptr)
-		{}
-
-		PairNode(const PairNode& Rhs)	{ *this = Rhs; }
-		PairNode(PairNode&& Rhs)		{ *this = Move(Rhs); }
-
-		PairNode& operator= (const PairNode& Rhs)
-		{
-			if (this != &Rhs)
-			{
-				Super::operator=(Rhs);
-				Status		= Rhs.Status;
-				Previous	= Rhs.Previous;
-				Next		= Rhs.Next;
-			}
-
-			return *this;
-		}
-
-		PairNode& operator= (PairNode&& Rhs)
-		{
-			if (this != &Rhs)
-			{
-				Super::operator=(Move(Rhs));
-				Status		= Rhs.Status;
-				Previous	= Rhs.Previous;
-				Next		= Rhs.Next;
-				new (&Rhs) PairNode();
-			}
-
-			return *this;
-		}
-
-
-	};
-
-	using This			= Map<KeyType, ValueType, HashAlgorithm, BucketSlack>;
-	using ElementNode	= PairNode;
-	using ContainerType = Array<ElementNode, BucketSlack>;
-	using HashFunc		= HashAlgorithm;
-
-	ContainerType	Entries;
-	size_t			NumBuckets;
-	ElementNode*	First;
-	ElementNode*	Last;
-
-public:
-
-	using Iterator		= HashmapIterator<ElementNode, ElementType>;
-	using ConstIterator = const Iterator;
-
-	Map() :
-		Entries(), NumBuckets(0), First(nullptr), Last(nullptr)
-	{}
-
-	~Map()
-	{
-		Release();
-	}
-
-	Map(const Map& Rhs) { *this = Rhs; }
-	Map(Map&& Rhs)		{ *this = Move(Rhs); }
-
-	Map& operator= (const Map& Rhs)
-	{
-		if (this != &Rhs)
-		{
-			Entries		= Rhs.Entries;
-			NumBuckets	= Rhs.NumBuckets;
-		}
-
-		return *this;
-	}
-
-	Map& operator= (Map&& Rhs)
-	{
-		if (this != &Rhs)
-		{
-			Entries		= Move(Rhs.Entries);
-			NumBuckets	= Rhs.NumBuckets;
-
-			new (&Rhs) Map();
-		}
-
-		return *this;
-	}
-
-private:
-
-		
-	size_t Probe(size_t x, size_t b = 1, size_t a = 0)
-	{
-		return a * (x * x) + b * x;
-	}
-
-
-	size_t ProbeForIndex(const size_t Hash, const size_t X)
-	{
-		return (Hash + Probe(X)) % Entries.Size();
-	}
-
-
-	template <class... ForwardType>
-	ElementNode& StoreObjectInMap(ForwardType&&... Element)
-	{
-		if (!NumBuckets)
-		{
-			NumBuckets = 1 << BucketSlack;
-			size_t NewCapacity = Entries.Size() + NumBuckets;
-			Entries.Reserve(NewCapacity);
-		}
-
-		ElementNode Temp(Forward<ForwardType>(Element)...);
-
-		HashFunc Func;
-		size_t Constant = 0;
-		//size_t Hash		= static_cast<size_t>(Func(KeyType(Element.Key)...));
-		size_t Hash		= static_cast<size_t>(Func(Temp.Key));
-		size_t Index	= ProbeForIndex(Hash, Constant);
-			
-		ElementNode* Entry = &Entries[Index];
-
-		while (Entry->Status == Bucket_IsOccupied)
-		{
-			Index = ProbeForIndex(Hash, ++Constant);
-			Entry = &Entries[Index];
-		}
-		
-		*Entry = Move(Temp);
-		//new (Entry) ElementNode(Forward<ForwardType>(Element)...);
-		Entry->Status = Bucket_IsOccupied;
-		NumBuckets--;
-
-		if (!First && !Last)
-		{
-			First = Last = Entry;
-			First->Next = Last;
-		}
-		else
-		{
-			Last->Next = Entry;
-			Entry->Previous = Last;
-			Last = Entry;
-		}
-
-		return *Entry;
-	}
-
-
-	ElementNode* FindObjectWithKey(const KeyType& Key, bool ShiftToTombStone = true)
-	{
-		HashFunc Func;
-		size_t TombStone = -1;
-		size_t Constant = 0;
-		size_t Hash		= static_cast<size_t>(Func(Key));
-		size_t Index	= ProbeForIndex(Hash, Constant);
-		size_t Count	= 0;
-
-		ElementNode* Element = &Entries[Index];
-
-		//VKT_ASSERT(Element->Status != Bucket_IsEmpty && Element->Status != Bucket_WasDeleted);
-
-		while (Element->Key != Key)
-		{
-			if (Count == Entries.Size()) 
-			{ 
-				return nullptr;
-			}
-
-			if (Element->Status == Bucket_WasDeleted && TombStone == -1)
-			{
-				TombStone = Index;
-			}
-
-			Index = ProbeForIndex(Hash, ++Constant);
-			Element = &Entries[Index];
-			Count++;
-
-			//VKT_ASSERT(Element->Status != Bucket_IsEmpty && Element->Status != Bucket_WasDeleted);
-		}
-
-		if (TombStone != -1 && ShiftToTombStone)
-		{
-			Entries[TombStone] = Move(*Element);
-			Element = &Entries[TombStone];
-		}
-
-		return Element;
-	}
-
-
-	void RemoveElementWithKey(const KeyType& Key)
-	{
-		ElementNode* Element = FindObjectWithKey(Key, false);
-		
-		if (!Element) { return; }
-
-		if (Last == Element)	{ Last = Last->Previous; }
-		if (First == Element)	{ First = First->Next; }
-
-		NumBuckets++;
-		if (NumBuckets == Entries.Size())
-		{
-			First = Last = nullptr;
-		}
-
-		Element->Key.~KeyType();
-		Element->Value.~ValueType();
-
-		new (Element) ElementNode();
-
-		Element->Status = Bucket_WasDeleted;
-	}
-
-
-public:
-
-	void Release()
-	{
-		Entries.Release();
-		NumBuckets = 0;
-	}
-
-	void Empty()
-	{
-		Entries.Empty();
-		NumBuckets = Entries.Size();
-	}
-
-	ValueType& operator[] (const KeyType& Key)
-	{
-		KeyType KeyCopy = Key;
-		ValueType* Value = Get(Key);
-		if (!Value) 
-		{
-			Value = &Add(Move(KeyCopy), {}).Value;
-		}
-		return *Value;
-	}
-
-	ValueType& operator[] (KeyType&& Key)
-	{
-		ValueType* Value = Get(Key);
-		if (!Value)
-		{
-			Value = &Add(Move(Key), {}).Value;
-		}
-		return *Value;
-	}
-
-	const ValueType& operator[] (const KeyType& Key) const
-	{
-		return *Get(Key);
-	}
-
-	ElementType& Add(const Pair<KeyType, ValueType>& Element)
-	{
-		return StoreObjectInMap(Element);
-	}
-
-	ElementType& Add(ElementType&& Element)
-	{
-		return StoreObjectInMap(Move(Element));
-	}
-
-
-	ElementType& Add(const KeyType& Key, const ValueType& Value)
-	{
-		return StoreObjectInMap(Key, Value);
-	}
-
-	ElementType& Add(KeyType&& Key, ValueType&& Value)
-	{
-		return StoreObjectInMap(Move(Key), Move(Value));
-	}
-
-	ValueType& Insert(const ElementType& Element)
-	{
-		return StoreObjectInMap(Element).Value;
-	}
-
-	ValueType& Insert(ElementType&& Element)
-	{
-		return StoreObjectInMap(Forward<ElementType>(Element)).Value;
-	}
-
-	ValueType& Insert(const KeyType& Key, const ValueType& Value)
-	{
-		return StoreObjectInMap(Key, Value).Value;
-	}
-
-	ValueType& Insert(KeyType&& Key, ValueType&& Value)
-	{
-		return StoreObjectInMap(Move(Key), Move(Value)).Value;
-	}
-
-	/**
-	* Removes an element with the specified key.
-	* Does nothing if the key does not exist.
-	*/
-	void Remove(const KeyType& Key)
-	{
-		RemoveElementWithKey(Key);
-	}
-
-	/**
-	* Removes an element with the specified key.
-	* Does nothing if the key does not exist.
-	*/
-	void Remove(KeyType&& Key)
-	{
-		RemoveElementWithKey(Move(Key));
-	}
-
-	ValueType* Get(const KeyType& Key)
-	{
-		ElementType* Element = FindObjectWithKey(Key);
-		if (!Element) { return nullptr; }
-		return &Element->Value;
-	}
-
-
-	ElementType* GetPair(const KeyType& Key)
-	{
-		ElementType& Element = *FindObjectWithKey(Key);
-		return Element;
-	}
-
-
-	void Reserve(size_t Size)
-	{
-		Entries.Reserve(Size);
-		NumBuckets = Entries.Size();
-	}
-
-	/**
-	* Checks if the map is empty.
-	*/
-	bool IsEmpty() const
-	{
-		return NumBuckets == Entries.Size();
-	}
-
-	/**
-	* Returns the total number of elements in the map.
-	*/
-	size_t Length() const
-	{
-		return Entries.Size() - NumBuckets;
-	}
-
-	Iterator		begin()			{ return Iterator(First, Length()); }
-	ConstIterator	begin() const	{ return Iterator(First, Length()); }
-
-	Iterator		end()			{ return Iterator(Last); }
-	ConstIterator	end()	const	{ return Iterator(Last); }
-
-};
-
-#endif // !LEARNVK_HASH_MAP
+  namespace libenum
+  {
+    enum class BucketStatus : uint8
+    {
+      Empty,
+      Occupied,
+      Deleted
+    };
+  }
+
+  template <typename K, typename V, typename UintWidth>
+  class BaseMap
+  {
+  protected:
+
+    using width_t = UintWidth;
+
+    struct Bucket final : public Pair<K, V>
+    {
+      using Type = Pair<K, V>;
+      libenum::BucketStatus Status;
+      Bucket* Next;
+      Bucket* Previous;
+
+      using Pair<K, V>::Pair;
+
+      Bucket() :
+        Pair<K,V>{}, Status{ libenum::BucketStatus::Empty }, Next{}, Previous{}
+      {}
+      ~Bucket() { Status = libenum::BucketStatus::Empty; Next = Previous = nullptr; }
+      Bucket(const Bucket& Rhs) { *this = Rhs; }
+      Bucket(Bucket&& Rhs) { *this = Move(Rhs); }
+      Bucket& operator=(const Bucket& Rhs)
+      {
+        if (this != &Rhs)
+        {
+          Status = Rhs.Status;
+          Next = Rhs.Next;
+          Previous = Rhs.Previous;
+          Pair<K, V>::operator=(Rhs);
+        }
+        return *this;
+      }
+      Bucket& operator=(Bucket&& Rhs)
+      {
+        if (this != &Rhs)
+        {
+          Status = Rhs.Status;
+          Next = Rhs.Next;
+          Previous = Rhs.Previous;
+          Pair<K, V>::operator=(Move(Rhs));
+          new (&Rhs) Bucket();
+        }
+        return *this;
+      }
+    };
+
+    Bucket* Head;
+    Bucket* Tail;
+    width_t NumBuckets;
+
+    BaseMap() :
+      Head{}, Tail{}, NumBuckets{}
+    {}
+    ~BaseMap()
+    {
+      Head = Tail = nullptr;
+      NumBuckets = 0;
+    }
+    BaseMap(const BaseMap& Rhs) { *this = Rhs; }
+    BaseMap(BaseMap&& Rhs) { *this = Move(Rhs); }
+    BaseMap& operator=(const BaseMap& Rhs)
+    {
+      if (this != &Rhs)
+      {
+        Head = Rhs.Head;
+        Tail = Rhs.Tail;
+        NumBuckets = Rhs.NumBuckets;
+      }
+      return *this;
+    }
+    BaseMap& operator=(BaseMap&& Rhs)
+    {
+      if (this != &Rhs)
+      {
+        Head = Rhs.Head;
+        Tail = Rhs.Tail;
+        NumBuckets = Move(Rhs.NumBuckets);
+        new (&Rhs) BaseMap();
+      }
+      return *this;
+    }
+
+    size_t Probe(size_t x, size_t b = 1, size_t a = 0)
+    {
+      return a * (x * x) + b * x;
+    }
+
+    size_t GetHashIndex(size_t Hash, size_t x, size_t Capacity)
+    {
+      return (Hash + Probe(x)) % Capacity;
+    }
+
+    void UpdateBucketChain(Bucket& Bckt)
+    {
+      if (Bckt.Previous) { Bckt.Previous->Next = &Bckt; }
+      if (Bckt.Next) { Bckt.Next->Previous = &Bckt; }
+      if (&Bckt == Head) { Head = &Bckt; }
+      if (&Bckt == Tail) { Tail = &Bckt; }
+    }
+
+  public:
+    using TBucket = Bucket;
+  };
+
+  template <typename K, typename V, typename Hasher, typename Container, typename UintWidth>
+  class MapImpl final : public BaseMap<K, V, UintWidth>
+  {
+  private:
+    using width_t = UintWidth;
+    using TBucket = typename BaseMap<K, V, width_t>::Bucket;
+
+    using Iterator = HashMapIterator<TBucket>;
+    using ConstIterator = HashMapIterator<const TBucket>;
+    using ReverseIterator = ReverseHashMapIterator<TBucket>;
+    using ConstReverseIterator = ReverseHashMapIterator<const TBucket>;
+
+    Container Entries;
+
+    using BaseMap<K, V, width_t>::Head;
+    using BaseMap<K, V, width_t>::Tail;
+    using BaseMap<K, V, width_t>::NumBuckets;
+    using BaseMap<K, V, width_t>::GetHashIndex;
+    using BaseMap<K, V, width_t>::UpdateBucketChain;
+
+
+    TBucket* FindBucketWithKey(const K& Key, bool Shift = true)
+    {
+      const width_t capacity = Entries.Size();
+
+      if (!capacity) { return nullptr; }
+
+      width_t hash = static_cast<width_t>(Hasher()(Key));
+      width_t shiftIndex = -1;
+      width_t constant = 0;
+      width_t index = GetHashIndex(hash, constant++, capacity);
+      width_t count = 0;
+      TBucket* bucket = &Entries[index];
+
+      while (bucket->Key != Key)
+      {
+        if (count == capacity) { return nullptr; }
+        if (bucket->Status == libenum::BucketStatus::Deleted && shiftIndex == -1)
+        {
+          shiftIndex = index;
+        }
+        index = GetHashIndex(hash, constant++, capacity);
+        bucket = &Entries[index];
+        count++;
+      }
+
+      if (shiftIndex != -1 && Shift)
+      {
+        Entries[shiftIndex] = Move(*bucket);
+        UpdateBucketChain(Entries[shiftIndex]);
+        bucket = &Entries[shiftIndex];
+      }
+      return bucket;
+    }
+
+    void RemoveBucketWithKey(const K& Key)
+    {
+      TBucket* bucket = FindBucketWithKey(Key, false);
+      if (!bucket) { return; }
+
+      if (Head == bucket) { Head = bucket->Next; }
+      if (Tail == bucket) { Tail = bucket->Previous; }
+
+      if (bucket->Previous)
+      {
+        bucket->Previous->Next = bucket->Next;
+      }
+
+      if (bucket->Next)
+      {
+        bucket->Next->Previous = bucket->Previous;
+      }
+
+      NumBuckets++;
+      Pair<K, V>& data = *bucket;
+      data.~Pair();
+      new (bucket) TBucket();
+      bucket->Status = libenum::BucketStatus::Deleted;
+
+      if (!Length())
+      {
+        Head = Tail = nullptr;
+      }
+    }
+
+    V* GetValueForKey(const K& Key)
+    {
+      TBucket* bucket = FindBucketWithKey(Key);
+      if ((bucket == nullptr) ||
+        (bucket->Status == libenum::BucketStatus::Empty) ||
+        (bucket->Status == libenum::BucketStatus::Deleted))
+      {
+        return nullptr;
+      }
+      return &bucket->Value;
+    }
+
+    template <typename KeyType, typename... ForwardType>
+    Pair<K, V>& EmplaceInternal(KeyType&& Arg, ForwardType&&... Args)
+    {
+      width_t capacity = Entries.Size();
+      if (!NumBuckets)
+      {
+        VKT_ASSERT(Container::IsDynamic::Value && "Cannot resize container with static width!");
+        if (Container::IsDynamic::Value)
+        {
+          NumBuckets = Entries.GetSlack();
+        }
+        Entries.Reserve(capacity + NumBuckets);
+        capacity = Entries.Size();
+      }
+
+      width_t constant = 0;
+      width_t hash = Hasher()(Arg);
+      width_t index = GetHashIndex(hash, constant++, capacity);
+      TBucket* bucket = &Entries[index];
+
+      while (bucket->Status == libenum::BucketStatus::Occupied)
+      {
+        index = GetHashIndex(hash, constant++, capacity);
+        bucket = &Entries[index];
+      }
+
+      new (&bucket->Key) K(Forward<KeyType>(Arg));
+      new (&bucket->Value) V(Forward<ForwardType>(Args)...);
+      //new (bucket) TBucket(Forward<KeyType>(Arg), Forward<ForwardType>(Args)...);
+      bucket->Status = libenum::BucketStatus::Occupied;
+      NumBuckets--;
+
+      if (!Head && !Tail)
+      {
+        Head = Tail = bucket;
+      }
+      else
+      {
+        Tail->Next = bucket;
+        bucket->Previous = Tail;
+        Tail = bucket;
+      }
+      return *bucket;
+    }
+
+    template <typename KeyType>
+    Pair<K, V>& TryEmplace(KeyType&& Key)
+    {
+      TBucket* pBucket = FindBucketWithKey(Key);
+      if (!pBucket)
+      {
+        return EmplaceInternal(Forward<KeyType>(Key), V());
+      }
+      return *pBucket;
+    }
+
+  public:
+
+    MapImpl() :
+      BaseMap<K, V, UintWidth>{}, Entries{}
+    {
+      NumBuckets = Entries.Size();
+    }
+    ~MapImpl() { Release(); }
+    MapImpl(const MapImpl& Rhs) { *this = Rhs; }
+    MapImpl(MapImpl&& Rhs) { *this = Move(Rhs); }
+    MapImpl& operator=(const MapImpl& Rhs)
+    {
+      if (this != &Rhs)
+      {
+        Entries = Rhs.Entries;
+        BaseMap<K, V, UintWidth>::operator=(Rhs);
+      }
+      return *this;
+    }
+    MapImpl& operator=(MapImpl&& Rhs)
+    {
+      if (this != &Rhs)
+      {
+        Entries = Move(Rhs.Entries);
+        BaseMap<K, V, UintWidth>::operator=(Move(Rhs));
+      }
+      return *this;
+    }
+
+    template <typename... ForwardType>
+    Pair<K, V>& Emplace(ForwardType&&... Args)
+    {
+      return EmplaceInternal(Forward<ForwardType>(Args)...);
+    }
+
+    template <typename... ForwardType>
+    V& Insert(ForwardType&&... Args)
+    {
+      Pair<K, V>& pair = Emplace(Forward<ForwardType>(Args)...);
+      return pair.Value;
+    }
+
+    void Remove(const K& Key)
+    {
+      RemoveBucketWithKey(Key);
+    }
+
+    void Release()
+    {
+      Entries.Release();
+    }
+
+    void Empty()
+    {
+      Entries.Empty();
+      NumBuckets = Entries.Size();
+      Head = Tail = nullptr;
+    }
+
+    bool IsEmpty() const
+    {
+      return NumBuckets == Entries.Size();
+    }
+
+    width_t Length() const
+    {
+      return Entries.Size() - NumBuckets;
+    }
+
+    bool Contains(const K& Key)
+    {
+      if (!Entries.Size()) { return false; }
+      return (FindBucketWithKey(Key) != nullptr);
+    }
+
+    V& operator[] (const K& Key)
+    {
+      return TryEmplace(Key).Value;
+    }
+
+    V& operator[] (K&& Key)
+    {
+      return TryEmplace(Move(Key)).Value;
+    }
+
+    const V& operator[] (const K& Key) const
+    {
+      V* value = GetValueForKey(Key);
+      VKT_ASSERT(value && "Specified key does not exist in the container.");
+      return *value;
+    }
+
+    Iterator                begin() { return Iterator(Head); }
+    Iterator                end() { return Iterator(nullptr); }
+    ConstIterator           begin() const { return ConstIterator(Head); }
+    ConstIterator           end() const { return ConstIterator(nullptr); }
+    ReverseIterator         rbegin() { return ReverseIterator(Tail); }
+    ReverseIterator         rend() { return ReverseIterator(nullptr); }
+    ConstReverseIterator    rbegin() const { return ConstReverseIterator(Tail); }
+    ConstReverseIterator    rend() const { return ConstReverseIterator(nullptr); }
+  };
+
+  template <typename K, typename V, size_t Slack = 3, typename Hasher = XxHash<K>, typename UintWidth = size_t>
+  using Map = MapImpl<K, V, Hasher, Array<typename BaseMap<K, V, UintWidth>::TBucket, UintWidth, Slack>, UintWidth>;
+
+  template <typename K, typename V, size_t Capacity, typename Hasher = XxHash<K>, typename UintWidth = size_t>
+  using StaticMap = MapImpl<K, V, Hasher, StaticArray<typename BaseMap<K, V, UintWidth>::TBucket, Capacity, UintWidth>, UintWidth>;
+
+}
+
+#endif // !ANGKASA1_HASH_MAP

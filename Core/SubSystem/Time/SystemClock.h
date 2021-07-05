@@ -47,7 +47,7 @@ public:
 		TimeDuration dt = CurrentTime - LastFrameTime;
 		elapsed += dt;
 		DeltaTime		= dt.count();
-		DeltaTime = Min(DeltaTime, 0.1);
+		DeltaTime = astl::Min(DeltaTime, 0.1);
 		LastFrameTime	= CurrentTime;
 	}
 

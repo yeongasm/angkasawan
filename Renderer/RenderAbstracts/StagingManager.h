@@ -24,30 +24,31 @@ private:
 	struct UploadContext
 	{
 		SMemoryBuffer SrcBuffer;
-		Ref<SMemoryBuffer> pDstBuf;
-    Ref<SImage> pDstImg;
+		astl::Ref<SMemoryBuffer> pDstBuf;
+    astl::Ref<SImage> pDstImg;
 		size_t Size;
+    size_t DstOffset;
     EStagingUploadType Type;
 		EQueueType DstQueue;
 	};
 
   struct OwnershipTransferContext
   {
-    Ref<SMemoryBuffer> pBuffer;
-    Ref<SImage> pImage;
+    astl::Ref<SMemoryBuffer> pBuffer;
+    astl::Ref<SImage> pImage;
     EStagingUploadType Type;
 
     OwnershipTransferContext();
-    OwnershipTransferContext(Ref<SMemoryBuffer> pInBuffer);
-    OwnershipTransferContext(Ref<SImage> pInImage);
+    OwnershipTransferContext(astl::Ref<SMemoryBuffer> pInBuffer);
+    OwnershipTransferContext(astl::Ref<SImage> pInImage);
     ~OwnershipTransferContext();
   };
 
-	Array<UploadContext> Uploads;
-  Array<OwnershipTransferContext> OwnershipTransfers;
-	Ref<IRenderSystem> pRenderer;
+	astl::Array<UploadContext> Uploads;
+  astl::Array<OwnershipTransferContext> OwnershipTransfers;
+	astl::Ref<IRenderSystem> pRenderer;
 	VkCommandPool TxPool;
-  BitSet<EOwnershipTransferTypeFlagBits> MakeTransfers;
+  astl::BitSet<EOwnershipTransferTypeFlagBits> MakeTransfers;
 
 	decltype(auto) GetQueueForType(EQueueType Type);
 
@@ -55,7 +56,7 @@ private:
   void UploadToBuffer(VkCommandBuffer CmdBuffer, UploadContext& Ctx);
   void UploadToImage(VkCommandBuffer CmdBuffer, UploadContext& Ctx);
 
-  const Array<OwnershipTransferContext>& GetOwnershipTransfers() const;
+  const astl::Array<OwnershipTransferContext>& GetOwnershipTransfers() const;
   void ClearOwnershipTransfers();
 
 public:
@@ -72,6 +73,9 @@ public:
 	bool StageDataForBuffer(void* Data, size_t Size, Handle<SMemoryBuffer> DstHnd, EQueueType DstQueue);
   bool StageDataForImage(void* Data, size_t Size, Handle<SImage> DstHnd, EQueueType DstQueue);
 	bool Upload();
+
+  size_t GetVertexBufferOffset();
+  size_t GetIndexBufferOffset();
 
   // NOTE(Ygsm):
   // For now, we will only transfer to the graphics queue.

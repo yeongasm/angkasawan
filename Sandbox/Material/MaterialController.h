@@ -11,25 +11,29 @@ namespace sandbox
   {
   private:
 
-    Map<size_t, Material> Materials;
-    Map<size_t, MaterialDef> MaterialDefinitions;
-    Ref<IAssetManager> pAssetManager;
-    Ref<EngineImpl> pEngine;
+    astl::Map<size_t, Material> Materials;
+    astl::Map<size_t, MaterialDef> MaterialDefinitions;
+    astl::Ref<IAssetManager> pAssetManager;
+    astl::Ref<EngineImpl> pEngine;
+    astl::Ref<IRenderSystem> pRenderer;
 
-    uint32 GetIndexForMaterialType(Ref<MaterialDef> pDefinition, EMaterialTypeFlagBit Type);
+    uint32 GetIndexForMaterialType(astl::Ref<MaterialDef> pDefinition, EMaterialTypeFlagBit Type);
 
   public:
 
-    MaterialController(IAssetManager& InAssetManager, EngineImpl& InEngine);
+    MaterialController(IAssetManager& InAssetManager, IRenderSystem& InRenderer, EngineImpl& InEngine);
     ~MaterialController();
 
     DELETE_COPY_AND_MOVE(MaterialController)
 
+    void Initialize();
+    void Terminate();
+
     Handle<MaterialDef> CreateMaterialDefinition(const MaterialDefCreateInfo& CreateInfo);
-    Ref<MaterialDef> GetMaterialDefinition(Handle<MaterialDef> Hnd);
+    astl::Ref<MaterialDef> GetMaterialDefinition(Handle<MaterialDef> Hnd);
     bool DestroyMaterialDefinition(Handle<MaterialDef>& Hnd);
     Handle<Material> CreateMaterial(const MaterialCreateInfo& CreateInfo);
-    Ref<Material> GetMaterial(Handle<Material> Hnd);
+    astl::Ref<Material> GetMaterial(Handle<Material> Hnd);
     bool DestroyMaterial(Handle<MaterialDef>& Hnd);
 
   };

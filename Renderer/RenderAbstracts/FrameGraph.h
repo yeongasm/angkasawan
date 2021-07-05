@@ -31,17 +31,17 @@ struct SRenderPass
 	struct OAttachment
 	{
 		Handle<SImage> Hnd;
-		Ref<SImage> pImg;
+		astl::Ref<SImage> pImg;
 	};
 
 	struct IAttachment
 	{
-		Ref<SRenderPass> pOwner;
+		astl::Ref<SRenderPass> pOwner;
 		uint32 AtIndex;
 	};
 
-	using OutputAttachments = StaticArray<OAttachment, MAX_RENDERPASS_ATTACHMENT_COUNT>;
-	using InputAttachments = StaticArray<IAttachment, MAX_RENDERPASS_ATTACHMENT_COUNT>;
+	using OutputAttachments = astl::StaticArray<OAttachment, MAX_RENDERPASS_ATTACHMENT_COUNT>;
+	using InputAttachments = astl::StaticArray<IAttachment, MAX_RENDERPASS_ATTACHMENT_COUNT>;
 
 	Handle<SRenderPass> Hnd; // Not sure if I like this ... 
 	IFrameGraph* pOwner;
@@ -51,19 +51,19 @@ struct SRenderPass
 	IAttachment DepthStencilInput;
 	OAttachment DepthStencilOutput;
 	VkRenderPass RenderPassHnd;
-	BitSet<ERenderPassFlagBits> Flags;
+	astl::BitSet<ERenderPassFlagBits> Flags;
 	Extent2D Extent;
 	Position Pos;
 	float32 Depth;
 	ERenderPassType Type;
-	BitSet<ERenderPassOrderFlagBits> Order;
+	astl::BitSet<ERenderPassOrderFlagBits> Order;
   uint32 IndexForDraw;
 	bool Rebuild = false;
 };
 
 struct RenderPassCreateInfo
 {
-	String64 Identifier;
+	astl::String64 Identifier;
 	Extent2D Extent;
 	Position Pos;
 	float32 Depth;
@@ -83,8 +83,8 @@ private:
 
 	friend class IRenderSystem;
 
-	using RenderPass = Pair<Handle<SRenderPass>, Ref<SRenderPass>>;
-	using PassContainer = StaticArray<RenderPass, MAX_FRAMEGRAPH_PASS_COUNT>;
+	using RenderPass = astl::Pair<Handle<SRenderPass>, astl::Ref<SRenderPass>>;
+	using PassContainer = astl::StaticArray<RenderPass, MAX_FRAMEGRAPH_PASS_COUNT>;
 
 	static size_t _HashSeed;
 
@@ -95,20 +95,20 @@ private:
 	Extent2D Extent;
 	bool Built;
 
-	Ref<SRenderPass> GetRenderPass(Handle<SRenderPass> Hnd);
-	size_t HashIdentifier(const String64& Identifier);
+	astl::Ref<SRenderPass> GetRenderPass(Handle<SRenderPass> Hnd);
+	size_t HashIdentifier(const astl::String64& Identifier);
 
 	// Create a vk framebuffer.
-	bool CreateFramebuffer(Ref<SRenderPass> pRenderPass);
+	bool CreateFramebuffer(astl::Ref<SRenderPass> pRenderPass);
 	// Destroys a vk framebuffer.
-	void DestroyFramebuffer(Ref<SRenderPass> pRenderPass);
+	void DestroyFramebuffer(astl::Ref<SRenderPass> pRenderPass);
 
 	// Creates a vk renderpass.
-	bool CreateRenderPass(Ref<SRenderPass> pRenderPass);
+	bool CreateRenderPass(astl::Ref<SRenderPass> pRenderPass);
 	// Destroys a vk renderpass.
-	void DestroyRenderPass(Ref<SRenderPass> pRenderPass);
+	void DestroyRenderPass(astl::Ref<SRenderPass> pRenderPass);
 
-	void SetupAttachments(Ref<SImage> pColor, Ref<SImage> pDepthStencil);
+	void SetupAttachments(astl::Ref<SImage> pColor, astl::Ref<SImage> pDepthStencil);
 
 public:
 

@@ -48,15 +48,15 @@ struct WindowInfo
 
 struct EngineBase : public ApplicationInterface
 {
-	String64			Name;
+	astl::String64	Name;
 	WindowInfo			Window;
-	ResourceManager		Manager;
+	ResourceManager	Manager;
 	ThreadPool			JobSystem;
 	//SystemManager		Systems;
-	SystemClock			Clock;
+	SystemClock		Clock;
 	IOSystem			Io;
 	AppState			State;
-	GameManager			GameCoordinator;
+	GameManager		GameCoordinator;
 };
 
 #endif // !LEARNVK_ENGINE_H

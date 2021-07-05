@@ -51,7 +51,7 @@ struct Rect2D
 
 struct SMemoryBuffer
 {
-	BitSet<EBufferTypeFlagBits>	Type;
+	astl::BitSet<EBufferTypeFlagBits>	Type;
 	EBufferLocality Locality;
 	VmaAllocation Allocation;
 	uint8* pData;
@@ -62,7 +62,7 @@ struct SMemoryBuffer
 
 struct BufferAllocateInfo
 {
-	BitSet<EBufferTypeFlagBits> Type;
+	astl::BitSet<EBufferTypeFlagBits> Type;
 	EBufferLocality Locality;
 	size_t Size;
 };
@@ -89,12 +89,13 @@ using ImageSamplerCreateInfo = ImageSamplerState;
 struct SImage
 {
 	VmaAllocation Allocation;
-	BitSet<EImageUsageFlagBits> Usage;
+	astl::BitSet<EImageUsageFlagBits> Usage;
 	size_t Size;
 	uint32 Width;
 	uint32 Height;
 	uint32 Channels;
 	ETextureType Type;
+  ETextureFormat Format;
 	VkImage ImgHnd;
 	VkImageView ImgViewHnd;
 	uint32 MipLevels = 1;
@@ -112,9 +113,9 @@ struct SImage
 
 struct SShader
 {
-	using AttribsContainer = StaticArray<ShaderAttrib, MAX_SHADER_ATTRIBUTES>;
+	using AttribsContainer = astl::StaticArray<ShaderAttrib, MAX_SHADER_ATTRIBUTES>;
 
-	Array<uint32> SpirV;
+	astl::Array<uint32> SpirV;
 	AttribsContainer Attributes;
 	VkShaderModule Hnd;
 	EShaderType Type;
@@ -122,7 +123,7 @@ struct SShader
 
 struct ShaderCreateInfo
 {
-	String pCode;
+	astl::String pCode;
 	EShaderType Type;
 };
 
@@ -137,16 +138,16 @@ struct SPipeline
 		EVertexInputRateType Type;
 	};
 
-	using VertexInBindings = StaticArray<VertexInputBinding, MAX_VERTEX_INPUT_BINDING>;
-	using LayoutsContainer = StaticArray<Ref<SDescriptorSetLayout>, MAX_PIPELINE_DESCRIPTOR_LAYOUT>;
+	using VertexInBindings = astl::StaticArray<VertexInputBinding, MAX_VERTEX_INPUT_BINDING>;
+	using LayoutsContainer = astl::StaticArray<astl::Ref<SDescriptorSetLayout>, MAX_PIPELINE_DESCRIPTOR_LAYOUT>;
 
 	VertexInBindings VertexBindings;
 	LayoutsContainer Layouts;
-	Ref<SRenderPass> pRenderPass;
-	Ref<SShader> pVertexShader;
-	Ref<SShader> pFragmentShader;
-	Ref<SShader> pGeometryShader;
-	Ref<SShader> pComputeShader;
+	astl::Ref<SRenderPass> pRenderPass;
+	astl::Ref<SShader> pVertexShader;
+	astl::Ref<SShader> pFragmentShader;
+	astl::Ref<SShader> pGeometryShader;
+	astl::Ref<SShader> pComputeShader;
 	VkPipeline Hnd;
 	VkPipelineLayout LayoutHnd;
 	Viewport Viewport;
@@ -183,7 +184,7 @@ struct SPushConstant
 {
 	uint8 Data[Push_Constant_Size];
 	size_t Offset;
-	//Ref<SPipeline> pPipeline;
+	//astl::Ref<SPipeline> pPipeline;
 };
 
 struct SDescriptorPool
@@ -194,7 +195,7 @@ struct SDescriptorPool
 		uint32 Count;			// Descriptor count
 	};
 
-	StaticArray<Size, MAX_DESCRIPTOR_POOL_TYPE_SIZE> Sizes;
+	astl::StaticArray<Size, MAX_DESCRIPTOR_POOL_TYPE_SIZE> Sizes;
 	VkDescriptorPool Hnd[MAX_FRAMES_IN_FLIGHT];
 };
 
@@ -210,8 +211,8 @@ struct SDescriptorSetLayout
 		size_t Stride;							// Stride for data. Ignore for images.
 		size_t Offset[MAX_FRAMES_IN_FLIGHT];	// Offset that's in the buffer for each frame. Ignore for images.
 		EDescriptorType Type;
-		BitSet<uint32> ShaderStages;
-		Ref<SMemoryBuffer> pBuffer;
+		astl::BitSet<uint32> ShaderStages;
+		astl::Ref<SMemoryBuffer> pBuffer;
 
 		Binding() :
 			BindingSlot(0),
@@ -226,9 +227,9 @@ struct SDescriptorSetLayout
 		~Binding() {};
 	};
 
-	using BindingsContainer = StaticArray<Binding, MAX_DESCRIPTOR_SET_LAYOUT_BINDINGS>;
+	using BindingsContainer = astl::StaticArray<Binding, MAX_DESCRIPTOR_SET_LAYOUT_BINDINGS>;
 	VkDescriptorSetLayout Hnd;
-	Ref<SPipeline> pPipeline;
+	astl::Ref<SPipeline> pPipeline;
 	BindingsContainer Bindings;
 };
 
@@ -241,15 +242,15 @@ struct SDescriptorSetLayout
 */
 struct SDescriptorSet
 {
-	Ref<SDescriptorPool> pPool;
-	Ref<SDescriptorSetLayout> pLayout;
+	astl::Ref<SDescriptorPool> pPool;
+	astl::Ref<SDescriptorSetLayout> pLayout;
 	VkDescriptorSet Hnd[MAX_FRAMES_IN_FLIGHT];
 	uint32 Slot;
 };
 
 struct SDescriptorSetInstance
 {
-	Ref<SDescriptorSet> pSet;
+	astl::Ref<SDescriptorSet> pSet;
 	size_t Offset;
 	uint32 Binding;
 };
@@ -261,7 +262,7 @@ struct DescriptorSetLayoutBindingInfo
 	uint32 BindingSlot;
 	EDescriptorType Type;
 	Handle<SDescriptorSetLayout> LayoutHnd;
-	BitSet<EShaderTypeFlagBits> ShaderStages;
+	astl::BitSet<EShaderTypeFlagBits> ShaderStages;
 };
 
 struct DescriptorSetAllocateInfo
@@ -275,8 +276,8 @@ struct SBindable
 {
 	union
 	{
-		Ref<SDescriptorSet> pSet;
-		Ref<SPipeline> pPipeline;
+		astl::Ref<SDescriptorSet> pSet;
+		astl::Ref<SPipeline> pPipeline;
 	};
 	EBindableType Type;
 	bool Bound;

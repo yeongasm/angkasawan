@@ -8,8 +8,8 @@
 
 struct EngineCreationInfo
 {
-	String64	AppName;
-	FilePath	GameModule;
+	astl::String64	AppName;
+	astl::FilePath	GameModule;
 	uint32		StartPosX;
 	uint32		StartPosY;
 	uint32		Width;
@@ -23,9 +23,9 @@ class ENGINE_API EngineImpl final : public EngineBase
 {
 private:
 
-	LinearAllocator	SystemAllocator;
-	Array<SystemInterface*> EngineSystems;
-	Array<SystemInterface*>	GameSystems;
+	astl::LinearAllocator	SystemAllocator;
+	astl::Array<SystemInterface*> EngineSystems;
+	astl::Array<SystemInterface*>	GameSystems;
 
 	using CWndInfoRef = const WindowInfo&;
 

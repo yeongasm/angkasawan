@@ -7,7 +7,7 @@ ResourceCache::ResourceCache() : Cache{} {}
 ResourceCache::~ResourceCache() { FreeCache(true); }
 
 ResourceCache::ResourceCache(const ResourceCache& Rhs) { *this = Rhs; }
-ResourceCache::ResourceCache(ResourceCache&& Rhs) { *this = Move(Rhs); }
+ResourceCache::ResourceCache(ResourceCache&& Rhs) { *this = astl::Move(Rhs); }
 
 ResourceCache& ResourceCache::operator=(const ResourceCache& Rhs)
 {
@@ -36,10 +36,10 @@ uint32 ResourceCache::Create()
 	return id;
 }
 
-Resource* ResourceCache::Find(const FilePath& Path)
+Resource* ResourceCache::Find(const astl::FilePath& Path)
 {
 	Resource* resource = nullptr;
-	for (Pair<uint32, Resource>& pair : Cache)
+	for (astl::Pair<uint32, Resource>& pair : Cache)
 	{
 		if (pair.Value.Path != Path)
 		{
@@ -86,7 +86,7 @@ bool ResourceCache::FreeCache(bool Forced)
 {
 	if (!Forced)
 	{
-		for (Pair<uint32, Resource>& pair : Cache)
+		for (astl::Pair<uint32, Resource>& pair : Cache)
 		{
 			if (IsReferenced(pair.Key))
 			{
@@ -102,7 +102,7 @@ bool ResourceCache::FlushCache(bool Forced)
 {
 	if (!Forced)
 	{
-		for (Pair<uint32, Resource>& pair : Cache)
+		for (astl::Pair<uint32, Resource>& pair : Cache)
 		{
 			if (IsReferenced(pair.Key))
 			{
@@ -130,12 +130,7 @@ void ResourceManager::RemoveCache(ResourceType Type)
 
 bool ResourceManager::CacheTypeExist(ResourceType Type)
 {
-	for (Pair<ResourceType, ResourceCache>& pair : Managers)
-	{
-		if (pair.Key == Type)
-			return true;
-	}
-	return false;
+  return Managers.Contains(Type);
 }
 
 ResourceCache* ResourceManager::FetchCacheForType(ResourceType Type)

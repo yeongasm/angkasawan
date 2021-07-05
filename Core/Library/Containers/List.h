@@ -5,344 +5,347 @@
 #include "Library/Memory/Memory.h"
 #include "Iterator.h"
 
-
-/**
-* Doubly Linked List.
-* 
-* Insertions and deletions at front and back are O(1).
-* Insertions and deletions at random indices are O(n).
-*/
-template <typename InElementType>
-class BaseList
+namespace astl
 {
-public:
-
-	using ElementType	= InElementType;
-
-private:
-
-	enum OperationDirection : size_t
-	{
-		List_Front	= 0x00,
-		List_Back	= 0x01
-	};
-
-	struct Node
-	{
-
-		ElementType Data;
-		Node*		Previous;
-		Node*		Next;
-
-		Node() :
-			Data{}, Previous(nullptr), Next(nullptr)
-		{}
 
-		~Node() {}
+  /**
+  * Doubly Linked List.
+  *
+  * Insertions and deletions at front and back are O(1).
+  * Insertions and deletions at random indices are O(n).
+  */
+  template <typename InElementType>
+  class BaseList
+  {
+  public:
+
+    using ElementType = InElementType;
+
+  private:
+
+    enum OperationDirection : size_t
+    {
+      List_Front = 0x00,
+      List_Back = 0x01
+    };
+
+    struct Node
+    {
+
+      ElementType Data;
+      Node* Previous;
+      Node* Next;
+
+      Node() :
+        Data{}, Previous(nullptr), Next(nullptr)
+      {}
+
+      ~Node() {}
+
+      Node(const Node& Rhs) { *this = Rhs; }
+      Node(Node&& Rhs) { *this = Rhs; }
+
+      Node& operator=(const Node& Rhs)
+      {
+        Data = Rhs.Data;
+        Previous = Rhs.Previous;
+        Next = Rhs.Next;
+        return *this;
+      }
+
+      Node& operator=(Node&& Rhs)
+      {
+        Data = Move(Rhs.Data);
+        Previous = Rhs.Previous;
+        Next = Rhs.Next;
+        new (&Rhs) Node();
+        return *this;
+      }
+    };
 
-		Node(const Node& Rhs)	{ *this = Rhs; }
-		Node(Node&& Rhs)		{ *this = Rhs; }
+  public:
+
+    using Iterator = NodeIterator<Node, ElementType>;
 
-		Node& operator=(const Node& Rhs)
-		{
-			Data	 = Rhs.Data;
-			Previous = Rhs.Previous;
-			Next	 = Rhs.Next;
-			return *this;
-		}
+  private:
+
+    Node* Head;
+    Node* Tail;
+    size_t		Len;
+
+
+    template <class... ForwardType>
+    ElementType& StoreObject(OperationDirection Direction, ForwardType&&... Element)
+    {
+      Node* NewNode = reinterpret_cast<Node*>(IMemory::Malloc(sizeof(Node)));
+      NewNode->Data = ElementType(Forward<ForwardType>(Element)...);
+
+      if (!Head && !Tail)
+      {
+        Head = Tail = NewNode;
+        Head->Next = Tail;
+        Head->Previous = nullptr;
+        Tail->Next = nullptr;
+        Tail->Previous = Head;
+      }
+      else
+      {
+        if (Direction == OperationDirection::List_Back)
+        {
+          Tail->Next = NewNode;
+          NewNode->Previous = Tail;
+          Tail = NewNode;
+          Tail->Next = nullptr;
+        }
+
+        if (Direction == OperationDirection::List_Front)
+        {
+          NewNode->Next = Head;
+          Head->Previous = NewNode;
+          Head = NewNode;
+          Head->Previous = nullptr;
+        }
+      }
+
+      Len++;
 
-		Node& operator=(Node&& Rhs)
-		{
-			Data	 = Move(Rhs.Data);
-			Previous = Rhs.Previous;
-			Next	 = Rhs.Next;
-			new (&Rhs) Node();
-			return *this;
-		}
-	};
+      return NewNode->Data;
+    }
 
-public:
 
-	using Iterator = NodeIterator<Node, ElementType>;
+    template <class... ForwardType>
+    ElementType& StoreObject(size_t Index, ForwardType&&... Element)
+    {
+      VKT_ASSERT(Index <= Len - 1);
 
-private:
+      Node& It = Head;
+      size_t Counter = 0;
 
-	Node*		Head;
-	Node*		Tail;
-	size_t		Len;
+      Node* Replaced = TraverseList(Index);
 
+      VKT_ASSERT(Replaced);
 
-	template <class... ForwardType>
-	ElementType& StoreObject(OperationDirection Direction, ForwardType&&... Element)
-	{
-		Node* NewNode = reinterpret_cast<Node*>(IMemory::Malloc(sizeof(Node)));
-		NewNode->Data = ElementType(Forward<ForwardType>(Element)...);
+      Node* NewNode = reinterpret_cast<Node*>(IMemory::Malloc(sizeof(Node)));
+      NewNode->Data = ElementType(Forward<ForwardType>(Element)...);
 
-		if (!Head && !Tail)
-		{
-			Head = Tail = NewNode;
-			Head->Next = Tail;
-			Head->Previous = nullptr;
-			Tail->Next = nullptr;
-			Tail->Previous = Head;
-		}
-		else
-		{
-			if (Direction == OperationDirection::List_Back)
-			{
-				Tail->Next = NewNode;
-				NewNode->Previous = Tail;
-				Tail = NewNode;
-				Tail->Next = nullptr;
-			}
-
-			if (Direction == OperationDirection::List_Front)
-			{
-				NewNode->Next = Head;
-				Head->Previous = NewNode;
-				Head = NewNode;
-				Head->Previous = nullptr;
-			}
-		}
-
-		Len++;
-
-		return NewNode->Data;
-	}
-
+      NewNode->Previous = Replaced->Previous;
+      NewNode->Next = Replaced;
+      Replaced->Previous = NewNode;
 
-	template <class... ForwardType>
-	ElementType& StoreObject(size_t Index, ForwardType&&... Element)
-	{
-		VKT_ASSERT(Index <= Len - 1);
+      Len++;
 
-		Node& It = Head;
-		size_t Counter = 0;
+      return NewNode->Data;
+    }
 
-		Node* Replaced = TraverseList(Index);
 
-		VKT_ASSERT(Replaced);
+    Node* TraverseList(size_t Index)
+    {
+      VKT_ASSERT(Index < Len);
 
-		Node* NewNode = reinterpret_cast<Node*>(IMemory::Malloc(sizeof(Node)));
-		NewNode->Data = ElementType(Forward<ForwardType>(Element)...);
+      Node* It = Head;
+      size_t Counter = 0;
 
-		NewNode->Previous = Replaced->Previous;
-		NewNode->Next = Replaced;
-		Replaced->Previous = NewNode;
+      while (Counter < Len)
+      {
+        if (Counter == Index)
+        {
+          break;
+        }
 
-		Len++;
+        It = It->Next;
+        Counter++;
+      }
 
-		return NewNode->Data;
-	}
+      return It;
+    }
 
 
-	Node* TraverseList(size_t Index)
-	{
-		VKT_ASSERT(Index < Len);
+  public:
 
-		Node* It = Head;
-		size_t Counter = 0;
+    BaseList() :
+      Head(nullptr), Tail(nullptr), Len(0)
+    {}
 
-		while (Counter < Len)
-		{
-			if (Counter == Index)
-			{
-				break;
-			}
+    ~BaseList()
+    {
+      Release();
+    }
 
-			It = It->Next;
-			Counter++;
-		}
+    BaseList(const BaseList& Rhs) { *this = Rhs; }
+    BaseList(BaseList&& Rhs) { *this = Move(Rhs); }
 
-		return It;
-	}
+    BaseList& operator=(const BaseList& Rhs)
+    {
+      if (this != &Rhs)
+      {
+        if (Len)
+        {
+          Release();
+        }
 
+        for (const ElementType& Element : Rhs)
+        {
+          PushBack(Element);
+        }
+      }
 
-public:
+      return *this;
+    }
 
-	BaseList() :
-		Head(nullptr), Tail(nullptr), Len(0)
-	{}
+    BaseList& operator=(BaseList&& Rhs)
+    {
+      if (this != Rhs)
+      {
+        if (Len)
+        {
+          Release();
+        }
 
-	~BaseList()
-	{
-		Release();
-	}
+        Head = Move(Rhs.Head);
+        Tail = Move(Rhs.Tail);
+        Len = Rhs.Len;
 
-	BaseList(const BaseList& Rhs)	{ *this = Rhs; }
-	BaseList(BaseList&& Rhs)		{ *this = Move(Rhs); }
+        new (&Rhs) BaseList();
+      }
 
-	BaseList& operator=(const BaseList& Rhs)
-	{
-		if (this != &Rhs)
-		{
-			if (Len)
-			{
-				Release();
-			}
+      return *this;
+    }
 
-			for (const ElementType& Element : Rhs)
-			{
-				PushBack(Element);
-			}
-		}
 
-		return *this;
-	}
+    ElementType& operator[] (size_t Index)
+    {
+      return GetAt(Index);
+    }
 
-	BaseList& operator=(BaseList&& Rhs)
-	{
-		if (this != Rhs)
-		{
-			if (Len)
-			{
-				Release();
-			}
+    const ElementType& operator[] (size_t Index) const
+    {
+      return GetAt(Index);
+    }
 
-			Head = Move(Rhs.Head);
-			Tail = Move(Rhs.Tail);
-			Len  = Rhs.Len;
 
-			new (&Rhs) BaseList();
-		}
+    ElementType& GetAt(size_t Index)
+    {
+      return TraverseList(Index)->Data;
+    }
 
-		return *this;
-	}
+    const ElementType& GetAt(size_t Index) const
+    {
+      return TraverseList(Index)->Data;
+    }
 
 
-	ElementType& operator[] (size_t Index)
-	{
-		return GetAt(Index);
-	}
+    ElementType& PushFront(const ElementType& Element)
+    {
+      return StoreObject(List_Front, Element);
+    }
 
-	const ElementType& operator[] (size_t Index) const
-	{
-		return GetAt(Index);
-	}
 
+    ElementType& PushFront(ElementType&& Element)
+    {
+      return StoreObject(List_Front, Move(Element));
+    }
 
-	ElementType& GetAt(size_t Index)
-	{
-		return TraverseList(Index)->Data;
-	}
 
-	const ElementType& GetAt(size_t Index) const
-	{
-		return TraverseList(Index)->Data;
-	}
+    ElementType& PushBack(const ElementType& Element)
+    {
+      return StoreObject(List_Back, Element);
+    }
 
 
-	ElementType& PushFront(const ElementType& Element)
-	{
-		return StoreObject(List_Front, Element);
-	}
+    ElementType& PushBack(ElementType&& Element)
+    {
+      return StoreObject(List_Back, Move(Element));
+    }
 
 
-	ElementType& PushFront(ElementType&& Element)
-	{
-		return StoreObject(List_Front, Move(Element));
-	}
+    ElementType& Insert(size_t Index, const ElementType& Element)
+    {
+      return StoreObject(Index, Element);
+    }
 
 
-	ElementType& PushBack(const ElementType& Element)
-	{
-		return StoreObject(List_Back, Element);
-	}
+    ElementType& Insert(size_t Index, ElementType&& Element)
+    {
+      return StoreObject(Index, Move(Element));
+    }
 
 
-	ElementType& PushBack(ElementType&& Element)
-	{
-		return StoreObject(List_Back, Move(Element));
-	}
+    void PopBack()
+    {
+      VKT_ASSERT(Len);
 
+      Node* BeforeTail = Tail->Previous;
 
-	ElementType& Insert(size_t Index, const ElementType& Element)
-	{
-		return StoreObject(Index, Element);
-	}
+      IMemory::Free(Tail);
+      Tail = Move(BeforeTail);
+      Tail->Next = nullptr;
 
+      Len--;
+    }
 
-	ElementType& Insert(size_t Index, ElementType&& Element)
-	{
-		return StoreObject(Index, Move(Element));
-	}
 
+    void RemoveAt(size_t Index)
+    {
+      VKT_ASSERT(Len && Index <= Len - 1);
 
-	void PopBack()
-	{
-		VKT_ASSERT(Len);
+      Node* PoppedNode = TraverseList(Index);
 
-		Node* BeforeTail = Tail->Previous;
-			
-		IMemory::Free(Tail);
-		Tail = Move(BeforeTail);
-		Tail->Next = nullptr;
+      PoppedNode->Previous->Next = PoppedNode->Next;
+      PoppedNode->Next->Previous = PoppedNode->Previous;
 
-		Len--;
-	}
+      IMemory::Free(PoppedNode);
 
+      Len--;
+    }
 
-	void RemoveAt(size_t Index)
-	{
-		VKT_ASSERT(Len && Index <= Len - 1);
 
-		Node* PoppedNode = TraverseList(Index);
+    void PopFront()
+    {
+      VKT_ASSERT(Len);
 
-		PoppedNode->Previous->Next = PoppedNode->Next;
-		PoppedNode->Next->Previous = PoppedNode->Previous;
+      Node* AfterHead = Head->Next;
 
-		IMemory::Free(PoppedNode);
+      IMemory::Free(Head);
+      Head = Move(AfterHead);
+      Head->Previous = nullptr;
 
-		Len--;
-	}
+      Len--;
+    }
 
 
-	void PopFront()
-	{
-		VKT_ASSERT(Len);
+    size_t Length() const
+    {
+      return Len;
+    }
 
-		Node* AfterHead = Head->Next;
 
-		IMemory::Free(Head);
-		Head = Move(AfterHead);
-		Head->Previous = nullptr;
+    void Release()
+    {
+      while (Len)
+      {
+        Node* BeforeTail = Tail->Previous;
+        IMemory::Free(Tail);
+        Tail = BeforeTail;
 
-		Len--;
-	}
+        Len--;
+      }
 
+      Head = Tail = nullptr;
+    }
 
-	size_t Length() const
-	{
-		return Len;
-	}
 
+    ElementType& Front() const { return Head->Data; }
+    ElementType& Back()  const { return Tail->Data; }
 
-	void Release()
-	{
-		while (Len)
-		{
-			Node* BeforeTail = Tail->Previous;
-			IMemory::Free(Tail);
-			Tail = BeforeTail;
+    Iterator begin() const { return Iterator(Head); }
+    Iterator end()   const { return Iterator(Tail->Next); }
 
-			Len--;
-		}
+  };
 
-		Head = Tail = nullptr;
-	}
 
+  template <typename InElementType>
+  using LinkedList = BaseList<InElementType>;
 
-	ElementType&	Front() const { return Head->Data; }
-	ElementType&	Back()  const { return Tail->Data; }
-
-	Iterator begin() const { return Iterator(Head); }
-	Iterator end()   const { return Iterator(Tail->Next); }
-
-};
-
-
-template <typename InElementType>
-using LinkedList = BaseList<InElementType>;
-
+}
 
 #endif // !LEARNVK_LINKED_LIST

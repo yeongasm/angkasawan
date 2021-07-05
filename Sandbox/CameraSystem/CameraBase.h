@@ -16,6 +16,8 @@
 * Forward	- Positive Z-axis
 */
 
+namespace math = astl::math;
+
 using vec2 = math::vec2;
 using vec3 = math::vec3;
 using vec4 = math::vec4;

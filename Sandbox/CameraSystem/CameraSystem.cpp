@@ -110,7 +110,7 @@ namespace sandbox
 	void CameraSystem::ClearMouseDragDeltaCache()
 	{
 		constexpr size_t count = sizeof(math::vec2) * 8;
-		IMemory::Memzero(&CachedMouseDelta, count);
+		astl::IMemory::Memzero(&CachedMouseDelta, count);
 	}
 
 	void CameraSystem::SetWidth(float32 Value)

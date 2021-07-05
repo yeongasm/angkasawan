@@ -10,6 +10,8 @@
 
 class ResourceManager;
 
+namespace math = astl::math;
+
 namespace sandbox
 {
 	enum EPbrTextureType : size_t
@@ -33,15 +35,15 @@ namespace sandbox
 
 	struct Mesh
 	{
-		Array<Vertex> Vertices;
-		Array<uint32> Indices;
+		astl::Array<Vertex> Vertices;
+		astl::Array<uint32> Indices;
 	};
 
 	struct Model
 	{
-		Array<Mesh> Meshes;
-		Array<VertexInformation> VertexInformations;
-		Array<IndexInformation> IndexInformation;
+		astl::Array<Mesh> Meshes;
+		astl::Array<VertexInformation> VertexInformations;
+		astl::Array<IndexInformation> IndexInformation;
 		uint32 MaxVertices = 0;
 		uint32 MaxIndices = 0;
 		uint32 NumDrawables = 0 ;
@@ -49,14 +51,14 @@ namespace sandbox
 
 	struct Shader
 	{
-		String Code;
+		astl::String Code;
 		EShaderType Type;
 		Handle<SShader> Hnd;
 	};
 
   struct Texture
   {
-    BinaryBuffer Data;
+    astl::BinaryBuffer Data;
     Handle<SImage> ImageHnd;
     uint32 Width;
     uint32 Height;
@@ -85,21 +87,21 @@ namespace sandbox
 		DELETE_COPY_AND_MOVE(IAssetManager)
 
 	  Handle<Shader> CreateShader(const Shader& Src);
-		Ref<Shader> GetShaderWithHandle(Handle<Shader> Hnd);
+		astl::Ref<Shader> GetShaderWithHandle(Handle<Shader> Hnd);
 		bool DestroyShader(Handle<Shader> Hnd);
 
 		Handle<Model> CreateModel(const Model& Src);
-		Ref<Model> GetModelWithHandle(Handle<Model> Hnd);
+		astl::Ref<Model> GetModelWithHandle(Handle<Model> Hnd);
 		bool DestroyModel(Handle<Model> Hnd);
 
 		Handle<Texture> CreateTexture(const Texture& Src);
-		Ref<Texture> GetTextureWithHandle(Handle<Texture> Hnd);
+		astl::Ref<Texture> GetTextureWithHandle(Handle<Texture> Hnd);
 		bool DestroyTexture(Handle<Texture> Hnd);
 
 	private:
 
 		template <typename Type>
-		using AssetContainer = Map<uint32, Type>;
+		using AssetContainer = astl::Map<uint32, Type>;
 
 		AssetContainer<Shader>  Shaders;
 		AssetContainer<Model>	  Models;

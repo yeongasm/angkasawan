@@ -8,9 +8,9 @@
 
 struct ThreadPool
 {
-	SpinLock		 JobLock = {};
-	Array<Job, 10>   JobPool = {};
-	Array<WkThread*> Workers = {};
+	SpinLock JobLock = {};
+	astl::Array<Job> JobPool = {};
+	astl::Array<WkThread*> Workers = {};
 	size_t NextPushedThreadId = {};
 	bool AppTerminated = false;
 
@@ -22,8 +22,8 @@ struct ThreadPool
 		Workers.Reserve(WorkerCount);
 		for (size_t i = 0; i < WorkerCount; i++)
 		{
-			WkThread* worker = reinterpret_cast<WkThread*>(IMemory::Malloc(sizeof(WkThread)));
-			IMemory::InitializeObject(worker);
+			WkThread* worker = reinterpret_cast<WkThread*>(astl::IMemory::Malloc(sizeof(WkThread)));
+			astl::IMemory::InitializeObject(worker);
 			worker->ThreadHandle = ::CreateThread(nullptr, 0, ThreadPool::ExecuteThread, worker, CREATE_SUSPENDED, nullptr);
 			if (worker->ThreadHandle)
 			{
@@ -38,7 +38,7 @@ struct ThreadPool
 					continue;
 				}
 				CloseHandle(worker->ThreadHandle);
-				IMemory::Free(worker);
+				astl::IMemory::Free(worker);
 			}
 		}
 #else
@@ -53,7 +53,7 @@ struct ThreadPool
 			WkThread* worker = Workers[i];
 			::TerminateThread(worker->ThreadHandle, 0);
 			::CloseHandle(worker->ThreadHandle);
-			IMemory::Free(worker);
+			astl::IMemory::Free(worker);
 		}
 #else
 #endif

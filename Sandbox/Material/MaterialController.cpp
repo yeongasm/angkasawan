@@ -2,7 +2,7 @@
 
 namespace sandbox
 {
-  uint32 MaterialController::GetIndexForMaterialType(Ref<MaterialDef> pDefinition, EMaterialTypeFlagBit Type)
+  uint32 MaterialController::GetIndexForMaterialType(astl::Ref<MaterialDef> pDefinition, EMaterialTypeFlagBit Type)
   {
     const uint32 length = static_cast<uint32>(pDefinition->MatTypes.Length());
     for (uint32 i = 0; i < length; i++)
@@ -11,20 +11,39 @@ namespace sandbox
     }
     return -1;
   }
-  MaterialController::MaterialController(IAssetManager& InAssetManager, EngineImpl& InEngine) :
+
+  MaterialController::MaterialController(IAssetManager& InAssetManager, IRenderSystem& InRenderer, EngineImpl& InEngine) :
     Materials{},
     MaterialDefinitions{},
-    pAssetManager(&InAssetManager),
-    pEngine(&InEngine)
+    pAssetManager{ &InAssetManager },
+    pEngine{ &InEngine },
+    pRenderer{ &InRenderer }
+  {}
+
+  MaterialController::~MaterialController() {}
+
+  void MaterialController::Initialize()
   {
     pEngine->CreateNewResourceCache(Sandbox_Asset_Material_Definition);
     pEngine->CreateNewResourceCache(Sandbox_Asset_Material);
-    Materials.Reserve(32);
-    MaterialDefinitions.Reserve(16);
   }
 
-  MaterialController::~MaterialController()
+  void MaterialController::Terminate()
   {
+    for (auto& [key, definition] : MaterialDefinitions)
+    {
+      for (auto& type : definition.MatTypes)
+      {
+        for (RefHnd<Texture> texture : type.Textures)
+        {
+          pRenderer->DestroyImage(texture->ImageHnd);
+          pAssetManager->DestroyTexture(texture);
+        }
+      }
+      Handle<MaterialDef> hnd = key;
+      DestroyMaterialDefinition(hnd);
+      key = hnd;
+    }
     Materials.Release();
     MaterialDefinitions.Release();
     pEngine->DeleteResourceCacheForType(Sandbox_Asset_Material_Definition);
@@ -51,7 +70,7 @@ namespace sandbox
       hashSum += (1 | ((pTypeBinding->Binding | (pTypeBinding->Type << 2)) < i));
     }
     uint32 outHash = 0;
-    XXHash32(&hashSum, sizeof(uint32), &outHash);
+    astl::XXHash32(&hashSum, sizeof(uint32), &outHash);
 
     for (auto& [key, definition] : MaterialDefinitions)
     {
@@ -61,12 +80,12 @@ namespace sandbox
       }
     }
 
-    Ref<ResourceCache> pCache = pEngine->FetchResourceCacheForType(Sandbox_Asset_Material_Definition);
+    astl::Ref<ResourceCache> pCache = pEngine->FetchResourceCacheForType(Sandbox_Asset_Material_Definition);
     uint32 id = pCache->Create();
-    Ref<Resource> pResource = pCache->Get(id);
+    astl::Ref<Resource> pResource = pCache->Get(id);
     pResource->Type = Sandbox_Asset_Material;
 
-    Ref<MaterialDef> pDefinition = &MaterialDefinitions.Insert(id, MaterialDef());
+    astl::Ref<MaterialDef> pDefinition = &MaterialDefinitions.Insert(id, MaterialDef());
     pDefinition->MatHash = outHash;
     pDefinition->PipelineHnd = CreateInfo.PipelineHnd;
     pDefinition->SamplerHnd = CreateInfo.SamplerHnd;
@@ -83,20 +102,20 @@ namespace sandbox
     return id;
   }
 
-  Ref<MaterialDef> MaterialController::GetMaterialDefinition(Handle<MaterialDef> Hnd)
+  astl::Ref<MaterialDef> MaterialController::GetMaterialDefinition(Handle<MaterialDef> Hnd)
   {
     if (Hnd == INVALID_HANDLE) { return NULLPTR; }
-    return Ref<MaterialDef>(&MaterialDefinitions[Hnd]);
+    return astl::Ref<MaterialDef>(&MaterialDefinitions[Hnd]);
   }
 
   bool MaterialController::DestroyMaterialDefinition(Handle<MaterialDef>& Hnd)
   {
-    Ref<ResourceCache> pCache = pEngine->FetchResourceCacheForType(Sandbox_Asset_Material_Definition);
-    Ref<Resource> pResource = pCache->Get(Hnd);
+    astl::Ref<ResourceCache> pCache = pEngine->FetchResourceCacheForType(Sandbox_Asset_Material_Definition);
+    astl::Ref<Resource> pResource = pCache->Get(Hnd);
 
     if (pCache->IsReferenced(Hnd)) { return false; }
 
-    Ref<MaterialDef> pDefinition = &MaterialDefinitions[Hnd];
+    astl::Ref<MaterialDef> pDefinition = &MaterialDefinitions[Hnd];
 
     if (pDefinition->NumOfMaterials) { return false; }
 
@@ -109,12 +128,12 @@ namespace sandbox
   Handle<Material> MaterialController::CreateMaterial(const MaterialCreateInfo& CreateInfo)
   {
     if (CreateInfo.DefinitionHnd == INVALID_HANDLE) { return INVALID_HANDLE; }
-    Ref<MaterialDef> pDefinition = &MaterialDefinitions[CreateInfo.DefinitionHnd];
+    astl::Ref<MaterialDef> pDefinition = &MaterialDefinitions[CreateInfo.DefinitionHnd];
     uint32 numTextures = (CreateInfo.NumTextureTypes > SANDBOX_MAX_MATERIAL_TYPE_IN_DEFINITION) ?
       SANDBOX_MAX_MATERIAL_TYPE_IN_DEFINITION : CreateInfo.NumTextureTypes;
 
-    Ref<ResourceCache> pTextureCache = pEngine->FetchResourceCacheForType(Sandbox_Asset_Texture);
-    Ref<ResourceCache> pMatCache = pEngine->FetchResourceCacheForType(Sandbox_Asset_Material);
+    astl::Ref<ResourceCache> pTextureCache = pEngine->FetchResourceCacheForType(Sandbox_Asset_Texture);
+    astl::Ref<ResourceCache> pMatCache = pEngine->FetchResourceCacheForType(Sandbox_Asset_Material);
     TextureTypeInfo* pTexInfo = nullptr;
 
     uint32 id = pMatCache->Create();
@@ -126,7 +145,7 @@ namespace sandbox
       pTexInfo = &CreateInfo.pInfo[i];
       pTextureCache->AddRef(pTexInfo->Hnd);
 
-      Ref<Texture> pTexture = pAssetManager->GetTextureWithHandle(pTexInfo->Hnd);
+      astl::Ref<Texture> pTexture = pAssetManager->GetTextureWithHandle(pTexInfo->Hnd);
       uint32 index = GetIndexForMaterialType(pDefinition, pTexInfo->Type);
       VKT_ASSERT(pTexture && "Texture does not exist!");
       VKT_ASSERT((index != -1) && "Material type does not exist in material definition.");
@@ -141,22 +160,22 @@ namespace sandbox
     return Handle<Material>(id);
   }
 
-  Ref<Material> MaterialController::GetMaterial(Handle<Material> Hnd)
+  astl::Ref<Material> MaterialController::GetMaterial(Handle<Material> Hnd)
   {
     if (Hnd == INVALID_HANDLE) { return NULLPTR; }
-    return Ref<Material>(&Materials[Hnd]);
+    return astl::Ref<Material>(&Materials[Hnd]);
   }
 
   bool MaterialController::DestroyMaterial(Handle<MaterialDef>& Hnd)
   {
     if (Hnd == INVALID_HANDLE) { return false; }
 
-    Ref<ResourceCache> pMatCache = pEngine->FetchResourceCacheForType(Sandbox_Asset_Material);
-    Ref<ResourceCache> pTexCache = pEngine->FetchResourceCacheForType(Sandbox_Asset_Texture);
+    astl::Ref<ResourceCache> pMatCache = pEngine->FetchResourceCacheForType(Sandbox_Asset_Material);
+    astl::Ref<ResourceCache> pTexCache = pEngine->FetchResourceCacheForType(Sandbox_Asset_Texture);
 
     if (pMatCache->IsReferenced(Hnd)) { return false; }
 
-    Ref<Material> pMaterial = &Materials[Hnd];
+    astl::Ref<Material> pMaterial = &Materials[Hnd];
     const uint32 numTextures = static_cast<uint32>(pMaterial->MatIndices.Length());
 
     for (uint32 i = 0; i < numTextures; i++)
@@ -169,6 +188,8 @@ namespace sandbox
       pTexCache->DeRef(pTexture);
       pMaterial->pDefinition->MatTypes[indexOfTexType].Textures.PopAt(indexOfTexture, false);
     }
+
+    Hnd = INVALID_HANDLE;
 
     return true;
   }

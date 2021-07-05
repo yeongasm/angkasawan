@@ -21,11 +21,11 @@ IStagingManager::OwnershipTransferContext::OwnershipTransferContext() :
   pBuffer{}, Type{ Staging_Upload_Type_None }
 {}
 
-IStagingManager::OwnershipTransferContext::OwnershipTransferContext(Ref<SMemoryBuffer> pInBuffer) :
+IStagingManager::OwnershipTransferContext::OwnershipTransferContext(astl::Ref<SMemoryBuffer> pInBuffer) :
   pBuffer{ pInBuffer }, Type{ Staging_Upload_Type_Buffer }
 {}
 
-IStagingManager::OwnershipTransferContext::OwnershipTransferContext(Ref<SImage> pInImage) :
+IStagingManager::OwnershipTransferContext::OwnershipTransferContext(astl::Ref<SImage> pInImage) :
   pImage{ pInImage }, Type{ Staging_Upload_Type_Image }
 {}
 
@@ -48,7 +48,7 @@ void IStagingManager::UploadToBuffer(VkCommandBuffer CmdBuffer, UploadContext& C
   VkBufferCopy region = {};
   region.size = Ctx.Size;
   region.srcOffset = 0;
-  region.dstOffset = Ctx.pDstBuf->Offset;
+  region.dstOffset = Ctx.DstOffset;
 
   vkCmdCopyBuffer(
     CmdBuffer,
@@ -71,7 +71,7 @@ void IStagingManager::UploadToBuffer(VkCommandBuffer CmdBuffer, UploadContext& C
     dstQueue->FamilyIndex
   );
 
-  Ctx.pDstBuf->Offset += Ctx.Size;
+  //Ctx.pDstBuf->Offset += Ctx.Size;
 }
 
 void IStagingManager::UploadToImage(VkCommandBuffer CmdBuffer, UploadContext& Ctx)
@@ -181,7 +181,7 @@ bool IStagingManager::StageIndexData(void* Data, size_t Size)
 bool IStagingManager::StageDataForBuffer(void* Data, size_t Size, Handle<SMemoryBuffer> DstHnd, EQueueType DstQueue)
 {
 	const IRenderDevice::VulkanQueue* dstQueue = GetQueueForType(DstQueue);
-	Ref<SMemoryBuffer> dst = pRenderer->pStore->GetBuffer(DstHnd);
+	astl::Ref<SMemoryBuffer> dst = pRenderer->pStore->GetBuffer(DstHnd);
 	if (!dst) { return false; }
 
 	VkBufferCreateInfo info = {};
@@ -210,20 +210,23 @@ bool IStagingManager::StageDataForBuffer(void* Data, size_t Size, Handle<SMemory
 	vmaMapMemory(pRenderer->pDevice->GetAllocator(), temp.Allocation, reinterpret_cast<void**>(&temp.pData));
 	vmaUnmapMemory(pRenderer->pDevice->GetAllocator(), temp.Allocation);
 
-	IMemory::Memcpy(temp.pData, Data, Size);
+	astl::IMemory::Memcpy(temp.pData, Data, Size);
 
 	UploadContext upload = {};
 	upload.pDstBuf = dst;
 	upload.DstQueue = DstQueue;
 	upload.Size = Size;
-	upload.SrcBuffer = Move(temp);
+  upload.DstOffset = dst->Offset;
+	upload.SrcBuffer = astl::Move(temp);
   upload.Type = Staging_Upload_Type_Buffer;
-	Uploads.Push(Move(upload));
+	Uploads.Push(astl::Move(upload));
+
+  dst->Offset += Size;
 
 	return true;
 }
 
-const Array<IStagingManager::OwnershipTransferContext>& IStagingManager::GetOwnershipTransfers() const
+const astl::Array<IStagingManager::OwnershipTransferContext>& IStagingManager::GetOwnershipTransfers() const
 {
   return OwnershipTransfers;
 }
@@ -231,7 +234,7 @@ const Array<IStagingManager::OwnershipTransferContext>& IStagingManager::GetOwne
 bool IStagingManager::StageDataForImage(void* Data, size_t Size, Handle<SImage> DstHnd, EQueueType DstQueue)
 {
   const IRenderDevice::VulkanQueue* dstQueue = GetQueueForType(DstQueue);
-  Ref<SImage> pImg = pRenderer->pStore->GetImage(DstHnd);
+  astl::Ref<SImage> pImg = pRenderer->pStore->GetImage(DstHnd);
   if (!pImg) { return false; }
 
   VkBufferCreateInfo info = {};
@@ -260,15 +263,15 @@ bool IStagingManager::StageDataForImage(void* Data, size_t Size, Handle<SImage> 
   vmaMapMemory(pRenderer->pDevice->GetAllocator(), temp.Allocation, reinterpret_cast<void**>(&temp.pData));
   vmaUnmapMemory(pRenderer->pDevice->GetAllocator(), temp.Allocation);
 
-  IMemory::Memcpy(temp.pData, Data, Size);
+  astl::IMemory::Memcpy(temp.pData, Data, Size);
 
   UploadContext upload = {};
   upload.pDstImg = pImg;
   upload.DstQueue = DstQueue;
   upload.Size = Size;
-  upload.SrcBuffer = Move(temp);
+  upload.SrcBuffer = astl::Move(temp);
   upload.Type = Staging_Upload_Type_Image;
-  Uploads.Push(Move(upload));
+  Uploads.Push(astl::Move(upload));
 
   return true;
 }
@@ -433,7 +436,7 @@ bool IStagingManager::Upload()
 bool IStagingManager::TransferBufferOwnership(Handle<SMemoryBuffer> Hnd)
 {
   if (Hnd == INVALID_HANDLE) { return false; }
-  Ref<SMemoryBuffer> pBuffer = pRenderer->pStore->GetBuffer(Hnd);
+  astl::Ref<SMemoryBuffer> pBuffer = pRenderer->pStore->GetBuffer(Hnd);
   if (!pBuffer) { return false; }
   OwnershipTransfers.Push(OwnershipTransferContext(pBuffer));
   MakeTransfers.Set(Ownership_Transfer_Type_Buffer_Or_Image);
@@ -443,11 +446,21 @@ bool IStagingManager::TransferBufferOwnership(Handle<SMemoryBuffer> Hnd)
 bool IStagingManager::TransferImageOwnership(Handle<SImage> Hnd)
 {
   if (Hnd == INVALID_HANDLE) { return false; }
-  Ref<SImage> pImg = pRenderer->pStore->GetImage(Hnd);
+  astl::Ref<SImage> pImg = pRenderer->pStore->GetImage(Hnd);
   if (!pImg) { return false; }
   OwnershipTransfers.Push(OwnershipTransferContext(pImg));
   MakeTransfers.Set(Ownership_Transfer_Type_Buffer_Or_Image);
   return true;
+}
+
+size_t IStagingManager::GetIndexBufferOffset()
+{
+  return pRenderer->IndexBuffer->Offset;
+}
+
+size_t IStagingManager::GetVertexBufferOffset()
+{
+  return pRenderer->VertexBuffer->Offset;
 }
 
 void IStagingManager::ClearOwnershipTransfers()

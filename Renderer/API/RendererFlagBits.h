@@ -218,6 +218,12 @@ enum ETextureType : uint32
 	Texture_Type_Max = 3
 };
 
+enum ETextureFormat : uint32
+{
+  Texture_Format_Srgb = 0,
+  Texture_Format_Unorm = 1,
+};
+
 enum EImageUsageFlags : uint32
 {
 	Image_Usage_Transfer_Src	= 0,

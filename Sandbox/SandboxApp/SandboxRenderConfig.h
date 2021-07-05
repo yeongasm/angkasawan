@@ -21,9 +21,9 @@ namespace sandbox
 
 		Position Pos;
 		Extent2D Extent;
-		Ref<EngineImpl> pEngine;
-		Ref<IRenderSystem> pRenderer;
-		Ref<IAssetManager> pAssetManager;
+		astl::Ref<EngineImpl> pEngine;
+		astl::Ref<IRenderSystem> pRenderer;
+		astl::Ref<IAssetManager> pAssetManager;
 		Handle<SPipeline> PipelineHnd;
 		Handle<SRenderPass> RenderPassHnd;
 	};
@@ -41,13 +41,28 @@ namespace sandbox
 		using IBasePass::Pos;
 		using IBasePass::Extent;
 
-		bool Initialize(Ref<EngineImpl> pInEngine, Ref<IRenderSystem> pInRenderSystem, Ref<IAssetManager> pInAssetManager);
+		bool Initialize(astl::Ref<EngineImpl> pInEngine, astl::Ref<IRenderSystem> pInRenderSystem, astl::Ref<IAssetManager> pInAssetManager);
 		void Terminate();
 
 		const Handle<SRenderPass> GetRenderPassHandle() const;
 		const Handle<SPipeline> GetPipelineHandle() const;
 		const Handle<Shader> GetShaderHandle(EShaderType Type) const;
 	};
+
+  class CTextOverlayPass : protected IBasePass
+  {
+  private:
+    RefHnd<Shader> VertexShader;
+    RefHnd<Shader> FragmentShader;
+
+  public:
+    bool Initialize(astl::Ref<EngineImpl> pInEngine, astl::Ref<IRenderSystem> pInRenderSystem, astl::Ref<IAssetManager> pInAssetManager);
+    void Terminate();
+
+    const Handle<SRenderPass> GetRenderPassHandle() const;
+    const Handle<SPipeline> GetPipelineHandle() const;
+    const Handle<Shader> GetShaderHandle(EShaderType Type) const;
+  };
 
 	class RendererSetup
 	{
@@ -58,10 +73,11 @@ namespace sandbox
 		Handle<SDescriptorSet> SetHnd;
 		Handle<SMemoryBuffer> CameraUboHnd;
     Handle<SImageSampler> ModelTexImgSamplerHnd;
-		Ref<EngineImpl> pEngine;
-		Ref<IRenderSystem> pRenderer;
-		Ref<IAssetManager> pAssetManager;
+		astl::Ref<EngineImpl> pEngine;
+		astl::Ref<IRenderSystem> pRenderer;
+		astl::Ref<IAssetManager> pAssetManager;
 		CColorPass ColorPass;
+    CTextOverlayPass TextOverlay;
 
 	public:
 
@@ -71,7 +87,7 @@ namespace sandbox
 			math::mat4 View;
 		};
 
-		bool Initialize(Ref<EngineImpl> pInEngine, Ref<IRenderSystem> pInRenderSystem, Ref<IAssetManager> pInAssetManager);
+		bool Initialize(astl::Ref<EngineImpl> pInEngine, astl::Ref<IRenderSystem> pInRenderSystem, astl::Ref<IAssetManager> pInAssetManager);
 		const Handle<SDescriptorPool> GetDescriptorPoolHandle() const;
 		const Handle<SDescriptorSetLayout> GetDescriptorSetLayoutHandle() const;
 		const Handle<SDescriptorSet> GetDescriptorSetHandle() const;
@@ -81,6 +97,7 @@ namespace sandbox
 		void Terminate();
 
 		const CColorPass& GetColorPass() const;
+    const CTextOverlayPass& GetTexOverlayPass() const;
 	};
 
 }

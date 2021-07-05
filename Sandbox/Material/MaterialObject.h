@@ -16,10 +16,10 @@ namespace sandbox
   {
     EMaterialTypeFlagBit Type;
     uint32 Binding;
-    Array<RefHnd<Texture>> Textures;
+    astl::Array<RefHnd<Texture>> Textures;
   };
 
-  using MaterialTypeTable = StaticArray<MaterialType, SANDBOX_MAX_MATERIAL_TYPE_IN_DEFINITION>;
+  using MaterialTypeTable = astl::StaticArray<MaterialType, SANDBOX_MAX_MATERIAL_TYPE_IN_DEFINITION>;
 
   struct MaterialDef
   {
@@ -54,12 +54,12 @@ namespace sandbox
     uint32 Slot;
   };
 
-  using MaterialIndexTable = StaticArray<MaterialTypeIndexInfo, SANDBOX_MAX_MATERIAL_TYPE_IN_DEFINITION>;
+  using MaterialIndexTable = astl::StaticArray<MaterialTypeIndexInfo, SANDBOX_MAX_MATERIAL_TYPE_IN_DEFINITION>;
 
   struct Material
   {
     MaterialIndexTable MatIndices;
-    Ref<MaterialDef> pDefinition;
+    astl::Ref<MaterialDef> pDefinition;
     union
     {
       uint8 _mem[128] = { 0 };

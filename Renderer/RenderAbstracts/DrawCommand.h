@@ -39,7 +39,7 @@ struct DrawSubmissionInfo
 struct DrawCommand
 {
   uint8  Constants[128];
-  Ref<SPipeline> pPipeline;
+  astl::Ref<SPipeline> pPipeline;
   uint32 NumVertices;
   uint32 NumIndices;
   uint32 VertexOffset;

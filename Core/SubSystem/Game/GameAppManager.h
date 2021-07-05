@@ -21,7 +21,7 @@ public:
 
 	DELETE_COPY_AND_MOVE(GameManager)
 
-	void RegisterGameDll(FilePath GameFile, bool GameIsPaused, bool EnableHotReload);
+	void RegisterGameDll(astl::FilePath GameFile, bool GameIsPaused, bool EnableHotReload);
 
 	// NOTE:
 	// To be called from within the game.

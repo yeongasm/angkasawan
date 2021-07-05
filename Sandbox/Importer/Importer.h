@@ -25,28 +25,28 @@ namespace sandbox
 		struct MeshTexture
 		{
 			uint32		MeshIndex;
-			FilePath	TexturePath;
+			astl::FilePath	TexturePath;
 
       MeshTexture();
       MeshTexture(uint32 Index, const char* Uri);
 		};
 
 		cgltf_data* Data;
-		Buffer<float32> Position;
-		Buffer<float32> Normals;
-		Buffer<float32> Tangent;
-		Buffer<float32> TexCoords;
-		Array<MeshTexture> TextureFiles;
-    FilePath Directory;
+		astl::Buffer<float32> Position;
+		astl::Buffer<float32> Normals;
+		astl::Buffer<float32> Tangent;
+		astl::Buffer<float32> TexCoords;
+		astl::Array<MeshTexture> TextureFiles;
+    astl::FilePath Directory;
 		size_t PosCount;
 		size_t NormalsCount;
 		size_t TangentCount;
 		size_t TexCoordsCount;
 
 		void FlushBuffers();
-		void LoadBufferData(cgltf_attribute* Attribute, size_t& Count, Buffer<float32>& Buffer);
-		void LoadGLTFNodeMeshData(cgltf_mesh* InMesh, Ref<Model> pModel, Ref<IAssetManager> pAssetManager);
-		void LoadGLTFNode(cgltf_node* Node, Ref<Model> pModel, Ref<IAssetManager> pAssetManager);
+		void LoadBufferData(cgltf_attribute* Attribute, size_t& Count, astl::Buffer<float32>& Buffer);
+		void LoadGLTFNodeMeshData(cgltf_mesh* InMesh, astl::Ref<Model> pModel, astl::Ref<IAssetManager> pAssetManager);
+		void LoadGLTFNode(cgltf_node* Node, astl::Ref<Model> pModel, astl::Ref<IAssetManager> pAssetManager);
 		void LoadTexturePathsFromGLTF();
 
 		//size_t FindMeshTextureMapIndex(Handle<Mesh> MeshHandle);
@@ -54,44 +54,44 @@ namespace sandbox
 	public:
 
 		ModelImporter();
-		ModelImporter(const FilePath& Path, Ref<IAssetManager> pAssetManager);
+		ModelImporter(const astl::FilePath& Path, astl::Ref<IAssetManager> pAssetManager);
 		~ModelImporter();
 
 		DELETE_COPY_AND_MOVE(ModelImporter)
 
-		RefHnd<Model> ImportModelFromPath(const FilePath& Path, Ref<IAssetManager> pAssetManager);
+		RefHnd<Model> ImportModelFromPath(const astl::FilePath& Path, astl::Ref<IAssetManager> pAssetManager);
 
 		/**
 		* Retrieves the relative path to the textures referenced by the imported model.
 		* If nullptr is specified for the container, only the number of textures referenced by the imported model is returned.
 		*/
-		size_t PathsToTextures(Array<FilePath>* Out);
+		size_t PathsToTextures(astl::Array<astl::FilePath>* Out);
 
-		//bool TexturesReferencedByMesh(Handle<Mesh> MeshHandle, Array<FilePath>& Out);
+		//bool TexturesReferencedByMesh(Handle<Mesh> MeshHandle, Array<astl::FilePath>& Out);
 	};
 
 	class TextureImporter
 	{
 	public:
 		TextureImporter();
-		TextureImporter(const FilePath& Path, Ref<IAssetManager> pAssetManager);
+		TextureImporter(const astl::FilePath& Path, astl::Ref<IAssetManager> pAssetManager);
 		~TextureImporter();
 
 		DELETE_COPY_AND_MOVE(TextureImporter)
 
-		RefHnd<Texture> ImportTextureFromPath(const FilePath& Path, Ref<IAssetManager> pAssetManager);
+		RefHnd<Texture> ImportTextureFromPath(const astl::FilePath& Path, astl::Ref<IAssetManager> pAssetManager);
 	};
 
 	class ShaderImporter
 	{
 	public:
 		ShaderImporter();
-		ShaderImporter(const FilePath& Path, EShaderType Type, Ref<IAssetManager> pAssetManager);
+		ShaderImporter(const astl::FilePath& Path, EShaderType Type, astl::Ref<IAssetManager> pAssetManager);
 		~ShaderImporter();
 
 		DELETE_COPY_AND_MOVE(ShaderImporter)
 
-		RefHnd<Shader> ImportShaderFromPath(const FilePath& Path, EShaderType Type, Ref<IAssetManager> pAssetManager);
+		RefHnd<Shader> ImportShaderFromPath(const astl::FilePath& Path, EShaderType Type, astl::Ref<IAssetManager> pAssetManager);
 	};
 
 }

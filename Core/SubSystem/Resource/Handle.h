@@ -44,13 +44,13 @@ protected:
 };
 
 template <typename T>
-class RefHnd final : public Handle<T>, public Ref<T>
+class RefHnd final : public Handle<T>, public astl::Ref<T>
 {
 public:
-  RefHnd() : Handle<T>(), Ref<T>() {}
+  RefHnd() : Handle<T>(), astl::Ref<T>() {}
   ~RefHnd() {}
-  RefHnd(Handle<T> i, Ref<T> Src) : Handle<T>(i), Ref<T>(Src) {}
-  RefHnd(NullPointer) : Handle<T>(INVALID_HANDLE), Ref<T>(NULLPTR) {}
+  RefHnd(Handle<T> i, astl::Ref<T> Src) : Handle<T>(i), astl::Ref<T>(Src) {}
+  RefHnd(astl::NullPointer) : Handle<T>(INVALID_HANDLE), astl::Ref<T>(NULLPTR) {}
   RefHnd(const RefHnd& Rhs) { *this = Rhs; }
   RefHnd(RefHnd&& Rhs) { *this = Move(Rhs); }
 
@@ -59,7 +59,7 @@ public:
     if (this != &Rhs)
     {
       Handle<T>::operator=(Rhs);
-      Ref<T>::operator=(Rhs);
+      astl::Ref<T>::operator=(Rhs);
     }
     return *this;
   }
@@ -69,19 +69,19 @@ public:
     if (this != &Rhs)
     {
       Handle<T>::operator=(Move(Rhs));
-      Ref<T>::operator=(Move(Rhs));
+      astl::Ref<T>::operator=(Move(Rhs));
     }
     return *this;
   }
 
   using Handle<T>::operator==;
   using Handle<T>::operator!=;
-  using Ref<T>::operator==;
-  using Ref<T>::operator!=;
-  using Ref<T>::operator->;
+  using astl::Ref<T>::operator==;
+  using astl::Ref<T>::operator!=;
+  using astl::Ref<T>::operator->;
   using Handle<T>::operator size_t;
   using Handle<T>::operator uint32;
-  using Ref<T>::operator bool;
+  using astl::Ref<T>::operator bool;
 };
 
 #endif // !ANGKASA1_ASSETS_HANDLE

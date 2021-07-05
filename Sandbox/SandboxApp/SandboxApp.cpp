@@ -8,11 +8,14 @@ namespace sandbox
 
 	Handle<Model> zeldaModel;
   Handle<MaterialDef> pbrMatDefinition;
-  Array<Handle<Material>> zeldaMaterialHandles;
+  astl::Array<Handle<Material>> zeldaMaterialHandles;
+  astl::Array<math::mat4> fontTransforms;
+  astl::Array<GlyphConstant> glyphConst;
 
 	SandboxApp::SandboxApp() :
     AssetManager{ ao::FetchEngineCtx() },
-    MatController(this->AssetManager, ao::FetchEngineCtx()),
+    MatController(this->AssetManager, ao::FetchRenderSystem(), ao::FetchEngineCtx()),
+    //TypeWriter(ao::FetchRenderSystem(), ao::FetchEngineCtx()),
 		Setup(),
 		pRenderer(),
 		pCamera()
@@ -26,6 +29,9 @@ namespace sandbox
 		IRenderSystem& renderer = ao::FetchRenderSystem();
 		pRenderer = &renderer;
 		pEngine = &engine;
+
+    MatController.Initialize();
+    //TypeWriter.Initialize();
 
 		if (!Setup.Initialize(&engine, &renderer, &AssetManager))
 		{
@@ -169,30 +175,24 @@ namespace sandbox
 		ModelImporter modelImporter;
 		zeldaModel = modelImporter.ImportModelFromPath("Data/Models/zelda_-_breath_of_the_wild/scene.gltf", &AssetManager);
 		//zeldaModel = importer.ImportModelFromPath("Data/Models/sponza/Sponza.gltf", &AssetManager);
-		Ref<Model> pZelda = AssetManager.GetModelWithHandle(zeldaModel);
-
-		uint32 previousVertexOffset = 0;
-		uint32 previousIndexOffset = 0;
+		astl::Ref<Model> pZelda = AssetManager.GetModelWithHandle(zeldaModel);
 
 		for (Mesh& mesh : pZelda->Meshes)
 		{
 			VertexInformation vertInfo = {};
-			vertInfo.VertexOffset = previousVertexOffset;
+			vertInfo.VertexOffset = static_cast<uint32>(staging.GetVertexBufferOffset() / sizeof(Vertex));
 			vertInfo.NumVertices = static_cast<uint32>(mesh.Vertices.Length());
 
 			IndexInformation indexInfo = {};
-			indexInfo.IndexOffset = previousIndexOffset;
+			indexInfo.IndexOffset = static_cast<uint32>(staging.GetIndexBufferOffset() / sizeof(uint32));
 			indexInfo.NumIndices = static_cast<uint32>(mesh.Indices.Length());
 
-			previousVertexOffset += vertInfo.NumVertices;
-			previousIndexOffset += indexInfo.NumIndices;
-
-			pZelda->MaxVertices = previousVertexOffset;
-			pZelda->MaxIndices = previousIndexOffset;
+      pZelda->MaxVertices += vertInfo.NumVertices;
+      pZelda->MaxIndices += indexInfo.NumIndices;
 			pZelda->NumDrawables++;
 
-			pZelda->VertexInformations.Push(Move(vertInfo));
-			pZelda->IndexInformation.Push(Move(indexInfo));
+			pZelda->VertexInformations.Push(astl::Move(vertInfo));
+			pZelda->IndexInformation.Push(astl::Move(indexInfo));
 
 			staging.StageVertexData(mesh.Vertices.First(), mesh.Vertices.Length() * sizeof(Vertex));
 			staging.StageIndexData(mesh.Indices.First(), mesh.Indices.Length() * sizeof(uint32));
@@ -202,14 +202,14 @@ namespace sandbox
 		}
 
     TextureImporter textureImporter;
-    Array<FilePath> zeldaTexPaths;
+    astl::Array<astl::FilePath> zeldaTexPaths;
     modelImporter.PathsToTextures(&zeldaTexPaths);
 
-    for (const FilePath& path : zeldaTexPaths)
+    for (const astl::FilePath& path : zeldaTexPaths)
     {
       RefHnd<Texture> texHnd = textureImporter.ImportTextureFromPath(path, &AssetManager);
 
-      texHnd->ImageHnd = pRenderer->CreateImage(texHnd->Width, texHnd->Height, texHnd->Channels, Texture_Type_2D);
+      texHnd->ImageHnd = pRenderer->CreateImage(texHnd->Width, texHnd->Height, texHnd->Channels, Texture_Type_2D, Texture_Format_Srgb);
       pRenderer->BuildImage(texHnd->ImageHnd);
 
       staging.StageDataForImage(texHnd->Data, texHnd->Size, texHnd->ImageHnd, EQueueType::Queue_Type_Graphics);
@@ -229,17 +229,18 @@ namespace sandbox
       zeldaMaterialHandles.Push(hnd);
     }
 
-    Array<Handle<SImage>> imageHandles;
-    Ref<MaterialDef> pbrDefinition = MatController.GetMaterialDefinition(pbrMatDefinition);
+    //Handle<Font> ibmPlex = TypeWriter.LoadFont("Data/Fonts/IBMPlexMono-Regular.ttf", 128);
+    //TypeWriter.SetDefaultFont(ibmPlex);
 
-    // Update camera ubo ...
+    astl::Array<Handle<SImage>> imageHandles;
+    astl::Ref<MaterialDef> pbrDefinition = MatController.GetMaterialDefinition(pbrMatDefinition);
     Handle<SDescriptorSet> setHnd = Setup.GetDescriptorSetHandle();
     Handle<SMemoryBuffer> cameraUboHnd = Setup.GetCameraUboHandle();
     pRenderer->DescriptorSetMapToBuffer(setHnd, 0, cameraUboHnd, 0, pRenderer->PadToAlignedSize(sizeof(RendererSetup::CameraUbo)));
 
     for (const MaterialType& type : pbrDefinition->MatTypes)
     {
-      for (Ref<Texture> texture : type.Textures)
+      for (astl::Ref<Texture> texture : type.Textures)
       {
         imageHandles.Push(texture->ImageHnd);
       }
@@ -252,6 +253,16 @@ namespace sandbox
       );
       imageHandles.Empty();
     }
+
+    //Handle<SImage> atlasHnd = TypeWriter.GetFontAtlasHandle(ibmPlex);
+
+    //pRenderer->DescriptorSetMapToImage(
+    //  setHnd,
+    //  2,
+    //  &atlasHnd,
+    //  1,
+    //  pbrDefinition->SamplerHnd
+    //);
 
 		staging.Upload();
 	}
@@ -278,7 +289,7 @@ namespace sandbox
 			Setup.GetColorPass().GetRenderPassHandle()
 		);
 
-		Ref<Model> pZelda = AssetManager.GetModelWithHandle(zeldaModel);
+		astl::Ref<Model> pZelda = AssetManager.GetModelWithHandle(zeldaModel);
 		VKT_ASSERT(pZelda);
 
     math::mat4 transform0(1.0f);
@@ -317,24 +328,42 @@ namespace sandbox
 
     pRenderer->Draw(info2);
 
+    //pRenderer->BindPipeline(
+    //  Setup.GetTexOverlayPass().GetPipelineHandle(),
+    //  Setup.GetTexOverlayPass().GetRenderPassHandle()
+    //);
+    //pRenderer->BindDescriptorSet(
+    //  Setup.GetDescriptorSetHandle(),
+    //  Setup.GetTexOverlayPass().GetRenderPassHandle()
+    //);
+
+    //TypeWriter.Print("Hello World", vec2(0.0f));
+    //TypeWriter.Finalize(fontTransforms, glyphConst);
+
+    //DrawSubmissionInfo textSubmission = {};
+    //textSubmission.pTransforms = fontTransforms.First();
+    //textSubmission.TransformCount = static_cast<uint32>(fontTransforms.Length());
+    //textSubmission.pConstants = glyphConst.First();
+    //textSubmission.ConstantsCount = static_cast<uint32>(glyphConst.Length());
+    //textSubmission.ConstantTypeSize = sizeof(GlyphConstant);
+    //textSubmission.DrawCount = 1;
+    //textSubmission.pVertexInformation = &TypeWriter.GetGlyphQuadVertexInformation();
+    //textSubmission.pIndexInformation = &TypeWriter.GetGlyphQuadIndexInformation();
+    //textSubmission.RenderPassHnd = Setup.GetTexOverlayPass().GetRenderPassHandle();
+    //textSubmission.PipelineHnd = Setup.GetTexOverlayPass().GetPipelineHandle();
+
+    //pRenderer->Draw(textSubmission);
+
+    //fontTransforms.Empty();
+    //glyphConst.Empty();
+
 		firstFrame = false;
 	}
 
 	void SandboxApp::Terminate()
 	{
-    Ref<MaterialDef> pbrDefinition = MatController.GetMaterialDefinition(pbrMatDefinition);
-
-    for (auto& types : pbrDefinition->MatTypes)
-    {
-      for (RefHnd<Texture> texture : types.Textures)
-      {
-        pRenderer->DestroyImage(texture->ImageHnd);
-        AssetManager.DestroyTexture(texture);
-      }
-      types.Textures.Release();
-    }
-
-    MatController.DestroyMaterialDefinition(pbrMatDefinition);
+    MatController.Terminate();
+    //TypeWriter.Terminate();
 		pCamera->OnTerminate();
 		Setup.Terminate();
 	}

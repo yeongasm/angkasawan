@@ -13,18 +13,10 @@ namespace sandbox
 		this->Engine.CreateNewResourceCache(Sandbox_Asset_Model);
 		this->Engine.CreateNewResourceCache(Sandbox_Asset_Shader);
 		this->Engine.CreateNewResourceCache(Sandbox_Asset_Texture);
-
-		Shaders.Reserve(32);
-		Models.Reserve(32);
-		Textures.Reserve(32);
 	}
 
 	IAssetManager::~IAssetManager()
 	{
-		Shaders.Release();
-		Models.Release();
-		Textures.Release();
-
 		Engine.DeleteResourceCacheForType(Sandbox_Asset_Model);
 		Engine.DeleteResourceCacheForType(Sandbox_Asset_Shader);
 		Engine.DeleteResourceCacheForType(Sandbox_Asset_Texture);
@@ -44,12 +36,12 @@ namespace sandbox
 		//resource->Path = Src.Path;
 		resource->Type = Sandbox_Asset_Shader;
 
-		Shaders.Add(id, Src);
+		Shaders.Emplace(id, Src);
 
 		return Handle<Shader>(static_cast<size_t>(id));
 	}
 
-	Ref<Shader> IAssetManager::GetShaderWithHandle(Handle<Shader> Hnd)
+	astl::Ref<Shader> IAssetManager::GetShaderWithHandle(Handle<Shader> Hnd)
 	{
 		return &Shaders[Hnd];
 	}
@@ -85,12 +77,12 @@ namespace sandbox
 		//resource->Path = Src.Path;
 		resource->Type = Sandbox_Asset_Model;
 
-		Models.Add(id, Src);
+		Models.Emplace(id, Src);
 
 		return Handle<Model>(static_cast<size_t>(id));
 	}
 
-	Ref<Model> IAssetManager::GetModelWithHandle(Handle<Model> Hnd)
+	astl::Ref<Model> IAssetManager::GetModelWithHandle(Handle<Model> Hnd)
 	{
 		return &Models[Hnd];
 	}
@@ -256,7 +248,7 @@ namespace sandbox
 		return Handle<Texture>(static_cast<size_t>(id));
 	}
 
-	Ref<Texture> IAssetManager::GetTextureWithHandle(Handle<Texture> Hnd)
+	astl::Ref<Texture> IAssetManager::GetTextureWithHandle(Handle<Texture> Hnd)
 	{
 		return &Textures[Hnd];
 	}

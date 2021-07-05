@@ -1,6 +1,5 @@
 #include "Serializer.h"
 #include "Library/Memory/Memory.h"
-#include "Library/Stream/Ifstream.h"
 
 StreamHeader::StreamHeader() :
 	Magic(0), Tag(0)
@@ -68,7 +67,7 @@ const uint8* IMemoryStream::GetConstData() const
 	return Data;
 }
 
-WriteMemoryStream::WriteMemoryStream(IAllocator& Allocator, size_t Size) :
+WriteMemoryStream::WriteMemoryStream(astl::IAllocator& Allocator, size_t Size) :
 	Allocator(&Allocator)
 {
 	uint8* data = reinterpret_cast<uint8*>(this->Allocator->Malloc(Size));
@@ -86,17 +85,17 @@ WriteMemoryStream::~WriteMemoryStream()
 
 void WriteMemoryStream::Flush()
 {
-	IMemory::Memzero(GetData(), Size());
+	astl::IMemory::Memzero(GetData(), Size());
 }
 
 void WriteMemoryStream::Write(void* Src, size_t Size)
 {
 	OverflowCheck(Size);
-	IMemory::Memcpy(GetData() + Pos, Src, Size);
+	astl::IMemory::Memcpy(GetData() + Pos, Src, Size);
 	Skip(Size);
 }
 
-ReadMemoryStream::ReadMemoryStream(IAllocator& Allocator, size_t Size) :
+ReadMemoryStream::ReadMemoryStream(astl::IAllocator& Allocator, size_t Size) :
 	Allocator(&Allocator)
 {
 	uint8* data = reinterpret_cast<uint8*>(this->Allocator->Malloc(Size));
@@ -112,7 +111,7 @@ ReadMemoryStream::~ReadMemoryStream()
 	}
 }
 
-ReadMemoryStream& ReadMemoryStream::operator<<(const Ifstream& Stream)
+ReadMemoryStream& ReadMemoryStream::operator<<(const astl::Ifstream& Stream)
 {
 	if (Stream.IsValid())
 	{
@@ -124,7 +123,7 @@ ReadMemoryStream& ReadMemoryStream::operator<<(const Ifstream& Stream)
 void ReadMemoryStream::Read(void* Dst, size_t Size)
 {
 	OverflowCheck(Size);
-	IMemory::Memcpy(Dst, GetData() + Pos, Size);
+	astl::IMemory::Memcpy(Dst, GetData() + Pos, Size);
 	Skip(Size);
 }
 
@@ -176,14 +175,14 @@ void Serializer::WriteUnsignedInt64(int64 Val)
 
 void Serializer::WriteFloat(float32 Val)
 {
-	FloatInt src;
+	astl::FloatInt src;
 	src.Float = Val;
 	Write(&src.Int, sizeof(float32));
 }
 
 void Serializer::WriteDouble(float64 Val)
 {
-	FloatInt64 src;
+	astl::FloatInt64 src;
 	src.Float = Val;
 	Write(&src.Int, sizeof(float64));
 }
@@ -246,14 +245,14 @@ void Deserializer::ReadUnsignedInt64(uint64& Val)
 
 void Deserializer::ReadFloat(float32& Val)
 {
-	FloatInt dst;
+	astl::FloatInt dst;
 	Read(&dst.Int, sizeof(float32));
 	Val = dst.Float;
 }
 
 void Deserializer::ReadDouble(float64& Val)
 {
-	FloatInt64 dst;
+	astl::FloatInt64 dst;
 	Read(&dst.Int, sizeof(float64));
 	Val = dst.Float;
 }

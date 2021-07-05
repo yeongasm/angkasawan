@@ -764,7 +764,7 @@ void IRenderDevice::EndCommandBuffer(VkCommandBuffer Hnd)
 	vkEndCommandBuffer(Hnd);
 }
 
-bool IRenderDevice::ToSpirV(const String& Code, Array<uint32>& SpirV, uint32 ShaderType)
+bool IRenderDevice::ToSpirV(const astl::String& Code, astl::Array<uint32>& SpirV, uint32 ShaderType)
 {
 	constexpr shaderc_shader_kind shaderType[] = {
 		shaderc_vertex_shader,
@@ -795,7 +795,11 @@ bool IRenderDevice::ToSpirV(const String& Code, Array<uint32>& SpirV, uint32 Sha
 		shaderType[ShaderType], 
 		Code.C_Str(), 
 		SpirV
-	)) { return false; }
+	))
+  {
+    printf(compiler.GetLastErrorMessage());
+    return false;
+  }
 
 	return true;
 }
@@ -1084,7 +1088,7 @@ bool IRenderDevice::ChoosePhysicalDevice()
 bool IRenderDevice::CreateLogicalDevice()
 {
 	float32 queuePriority = 1.0f;
-	Array<VkDeviceQueueCreateInfo> queueCreateInfos;
+	astl::Array<VkDeviceQueueCreateInfo> queueCreateInfos;
 
 	{
 		VkDeviceQueueCreateInfo info = {};
@@ -1092,7 +1096,7 @@ bool IRenderDevice::CreateLogicalDevice()
 		info.queueFamilyIndex = GraphicsQueue.FamilyIndex;
 		info.queueCount = 1;
 		info.pQueuePriorities = &queuePriority;
-		queueCreateInfos.Push(Move(info));
+		queueCreateInfos.Push(astl::Move(info));
 	}
 
 	{
@@ -1101,7 +1105,7 @@ bool IRenderDevice::CreateLogicalDevice()
 		info.queueFamilyIndex = TransferQueue.FamilyIndex;
 		info.queueCount = 1;
 		info.pQueuePriorities = &queuePriority;
-		queueCreateInfos.Push(Move(info));
+		queueCreateInfos.Push(astl::Move(info));
 	}
 
 	const char* extensions[] = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
@@ -1363,7 +1367,7 @@ IDeviceStore::IDeviceStore(/*IAllocator& InAllocator*/) :
 {}
 
 IDeviceStore::~IDeviceStore() {}
-
+/*
 bool IDeviceStore::DoesBufferExist(size_t Id)
 {
 	for (auto& [id, resource] : Buffers)
@@ -1443,142 +1447,141 @@ bool IDeviceStore::DoesImageExist(size_t Id)
 		if (id == Id) { return true; }
 	}
 	return false;
-}
+}*/
 
-Ref<SMemoryBuffer> IDeviceStore::NewBuffer(size_t Id)
+astl::Ref<SMemoryBuffer> IDeviceStore::NewBuffer(size_t Id)
 {
-	if (DoesBufferExist(Id)) { return NULLPTR;
-  }
-  Ref<SMemoryBuffer> ref = Buffers.Insert(
-    Move(Id),
-    UniquePtr<SMemoryBuffer>(IMemory::New<SMemoryBuffer>())
+	if (Buffers.Contains(Id)) { return NULLPTR; }
+  astl::Ref<SMemoryBuffer> ref = Buffers.Insert(
+    astl::Move(Id),
+    astl::UniquePtr<SMemoryBuffer>(astl::IMemory::New<SMemoryBuffer>())
   );
   return ref;
 }
 
-Ref<SMemoryBuffer> IDeviceStore::GetBuffer(size_t Id)
+astl::Ref<SMemoryBuffer> IDeviceStore::GetBuffer(size_t Id)
 {
-  if (!DoesBufferExist(Id)) { return NULLPTR; }
+  if (!Buffers.Contains(Id)) { return NULLPTR; }
   return Buffers[Id];
 }
 
 bool IDeviceStore::DeleteBuffer(size_t Id)
 {
-  if (!DoesBufferExist(Id)) { return false; }
+  if (!Buffers.Contains(Id)) { return false; }
   Buffers.Remove(Id);
   return true;
 }
 
-Ref<SDescriptorSet> IDeviceStore::NewDescriptorSet(size_t Id)
+astl::Ref<SDescriptorSet> IDeviceStore::NewDescriptorSet(size_t Id)
 {
-  if (DoesDescriptorSetExist(Id)) { return NULLPTR; }
-  Ref<SDescriptorSet> ref = DescriptorSets.Insert(
-    Move(Id),
-    UniquePtr<SDescriptorSet>(IMemory::New<SDescriptorSet>())
+  if (DescriptorSets.Contains(Id)) { return NULLPTR; }
+  astl::Ref<SDescriptorSet> ref = DescriptorSets.Insert(
+    astl::Move(Id),
+    astl::UniquePtr<SDescriptorSet>(astl::IMemory::New<SDescriptorSet>())
   );
   return ref;
 }
 
-Ref<SDescriptorSet> IDeviceStore::GetDescriptorSet(size_t Id)
+astl::Ref<SDescriptorSet> IDeviceStore::GetDescriptorSet(size_t Id)
 {
-  if (!DoesDescriptorSetExist(Id)) { return NULLPTR; }
+  if (!DescriptorSets.Contains(Id)) { return NULLPTR; }
   return DescriptorSets[Id];
 }
 
 bool IDeviceStore::DeleteDescriptorSet(size_t Id)
 {
 
-  if (!DoesDescriptorSetExist(Id)) { return false; }
+  if (!DescriptorSets.Contains(Id)) { return false; }
   DescriptorSets.Remove(Id);
   return true;
 }
 
-Ref<SDescriptorPool> IDeviceStore::NewDescriptorPool(size_t Id)
+astl::Ref<SDescriptorPool> IDeviceStore::NewDescriptorPool(size_t Id)
 {
-  if (DoesDescriptorPoolExist(Id)) { return NULLPTR; }
-  Ref<SDescriptorPool> ref = DescriptorPools.Insert(
-    Move(Id),
-    UniquePtr<SDescriptorPool>(IMemory::New<SDescriptorPool>())
+  if (DescriptorPools.Contains(Id)) { return NULLPTR; }
+  astl::Ref<SDescriptorPool> ref = DescriptorPools.Insert(
+    astl::Move(Id),
+    astl::UniquePtr<SDescriptorPool>(astl::IMemory::New<SDescriptorPool>())
   );
   return ref;
 }
 
-Ref<SDescriptorPool> IDeviceStore::GetDescriptorPool(size_t Id)
+astl::Ref<SDescriptorPool> IDeviceStore::GetDescriptorPool(size_t Id)
 {
-  if (!DoesDescriptorPoolExist(Id)) { return NULLPTR; }
+  if (!DescriptorPools.Contains(Id)) { return NULLPTR; }
   return DescriptorPools[Id];
 }
 
 bool IDeviceStore::DeleteDescriptorPool(size_t Id)
 {
-  if (!DoesDescriptorPoolExist(Id)) { return false; }
+  if (!DescriptorPools.Contains(Id)) { return false; }
   DescriptorPools.Remove(Id);
   return true;
 }
 
-Ref<SDescriptorSetLayout> IDeviceStore::NewDescriptorSetLayout(size_t Id)
+astl::Ref<SDescriptorSetLayout> IDeviceStore::NewDescriptorSetLayout(size_t Id)
 {
-  if (DoesDescriptorSetLayoutExist(Id)) { return NULLPTR; }
-  Ref<SDescriptorSetLayout> ref = DescriptorSetLayouts.Insert(
-    Move(Id),
-    UniquePtr<SDescriptorSetLayout>(IMemory::New<SDescriptorSetLayout>())
+  if (DescriptorSetLayouts.Contains(Id)) { return NULLPTR; }
+  astl::Ref<SDescriptorSetLayout> ref = DescriptorSetLayouts.Insert(
+    astl::Move(Id),
+    astl::UniquePtr<SDescriptorSetLayout>(astl::IMemory::New<SDescriptorSetLayout>())
   );
   return ref;
 }
 
-Ref<SDescriptorSetLayout> IDeviceStore::GetDescriptorSetLayout(size_t Id)
+astl::Ref<SDescriptorSetLayout> IDeviceStore::GetDescriptorSetLayout(size_t Id)
 {
-  if (!DoesDescriptorSetLayoutExist(Id)) { return NULLPTR; }
+  if (!DescriptorSetLayouts.Contains(Id)) { return NULLPTR; }
   return DescriptorSetLayouts[Id];
 }
 
 bool IDeviceStore::DeleteDescriptorSetLayout(size_t Id)
 {
-  if (!DoesDescriptorSetLayoutExist(Id)) { return false; }
+  if (!DescriptorSetLayouts.Contains(Id)) { return false; }
   DescriptorSetLayouts.Remove(Id);
   return true;
 }
 
-Ref<SRenderPass> IDeviceStore::NewRenderPass(size_t Id)
+astl::Ref<SRenderPass> IDeviceStore::NewRenderPass(size_t Id)
 {
-  if (DoesRenderPassExist(Id)) { return NULLPTR; }
-  Ref<SRenderPass> ref = RenderPasses.Insert(
-    Move(Id),
-    UniquePtr<SRenderPass>(IMemory::New<SRenderPass>())
+  if (RenderPasses.Contains(Id)) { return NULLPTR; }
+  astl::Ref<SRenderPass> ref = RenderPasses.Insert(
+    astl::Move(Id),
+    astl::UniquePtr<SRenderPass>(astl::IMemory::New<SRenderPass>())
   );
   return ref;
 }
 
-Ref<SRenderPass> IDeviceStore::GetRenderPass(size_t Id)
+astl::Ref<SRenderPass> IDeviceStore::GetRenderPass(size_t Id)
 {
-  if (!DoesRenderPassExist(Id)) { return NULLPTR; }
+  if (!RenderPasses.Contains(Id)) { return NULLPTR; }
   return RenderPasses[Id];
 }
 
 bool IDeviceStore::DeleteRenderPass(size_t Id)
 {
-  if (!DoesRenderPassExist(Id)) { return false; }
+  if (!RenderPasses.Contains(Id)) { return false; }
   RenderPasses.Remove(Id);
   return true;
 }
 
-Ref<SImageSampler> IDeviceStore::NewImageSampler(size_t Id)
+astl::Ref<SImageSampler> IDeviceStore::NewImageSampler(size_t Id)
 {
-  if (DoesImageSamplerExist(Id)) { return NULLPTR; }
-  Ref<SImageSampler> ref = ImageSamplers.Insert(
-    Move(Id),
-    UniquePtr<SImageSampler>(IMemory::New<SImageSampler>())
+  if (ImageSamplers.Contains(Id)) { return NULLPTR; }
+  astl::Ref<SImageSampler> ref = ImageSamplers.Insert(
+    astl::Move(Id),
+    astl::UniquePtr<SImageSampler>(astl::IMemory::New<SImageSampler>())
   );
   return ref;
 }
 
-Ref<SImageSampler> IDeviceStore::GetImageSampler(size_t Id)
+astl::Ref<SImageSampler> IDeviceStore::GetImageSampler(size_t Id)
 {
-  if (!DoesImageSamplerExist(Id)) { return NULLPTR; }
+  if (!ImageSamplers.Contains(Id)) { return NULLPTR; }
   return ImageSamplers[Id];
 }
 
-Ref<SImageSampler> IDeviceStore::GetImageSamplerWithHash(uint64 Hash)
+astl::Ref<SImageSampler> IDeviceStore::GetImageSamplerWithHash(uint64 Hash)
 {
   for (auto& [key, value] : ImageSamplers)
   {
@@ -1592,76 +1595,76 @@ Ref<SImageSampler> IDeviceStore::GetImageSamplerWithHash(uint64 Hash)
 
 bool IDeviceStore::DeleteImageSampler(size_t Id)
 {
-  if (!DoesImageSamplerExist(Id)) { return false; }
+  if (!ImageSamplers.Contains(Id)) { return false; }
   ImageSamplers.Remove(Id);
   return true;
 }
 
-Ref<SPipeline> IDeviceStore::NewPipeline(size_t Id)
+astl::Ref<SPipeline> IDeviceStore::NewPipeline(size_t Id)
 {
-  if (DoesPipelineExist(Id)) { return NULLPTR; }
-  Ref<SPipeline> ref = Pipelines.Insert(
-    Move(Id),
-    UniquePtr<SPipeline>(IMemory::New<SPipeline>())
+  if (Pipelines.Contains(Id)) { return NULLPTR; }
+  astl::Ref<SPipeline> ref = Pipelines.Insert(
+    astl::Move(Id),
+    astl::UniquePtr<SPipeline>(astl::IMemory::New<SPipeline>())
   );
   return ref;
 }
 
-Ref<SPipeline> IDeviceStore::GetPipeline(size_t Id)
+astl::Ref<SPipeline> IDeviceStore::GetPipeline(size_t Id)
 {
-  if (!DoesPipelineExist(Id)) { return NULLPTR; }
+  if (!Pipelines.Contains(Id)) { return NULLPTR; }
   return Pipelines[Id];
 }
 
 bool IDeviceStore::DeletePipeline(size_t Id)
 {
-  if (!DoesPipelineExist(Id)) { return false; }
+  if (!Pipelines.Contains(Id)) { return false; }
   Pipelines.Remove(Id);
   return true;
 }
 
-Ref<SShader> IDeviceStore::NewShader(size_t Id)
+astl::Ref<SShader> IDeviceStore::NewShader(size_t Id)
 {
-  if (DoesShaderExist(Id)) { return NULLPTR; }
-  Ref<SShader> ref = Shaders.Insert(
-    Move(Id),
-    UniquePtr<SShader>(IMemory::New<SShader>())
+  if (Shaders.Contains(Id)) { return NULLPTR; }
+  astl::Ref<SShader> ref = Shaders.Insert(
+    astl::Move(Id),
+    astl::UniquePtr<SShader>(astl::IMemory::New<SShader>())
   );
   return ref;
 }
 
-Ref<SShader> IDeviceStore::GetShader(size_t Id)
+astl::Ref<SShader> IDeviceStore::GetShader(size_t Id)
 {
-  if (!DoesShaderExist(Id)) { return NULLPTR; }
+  if (!Shaders.Contains(Id)) { return NULLPTR; }
   return Shaders[Id];
 }
 
 bool IDeviceStore::DeleteShader(size_t Id)
 {
-  if (!DoesShaderExist(Id)) { return false; }
+  if (!Shaders.Contains(Id)) { return false; }
   Shaders.Remove(Id);
   return true;
 }
 
-Ref<SImage> IDeviceStore::NewImage(size_t Id)
+astl::Ref<SImage> IDeviceStore::NewImage(size_t Id)
 {
-  if (DoesImageExist(Id)) { return NULLPTR; }
-  Ref<SImage> ref = Images.Insert(
-    Move(Id),
-    UniquePtr<SImage>(IMemory::New<SImage>())
+  if (Images.Contains(Id)) { return NULLPTR; }
+  astl::Ref<SImage> ref = Images.Insert(
+    astl::Move(Id),
+    astl::UniquePtr<SImage>(astl::IMemory::New<SImage>())
   );
   return ref;
 }
 
-Ref<SImage> IDeviceStore::GetImage(size_t Id)
+astl::Ref<SImage> IDeviceStore::GetImage(size_t Id)
 {
-  if (!DoesImageExist(Id)) { return NULLPTR; }
+  if (!Images.Contains(Id)) { return NULLPTR; }
 	return Images[Id];
 }
 
 bool IDeviceStore::DeleteImage(size_t Id)
 {
-	if (!DoesImageExist(Id)) { return false; }
+	if (!Images.Contains(Id)) { return false; }
 	Images.Remove(Id);
 	return true;
 }
@@ -1900,6 +1903,21 @@ VkCompareOp IRenderDevice::GetCompareOp(uint32 Index) const
 		VK_COMPARE_OP_ALWAYS
 	};
 	return compareOp[Index];
+}
+
+VkFormat IRenderDevice::GetImageFormat(uint32 Format, uint32 Channels) const
+{
+  static constexpr VkFormat format[] = {
+    VK_FORMAT_R8_SRGB,
+    VK_FORMAT_R8G8_SRGB,
+    VK_FORMAT_R8G8B8_SRGB,
+    VK_FORMAT_R8G8B8A8_SRGB,
+    VK_FORMAT_R8_UNORM,
+    VK_FORMAT_R8G8_UNORM,
+    VK_FORMAT_R8G8B8_UNORM,
+    VK_FORMAT_R8G8B8A8_UNORM
+  };
+	return format[Format * Channels + (Channels - 1)];
 }
 
 const VkPhysicalDeviceProperties& IRenderDevice::GetPhysicalDeviceProperties() const

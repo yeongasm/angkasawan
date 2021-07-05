@@ -5,25 +5,30 @@
 #include "Platform/Minimal.h"
 #include "Platform/EngineAPI.h"
 
-class ENGINE_API Ofstream
+namespace astl
 {
-public:
-	Ofstream();
-	~Ofstream();
 
-	Ofstream(const Ofstream& Rhs);
-	Ofstream(Ofstream&& Rhs);
+  class ENGINE_API Ofstream
+  {
+  public:
+    Ofstream();
+    ~Ofstream();
 
-	Ofstream& operator=(const Ofstream& Rhs);
-	Ofstream& operator=(Ofstream&& Rhs);
+    Ofstream(const Ofstream& Rhs);
+    Ofstream(Ofstream&& Rhs);
 
-	bool	Open(const char* Path);
-	bool	Write(void* Buf, size_t Size);
-	bool	Close();
-	bool	IsValid() const;
-	bool	Flush();
-private:
-	FILE*	Stream;
-};
+    Ofstream& operator=(const Ofstream& Rhs);
+    Ofstream& operator=(Ofstream&& Rhs);
+
+    bool	Open(const char* Path);
+    bool	Write(void* Buf, size_t Size);
+    bool	Close();
+    bool	IsValid() const;
+    bool	Flush();
+  private:
+    FILE* Stream;
+  };
+
+}
 
 #endif // !LEARNVK_LIBRARY_STREAM_OFSTREAM

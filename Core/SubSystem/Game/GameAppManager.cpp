@@ -7,7 +7,7 @@ GameManager::GameManager() :
 
 GameManager::~GameManager() {}
 
-void GameManager::RegisterGameDll(FilePath GameFile, bool GameIsPaused, bool EnableHotReload)
+void GameManager::RegisterGameDll(astl::FilePath GameFile, bool GameIsPaused, bool EnableHotReload)
 {
 	Paused = GameIsPaused;
 	HotReloadable = EnableHotReload;
@@ -49,7 +49,7 @@ void GameManager::TerminateGame()
 		return;
 	}
 	Game->Terminate();
-	IMemory::Free(Game);
+	astl::IMemory::Free(Game);
 	Game = nullptr;
 	Dll.UnloadDllModule();
 }

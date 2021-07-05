@@ -8,7 +8,7 @@
 #include "SubSystem/Time/ScopedTimer.h"
 
 Handle<ISystem> g_RenderSystemHandle;
-LinearAllocator g_RenderSystemAllocator;
+astl::LinearAllocator g_RenderSystemAllocator;
 Xoroshiro64 g_Uid(OS::GetPerfCounter());
 
 //LinearAllocator IRenderSystem::DrawManager::_DrawCommandAllocator = {};
@@ -18,21 +18,21 @@ Xoroshiro64 g_Uid(OS::GetPerfCounter());
 //Map<size_t, IRenderSystem::DrawManager::EntryContainer> IRenderSystem::DrawManager::_InstancedDraws = {};
 //Map<size_t, IRenderSystem::DrawManager::EntryContainer> IRenderSystem::DrawManager::_NonInstancedDraws = {};
 
-LinearAllocator IRenderSystem::BindableManager::_BindableAllocator = {};
-Map<size_t, IRenderSystem::BindableManager::BindableRange> IRenderSystem::BindableManager::_Bindables = {};
+astl::LinearAllocator IRenderSystem::BindableManager::_BindableAllocator = {};
+astl::Map<size_t, IRenderSystem::BindableManager::BindableRange> IRenderSystem::BindableManager::_Bindables = {};
 IRenderSystem::BindableManager::BindableRange IRenderSystem::BindableManager::_GlobalBindables = {};
 
 struct DescriptorUpdate
 {
   struct Key
   {
-    Ref<SDescriptorSet> pSet;
-    Ref<SDescriptorSetLayout::Binding> pBinding;
+    astl::Ref<SDescriptorSet> pSet;
+    astl::Ref<SDescriptorSetLayout::Binding> pBinding;
     size_t _Key;
     uint32 _FirstImage;
 
     Key() : pSet{}, pBinding{}, _Key{ 0 }, _FirstImage{ 0 } {}
-    Key(Ref<SDescriptorSet> InSet, Ref<SDescriptorSetLayout::Binding> InBinding, size_t InKey) :
+    Key(astl::Ref<SDescriptorSet> InSet, astl::Ref<SDescriptorSetLayout::Binding> InBinding, size_t InKey) :
       pSet{ InSet }, pBinding{ InBinding }, _Key{ InKey }, _FirstImage{ 0 } {}
     ~Key()
     {
@@ -54,7 +54,7 @@ struct DescriptorUpdate
   };
 
   template <typename UpdateObject>
-  using Container = Map<Key, UpdateObject, XxHash<Key>>;
+  using Container = astl::Map<Key, UpdateObject>;
 
   static size_t CalculateKey(Handle<SDescriptorSet> SetHnd, uint32 Binding)
   {
@@ -63,7 +63,7 @@ struct DescriptorUpdate
   }
 };
 
-DescriptorUpdate::Container<Array<VkDescriptorImageInfo>> g_DescriptorImageInfos;
+DescriptorUpdate::Container<astl::Array<VkDescriptorImageInfo>> g_DescriptorImageInfos;
 DescriptorUpdate::Container<VkDescriptorBufferInfo>       g_DescriptorBufferInfos;
 
 uint32 IRenderSystem::CalcStrideForFormat(EShaderAttribFormat Format)
@@ -84,7 +84,7 @@ uint32 IRenderSystem::CalcStrideForFormat(EShaderAttribFormat Format)
 	return 0;
 }
 
-void IRenderSystem::PreprocessShader(Ref<SShader> pShader)
+void IRenderSystem::PreprocessShader(astl::Ref<SShader> pShader)
 {
 	uint32 count = 0;
 	spv_reflect::ShaderModule reflection(pShader->SpirV.Length() * sizeof(uint32), pShader->SpirV.First());
@@ -97,7 +97,7 @@ void IRenderSystem::PreprocessShader(Ref<SShader> pShader)
 		};
 
 		ShaderAttrib attribute = {};
-		Array<SpvReflectInterfaceVariable*> variables(count + 1);
+		astl::Array<SpvReflectInterfaceVariable*> variables(count + 1);
 		reflection.EnumerateInputVariables(&count, variables.First());
 		variables[count] = {};
 
@@ -112,7 +112,7 @@ void IRenderSystem::PreprocessShader(Ref<SShader> pShader)
 					attribute.Format = Shader_Attrib_Type_Vec4;
 					attribute.Location = var->location + i;
 					attribute.Offset = 0;
-					pShader->Attributes.Push(Move(attribute));
+					pShader->Attributes.Push(astl::Move(attribute));
 				}
 				continue;
 			}
@@ -136,17 +136,17 @@ void IRenderSystem::PreprocessShader(Ref<SShader> pShader)
 			}
 			attribute.Location = var->location;
 			attribute.Offset = 0;
-			pShader->Attributes.Push(Move(attribute));
+			pShader->Attributes.Push(astl::Move(attribute));
 		}
 
-		QuickSort(pShader->Attributes, sortLambda);
+		astl::QuickSort(pShader->Attributes, sortLambda);
 	}
 }
 
 // TODO(Ygsm):
 // Figure this out in the long run. Descriptor set layout creation should not be done manually.
 // 
-//void IRenderSystem::GetShaderDescriptorLayoutInformation(Ref<SShader> pShader)
+//void IRenderSystem::GetShaderDescriptorLayoutInformation(astl::Ref<SShader> pShader)
 //{
 //	uint32 count = 0;
 //	spv_reflect::ShaderModule reflection(pShader->SpirV.Length() * sizeof(uint32), pShader->SpirV.First());
@@ -160,7 +160,7 @@ void IRenderSystem::PreprocessShader(Ref<SShader> pShader)
 
 void IRenderSystem::IterateBindableRange(BindableManager::BindableRange& Range)
 {
-	ForwardNode<SBindable>* node = Range.pBegin;
+	astl::ForwardNode<SBindable>* node = Range.pBegin;
 	while (node)
 	{
 		BindBindable(node->Data);
@@ -180,7 +180,7 @@ void IRenderSystem::BindBindable(SBindable& Bindable)
 		{
       uint32* pOffset = nullptr;
       uint32 offsetCount = 0;
-			StaticArray<uint32, MAX_DESCRIPTOR_BINDING_UPDATES> offsets;
+			astl::StaticArray<uint32, MAX_DESCRIPTOR_BINDING_UPDATES> offsets;
 			for (SDescriptorSetLayout::Binding& binding : Bindable.pSet->pLayout->Bindings)
 			{
 				if (binding.Type == Descriptor_Type_Dynamic_Storage_Buffer ||
@@ -217,12 +217,12 @@ void IRenderSystem::BindBindable(SBindable& Bindable)
 
 void IRenderSystem::BindBindablesForRenderpass(Handle<SRenderPass> Hnd)
 {
-	BindableManager::BindableRange* range = BindableManager::_Bindables.Get(Hnd);
+	BindableManager::BindableRange* range = &BindableManager::_Bindables[Hnd];
 	VKT_ASSERT(range && "Range with render pass does not exist.");
 	IterateBindableRange(*range);
 }
 
-void IRenderSystem::DynamicStateSetup(Ref<SRenderPass> pRenderPass)
+void IRenderSystem::DynamicStateSetup(astl::Ref<SRenderPass> pRenderPass)
 {
 	VkCommandBuffer cmd = pDevice->GetCommandBuffer();
 	VkViewport viewport = {};
@@ -253,14 +253,14 @@ void IRenderSystem::BindBuffers()
 	IterateBindableRange(BindableManager::_GlobalBindables);
 }
 
-void IRenderSystem::BeginRenderPass(Ref<SRenderPass> pRenderPass)
+void IRenderSystem::BeginRenderPass(astl::Ref<SRenderPass> pRenderPass)
 {
-	using ClearValues = StaticArray<VkClearValue, MAX_RENDERPASS_ATTACHMENT_COUNT>;
-	using DynamicOffsets = StaticArray<uint32, MAX_DESCRIPTOR_SET_LAYOUT_BINDINGS>;
+	using ClearValues = astl::StaticArray<VkClearValue, MAX_RENDERPASS_ATTACHMENT_COUNT>;
+	using DynamicOffsets = astl::StaticArray<uint32, MAX_DESCRIPTOR_SET_LAYOUT_BINDINGS>;
 
 	ClearValues clearValues;
 	DynamicOffsets dynamicOffsets;
-	StaticArray<VkImageView, 10> attImgViews;
+	astl::StaticArray<VkImageView, 10> attImgViews;
 
 	bool hasDepthStencil = false;
 	const uint32 nextSwapchainIndex = pDevice->GetNextSwapchainImageIndex();
@@ -348,7 +348,7 @@ void IRenderSystem::BeginRenderPass(Ref<SRenderPass> pRenderPass)
 	vkCmdBeginRenderPass(pDevice->GetCommandBuffer(), &beginInfo, VK_SUBPASS_CONTENTS_INLINE);
 }
 
-void IRenderSystem::EndRenderPass(Ref<SRenderPass> pRenderPass)
+void IRenderSystem::EndRenderPass(astl::Ref<SRenderPass> pRenderPass)
 {
 	VkCommandBuffer cmd = pDevice->GetCommandBuffer();
 	const IRenderDevice::VulkanQueue& gfxQueue = pDevice->GetGraphicsQueue();
@@ -451,7 +451,7 @@ void IRenderSystem::BindPushConstant(const DrawCommand& Command)
 //			}
 //
 //			auto& drawCmds = entry.DrawRange;
-//			ForwardNode<DrawCommand>* node = drawCmds.pBegin;
+//			astl::ForwardNode<DrawCommand>* node = drawCmds.pBegin;
 //			DrawManager::DrawCommandRange& range = Drawables[renderPass];
 //
 //			if (!range.pBegin && !range.pEnd)
@@ -610,7 +610,7 @@ void IRenderSystem::MakeTransferToGpu()
 
 void IRenderSystem::Clear()
 {
-  for (Array<DrawCommand>& drawCommands : Drawables)
+  for (astl::Array<DrawCommand>& drawCommands : Drawables)
   {
     drawCommands.Empty();
   }
@@ -637,7 +637,7 @@ uint64 IRenderSystem::GenHashForImageSampler(const ImageSamplerState& State)
 	uint64 magf = static_cast<uint64>(State.MagFilter) << (bitsInBytes * 5);
 	uint64 cmp = static_cast<uint64>(State.CompareOp) << (bitsInBytes * 6);
 	uint64 hash = addmu | addmv | addmw | ani | minf | magf | cmp;
-	XXHash64(&hash, sizeof(uint64), &hash);
+	astl::XXHash64(&hash, sizeof(uint64), &hash);
 	return hash;
 }
 
@@ -722,14 +722,14 @@ void IRenderSystem::BlitToDefault()
 	);
 }
 
-void IRenderSystem::CopyToBuffer(Ref<SMemoryBuffer> pBuffer, void* Data, size_t Size, size_t Offset, bool Update)
+void IRenderSystem::CopyToBuffer(astl::Ref<SMemoryBuffer> pBuffer, void* Data, size_t Size, size_t Offset, bool Update)
 {
 	uint8* data = reinterpret_cast<uint8*>(pBuffer->pData + Offset);
-	IMemory::Memcpy(data, Data, Size);
+	astl::IMemory::Memcpy(data, Data, Size);
 	if (Update) { pBuffer->Offset += Size; }
 }
 
-uint32 IRenderSystem::GetImageUsageFlags(Ref<SImage> pImg)
+uint32 IRenderSystem::GetImageUsageFlags(astl::Ref<SImage> pImg)
 {
 	VkImageUsageFlags usage = 0;
 	for (uint32 i = 0; i < Image_Usage_Max; i++)
@@ -738,16 +738,6 @@ uint32 IRenderSystem::GetImageUsageFlags(Ref<SImage> pImg)
 		usage |= pDevice->GetImageUsage(i);
 	}
 	return usage;
-}
-
-uint32 IRenderSystem::GetImageFormat(Ref<SImage> pImg)
-{
-	VkFormat format = VK_FORMAT_R8G8B8A8_SRGB;
-	if (pImg->Usage.Has(Image_Usage_Depth_Stencil_Attachment))
-	{
-		format = VK_FORMAT_D24_UNORM_S8_UINT;
-	}
-	return format;
 }
 
 IRenderSystem::IRenderSystem(EngineImpl& InEngine, Handle<ISystem> Hnd) :
@@ -786,23 +776,23 @@ void IRenderSystem::OnInit()
 
 	/* !!! */
 	BindableManager::_BindableAllocator.Initialize(KILOBYTES(16));
-	BindableManager::_Bindables.Reserve(MAX_FRAMEGRAPH_PASS_COUNT);
+	//BindableManager::_Bindables.Reserve(MAX_FRAMEGRAPH_PASS_COUNT);
 	Drawables.Reserve(MAX_FRAMEGRAPH_PASS_COUNT);
 
 	/* !!! */
-  g_DescriptorImageInfos.Reserve(16);
-  g_DescriptorBufferInfos.Reserve(16);
+  //g_DescriptorImageInfos.Reserve(16);
+  //g_DescriptorBufferInfos.Reserve(16);
 	/* !!! */
 
-	pStore = IAllocator::New<IDeviceStore>(g_RenderSystemAllocator);
+	pStore = astl::IAllocator::New<IDeviceStore>(g_RenderSystemAllocator);
 
-	pDevice = IAllocator::New<IRenderDevice>(g_RenderSystemAllocator);
+	pDevice = astl::IAllocator::New<IRenderDevice>(g_RenderSystemAllocator);
 	pDevice->Initialize(this->Engine);
 
-	pStaging = IAllocator::New<IStagingManager>(g_RenderSystemAllocator, *this);
+	pStaging = astl::IAllocator::New<IStagingManager>(g_RenderSystemAllocator, *this);
 	pStaging->Initialize();
 
-	pFrameGraph = IAllocator::New<IFrameGraph>(g_RenderSystemAllocator, *this);
+	pFrameGraph = astl::IAllocator::New<IFrameGraph>(g_RenderSystemAllocator, *this);
 	//pFrameGraph->Initialize(Engine.GetWindowInformation().Extent);
 
 	/* !!! */
@@ -879,6 +869,9 @@ void IRenderSystem::OnTerminate()
 	DestroyBuffer(IndexBuffer);
 	DestroyBuffer(InstanceBuffer);
 
+  VKT_ASSERT(!pStore->Buffers.Length());
+  VKT_ASSERT(!pStore->Images.Length());
+
 	pDevice->Terminate();
 	g_RenderSystemAllocator.Terminate();
 }
@@ -886,14 +879,14 @@ void IRenderSystem::OnTerminate()
 Handle<SDescriptorPool> IRenderSystem::CreateDescriptorPool()
 {
 	size_t id = g_Uid();
-	Ref<SDescriptorPool> pPool = pStore->NewDescriptorPool(id);
+	astl::Ref<SDescriptorPool> pPool = pStore->NewDescriptorPool(id);
 	if (!pPool) { return INVALID_HANDLE; }
 	return id;
 }
 
 bool IRenderSystem::DescriptorPoolAddSizeType(Handle<SDescriptorPool> Hnd, SDescriptorPool::Size Type)
 {
-	Ref<SDescriptorPool> pPool = pStore->GetDescriptorPool(Hnd);
+	astl::Ref<SDescriptorPool> pPool = pStore->GetDescriptorPool(Hnd);
 	if (!pPool) 
 	{ 
 		VKT_ASSERT(false && "Pool with handle does not exist.");
@@ -906,10 +899,10 @@ bool IRenderSystem::DescriptorPoolAddSizeType(Handle<SDescriptorPool> Hnd, SDesc
 
 bool IRenderSystem::BuildDescriptorPool(Handle<SDescriptorPool> Hnd)
 {
-	using PoolSizeContainer = StaticArray<VkDescriptorPoolSize, MAX_DESCRIPTOR_POOL_TYPE_SIZE>;
+	using PoolSizeContainer = astl::StaticArray<VkDescriptorPoolSize, MAX_DESCRIPTOR_POOL_TYPE_SIZE>;
 
 	uint32 maxSets = 0;
-	Ref<SDescriptorPool> pPool = pStore->GetDescriptorPool(Hnd);
+	astl::Ref<SDescriptorPool> pPool = pStore->GetDescriptorPool(Hnd);
 	if (!pPool)
 	{
 		VKT_ASSERT(false && "Pool with handle does not exist.");
@@ -944,7 +937,7 @@ bool IRenderSystem::BuildDescriptorPool(Handle<SDescriptorPool> Hnd)
 
 bool IRenderSystem::DestroyDescriptorPool(Handle<SDescriptorPool>& Hnd)
 {
-	Ref<SDescriptorPool> pPool = pStore->GetDescriptorPool(Hnd);
+	astl::Ref<SDescriptorPool> pPool = pStore->GetDescriptorPool(Hnd);
 	if (!pPool)
 	{
 		VKT_ASSERT(false && "Pool with handle does not exist.");
@@ -963,14 +956,14 @@ bool IRenderSystem::DestroyDescriptorPool(Handle<SDescriptorPool>& Hnd)
 Handle<SDescriptorSetLayout> IRenderSystem::CreateDescriptorSetLayout()
 {
 	size_t id = g_Uid();
-	Ref<SDescriptorSetLayout> pSetLayout = pStore->NewDescriptorSetLayout(id);
+	astl::Ref<SDescriptorSetLayout> pSetLayout = pStore->NewDescriptorSetLayout(id);
 	if (!pSetLayout) { return INVALID_HANDLE; }
 	return id;
 }
 
 bool IRenderSystem::DescriptorSetLayoutAddBinding(const DescriptorSetLayoutBindingInfo& BindInfo)
 {
-	Ref<SDescriptorSetLayout> pSetLayout = pStore->GetDescriptorSetLayout(BindInfo.LayoutHnd);
+	astl::Ref<SDescriptorSetLayout> pSetLayout = pStore->GetDescriptorSetLayout(BindInfo.LayoutHnd);
 	if (!pSetLayout)
 	{
 		VKT_ASSERT(false && "Layout with handle does not exist.");
@@ -984,16 +977,16 @@ bool IRenderSystem::DescriptorSetLayoutAddBinding(const DescriptorSetLayoutBindi
 	binding.ShaderStages = BindInfo.ShaderStages;
 	binding.Stride = BindInfo.Stride;
 
-	pSetLayout->Bindings.Push(Move(binding));
+	pSetLayout->Bindings.Push(astl::Move(binding));
 
 	return true;
 }
 
 bool IRenderSystem::BuildDescriptorSetLayout(Handle<SDescriptorSetLayout> Hnd)
 {
-	using BindingsContainer = StaticArray<VkDescriptorSetLayoutBinding, MAX_DESCRIPTOR_SET_LAYOUT_BINDINGS>;
+	using BindingsContainer = astl::StaticArray<VkDescriptorSetLayoutBinding, MAX_DESCRIPTOR_SET_LAYOUT_BINDINGS>;
 
-	Ref<SDescriptorSetLayout> pSetLayout = pStore->GetDescriptorSetLayout(Hnd);
+	astl::Ref<SDescriptorSetLayout> pSetLayout = pStore->GetDescriptorSetLayout(Hnd);
 	if (!pSetLayout)
 	{
 		VKT_ASSERT(false && "Layout with handle does not exist.");
@@ -1001,7 +994,7 @@ bool IRenderSystem::BuildDescriptorSetLayout(Handle<SDescriptorSetLayout> Hnd)
 	}
 
 	BindingsContainer layoutBindings;
-  Array<VkDescriptorBindingFlags> flags(pSetLayout->Bindings.Length());
+  astl::Array<VkDescriptorBindingFlags> flags(pSetLayout->Bindings.Length());
 
 	for (const SDescriptorSetLayout::Binding& b : pSetLayout->Bindings)
 	{
@@ -1045,7 +1038,7 @@ bool IRenderSystem::BuildDescriptorSetLayout(Handle<SDescriptorSetLayout> Hnd)
 
 bool IRenderSystem::DestroyDescriptorSetLayout(Handle<SDescriptorSetLayout>& Hnd)
 {
-	Ref<SDescriptorSetLayout> pSetLayout = pStore->GetDescriptorSetLayout(Hnd);
+	astl::Ref<SDescriptorSetLayout> pSetLayout = pStore->GetDescriptorSetLayout(Hnd);
 	if (!pSetLayout)
 	{
 		VKT_ASSERT(false && "Layout with handle does not exist.");
@@ -1060,12 +1053,12 @@ bool IRenderSystem::DestroyDescriptorSetLayout(Handle<SDescriptorSetLayout>& Hnd
 
 Handle<SDescriptorSet> IRenderSystem::CreateDescriptorSet(const DescriptorSetAllocateInfo& AllocInfo)
 {
-	Ref<SDescriptorPool> pPool = pStore->GetDescriptorPool(AllocInfo.PoolHnd);
-	Ref<SDescriptorSetLayout> pLayout = pStore->GetDescriptorSetLayout(AllocInfo.LayoutHnd);
+	astl::Ref<SDescriptorPool> pPool = pStore->GetDescriptorPool(AllocInfo.PoolHnd);
+	astl::Ref<SDescriptorSetLayout> pLayout = pStore->GetDescriptorSetLayout(AllocInfo.LayoutHnd);
 	if (!pPool || !pLayout) { return INVALID_HANDLE; }
 
 	size_t id = g_Uid();
-	Ref<SDescriptorSet> pSet = pStore->NewDescriptorSet(id);
+	astl::Ref<SDescriptorSet> pSet = pStore->NewDescriptorSet(id);
 	if (!pSet) { return INVALID_HANDLE; }
 
 	pSet->pPool = pPool;
@@ -1077,12 +1070,12 @@ Handle<SDescriptorSet> IRenderSystem::CreateDescriptorSet(const DescriptorSetAll
 
 bool IRenderSystem::DescriptorSetMapToBuffer(Handle<SDescriptorSet> Hnd, uint32 BindingSlot, Handle<SMemoryBuffer> BufferHnd, size_t Offset0, size_t Offset1)
 {
-	Ref<SDescriptorSet> pSet = pStore->GetDescriptorSet(Hnd);
-	Ref<SMemoryBuffer> pBuffer = pStore->GetBuffer(BufferHnd);
+	astl::Ref<SDescriptorSet> pSet = pStore->GetDescriptorSet(Hnd);
+	astl::Ref<SMemoryBuffer> pBuffer = pStore->GetBuffer(BufferHnd);
 
 	if (!pSet || !pBuffer) { return false; }
 
-	Ref<SDescriptorSetLayout::Binding> pBinding;
+	astl::Ref<SDescriptorSetLayout::Binding> pBinding;
 	for (SDescriptorSetLayout::Binding& b : pSet->pLayout->Bindings)
 	{
 		if (b.BindingSlot != BindingSlot) { continue; }
@@ -1125,10 +1118,10 @@ bool IRenderSystem::DescriptorSetMapToBuffer(Handle<SDescriptorSet> Hnd, uint32 
 bool IRenderSystem::DescriptorSetMapToImage(Handle<SDescriptorSet> Hnd, uint32 BindingSlot, Handle<SImage>* pImgHnd, uint32 NumImages, Handle<SImageSampler> ImgSamplerHnd, uint32 DstIndex)
 {
   if (!NumImages) { return false; }
-  Ref<SDescriptorSet> pSet = pStore->GetDescriptorSet(Hnd);
+  astl::Ref<SDescriptorSet> pSet = pStore->GetDescriptorSet(Hnd);
   if (!pSet) { return false; }
 
-  Ref<SDescriptorSetLayout::Binding> pBinding;
+  astl::Ref<SDescriptorSetLayout::Binding> pBinding;
   for (SDescriptorSetLayout::Binding& b : pSet->pLayout->Bindings)
   {
     if (b.BindingSlot != BindingSlot) { continue; }
@@ -1144,13 +1137,13 @@ bool IRenderSystem::DescriptorSetMapToImage(Handle<SDescriptorSet> Hnd, uint32 B
     return false;
   }
  
-  Ref<SImageSampler> pSampler = pStore->GetImageSampler(ImgSamplerHnd);
+  astl::Ref<SImageSampler> pSampler = pStore->GetImageSampler(ImgSamplerHnd);
   DescriptorUpdate::Key key(pSet, pBinding, DescriptorUpdate::CalculateKey(Hnd, BindingSlot));
   key._FirstImage = DstIndex;
 
   for (uint32 i = 0; i < NumImages; i++)
   {
-    Ref<SImage> pImg = pStore->GetImage(pImgHnd[i]);
+    astl::Ref<SImage> pImg = pStore->GetImage(pImgHnd[i]);
     VkDescriptorImageInfo imageInfo = {};
     imageInfo.sampler = pSampler->Hnd;
     imageInfo.imageView = pImg->ImgViewHnd;
@@ -1164,10 +1157,10 @@ bool IRenderSystem::DescriptorSetMapToImage(Handle<SDescriptorSet> Hnd, uint32 B
 
 bool IRenderSystem::DescriptorSetBindToGlobal(Handle<SDescriptorSet> Hnd)
 {
-	Ref<SDescriptorSet> pSet = pStore->GetDescriptorSet(Hnd);
+	astl::Ref<SDescriptorSet> pSet = pStore->GetDescriptorSet(Hnd);
 	if (!pSet) { return false; }
 
-	ForwardNode<SBindable>* bindableNode = IAllocator::New<ForwardNode<SBindable>>(BindableManager::_BindableAllocator);
+	astl::ForwardNode<SBindable>* bindableNode = astl::IAllocator::New<astl::ForwardNode<SBindable>>(BindableManager::_BindableAllocator);
 	BindableManager::BindableRange& range = BindableManager::_GlobalBindables;
 
 	bindableNode->Data.Type = EBindableType::Bindable_Type_Descriptor_Set;
@@ -1187,7 +1180,7 @@ bool IRenderSystem::DescriptorSetBindToGlobal(Handle<SDescriptorSet> Hnd)
 
 bool IRenderSystem::BuildDescriptorSet(Handle<SDescriptorSet> Hnd)
 {
-	Ref<SDescriptorSet> pSet = pStore->GetDescriptorSet(Hnd);
+	astl::Ref<SDescriptorSet> pSet = pStore->GetDescriptorSet(Hnd);
 	if (!pSet)
 	{
 		VKT_ASSERT(false && "Set with handle does not exist.");
@@ -1217,7 +1210,7 @@ bool IRenderSystem::BuildDescriptorSet(Handle<SDescriptorSet> Hnd)
 
 bool IRenderSystem::DescriptorSetFlushBindingOffset(Handle<SDescriptorSet> Hnd)
 {
-	Ref<SDescriptorSet> pSet = pStore->GetDescriptorSet(Hnd);
+	astl::Ref<SDescriptorSet> pSet = pStore->GetDescriptorSet(Hnd);
 	if (!pSet)
 	{
 		VKT_ASSERT(false && "Set with handle does not exist.");
@@ -1234,7 +1227,7 @@ bool IRenderSystem::DescriptorSetFlushBindingOffset(Handle<SDescriptorSet> Hnd)
 
 bool IRenderSystem::DestroyDescriptorSet(Handle<SDescriptorSet>& Hnd)
 {
-	Ref<SDescriptorSet> pSet = pStore->GetDescriptorSet(Hnd);
+	astl::Ref<SDescriptorSet> pSet = pStore->GetDescriptorSet(Hnd);
 	if (!pSet)
 	{
 		VKT_ASSERT(false && "Set with handle does not exist.");
@@ -1253,7 +1246,7 @@ bool IRenderSystem::DestroyDescriptorSet(Handle<SDescriptorSet>& Hnd)
 
 bool IRenderSystem::DescriptorSetUpdateDataAtBinding(Handle<SDescriptorSet> Hnd, uint32 BindingSlot, void* Data, size_t Size)
 {
-	Ref<SDescriptorSet> pSet = pStore->GetDescriptorSet(Hnd);
+	astl::Ref<SDescriptorSet> pSet = pStore->GetDescriptorSet(Hnd);
 	const uint32 index = pDevice->GetCurrentFrameIndex();
 	if (!pSet) { return false; }
 
@@ -1292,8 +1285,8 @@ void IRenderSystem::UpdateDescriptorSetInQueue()
 	// Update buffers ....
 	for (auto& [key, info] : g_DescriptorBufferInfos)
 	{
-		Ref<SDescriptorSet> pSet = key.pSet;
-		Ref<SDescriptorSetLayout::Binding> pBinding = key.pBinding;
+		astl::Ref<SDescriptorSet> pSet = key.pSet;
+		astl::Ref<SDescriptorSetLayout::Binding> pBinding = key.pBinding;
 
 		VkWriteDescriptorSet write = {};
 		write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -1312,8 +1305,8 @@ void IRenderSystem::UpdateDescriptorSetInQueue()
 	// Update images ....
 	for (auto& [key, container] : g_DescriptorImageInfos)
 	{
-		Ref<SDescriptorSet> pSet = key.pSet;
-		Ref<SDescriptorSetLayout::Binding> pBinding = key.pBinding;
+		astl::Ref<SDescriptorSet> pSet = key.pSet;
+		astl::Ref<SDescriptorSetLayout::Binding> pBinding = key.pBinding;
 
 		VkWriteDescriptorSet write = {};
 		write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -1336,7 +1329,7 @@ void IRenderSystem::UpdateDescriptorSetInQueue()
 Handle<SMemoryBuffer> IRenderSystem::AllocateNewBuffer(const BufferAllocateInfo& AllocInfo)
 {
 	size_t id = g_Uid();
-	Ref<SMemoryBuffer> pBuffer = pStore->NewBuffer(id);
+	astl::Ref<SMemoryBuffer> pBuffer = pStore->NewBuffer(id);
 	if (!pBuffer) { return INVALID_HANDLE; }
 
 	pBuffer->Locality = AllocInfo.Locality;
@@ -1347,9 +1340,15 @@ Handle<SMemoryBuffer> IRenderSystem::AllocateNewBuffer(const BufferAllocateInfo&
 	return id;
 }
 
+size_t IRenderSystem::GetBufferOffset(Handle<SMemoryBuffer> Hnd)
+{
+  astl::Ref<SMemoryBuffer> pBuffer = pStore->GetBuffer(Hnd);
+  return pBuffer->Offset;
+}
+
 bool IRenderSystem::CopyDataToBuffer(Handle<SMemoryBuffer> Hnd, void* Data, size_t Size, size_t Offset)
 {
-	Ref<SMemoryBuffer> pBuffer = pStore->GetBuffer(Hnd);
+	astl::Ref<SMemoryBuffer> pBuffer = pStore->GetBuffer(Hnd);
 	if (!pBuffer) { return false; }
 	if (pBuffer->Size < Offset) { return false; }
 	CopyToBuffer(pBuffer, Data, Size, Offset);
@@ -1358,7 +1357,7 @@ bool IRenderSystem::CopyDataToBuffer(Handle<SMemoryBuffer> Hnd, void* Data, size
 
 bool IRenderSystem::BuildBuffer(Handle<SMemoryBuffer> Hnd)
 {
-	Ref<SMemoryBuffer> pBuffer = pStore->GetBuffer(Hnd);
+	astl::Ref<SMemoryBuffer> pBuffer = pStore->GetBuffer(Hnd);
 	if (!pBuffer) { return false; }
 
 	VkBufferCreateInfo info = {};
@@ -1398,26 +1397,30 @@ bool IRenderSystem::BuildBuffer(Handle<SMemoryBuffer> Hnd)
 
 bool IRenderSystem::DestroyBuffer(Handle<SMemoryBuffer>& Hnd)
 {
-	Ref<SMemoryBuffer> pBuffer = pStore->GetBuffer(Hnd);
+	astl::Ref<SMemoryBuffer> pBuffer = pStore->GetBuffer(Hnd);
 	if (!pBuffer) { return false; }
 
 	pDevice->MoveToZombieList(pBuffer->Hnd, IRenderDevice::EHandleType::Handle_Type_Buffer, pBuffer->Allocation);
-	pStore->DeleteBuffer(Hnd);
+  if (!pStore->DeleteBuffer(Hnd))
+  {
+    return false;
+  }
 	Hnd = INVALID_HANDLE;
 
 	return true;
 }
 
-Handle<SImage> IRenderSystem::CreateImage(uint32 Width, uint32 Height, uint32 Channels, ETextureType Type, bool GenMips)
+Handle<SImage> IRenderSystem::CreateImage(uint32 Width, uint32 Height, uint32 Channels, ETextureType Type, ETextureFormat Format, bool GenMips)
 {
 	size_t id = g_Uid();
-	Ref<SImage> pImg = pStore->NewImage(id);
+	astl::Ref<SImage> pImg = pStore->NewImage(id);
 	if (!pImg) { return INVALID_HANDLE; }
 
 	pImg->Width = Width;
 	pImg->Height = Height;
 	pImg->Channels = Channels;
 	pImg->Type = Type;
+  pImg->Format = Format;
   pImg->Size = (size_t)Width * (size_t)Height * (size_t)Channels;
 	pImg->MipMaps = GenMips;
   pImg->Usage.Set(Image_Usage_Transfer_Dst);
@@ -1428,17 +1431,22 @@ Handle<SImage> IRenderSystem::CreateImage(uint32 Width, uint32 Height, uint32 Ch
 
 bool IRenderSystem::BuildImage(Handle<SImage> Hnd)
 {
-	Ref<SImage> pImg = pStore->GetImage(Hnd);
+	astl::Ref<SImage> pImg = pStore->GetImage(Hnd);
 	if (!pImg) { return false; }
 
-	VkFormat format = static_cast<VkFormat>(GetImageFormat(pImg));
+	VkFormat format = pDevice->GetImageFormat(pImg->Format, pImg->Channels);
 	VkImageUsageFlags usage = GetImageUsageFlags(pImg);
+
+  if (pImg->Usage.Has(Image_Usage_Depth_Stencil_Attachment))
+  {
+    format = VK_FORMAT_D24_UNORM_S8_UINT;
+  }
 
 	if (pImg->MipMaps)
 	{
 		const float32 texWidth = static_cast<float32>(pImg->Width);
 		const float32 texHeight = static_cast<float32>(pImg->Height);
-		pImg->MipLevels = static_cast<uint32>(math::FFloor(math::FLog2(Max<float32>(texWidth, texHeight)))) + 1;
+		pImg->MipLevels = static_cast<uint32>(math::FFloor(math::FLog2(astl::Max<float32>(texWidth, texHeight)))) + 1;
 
 		if (pImg->MipLevels > MAX_IMAGE_MIP_MAP_LEVEL)
 		{
@@ -1490,12 +1498,15 @@ bool IRenderSystem::BuildImage(Handle<SImage> Hnd)
 
 bool IRenderSystem::DestroyImage(Handle<SImage>& Hnd)
 {
-	Ref<SImage> pImg = pStore->GetImage(Hnd);
+	astl::Ref<SImage> pImg = pStore->GetImage(Hnd);
 	if (!pImg) { return false; }
 
 	pDevice->MoveToZombieList(pImg->ImgHnd, IRenderDevice::EHandleType::Handle_Type_Image, pImg->Allocation);
 	pDevice->MoveToZombieList(pImg->ImgViewHnd, IRenderDevice::EHandleType::Handle_Type_Image_View);
-	pStore->DeleteImage(Hnd);
+  if (!pStore->DeleteImage(Hnd))
+  {
+    return false;
+  }
 	Hnd = INVALID_HANDLE;
 
 	return true;
@@ -1505,7 +1516,7 @@ Handle<SImageSampler> IRenderSystem::CreateImageSampler(const ImageSamplerCreate
 {
 	size_t id = g_Uid();
 	uint64 samplerHash = GenHashForImageSampler(CreateInfo);
-	Ref<SImageSampler> pImgSampler = pStore->GetImageSamplerWithHash(samplerHash);
+	astl::Ref<SImageSampler> pImgSampler = pStore->GetImageSamplerWithHash(samplerHash);
 	if (pImgSampler) { return INVALID_HANDLE; }
 
 	pImgSampler = pStore->NewImageSampler(id);
@@ -1525,7 +1536,7 @@ Handle<SImageSampler> IRenderSystem::CreateImageSampler(const ImageSamplerCreate
 
 bool IRenderSystem::BuildImageSampler(Handle<SImageSampler> Hnd)
 {
-	Ref<SImageSampler> pImgSampler = pStore->GetImageSampler(Hnd);
+	astl::Ref<SImageSampler> pImgSampler = pStore->GetImageSampler(Hnd);
 	if (!pImgSampler) { return false; }
 
 	VkSamplerCreateInfo createInfo = {};
@@ -1561,7 +1572,7 @@ bool IRenderSystem::BuildImageSampler(Handle<SImageSampler> Hnd)
 
 bool IRenderSystem::DestroyImageSampler(Handle<SImageSampler>& Hnd)
 {
-	Ref<SImageSampler> pImgSampler = pStore->GetImageSampler(Hnd);
+	astl::Ref<SImageSampler> pImgSampler = pStore->GetImageSampler(Hnd);
 	if (!pImgSampler) { return false; }
 
 	pDevice->MoveToZombieList(pImgSampler->Hnd, IRenderDevice::EHandleType::Handle_Type_Image_Sampler);
@@ -1581,10 +1592,10 @@ IFrameGraph& IRenderSystem::GetFrameGraph()
 	return *pFrameGraph;
 }
 
-Handle<SShader> IRenderSystem::CreateShader(const String& Code, EShaderType Type)
+Handle<SShader> IRenderSystem::CreateShader(const astl::String& Code, EShaderType Type)
 {
 	size_t id = g_Uid();
-	Ref<SShader> pShader = pStore->NewShader(id);
+	astl::Ref<SShader> pShader = pStore->NewShader(id);
 
 	if (!pShader) { return INVALID_HANDLE; }
 	pShader->Type = Type;
@@ -1601,7 +1612,7 @@ Handle<SShader> IRenderSystem::CreateShader(const String& Code, EShaderType Type
 
 bool IRenderSystem::BuildShader(Handle<SShader> Hnd)
 {
-	Ref<SShader> pShader = pStore->GetShader(Hnd);
+	astl::Ref<SShader> pShader = pStore->GetShader(Hnd);
 	if (!pShader) { return false; }
 	if (!pShader->SpirV.Length()) { return false; } // Impossible but just to be safe.
 
@@ -1624,7 +1635,7 @@ bool IRenderSystem::BuildShader(Handle<SShader> Hnd)
 
 bool IRenderSystem::DestroyShader(Handle<SShader>& Hnd)
 {
-	Ref<SShader> pShader = pStore->GetShader(Hnd);
+	astl::Ref<SShader> pShader = pStore->GetShader(Hnd);
 	if (!pShader) { return false; }
 
 	pDevice->MoveToZombieList(pShader->Hnd, IRenderDevice::EHandleType::Handle_Type_Shader);
@@ -1638,13 +1649,13 @@ bool IRenderSystem::DestroyShader(Handle<SShader>& Hnd)
 Handle<SPipeline> IRenderSystem::CreatePipeline(const PipelineCreateInfo& CreateInfo)
 {
 	size_t id = g_Uid();
-	Ref<SPipeline> pPipeline = pStore->NewPipeline(id);
+	astl::Ref<SPipeline> pPipeline = pStore->NewPipeline(id);
 	if (!pPipeline) { return INVALID_HANDLE; }
 
-	Ref<SShader> pVertexShader = pStore->GetShader(CreateInfo.VertexShaderHnd);
-	Ref<SShader> pFragmentShader = pStore->GetShader(CreateInfo.FragmentShaderHnd);
-	Ref<SShader> pGeometryShader = pStore->GetShader(CreateInfo.GeometryShaderHnd);
-	Ref<SShader> pComputeShader = pStore->GetShader(CreateInfo.ComputeShaderHnd);
+	astl::Ref<SShader> pVertexShader = pStore->GetShader(CreateInfo.VertexShaderHnd);
+	astl::Ref<SShader> pFragmentShader = pStore->GetShader(CreateInfo.FragmentShaderHnd);
+	astl::Ref<SShader> pGeometryShader = pStore->GetShader(CreateInfo.GeometryShaderHnd);
+	astl::Ref<SShader> pComputeShader = pStore->GetShader(CreateInfo.ComputeShaderHnd);
 
 	// NOTE(Ygsm):
 	// Need to include valid pipeline check i.e if shaders supplied are enough.
@@ -1670,7 +1681,7 @@ Handle<SPipeline> IRenderSystem::CreatePipeline(const PipelineCreateInfo& Create
 
 bool IRenderSystem::PipelineAddVertexInputBinding(Handle<SPipeline> Hnd, SPipeline::VertexInputBinding Input)
 {
-	Ref<SPipeline> pPipeline = pStore->GetPipeline(Hnd);
+	astl::Ref<SPipeline> pPipeline = pStore->GetPipeline(Hnd);
 	if (!pPipeline) { return false; }
 
 	pPipeline->VertexBindings.Push(Input);
@@ -1680,8 +1691,8 @@ bool IRenderSystem::PipelineAddVertexInputBinding(Handle<SPipeline> Hnd, SPipeli
 
 bool IRenderSystem::PipelineAddRenderPass(Handle<SPipeline> Hnd, Handle<SRenderPass> RenderPass)
 {
-	Ref<SPipeline> pPipeline = pStore->GetPipeline(Hnd);
-	Ref<SRenderPass> pRenderPass = pStore->GetRenderPass(RenderPass);
+	astl::Ref<SPipeline> pPipeline = pStore->GetPipeline(Hnd);
+	astl::Ref<SRenderPass> pRenderPass = pStore->GetRenderPass(RenderPass);
 
 	if (!pPipeline || !pRenderPass) { return false; }
 
@@ -1704,8 +1715,8 @@ bool IRenderSystem::PipelineAddRenderPass(Handle<SPipeline> Hnd, Handle<SRenderP
 
 bool IRenderSystem::PipelineAddDescriptorSetLayout(Handle<SPipeline> Hnd, Handle<SDescriptorSetLayout> Layout)
 {
-	Ref<SPipeline> pPipeline = pStore->GetPipeline(Hnd);
-	Ref<SDescriptorSetLayout> pLayout = pStore->GetDescriptorSetLayout(Layout);
+	astl::Ref<SPipeline> pPipeline = pStore->GetPipeline(Hnd);
+	astl::Ref<SDescriptorSetLayout> pLayout = pStore->GetDescriptorSetLayout(Layout);
 
 	if (!pPipeline || !pLayout)
 	{
@@ -1725,15 +1736,15 @@ bool IRenderSystem::PipelineAddDescriptorSetLayout(Handle<SPipeline> Hnd, Handle
 
 bool IRenderSystem::BuildGraphicsPipeline(Handle<SPipeline> Hnd)
 {
-	Ref<SPipeline> pPipeline = pStore->GetPipeline(Hnd);
+	astl::Ref<SPipeline> pPipeline = pStore->GetPipeline(Hnd);
 	if (!pPipeline) { return false; }
 	if (!pPipeline->pVertexShader && !pPipeline->pFragmentShader) { return false; }
 
 	VkGraphicsPipelineCreateInfo pipelineCreateInfo = {};
 
-	Array<VkPipelineShaderStageCreateInfo> stages;
-	Array<VkVertexInputBindingDescription> bindingDescriptions;
-	Array<VkVertexInputAttributeDescription> attributeDescriptions;
+	astl::Array<VkPipelineShaderStageCreateInfo> stages;
+	astl::Array<VkVertexInputBindingDescription> bindingDescriptions;
+	astl::Array<VkVertexInputAttributeDescription> attributeDescriptions;
 
 	VkPipelineShaderStageCreateInfo shaderStage = {};
 	shaderStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -1760,7 +1771,7 @@ bool IRenderSystem::BuildGraphicsPipeline(Handle<SPipeline> Hnd)
 		description.binding = bind.Binding;
 		description.stride = bind.Stride;
 		description.inputRate = pDevice->GetVertexInputRate(bind.Type);
-		bindingDescriptions.Push(Move(description));
+		bindingDescriptions.Push(astl::Move(description));
 
 		if (!pPipeline->pVertexShader) { continue; }
 
@@ -1793,7 +1804,7 @@ bool IRenderSystem::BuildGraphicsPipeline(Handle<SPipeline> Hnd)
 			attribDescription.binding = binding;
 			attribDescription.format = format;
 			attribDescription.offset = attrib.Offset;
-			attributeDescriptions.Push(Move(attribDescription));
+			attributeDescriptions.Push(astl::Move(attribDescription));
 		}
 	}
 
@@ -1850,7 +1861,7 @@ bool IRenderSystem::BuildGraphicsPipeline(Handle<SPipeline> Hnd)
 	multisampleCreate.alphaToCoverageEnable = VK_FALSE;
 	multisampleCreate.alphaToOneEnable = VK_FALSE;
 
-	Array<VkPipelineColorBlendAttachmentState> colorBlendStates;
+	astl::Array<VkPipelineColorBlendAttachmentState> colorBlendStates;
 	VkPipelineColorBlendAttachmentState blendState = {};
 	blendState.blendEnable = VK_TRUE;
 	blendState.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
@@ -1873,8 +1884,8 @@ bool IRenderSystem::BuildGraphicsPipeline(Handle<SPipeline> Hnd)
 	colorBlendInfo.logicOpEnable = VK_FALSE;
 	colorBlendInfo.logicOp = VK_LOGIC_OP_COPY;
 
-	StaticArray<VkDescriptorSetLayout, MAX_PIPELINE_DESCRIPTOR_LAYOUT> descriptorLayouts;
-	for (Ref<SDescriptorSetLayout> pSetLayout : pPipeline->Layouts)
+	astl::StaticArray<VkDescriptorSetLayout, MAX_PIPELINE_DESCRIPTOR_LAYOUT> descriptorLayouts;
+	for (astl::Ref<SDescriptorSetLayout> pSetLayout : pPipeline->Layouts)
 	{
 		descriptorLayouts.Push(pSetLayout->Hnd);
 	}
@@ -1970,7 +1981,7 @@ bool IRenderSystem::BuildGraphicsPipeline(Handle<SPipeline> Hnd)
 
 bool IRenderSystem::DestroyPipeline(Handle<SPipeline>& Hnd)
 {
-	Ref<SPipeline> pPipeline = pStore->GetPipeline(Hnd);
+	astl::Ref<SPipeline> pPipeline = pStore->GetPipeline(Hnd);
 	if (!pPipeline) { return false; }
 
 	if (pPipeline->Hnd == VK_NULL_HANDLE) { return false; }
@@ -1984,8 +1995,8 @@ bool IRenderSystem::DestroyPipeline(Handle<SPipeline>& Hnd)
 
 bool IRenderSystem::BindDescriptorSet(Handle<SDescriptorSet> Hnd, Handle<SRenderPass> RenderpassHnd)
 {
-	Ref<SDescriptorSet> pSet = pStore->GetDescriptorSet(Hnd);
-	Ref<SRenderPass> pRenderpass = pStore->GetRenderPass(RenderpassHnd);
+	astl::Ref<SDescriptorSet> pSet = pStore->GetDescriptorSet(Hnd);
+	astl::Ref<SRenderPass> pRenderpass = pStore->GetRenderPass(RenderpassHnd);
 	VKT_ASSERT(pSet && pRenderpass && "Invalid handle(s) supplied");
 
 	if (!pSet || !pRenderpass) 
@@ -1993,7 +2004,7 @@ bool IRenderSystem::BindDescriptorSet(Handle<SDescriptorSet> Hnd, Handle<SRender
 		return false; 
 	}
 
-	ForwardNode<SBindable>* bindableNode = IAllocator::New<ForwardNode<SBindable>>(BindableManager::_BindableAllocator);
+	astl::ForwardNode<SBindable>* bindableNode = astl::IAllocator::New<astl::ForwardNode<SBindable>>(BindableManager::_BindableAllocator);
 	BindableManager::BindableRange& range = BindableManager::_Bindables[RenderpassHnd];
 
 	bindableNode->Data.Type = EBindableType::Bindable_Type_Descriptor_Set;
@@ -2013,8 +2024,8 @@ bool IRenderSystem::BindDescriptorSet(Handle<SDescriptorSet> Hnd, Handle<SRender
 
 bool IRenderSystem::BindPipeline(Handle<SPipeline> Hnd, Handle<SRenderPass> RenderpassHnd)
 {
-	Ref<SPipeline> pPipeline = pStore->GetPipeline(Hnd);
-	Ref<SRenderPass> pRenderpass = pStore->GetRenderPass(RenderpassHnd);
+	astl::Ref<SPipeline> pPipeline = pStore->GetPipeline(Hnd);
+	astl::Ref<SRenderPass> pRenderpass = pStore->GetRenderPass(RenderpassHnd);
 	VKT_ASSERT(pPipeline && pRenderpass && "Invalid handle(s) supplied");
 
 	if (!pPipeline || !pRenderpass)
@@ -2022,7 +2033,7 @@ bool IRenderSystem::BindPipeline(Handle<SPipeline> Hnd, Handle<SRenderPass> Rend
 		return false;
 	}
 
-	ForwardNode<SBindable>* bindableNode = IAllocator::New<ForwardNode<SBindable>>(BindableManager::_BindableAllocator);
+	astl::ForwardNode<SBindable>* bindableNode = astl::IAllocator::New<astl::ForwardNode<SBindable>>(BindableManager::_BindableAllocator);
 	BindableManager::BindableRange& range = BindableManager::_Bindables[RenderpassHnd];
 
 	bindableNode->Data.Type = EBindableType::Bindable_Type_Pipeline;
@@ -2042,14 +2053,14 @@ bool IRenderSystem::BindPipeline(Handle<SPipeline> Hnd, Handle<SRenderPass> Rend
 
 void IRenderSystem::Draw(const DrawSubmissionInfo& Info)
 {
-	Ref<SRenderPass> pRenderPass = pStore->GetRenderPass(Info.RenderPassHnd);
-  Ref<SPipeline> pPipeline = pStore->GetPipeline(Info.PipelineHnd);
+	astl::Ref<SRenderPass> pRenderPass = pStore->GetRenderPass(Info.RenderPassHnd);
+  astl::Ref<SPipeline> pPipeline = pStore->GetPipeline(Info.PipelineHnd);
 
 	VKT_ASSERT(pRenderPass && "RenderPass Handle is invalid!");
 	VKT_ASSERT(pPipeline && "Pipeline Handle is invalid!");
 	VKT_ASSERT(Info.DrawCount && "Drawable count can not be zero!");
 
-  Array<DrawCommand>& drawCommandsAtPass = Drawables[pRenderPass->IndexForDraw];
+  astl::Array<DrawCommand>& drawCommandsAtPass = Drawables[pRenderPass->IndexForDraw];
   uint32 instanceOffset = static_cast<uint32>(InstanceBuffer->Offset) / static_cast<uint32>(sizeof(math::mat4));
   CopyToBuffer(InstanceBuffer, Info.pTransforms, sizeof(math::mat4) * Info.TransformCount, InstanceBuffer->Offset, true);
 
@@ -2070,11 +2081,11 @@ void IRenderSystem::Draw(const DrawSubmissionInfo& Info)
     if (Info.ConstantsCount)
     {
       uint8* pSrc = reinterpret_cast<uint8*>(Info.pConstants) + (Info.ConstantTypeSize * i);
-      IMemory::Memcpy(drawCmd.Constants, pSrc, Info.ConstantTypeSize);
+      astl::IMemory::Memcpy(drawCmd.Constants, pSrc, Info.ConstantTypeSize);
       drawCmd.HasPushConstants = true;
     }
 
-    drawCommandsAtPass.Push(Move(drawCmd));
+    drawCommandsAtPass.Push(astl::Move(drawCmd));
   }
 }
 
@@ -2096,19 +2107,19 @@ const uint32 IRenderSystem::GetCurrentFrameIndex() const
 void IRenderSystem::FlushVertexBuffer()
 {
 	VertexBuffer->Offset = 0;
-	//IMemory::Memzero(VertexBuffer->pData, VertexBuffer->Size);
+	//astl::IMemory::Memzero(VertexBuffer->pData, VertexBuffer->Size);
 }
 
 void IRenderSystem::FlushIndexBuffer()
 {
   IndexBuffer->Offset = 0;
-	//IMemory::Memzero(IndexBuffer->pData, IndexBuffer->Size);
+	//astl::IMemory::Memzero(IndexBuffer->pData, IndexBuffer->Size);
 }
 
 void IRenderSystem::FlushInstanceBuffer()
 {
 	InstanceBuffer->Offset = 0;
-	//IMemory::Memzero(InstanceBuffer->pData, InstanceBuffer->Size);
+	//astl::IMemory::Memzero(InstanceBuffer->pData, InstanceBuffer->Size);
 }
 
 Handle<ISystem> IRenderSystem::GetSystemHandle()

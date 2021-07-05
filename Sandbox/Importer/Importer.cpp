@@ -19,7 +19,7 @@ namespace sandbox
 		TexCoordsCount = 0;
 	}
 
-	void ModelImporter::LoadBufferData(cgltf_attribute* Attribute, size_t& Count, Buffer<float32>& Buffer)
+	void ModelImporter::LoadBufferData(cgltf_attribute* Attribute, size_t& Count, astl::Buffer<float32>& Buffer)
 	{
 		size_t dataCount = cgltf_accessor_unpack_floats(Attribute->data, nullptr, 0);
 		Count = dataCount;
@@ -30,7 +30,7 @@ namespace sandbox
 		cgltf_accessor_unpack_floats(Attribute->data, Buffer, dataCount);
 	}
 
-	void ModelImporter::LoadGLTFNodeMeshData(cgltf_mesh* InMesh, Ref<Model> pModel, Ref<IAssetManager> pAssetManager)
+	void ModelImporter::LoadGLTFNodeMeshData(cgltf_mesh* InMesh, astl::Ref<Model> pModel, astl::Ref<IAssetManager> pAssetManager)
 	{
 		cgltf_mesh* mesh = InMesh;
 		cgltf_primitive* primitive = nullptr;
@@ -108,7 +108,7 @@ namespace sandbox
 					vertex.TexCoord.y = TexCoords[j * 2 + 1];
 				}
 
-				temp.Vertices.Push(Move(vertex));
+				temp.Vertices.Push(astl::Move(vertex));
 			}
 
 			if (indices)
@@ -126,13 +126,13 @@ namespace sandbox
 				}
 			}
 
-			pModel->Meshes.Push(Move(temp));
+			pModel->Meshes.Push(astl::Move(temp));
 
 			FlushBuffers();
 		}
 	}
 
-	void ModelImporter::LoadGLTFNode(cgltf_node* Node, Ref<Model> pModel, Ref<IAssetManager> pAssetManager)
+	void ModelImporter::LoadGLTFNode(cgltf_node* Node, astl::Ref<Model> pModel, astl::Ref<IAssetManager> pAssetManager)
 	{
 		if (Node->mesh)
 		{
@@ -188,7 +188,7 @@ namespace sandbox
 		TexCoordsCount(0)
 	{}
 
-	ModelImporter::ModelImporter(const FilePath& Path, Ref<IAssetManager> pAssetManager) :
+	ModelImporter::ModelImporter(const astl::FilePath& Path, astl::Ref<IAssetManager> pAssetManager) :
 		ModelImporter()
 	{
 		ImportModelFromPath(Path, pAssetManager);
@@ -206,10 +206,10 @@ namespace sandbox
 		TexCoords.Release();
 	}
 
-	RefHnd<Model> ModelImporter::ImportModelFromPath(const FilePath& Path, Ref<IAssetManager> pAssetManager)
+	RefHnd<Model> ModelImporter::ImportModelFromPath(const astl::FilePath& Path, astl::Ref<IAssetManager> pAssetManager)
 	{
-		Ifstream ifstream;
-		String buf;
+		astl::Ifstream ifstream;
+		astl::String buf;
 
 		if (!pAssetManager || !Path.Length())
 		{
@@ -247,7 +247,7 @@ namespace sandbox
 		LoadTexturePathsFromGLTF();
 
 		Handle<Model> hnd = pAssetManager->CreateModel(Model());
-		Ref<Model> pModel = pAssetManager->GetModelWithHandle(hnd);
+		astl::Ref<Model> pModel = pAssetManager->GetModelWithHandle(hnd);
 
 		cgltf_node* node = nullptr;
 		cgltf_scene* scene = nullptr;
@@ -265,9 +265,9 @@ namespace sandbox
 		return RefHnd<Model>(hnd, pModel);
 	}
 
-	size_t ModelImporter::PathsToTextures(Array<FilePath>* Out)
+	size_t ModelImporter::PathsToTextures(astl::Array<astl::FilePath>* Out)
 	{
-    String256 texturePath;
+    astl::String256 texturePath;
 		if (!Out) { return TextureFiles.Length(); }
 		for (auto& [i, path] : TextureFiles)
 		{
@@ -277,13 +277,13 @@ namespace sandbox
 		return 1;
 	}
 
-	//bool ModelImporter::TexturesReferencedByMesh(Handle<Mesh> MeshHandle, Array<FilePath>& Out)
+	//bool ModelImporter::TexturesReferencedByMesh(Handle<Mesh> MeshHandle, Array<astl::FilePath>& Out)
 	//{
 	//	String texturePath;
 	//	size_t mapIndex = FindMeshTextureMapIndex(MeshHandle);
 	//	if (mapIndex == -1) { return false; }
 	//	auto& mapPair = MeshTextureMap[mapIndex];
-	//	for (const FilePath* path : mapPair.Value)
+	//	for (const astl::FilePath* path : mapPair.Value)
 	//	{
 	//		texturePath.Format("%s%s", Directory.C_Str(), path->C_Str());
 	//		Out.Push(texturePath.C_Str());
@@ -293,7 +293,7 @@ namespace sandbox
 
 	TextureImporter::TextureImporter() {}
 
-	TextureImporter::TextureImporter(const FilePath& Path, Ref<IAssetManager> pAssetManager) :
+	TextureImporter::TextureImporter(const astl::FilePath& Path, astl::Ref<IAssetManager> pAssetManager) :
 		TextureImporter()
 	{
 		ImportTextureFromPath(Path, pAssetManager);
@@ -301,20 +301,20 @@ namespace sandbox
 
 	TextureImporter::~TextureImporter() {}
 
-	RefHnd<Texture> TextureImporter::ImportTextureFromPath(const FilePath& Path, Ref<IAssetManager> pAssetManager)
+	RefHnd<Texture> TextureImporter::ImportTextureFromPath(const astl::FilePath& Path, astl::Ref<IAssetManager> pAssetManager)
 	{
 		if (!pAssetManager || !Path.Length())
 		{
 			return NULLPTR;
 		}
 
-		Ifstream ifstream;
+		astl::Ifstream ifstream;
 
 		if (!ifstream.Open(Path.C_Str())) { return NULLPTR; }
 
 		const size_t fileSize = ifstream.Size();
 
-		Buffer<uint8> temp(ifstream.Size());
+		astl::Buffer<uint8> temp(ifstream.Size());
 
 		ifstream.Read(temp, fileSize);
 		ifstream.Close();
@@ -328,7 +328,7 @@ namespace sandbox
 		if (!data) { return NULLPTR; }
 
 		Handle<Texture> hnd = pAssetManager->CreateTexture(Texture());
-		Ref<Texture> pTexture = pAssetManager->GetTextureWithHandle(hnd);
+		astl::Ref<Texture> pTexture = pAssetManager->GetTextureWithHandle(hnd);
 
 		pTexture->Width = width;
 		pTexture->Height = height;
@@ -343,9 +343,9 @@ namespace sandbox
 
     // TODO(Ygsm):
     // Fix broken buffer class.
-    new (&pTexture->Data) BinaryBuffer();
+    new (&pTexture->Data) astl::BinaryBuffer();
     pTexture->Data.Alloc(pTexture->Size);
-		IMemory::Memcpy(pTexture->Data.Data(), data, pTexture->Size);
+		astl::IMemory::Memcpy(pTexture->Data.Data(), data, pTexture->Size);
 
 		stbi_image_free(data);
 
@@ -354,26 +354,26 @@ namespace sandbox
 
 	ShaderImporter::ShaderImporter() {}
 
-	ShaderImporter::ShaderImporter(const FilePath& Path, EShaderType Type, Ref<IAssetManager> pAssetManager)
+	ShaderImporter::ShaderImporter(const astl::FilePath& Path, EShaderType Type, astl::Ref<IAssetManager> pAssetManager)
 	{
 		ImportShaderFromPath(Path, Type, pAssetManager);
 	}
 
 	ShaderImporter::~ShaderImporter() {}
 
-	RefHnd<Shader> ShaderImporter::ImportShaderFromPath(const FilePath& Path, EShaderType Type, Ref<IAssetManager> pAssetManager)
+	RefHnd<Shader> ShaderImporter::ImportShaderFromPath(const astl::FilePath& Path, EShaderType Type, astl::Ref<IAssetManager> pAssetManager)
 	{
 		if (!pAssetManager || !Path.Length())
 		{
 			return NULLPTR;
 		}
 
-		Ifstream ifstream;
+		astl::Ifstream ifstream;
 		if (!ifstream.Open(Path.C_Str())) { return NULLPTR; }
 		
 		const size_t fileSize = ifstream.Size();
 		Handle<Shader> hnd = pAssetManager->CreateShader(Shader());
-		Ref<Shader> pShader = pAssetManager->GetShaderWithHandle(hnd);
+		astl::Ref<Shader> pShader = pAssetManager->GetShaderWithHandle(hnd);
 
 		pShader->Code.Reserve(fileSize + 1);
 

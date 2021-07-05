@@ -4,79 +4,84 @@
 
 #include "Library/Templates/Templates.h"
 
-template <typename ElementType>
-struct ForwardNode
+namespace astl
 {
-	using Type = ElementType;
-	using ConstType = const Type;
-	using NodeType = ForwardNode;
-	using ConstNodeType = const NodeType;
 
-	ElementType Data;
-	ForwardNode* Next;
+  template <typename ElementType>
+  struct ForwardNode
+  {
+    using Type = ElementType;
+    using ConstType = const Type;
+    using NodeType = ForwardNode;
+    using ConstNodeType = const NodeType;
 
-	ForwardNode() :
-		Data(), Next(nullptr)
-	{}
+    ElementType Data;
+    ForwardNode* Next;
 
-	~ForwardNode() {}
+    ForwardNode() :
+      Data(), Next(nullptr)
+    {}
 
-	ForwardNode(const ForwardNode& Rhs) { *this = Rhs; }
-	ForwardNode(ForwardNode&& Rhs) { *this = Rhs; }
+    ~ForwardNode() {}
 
-	ForwardNode& operator=(const ForwardNode& Rhs)
-	{
-		Data = Rhs.Data;
-		Next = Rhs.Next;
-		return *this;
-	}
+    ForwardNode(const ForwardNode& Rhs) { *this = Rhs; }
+    ForwardNode(ForwardNode&& Rhs) { *this = Rhs; }
 
-	ForwardNode& operator=(ForwardNode&& Rhs)
-	{
-		Data = Move(Rhs.Data);
-		Next = Rhs.Next;
-		new (&Rhs) ForwardNode();
-		return *this;
-	}
-};
+    ForwardNode& operator=(const ForwardNode& Rhs)
+    {
+      Data = Rhs.Data;
+      Next = Rhs.Next;
+      return *this;
+    }
 
-template <typename ElementType>
-struct Node
-{
-	using Type = ElementType;
-	using ConstType = const Type;
-	using NodeType = Node;
-	using ConstNodeType = const NodeType;
+    ForwardNode& operator=(ForwardNode&& Rhs)
+    {
+      Data = Move(Rhs.Data);
+      Next = Rhs.Next;
+      new (&Rhs) ForwardNode();
+      return *this;
+    }
+  };
 
-	ElementType Data;
-	Node* Previous;
-	Node* Next;
+  template <typename ElementType>
+  struct Node
+  {
+    using Type = ElementType;
+    using ConstType = const Type;
+    using NodeType = Node;
+    using ConstNodeType = const NodeType;
 
-	Node() :
-		Data(), Previous(nullptr), Next(nullptr)
-	{}
+    Type Data;
+    Node* Previous;
+    Node* Next;
 
-	~Node() {}
+    Node() :
+      Data(), Previous(nullptr), Next(nullptr)
+    {}
 
-	Node(const Node& Rhs) { *this = Rhs; }
-	Node(Node&& Rhs) { *this = Rhs; }
+    ~Node() {}
 
-	Node& operator=(const Node& Rhs)
-	{
-		Data = Rhs.Data;
-		Previous = Rhs.Previous;
-		Next = Rhs.Next;
-		return *this;
-	}
+    Node(const Node& Rhs) { *this = Rhs; }
+    Node(Node&& Rhs) { *this = Rhs; }
 
-	Node& operator=(Node&& Rhs)
-	{
-		Data = Move(Rhs.Data);
-		Previous = Rhs.Previous;
-		Next = Rhs.Next;
-		new (&Rhs) Node();
-		return *this;
-	}
-};
+    Node& operator=(const Node& Rhs)
+    {
+      Data = Rhs.Data;
+      Previous = Rhs.Previous;
+      Next = Rhs.Next;
+      return *this;
+    }
+
+    Node& operator=(Node&& Rhs)
+    {
+      Data = Move(Rhs.Data);
+      Previous = Rhs.Previous;
+      Next = Rhs.Next;
+      new (&Rhs) Node();
+      return *this;
+    }
+  };
+
+}
 
 #endif // !LEARNVK_NODE

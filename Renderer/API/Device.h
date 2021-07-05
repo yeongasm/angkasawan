@@ -74,8 +74,8 @@ public:
 	{
 		VkSwapchainKHR Hnd;
 		VkSurfaceFormatKHR Format;
-		Array<VkImage> Images;
-		Array<VkImageView> ImageViews;
+		astl::Array<VkImage> Images;
+		astl::Array<VkImageView> ImageViews;
 		uint32 NumOfImages;
 		VkExtent2D Extent;
 	};
@@ -113,7 +113,7 @@ public:
 	template <typename... Types>
 	void MoveToZombieList(Types&&... Args)
 	{
-		ZombieList.Push(ZombieObject(Forward<Types>(Args)...));
+		ZombieList.Push(ZombieObject(astl::Forward<Types>(Args)...));
 	}
 
 	void ClearZombieList();
@@ -140,7 +140,7 @@ public:
 	void BeginCommandBuffer(VkCommandBuffer Hnd, VkCommandBufferUsageFlags Flag);
 	void EndCommandBuffer(VkCommandBuffer Hnd);
 
-	bool ToSpirV(const String& Code, Array<uint32>& SpirV, uint32 ShaderType);
+	bool ToSpirV(const astl::String& Code, astl::Array<uint32>& SpirV, uint32 ShaderType);
 
 	/**
 	* Returns the current frame's command buffer.
@@ -171,6 +171,7 @@ public:
 	VkSamplerAddressMode GetSamplerAddressMode(uint32 Index) const;
 	VkFilter GetFilter(uint32 Index) const;
 	VkCompareOp GetCompareOp(uint32 Index) const;
+  VkFormat GetImageFormat(uint32 Format, uint32 Channels) const;
 
 	const VkPhysicalDeviceProperties& GetPhysicalDeviceProperties() const;
 
@@ -188,7 +189,7 @@ private:
 	//~IRenderDevice() = delete;
 	DELETE_COPY_AND_MOVE(IRenderDevice)
 
-	Array<ZombieObject> ZombieList;
+	astl::Array<ZombieObject> ZombieList;
 	EngineImpl* Engine;
 	OS::DllHandle Dll;
 	VkInstance Instance;
@@ -250,15 +251,15 @@ struct SImageSampler;
 struct IDeviceStore
 {
 	//IAllocator& Allocator;
-	Map<size_t, UniquePtr<SMemoryBuffer>> Buffers;
-	Map<size_t, UniquePtr<SDescriptorSet>> DescriptorSets;
-	Map<size_t, UniquePtr<SDescriptorPool>> DescriptorPools;
-	Map<size_t, UniquePtr<SDescriptorSetLayout>> DescriptorSetLayouts;
-	Map<size_t, UniquePtr<SRenderPass>> RenderPasses;
-	Map<size_t, UniquePtr<SImageSampler>> ImageSamplers;
-	Map<size_t, UniquePtr<SPipeline>> Pipelines;
-	Map<size_t, UniquePtr<SShader>> Shaders;
-	Map<size_t, UniquePtr<SImage>> Images;
+	astl::Map<size_t, astl::UniquePtr<SMemoryBuffer>> Buffers;
+	astl::Map<size_t, astl::UniquePtr<SDescriptorSet>> DescriptorSets;
+	astl::Map<size_t, astl::UniquePtr<SDescriptorPool>> DescriptorPools;
+	astl::Map<size_t, astl::UniquePtr<SDescriptorSetLayout>> DescriptorSetLayouts;
+	astl::Map<size_t, astl::UniquePtr<SRenderPass>> RenderPasses;
+	astl::Map<size_t, astl::UniquePtr<SImageSampler>> ImageSamplers;
+	astl::Map<size_t, astl::UniquePtr<SPipeline>> Pipelines;
+	astl::Map<size_t, astl::UniquePtr<SShader>> Shaders;
+	astl::Map<size_t, astl::UniquePtr<SImage>> Images;
 	//Map<size_t, SPushConstant*> PushConstants;
 
 	IDeviceStore(/*IAllocator& InAllocator*/);
@@ -266,51 +267,51 @@ struct IDeviceStore
 
 	DELETE_COPY_AND_MOVE(IDeviceStore)
 
-	bool DoesBufferExist(size_t Id);
-	bool DoesDescriptorSetExist(size_t Id);
-	bool DoesDescriptorPoolExist(size_t Id);
-	bool DoesDescriptorSetLayoutExist(size_t Id);
-	bool DoesRenderPassExist(size_t Id);
-	bool DoesImageSamplerExist(size_t Id);
-	bool DoesPipelineExist(size_t Id);
-	bool DoesShaderExist(size_t Id);
-	bool DoesImageExist(size_t Id);
+	//bool DoesBufferExist(size_t Id);
+	//bool DoesDescriptorSetExist(size_t Id);
+	//bool DoesDescriptorPoolExist(size_t Id);
+	//bool DoesDescriptorSetLayoutExist(size_t Id);
+	//bool DoesRenderPassExist(size_t Id);
+	//bool DoesImageSamplerExist(size_t Id);
+	//bool DoesPipelineExist(size_t Id);
+	//bool DoesShaderExist(size_t Id);
+	//bool DoesImageExist(size_t Id);
 
-	Ref<SMemoryBuffer> NewBuffer(size_t Id);
-	Ref<SMemoryBuffer> GetBuffer(size_t Id);
+	astl::Ref<SMemoryBuffer> NewBuffer(size_t Id);
+	astl::Ref<SMemoryBuffer> GetBuffer(size_t Id);
 	bool DeleteBuffer(size_t Id);
 
-	Ref<SDescriptorSet> NewDescriptorSet(size_t Id);
-	Ref<SDescriptorSet> GetDescriptorSet(size_t Id);
+	astl::Ref<SDescriptorSet> NewDescriptorSet(size_t Id);
+	astl::Ref<SDescriptorSet> GetDescriptorSet(size_t Id);
 	bool DeleteDescriptorSet(size_t Id);
 
-	Ref<SDescriptorPool> NewDescriptorPool(size_t Id);
-	Ref<SDescriptorPool> GetDescriptorPool(size_t Id);
+	astl::Ref<SDescriptorPool> NewDescriptorPool(size_t Id);
+	astl::Ref<SDescriptorPool> GetDescriptorPool(size_t Id);
 	bool DeleteDescriptorPool(size_t Id);
 
-	Ref<SDescriptorSetLayout> NewDescriptorSetLayout(size_t Id);
-	Ref<SDescriptorSetLayout> GetDescriptorSetLayout(size_t Id);
+	astl::Ref<SDescriptorSetLayout> NewDescriptorSetLayout(size_t Id);
+	astl::Ref<SDescriptorSetLayout> GetDescriptorSetLayout(size_t Id);
 	bool DeleteDescriptorSetLayout(size_t Id);
 
-	Ref<SRenderPass> NewRenderPass(size_t Id);
-	Ref<SRenderPass> GetRenderPass(size_t Id);
+	astl::Ref<SRenderPass> NewRenderPass(size_t Id);
+	astl::Ref<SRenderPass> GetRenderPass(size_t Id);
 	bool DeleteRenderPass(size_t Id);
 
-	Ref<SImageSampler> NewImageSampler(size_t Id);
-	Ref<SImageSampler> GetImageSampler(size_t Id);
-	Ref<SImageSampler> GetImageSamplerWithHash(uint64 Hash);
+	astl::Ref<SImageSampler> NewImageSampler(size_t Id);
+	astl::Ref<SImageSampler> GetImageSampler(size_t Id);
+	astl::Ref<SImageSampler> GetImageSamplerWithHash(uint64 Hash);
 	bool DeleteImageSampler(size_t Id);
 
-	Ref<SPipeline> NewPipeline(size_t Id);
-	Ref<SPipeline> GetPipeline(size_t Id);
+	astl::Ref<SPipeline> NewPipeline(size_t Id);
+	astl::Ref<SPipeline> GetPipeline(size_t Id);
 	bool DeletePipeline(size_t Id);
 
-	Ref<SShader> NewShader(size_t Id);
-	Ref<SShader> GetShader(size_t Id);
+	astl::Ref<SShader> NewShader(size_t Id);
+	astl::Ref<SShader> GetShader(size_t Id);
 	bool DeleteShader(size_t Id);
 
-	Ref<SImage> NewImage(size_t Id);
-	Ref<SImage> GetImage(size_t Id);
+	astl::Ref<SImage> NewImage(size_t Id);
+	astl::Ref<SImage> GetImage(size_t Id);
 	bool DeleteImage(size_t Id);
 };
 

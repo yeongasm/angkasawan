@@ -5,26 +5,31 @@
 #include "Platform/Minimal.h"
 #include "Platform/EngineAPI.h"
 
-class ENGINE_API Ifstream
+namespace astl
 {
-public:
-	Ifstream();
-	~Ifstream();
 
-	Ifstream(const Ifstream& Rhs);
-	Ifstream(Ifstream&& Rhs);
+  class ENGINE_API Ifstream
+  {
+  public:
+    Ifstream();
+    ~Ifstream();
 
-	Ifstream& operator=(const Ifstream& Rhs);
-	Ifstream& operator=(Ifstream&& Rhs);
+    Ifstream(const Ifstream& Rhs);
+    Ifstream(Ifstream&& Rhs);
 
-	bool	Open	(const char* Path);
-	bool	Read	(void* Buf, size_t Size) const;
-	bool	Close	();
-	bool	IsValid	() const;
-	size_t	Size	() const;
-private:
-	FILE*	Stream;
-	size_t	Len;
-};
+    Ifstream& operator=(const Ifstream& Rhs);
+    Ifstream& operator=(Ifstream&& Rhs);
+
+    bool	Open(const char* Path);
+    bool	Read(void* Buf, size_t Size) const;
+    bool	Close();
+    bool	IsValid() const;
+    size_t	Size() const;
+  private:
+    FILE* Stream;
+    size_t	Len;
+  };
+
+}
 
 #endif // !LEARNVK_LIBRARY_STREAM_IFSTREAM

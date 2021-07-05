@@ -53,7 +53,7 @@ namespace sandbox
 		vec2 LastMousePos;
 		vec2 Offsets;
 		vec2 OriginPos;
-		BitSet<ECameraStatesFlagBits> State;
+		astl::BitSet<ECameraStatesFlagBits> State;
 		uint32 ProjType;
 		Handle<ISystem> Hnd;
 		math::vec2 CachedMouseDelta[8];

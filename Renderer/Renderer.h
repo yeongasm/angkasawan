@@ -29,41 +29,41 @@ private:
 	{
 		struct BindableRange
 		{
-			ForwardNode<SBindable>* pBegin;
-			ForwardNode<SBindable>* pEnd;
+			astl::ForwardNode<SBindable>* pBegin;
+			astl::ForwardNode<SBindable>* pEnd;
 		};
 		// NOTE(Ygsm): Might swap this out for a static array in the future but we'll go with this for now.
-		static LinearAllocator _BindableAllocator;
-		static Map<size_t, BindableRange> _Bindables;
+		static astl::LinearAllocator _BindableAllocator;
+		static astl::Map<size_t, BindableRange> _Bindables;
 		static BindableRange _GlobalBindables;
 	};
 
 	using DefaultBuffer = RefHnd<SMemoryBuffer>;
 
-  Array<Array<DrawCommand>> Drawables;
+  astl::Array<astl::Array<DrawCommand>> Drawables;
 	EngineImpl& Engine;
   DefaultBuffer VertexBuffer;
   DefaultBuffer IndexBuffer;
   DefaultBuffer InstanceBuffer;
-  UniquePtr<IRenderDevice> pDevice;
-  UniquePtr<IDeviceStore> pStore;
-  UniquePtr<IStagingManager> pStaging;
-  UniquePtr<IFrameGraph> pFrameGraph;
+  astl::UniquePtr<IRenderDevice> pDevice;
+  astl::UniquePtr<IDeviceStore> pStore;
+  astl::UniquePtr<IStagingManager> pStaging;
+  astl::UniquePtr<IFrameGraph> pFrameGraph;
 	Handle<ISystem>	Hnd;
 
 	uint32 CalcStrideForFormat(EShaderAttribFormat Format);
-	void PreprocessShader(Ref<SShader> pShader);
+	void PreprocessShader(astl::Ref<SShader> pShader);
 
 	void IterateBindableRange(BindableManager::BindableRange& Range);
 
 	void BindBindable(SBindable& Bindable);
 	void BindBindablesForRenderpass(Handle<SRenderPass> Hnd);
 
-	void DynamicStateSetup(Ref<SRenderPass> pRenderPass);
+	void DynamicStateSetup(astl::Ref<SRenderPass> pRenderPass);
 
 	void BindBuffers();
-	void BeginRenderPass(Ref<SRenderPass> pRenderPass);
-	void EndRenderPass(Ref<SRenderPass> pRenderPass);
+	void BeginRenderPass(astl::Ref<SRenderPass> pRenderPass);
+	void EndRenderPass(astl::Ref<SRenderPass> pRenderPass);
 
 	void RecordDrawCommand(const DrawCommand& Command);
   void BindPushConstant(const DrawCommand& Command);
@@ -74,10 +74,9 @@ private:
 
 	void BlitToDefault();
 
-	void CopyToBuffer(Ref<SMemoryBuffer> pBuffer, void* Data, size_t Size, size_t Offset, bool Update = false);
+	void CopyToBuffer(astl::Ref<SMemoryBuffer> pBuffer, void* Data, size_t Size, size_t Offset, bool Update = false);
 
-	uint32 GetImageUsageFlags(Ref<SImage> pImg);
-	uint32 GetImageFormat(Ref<SImage> pImg);
+	uint32 GetImageUsageFlags(astl::Ref<SImage> pImg);
 
 public:
 
@@ -114,11 +113,13 @@ public:
 	void UpdateDescriptorSetInQueue();
 
 	Handle<SMemoryBuffer> AllocateNewBuffer(const BufferAllocateInfo& AllocInfo);
+  size_t GetBufferOffset(Handle<SMemoryBuffer> Hnd);
+  // WARNING: Only use this for CPU side buffers. GPU side buffers require data to be staged with the staging manager.
 	bool CopyDataToBuffer(Handle<SMemoryBuffer> Hnd, void* Data, size_t Size, size_t Offset);
 	bool BuildBuffer(Handle<SMemoryBuffer> Hnd);
 	bool DestroyBuffer(Handle<SMemoryBuffer>& Hnd);
 	
-	Handle<SImage> CreateImage(uint32 Width, uint32 Height, uint32 Channels, ETextureType Type, bool GenMips = false);
+	Handle<SImage> CreateImage(uint32 Width, uint32 Height, uint32 Channels, ETextureType Type, ETextureFormat Format, bool GenMips = false);
 	bool BuildImage(Handle<SImage> Hnd);
 	bool DestroyImage(Handle<SImage>& Hnd);
 
@@ -129,7 +130,7 @@ public:
 	IStagingManager& GetStagingManager();
 	IFrameGraph& GetFrameGraph();
 
-	Handle<SShader> CreateShader(const String& Code, EShaderType Type);
+	Handle<SShader> CreateShader(const astl::String& Code, EShaderType Type);
 	bool BuildShader(Handle<SShader> Hnd);
 	bool DestroyShader(Handle<SShader>& Hnd);
 

@@ -76,7 +76,7 @@ bool IOSystem::IsMouseDragging(IOMouseButton Button)
 		return false;
 	}
 
-	return CompareFloat(dragDelta.x, 0.0f, FLOAT_EPSILON) && CompareFloat(dragDelta.y, 0.0f, FLOAT_EPSILON);
+	return astl::CompareFloat(dragDelta.x, 0.0f, FLOAT_EPSILON) && astl::CompareFloat(dragDelta.y, 0.0f, FLOAT_EPSILON);
 }
 
 bool IOSystem::Ctrl()

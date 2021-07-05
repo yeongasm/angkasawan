@@ -467,10 +467,10 @@ void EngineImpl::SetMousePosition(float32 x, float32 y)
 
 void* EngineImpl::AllocateAndRegisterSystem(size_t Size, SystemType Type, Handle<ISystem>* Hnd)
 {
-	using SystemContainer = Array<SystemInterface*>*;
+	using SystemContainer = astl::Array<SystemInterface*>*;
 	SystemInterface* system = reinterpret_cast<SystemInterface*>(SystemAllocator.Malloc(Size));
 	SystemContainer container = (Type == System_Engine_Type) ? &EngineSystems : &GameSystems;
-	*Hnd = container->Push(system);
+	*Hnd = container->Emplace(system);
 	return system;
 }
 
@@ -488,7 +488,7 @@ void EngineImpl::FreeAllSystems()
 
 SystemInterface* EngineImpl::GetRegisteredSystem(SystemType Type, Handle<ISystem> Hnd)
 {
-	using SystemContainer = Array<SystemInterface*>*;
+	using SystemContainer = astl::Array<SystemInterface*>*;
 	SystemContainer container = (Type == System_Engine_Type) ? &EngineSystems : &GameSystems;
 	return (*container)[Hnd];
 }

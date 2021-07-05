@@ -6,8 +6,7 @@
 #include "Library/Templates/Types.h"
 #include "Library/Templates/Templates.h"
 #include "Library/Allocators/BaseAllocator.h"
-
-class Ifstream;
+#include "Library/Stream/Ifstream.h"
 
 //struct FloatInt
 //{
@@ -69,10 +68,10 @@ public:
 class ENGINE_API WriteMemoryStream : public IMemoryStream
 {
 private:
-	IAllocator* Allocator = nullptr;
+	astl::IAllocator* Allocator = nullptr;
 public:
 	using IMemoryStream::IMemoryStream;
-	WriteMemoryStream(IAllocator& Allocator, size_t Size);
+	WriteMemoryStream(astl::IAllocator& Allocator, size_t Size);
 	~WriteMemoryStream();
 
 	void Flush();
@@ -82,13 +81,13 @@ public:
 class ENGINE_API ReadMemoryStream : public IMemoryStream
 {
 private:
-	IAllocator* Allocator = nullptr;
+	astl::IAllocator* Allocator = nullptr;
 public:
 	using IMemoryStream::IMemoryStream;
-	ReadMemoryStream(IAllocator& Allocator, size_t Size);
+	ReadMemoryStream(astl::IAllocator& Allocator, size_t Size);
 	~ReadMemoryStream();
 
-	ReadMemoryStream& operator<< (const Ifstream& Stream);
+	ReadMemoryStream& operator<< (const astl::Ifstream& Stream);
 
 	void Read(void* Dst, size_t Size);
 };

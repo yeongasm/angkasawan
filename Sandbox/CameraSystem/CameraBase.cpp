@@ -59,7 +59,7 @@ CameraBase::CameraBase(const CameraBase& Rhs)
 
 CameraBase::CameraBase(CameraBase&& Rhs)
 {
-	*this = Move(Rhs);
+	*this = astl::Move(Rhs);
 }
 
 CameraBase& CameraBase::operator=(const CameraBase& Rhs)

@@ -7,6 +7,7 @@
 #include "SandboxRenderConfig.h"
 #include "Asset/Assets.h"
 #include "Material/MaterialController.h"
+#include "Text/TextController.h"
 
 namespace sandbox
 {
@@ -24,10 +25,11 @@ namespace sandbox
 	private:
 		IAssetManager AssetManager;
     MaterialController MatController;
+    //TextController TypeWriter;
 		RendererSetup Setup;
-		Ref<IRenderSystem> pRenderer;
-		Ref<EngineImpl> pEngine;
-		Ref<CameraSystem> pCamera;
+		astl::Ref<IRenderSystem> pRenderer;
+		astl::Ref<EngineImpl> pEngine;
+		astl::Ref<CameraSystem> pCamera;
 
 		void HandleWindowResize();
     bool CreateMaterialDefinition(Handle<MaterialDef>& DefHnd);
