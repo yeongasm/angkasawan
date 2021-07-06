@@ -1920,6 +1920,42 @@ VkFormat IRenderDevice::GetImageFormat(uint32 Format, uint32 Channels) const
 	return format[Format * Channels + (Channels - 1)];
 }
 
+VkBlendFactor IRenderDevice::GetBlendFactor(uint32 Index) const
+{
+  static constexpr VkBlendFactor factor[] = {
+    VK_BLEND_FACTOR_ZERO,
+    VK_BLEND_FACTOR_ONE,
+    VK_BLEND_FACTOR_SRC_COLOR,
+    VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR,
+    VK_BLEND_FACTOR_DST_COLOR,
+    VK_BLEND_FACTOR_ONE_MINUS_DST_COLOR,
+    VK_BLEND_FACTOR_SRC_ALPHA,
+    VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+    VK_BLEND_FACTOR_DST_ALPHA,
+    VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA,
+    VK_BLEND_FACTOR_CONSTANT_COLOR,
+    VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR,
+    VK_BLEND_FACTOR_CONSTANT_ALPHA,
+    VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA,
+    VK_BLEND_FACTOR_SRC_ALPHA_SATURATE,
+    VK_BLEND_FACTOR_SRC1_COLOR,
+    VK_BLEND_FACTOR_ONE_MINUS_SRC1_COLOR,
+    VK_BLEND_FACTOR_SRC1_ALPHA,
+    VK_BLEND_FACTOR_ONE_MINUS_SRC1_ALPHA
+  };
+	return factor[Index];
+}
+
+VkBlendOp IRenderDevice::GetBlendOp(uint32 Index) const
+{
+  static constexpr VkBlendOp op[] = {
+    VK_BLEND_OP_ADD,
+    VK_BLEND_OP_SUBTRACT,
+    VK_BLEND_OP_REVERSE_SUBTRACT
+  };
+  return op[Index];
+}
+
 const VkPhysicalDeviceProperties& IRenderDevice::GetPhysicalDeviceProperties() const
 {
 	return Properties;

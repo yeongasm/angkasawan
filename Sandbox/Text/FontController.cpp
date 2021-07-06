@@ -5,7 +5,7 @@ namespace sandbox
   void FontController::CreateGlyphAtlas(Font& InFont, const astl::Buffer<uint8>& Pixels)
   {
     InFont.Atlas.Hnd = pRenderer->CreateImage(InFont.Atlas.Width, InFont.Atlas.Height, 4, Texture_Type_2D, Texture_Format_Unorm);
-    pRenderer->BuildImage(InFont.Atlas.Hnd);
+    //pRenderer->BuildImage(InFont.Atlas.Hnd);
 
     astl::Ref<IStagingManager> pStaging = &pRenderer->GetStagingManager();
 
@@ -29,6 +29,11 @@ namespace sandbox
   uint32 FontController::ConvertPointsToPixels(uint32 Points, uint32 Dpi)
   {
     return (Points * Dpi) / 72;
+  }
+
+  const uint32 FontController::GetNumOfFonts() const
+  {
+      return static_cast<uint32>(Fonts.Length());
   }
 
   FontController::FontController(IRenderSystem& InRenderer, EngineImpl& InEngine) :

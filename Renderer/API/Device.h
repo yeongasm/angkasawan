@@ -172,6 +172,8 @@ public:
 	VkFilter GetFilter(uint32 Index) const;
 	VkCompareOp GetCompareOp(uint32 Index) const;
   VkFormat GetImageFormat(uint32 Format, uint32 Channels) const;
+  VkBlendFactor GetBlendFactor(uint32 Index) const;
+  VkBlendOp GetBlendOp(uint32 Index) const;
 
 	const VkPhysicalDeviceProperties& GetPhysicalDeviceProperties() const;
 

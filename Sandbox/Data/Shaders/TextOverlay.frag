@@ -2,7 +2,7 @@
 layout (location = 0) out vec4 FragColor;
 layout (set = 0, binding = 2) uniform sampler2D textureAtlas;
 
-layout (location = 0) flat in int vertexIndex;
+layout (location = 0) in vec2 texCoord;
 
 layout (push_constant) uniform Constants
 {
@@ -13,7 +13,6 @@ layout (push_constant) uniform Constants
 
 void main()
 {
-  vec2 sampleAt = pushConstants.TexCoord[vertexIndex];
-  vec3 outSampler = texture(textureAtlas, sampleAt).xyz;
-  FragColor = vec4(pushConstants.Color, 1.0) * vec4(outSampler, 1.0);
+  FragColor = vec4(pushConstants.Color, 1.0) * vec4(1.0, 1.0, 1.0, texture(textureAtlas, texCoord).w);
+  //FragColor = vec4(pushConstants.Color, 1.0);
 }

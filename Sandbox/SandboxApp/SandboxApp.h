@@ -25,7 +25,7 @@ namespace sandbox
 	private:
 		IAssetManager AssetManager;
     MaterialController MatController;
-    //TextController TypeWriter;
+    TextController TypeWriter;
 		RendererSetup Setup;
 		astl::Ref<IRenderSystem> pRenderer;
 		astl::Ref<EngineImpl> pEngine;

@@ -70,8 +70,6 @@ void IStagingManager::UploadToBuffer(VkCommandBuffer CmdBuffer, UploadContext& C
     pRenderer->pDevice->GetTransferQueue().FamilyIndex,
     dstQueue->FamilyIndex
   );
-
-  //Ctx.pDstBuf->Offset += Ctx.Size;
 }
 
 void IStagingManager::UploadToImage(VkCommandBuffer CmdBuffer, UploadContext& Ctx)
@@ -276,120 +274,12 @@ bool IStagingManager::StageDataForImage(void* Data, size_t Size, Handle<SImage> 
   return true;
 }
 
-//bool IStagingManager::StageDataForImage(void* Data, size_t Size, Handle<SImage> DstImg, EQueueType DstQueue)
-//{
-//	VkCommandBuffer cmd = _StagingParams.CmdBuf[IStagingParams::EStagingOp::Staging_Op_Upload][_StagingParams.NextCmdIndex];
-//	const IRenderDevice::VulkanQueue* dstQueue = _StagingParams.GetQueueForType(DstQueue);
-//
-//	auto [hnd, pStaging] = _StagingParams.Buffer[_StagingParams.pRenderer->pDevice->GetCurrentFrameIndex()];
-//	SImage* pImage = _StagingParams.pRenderer->pStore->GetImage(DstImg);
-//	if (!pImage) { return false; }
-//	if (Size > pStaging->Size)
-//	{
-//		VKT_ASSERT(false && "Data size exceeded capacity allowed by staging buffer.");
-//		return false;
-//	}
-//
-//	if (!CanContentsFit(*pStaging, Size))
-//	{
-//		// EndStaging() submits to the queue and signals a semaphore to be used for ownership transfer
-//		// In the rare event that the staging buffer is full, I need to do another submission and
-//		// I would like the queue to wait for the previous one to complete.
-//		// Ideally, this operation should not stall the CPU.
-//		EndStaging(false);
-//		BeginStaging();
-//	}
-//
-//	uint8* pData = pStaging->pData;
-//	pData += pStaging->Offset;
-//	IMemory::Memcpy(&pData, &Data, Size);
-//
-//	VkImageSubresourceRange range = {};
-//	range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-//	range.baseMipLevel = 0;
-//	range.baseArrayLayer = 0;
-//	range.levelCount = 1;
-//	range.layerCount = 1;
-//
-//	_StagingParams.pRenderer->pDevice->ImageBarrier(
-//		cmd, 
-//		pImage->ImgHnd, 
-//		&range, 
-//		VK_IMAGE_LAYOUT_UNDEFINED, 
-//		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 
-//		VK_PIPELINE_STAGE_TRANSFER_BIT, 
-//		VK_PIPELINE_STAGE_TRANSFER_BIT, 
-//		_StagingParams.pQueue->FamilyIndex, 
-//		_StagingParams.pQueue->FamilyIndex
-//	);
-//
-//	VkBufferImageCopy copy = {};
-//	copy.bufferOffset = pStaging->Offset;
-//	copy.bufferRowLength = 0;
-//	copy.bufferImageHeight = 0;
-//	copy.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-//	copy.imageSubresource.mipLevel = 0;
-//	copy.imageSubresource.baseArrayLayer = 0;
-//	copy.imageSubresource.layerCount = 1;
-//	copy.imageExtent = { pImage->Width, pImage->Height, 1 };
-//
-//	vkCmdCopyBufferToImage(cmd, pStaging->Hnd, pImage->ImgHnd, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
-//
-//	// TODO(Ygsm):
-//	// To include mip map generation for images.
-//
-//	_StagingParams.pRenderer->pDevice->ImageBarrier(
-//		cmd, 
-//		pImage->ImgHnd, 
-//		&range, 
-//		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 
-//		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 
-//		VK_PIPELINE_STAGE_TRANSFER_BIT, 
-//		VK_PIPELINE_STAGE_TRANSFER_BIT, 
-//		_StagingParams.pQueue->FamilyIndex,
-//		dstQueue->FamilyIndex
-//	);
-//	
-//	pStaging->Offset += PadToAlignedSize(Size);
-//
-//	return true;
-//}
-
-//void IStagingManager::EndStaging(bool SignalSemaphore)
-//{
-//	const uint32 index = _StagingParams.pRenderer->pDevice->GetCurrentFrameIndex();
-//	VkCommandBuffer cmd = _StagingParams.CmdBuf[IStagingParams::EStagingOp::Staging_Op_Upload][_StagingParams.NextCmdIndex];
-//
-//	VkSubmitInfo info = {};
-//	info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-//	info.commandBufferCount = 1;
-//	info.pCommandBuffers = &cmd;
-//
-//	if (SignalSemaphore)
-//	{
-//		VkSemaphore semaphore = _StagingParams.Semaphore[index];
-//
-//		info.signalSemaphoreCount = 1;
-//		info.pSignalSemaphores = &semaphore;
-//	}
-//
-//	_StagingParams.pRenderer->pDevice->EndCommandBuffer(cmd);
-//	vkQueueSubmit(_StagingParams.pQueue->Hnd, 1, &info, _StagingParams.Fences[index]);
-//
-//	IncrementCommandIndex();
-//	ResetStagingBuffer(index);
-//}
-
-//size_t IStagingManager::GetInstanceBufferOffset() const
-//{
-//	return _StagingParams.pRenderer->InstanceBuffer.Value->Offset;
-//}
-
 bool IStagingManager::Upload()
 {
+  if (!Uploads.Length()) { return true; }
+
 	VkCommandBuffer cmd = pRenderer->pDevice->AllocateCommandBuffer(TxPool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, 1);
 	if (cmd == VK_NULL_HANDLE) { return false; }
-
 	pRenderer->pDevice->BeginCommandBuffer(cmd, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 
 	for (UploadContext& upload : Uploads)
@@ -438,7 +328,7 @@ bool IStagingManager::TransferBufferOwnership(Handle<SMemoryBuffer> Hnd)
   if (Hnd == INVALID_HANDLE) { return false; }
   astl::Ref<SMemoryBuffer> pBuffer = pRenderer->pStore->GetBuffer(Hnd);
   if (!pBuffer) { return false; }
-  OwnershipTransfers.Push(OwnershipTransferContext(pBuffer));
+  OwnershipTransfers.Emplace(pBuffer);
   MakeTransfers.Set(Ownership_Transfer_Type_Buffer_Or_Image);
   return true;
 }
@@ -448,7 +338,7 @@ bool IStagingManager::TransferImageOwnership(Handle<SImage> Hnd)
   if (Hnd == INVALID_HANDLE) { return false; }
   astl::Ref<SImage> pImg = pRenderer->pStore->GetImage(Hnd);
   if (!pImg) { return false; }
-  OwnershipTransfers.Push(OwnershipTransferContext(pImg));
+  OwnershipTransfers.Emplace(pImg);
   MakeTransfers.Set(Ownership_Transfer_Type_Buffer_Or_Image);
   return true;
 }

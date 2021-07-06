@@ -38,9 +38,30 @@ private:
 		static BindableRange _GlobalBindables;
 	};
 
+  struct BufferCopyCommand
+  {
+    void* pSrc;
+    size_t SrcSize;
+    astl::Ref<SMemoryBuffer> pDst;
+    size_t DstOffset;
+
+    BufferCopyCommand() :
+      pSrc{}, SrcSize{}, pDst{}, DstOffset{}
+    {}
+
+    BufferCopyCommand(void* pInSrc, size_t InSrcSize, astl::Ref<SMemoryBuffer> pInDst, size_t InDstOffset) :
+      pSrc{ pInSrc }, SrcSize{ InSrcSize }, pDst{ pInDst }, DstOffset{ InDstOffset }
+    {}
+
+    ~BufferCopyCommand() {}
+  };
+
 	using DefaultBuffer = RefHnd<SMemoryBuffer>;
 
   astl::Array<astl::Array<DrawCommand>> Drawables;
+  astl::Array<SBuildCommand> BuildCommandQueue;
+  astl::Array<BufferCopyCommand> CopyCommandQueue;
+
 	EngineImpl& Engine;
   DefaultBuffer VertexBuffer;
   DefaultBuffer IndexBuffer;
@@ -74,9 +95,23 @@ private:
 
 	void BlitToDefault();
 
-	void CopyToBuffer(astl::Ref<SMemoryBuffer> pBuffer, void* Data, size_t Size, size_t Offset, bool Update = false);
+	//void CopyToBuffer(astl::Ref<SMemoryBuffer> pBuffer, void* Data, size_t Size, size_t Offset, bool Update = false);
 
 	uint32 GetImageUsageFlags(astl::Ref<SImage> pImg);
+
+  // Build Functions ... 
+	void BuildDescriptorPool(astl::Ref<SDescriptorPool> pPool);
+	void BuildDescriptorSetLayout(astl::Ref<SDescriptorSetLayout> pSetLayout);
+	void BuildDescriptorSet(astl::Ref<SDescriptorSet> pSet);
+	void BuildBuffer(astl::Ref<SMemoryBuffer> pBuffer);
+	void BuildImage(astl::Ref<SImage> pImg);
+	void BuildImageSampler(astl::Ref<SImageSampler> pImgSampler);
+	void BuildShader(astl::Ref<SShader> pShader);
+	void BuildGraphicsPipeline(astl::Ref<SPipeline> pPipeline);
+
+  void BuildResourcesInQueue();
+  void CopyBuffersInQueue();
+  void BeforeBeginFrame();
 
 public:
 
@@ -93,19 +128,16 @@ public:
 
 	Handle<SDescriptorPool> CreateDescriptorPool();
 	bool DescriptorPoolAddSizeType(Handle<SDescriptorPool> Hnd, SDescriptorPool::Size Type);
-	bool BuildDescriptorPool(Handle<SDescriptorPool> Hnd);
 	bool DestroyDescriptorPool(Handle<SDescriptorPool>& Hnd);
 
 	Handle<SDescriptorSetLayout> CreateDescriptorSetLayout();
 	bool DescriptorSetLayoutAddBinding(const DescriptorSetLayoutBindingInfo& BindInfo);
-	bool BuildDescriptorSetLayout(Handle<SDescriptorSetLayout> Hnd);
 	bool DestroyDescriptorSetLayout(Handle<SDescriptorSetLayout>& Hnd);
 
 	Handle<SDescriptorSet> CreateDescriptorSet(const DescriptorSetAllocateInfo& AllocInfo);
 	bool DescriptorSetMapToBuffer(Handle<SDescriptorSet> Hnd, uint32 BindingSlot, Handle<SMemoryBuffer> BufferHnd, size_t Offset0 = 0, size_t Offset1 = 0);
   bool DescriptorSetMapToImage(Handle<SDescriptorSet> Hnd, uint32 BindingSlot, Handle<SImage>* pImgHnd, uint32 NumImages, Handle<SImageSampler> ImgSamplerHnd, uint32 DstIndex = 0);
 	bool DescriptorSetBindToGlobal(Handle<SDescriptorSet> Hnd);
-	bool BuildDescriptorSet(Handle<SDescriptorSet> Hnd);
 	bool DescriptorSetFlushBindingOffset(Handle<SDescriptorSet> Hnd);
 	bool DestroyDescriptorSet(Handle<SDescriptorSet>& Hnd);
 
@@ -115,41 +147,33 @@ public:
 	Handle<SMemoryBuffer> AllocateNewBuffer(const BufferAllocateInfo& AllocInfo);
   size_t GetBufferOffset(Handle<SMemoryBuffer> Hnd);
   // WARNING: Only use this for CPU side buffers. GPU side buffers require data to be staged with the staging manager.
-	bool CopyDataToBuffer(Handle<SMemoryBuffer> Hnd, void* Data, size_t Size, size_t Offset);
-	bool BuildBuffer(Handle<SMemoryBuffer> Hnd);
+	bool CopyDataToBuffer(Handle<SMemoryBuffer> Hnd, void* Data, size_t Size, size_t Offset, bool UpdateBufferOffset = false);
 	bool DestroyBuffer(Handle<SMemoryBuffer>& Hnd);
 	
 	Handle<SImage> CreateImage(uint32 Width, uint32 Height, uint32 Channels, ETextureType Type, ETextureFormat Format, bool GenMips = false);
-	bool BuildImage(Handle<SImage> Hnd);
 	bool DestroyImage(Handle<SImage>& Hnd);
 
 	Handle<SImageSampler> CreateImageSampler(const ImageSamplerCreateInfo& CreateInfo);
-	bool BuildImageSampler(Handle<SImageSampler> Hnd);
 	bool DestroyImageSampler(Handle<SImageSampler>& Hnd);
 
 	IStagingManager& GetStagingManager();
 	IFrameGraph& GetFrameGraph();
 
 	Handle<SShader> CreateShader(const astl::String& Code, EShaderType Type);
-	bool BuildShader(Handle<SShader> Hnd);
 	bool DestroyShader(Handle<SShader>& Hnd);
 
 	Handle<SPipeline> CreatePipeline(const PipelineCreateInfo& CreateInfo);
 	bool PipelineAddVertexInputBinding(Handle<SPipeline> Hnd, SPipeline::VertexInputBinding Input);
 	bool PipelineAddRenderPass(Handle<SPipeline> Hnd, Handle<SRenderPass> RenderPass);
 	bool PipelineAddDescriptorSetLayout(Handle<SPipeline> Hnd, Handle<SDescriptorSetLayout> Layout);
-	bool BuildGraphicsPipeline(Handle<SPipeline> Hnd);
 	bool DestroyPipeline(Handle<SPipeline>& Hnd);
 
 	bool BindDescriptorSet(Handle<SDescriptorSet> Hnd, Handle<SRenderPass> RenderpassHnd);
 	bool BindPipeline(Handle<SPipeline> Hnd, Handle<SRenderPass> RenderpassHnd);
 
 	void Draw(const DrawSubmissionInfo& Info);
-	//const uint32 GetMaxDrawablesCount() const;
-	//const uint32 GetDrawableCount() const;
 	const uint32 GetCurrentFrameIndex() const;
 
-	//void PrepareDrawCommands();
 	void MakeTransferToGpu();
 
 	void FlushVertexBuffer();

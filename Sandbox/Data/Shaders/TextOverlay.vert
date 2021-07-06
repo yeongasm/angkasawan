@@ -8,7 +8,7 @@ layout (location = 4) in vec2 InTexCoord;
 
 layout (location = 5) in mat4 InTransform;
 
-layout (location = 0) out int vertexIndex;
+layout (location = 0) out vec2 texCoord;
 
 layout (push_constant) uniform Constants
 {
@@ -19,6 +19,6 @@ layout (push_constant) uniform Constants
 
 void main()
 {
-    vertexIndex = gl_VertexIndex;
+    texCoord = pushConstants.TexCoord[gl_VertexIndex];
     gl_Position = pushConstants.Projection * InTransform * vec4(InPosition, 1.0);
 }

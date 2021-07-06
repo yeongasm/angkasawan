@@ -73,6 +73,12 @@ namespace sandbox
 		colorPipelineInfo.Topology = Topology_Type_Triangle;
 		colorPipelineInfo.Viewport = viewport;
 		colorPipelineInfo.Scissor = scissor;
+    colorPipelineInfo.SrcColorBlendFactor = Blend_Factor_One;
+    colorPipelineInfo.DstColorBlendFactor = Blend_Factor_Zero;
+    colorPipelineInfo.ColorBlendOp = Blend_Op_Add;
+    colorPipelineInfo.SrcAlphaBlendFactor = Blend_Factor_One;
+    colorPipelineInfo.DstAlphaBlendFactor = Blend_Factor_Zero;
+    colorPipelineInfo.AlphaBlendOp = Blend_Op_Add;
 
 		PipelineHnd = pRenderer->CreatePipeline(colorPipelineInfo);
 		if (PipelineHnd == INVALID_HANDLE) { return false; }
@@ -134,24 +140,31 @@ namespace sandbox
 		pRenderer = pInRenderSystem;
 		pAssetManager = pInAssetManager;
 
+    // Create global descriptor pool.
 		PoolHandle = pRenderer->CreateDescriptorPool();
 		if (PoolHandle == INVALID_HANDLE) { return false; }
 
 		constexpr size_t camUboSize = sizeof(CameraUbo) * 2;
 
+    // Register dynamic uniform buffer for camera information into descriptor pool.
 		SDescriptorPool::Size dynamicUniformBuffer;
 		dynamicUniformBuffer.Count = 1;
 		dynamicUniformBuffer.Type = Descriptor_Type_Dynamic_Uniform_Buffer;
 
+    // Register bindless textures into descriptor pool.
+    // Textures that are binded to a descriptor set allocated from this pool.
 		SDescriptorPool::Size bindlessTextures;
-		bindlessTextures.Count = 128;
+		bindlessTextures.Count = 130; // We only need 129 but added an extra one in just in case.
 		bindlessTextures.Type = Descriptor_Type_Sampled_Image;
 
 		pRenderer->DescriptorPoolAddSizeType(PoolHandle, dynamicUniformBuffer);
 		pRenderer->DescriptorPoolAddSizeType(PoolHandle, bindlessTextures);
 
+    // Create a global descriptor set layout.
 		SetLayoutHnd = pRenderer->CreateDescriptorSetLayout();
 
+    // Allocate a buffer to store camera information.
+    // Buffer is twice the size of the struct since no. of frames in flights are taken into account.
 		BufferAllocateInfo bufferInfo = {};
 		bufferInfo.Locality = Buffer_Locality_Cpu_To_Gpu;
 		bufferInfo.Type.Set(Buffer_Type_Uniform);
@@ -160,6 +173,7 @@ namespace sandbox
 		CameraUboHnd = pRenderer->AllocateNewBuffer(bufferInfo);
 		if (CameraUboHnd == INVALID_HANDLE) { return false; }
 
+    // Add buffer binding information into descriptor set layout.
 		DescriptorSetLayoutBindingInfo bindingInfo = {};
 		bindingInfo.ShaderStages.Set(Shader_Type_Vertex);
 		bindingInfo.Type = Descriptor_Type_Dynamic_Uniform_Buffer;
@@ -169,7 +183,8 @@ namespace sandbox
 		bindingInfo.LayoutHnd = SetLayoutHnd;
 
 		pRenderer->DescriptorSetLayoutAddBinding(bindingInfo);
-		
+
+    // Add bindless textures binding information into descriptor set layout.
     bindingInfo = {};
     bindingInfo.ShaderStages.Set(Shader_Type_Fragment);
     bindingInfo.Type = Descriptor_Type_Sampled_Image;
@@ -179,15 +194,15 @@ namespace sandbox
 
     pRenderer->DescriptorSetLayoutAddBinding(bindingInfo);
 
-    // texture atlas.
-    //bindingInfo = {};
-    //bindingInfo.ShaderStages.Set(Shader_Type_Fragment);
-    //bindingInfo.Type = Descriptor_Type_Sampled_Image;
-    //bindingInfo.DescriptorCount = 1;
-    //bindingInfo.BindingSlot = 2;
-    //bindingInfo.LayoutHnd = SetLayoutHnd;
+    // Add texture atlas binding information into descriptor set layout.
+    bindingInfo = {};
+    bindingInfo.ShaderStages.Set(Shader_Type_Fragment);
+    bindingInfo.Type = Descriptor_Type_Sampled_Image;
+    bindingInfo.DescriptorCount = 1;
+    bindingInfo.BindingSlot = 2;
+    bindingInfo.LayoutHnd = SetLayoutHnd;
 
-    //pRenderer->DescriptorSetLayoutAddBinding(bindingInfo);
+    pRenderer->DescriptorSetLayoutAddBinding(bindingInfo);
 
 		DescriptorSetAllocateInfo setInfo = {};
 		setInfo.LayoutHnd = SetLayoutHnd;
@@ -202,7 +217,7 @@ namespace sandbox
 
     // Initialize passes.
 		if (!ColorPass.Initialize(pEngine, pRenderer, pAssetManager)) { return false; }
-    //if (!TextOverlay.Initialize(pEngine, pRenderer, pAssetManager)) { return false; }
+    if (!TextOverlay.Initialize(pEngine, pRenderer, pAssetManager)) { return false; }
 
 		pRenderer->PipelineAddDescriptorSetLayout(ColorPass.GetPipelineHandle(), SetLayoutHnd);
     pRenderer->PipelineAddDescriptorSetLayout(TextOverlay.GetPipelineHandle(), SetLayoutHnd);
@@ -252,26 +267,26 @@ namespace sandbox
 		IFrameGraph& frameGraph = pRenderer->GetFrameGraph();
 		if (!frameGraph.Build()) { return false; }
 
-		pRenderer->BuildBuffer(CameraUboHnd);
-		pRenderer->BuildDescriptorPool(PoolHandle);
-		pRenderer->BuildDescriptorSetLayout(SetLayoutHnd);
-		pRenderer->BuildDescriptorSet(SetHnd);
+		//pRenderer->BuildBuffer(CameraUboHnd);
+		//pRenderer->BuildDescriptorPool(PoolHandle);
+		//pRenderer->BuildDescriptorSetLayout(SetLayoutHnd);
+		//pRenderer->BuildDescriptorSet(SetHnd);
 
-		astl::Ref<Shader> pFragment = pAssetManager->GetShaderWithHandle(ColorPass.GetShaderHandle(Shader_Type_Vertex));
-		astl::Ref<Shader> pVertex = pAssetManager->GetShaderWithHandle(ColorPass.GetShaderHandle(Shader_Type_Fragment));
+		//astl::Ref<Shader> pFragment = pAssetManager->GetShaderWithHandle(ColorPass.GetShaderHandle(Shader_Type_Vertex));
+		//astl::Ref<Shader> pVertex = pAssetManager->GetShaderWithHandle(ColorPass.GetShaderHandle(Shader_Type_Fragment));
 
-		if (!pRenderer->BuildShader(pFragment->Hnd)) { return false; }
-		if (!pRenderer->BuildShader(pVertex->Hnd)) { return false; }
-		if (!pRenderer->BuildGraphicsPipeline(ColorPass.GetPipelineHandle())) { return false; }
+		//if (!pRenderer->BuildShader(pFragment->Hnd)) { return false; }
+		//if (!pRenderer->BuildShader(pVertex->Hnd)) { return false; }
+		//if (!pRenderer->BuildGraphicsPipeline(ColorPass.GetPipelineHandle())) { return false; }
 
-    //pFragment = pAssetManager->GetShaderWithHandle(TextOverlay.GetShaderHandle(Shader_Type_Vertex));
-    //pVertex = pAssetManager->GetShaderWithHandle(TextOverlay.GetShaderHandle(Shader_Type_Fragment));
+  //  pFragment = pAssetManager->GetShaderWithHandle(TextOverlay.GetShaderHandle(Shader_Type_Vertex));
+  //  pVertex = pAssetManager->GetShaderWithHandle(TextOverlay.GetShaderHandle(Shader_Type_Fragment));
 
-    //if (!pRenderer->BuildShader(pFragment->Hnd)) { return false; }
-    //if (!pRenderer->BuildShader(pVertex->Hnd)) { return false; }
-    //if (!pRenderer->BuildGraphicsPipeline(TextOverlay.GetPipelineHandle())) { return false; }
+  //  if (!pRenderer->BuildShader(pFragment->Hnd)) { return false; }
+  //  if (!pRenderer->BuildShader(pVertex->Hnd)) { return false; }
+  //  if (!pRenderer->BuildGraphicsPipeline(TextOverlay.GetPipelineHandle())) { return false; }
 
-    if (!pRenderer->BuildImageSampler(ModelTexImgSamplerHnd)) { return false; }
+  //  if (!pRenderer->BuildImageSampler(ModelTexImgSamplerHnd)) { return false; }
 
 		return true;
 	}
@@ -279,6 +294,7 @@ namespace sandbox
 	void RendererSetup::Terminate()
 	{
 		ColorPass.Terminate();
+    TextOverlay.Terminate();
     pRenderer->DestroyImageSampler(ModelTexImgSamplerHnd);
 		pRenderer->DestroyBuffer(CameraUboHnd);
 		pRenderer->DestroyDescriptorSet(SetHnd);
@@ -308,15 +324,18 @@ namespace sandbox
     RenderPassCreateInfo textOverlayPass = {};
     textOverlayPass.Identifier = "Text_Overlay_Pass";
     textOverlayPass.Type = RenderPass_Type_Graphics;
-    textOverlayPass.Depth = 1.0f;
+    textOverlayPass.Depth = 0.0f;
     textOverlayPass.Pos = { 0, 0 };
     textOverlayPass.Extent = { 800, 600 };
 
     Extent = windowInfo.Extent;
 
     RenderPassHnd = frameGraph.AddRenderPass(textOverlayPass);
+    frameGraph.NoDefaultDepthStencilRender(RenderPassHnd);
+
     if (RenderPassHnd == INVALID_HANDLE) { return false; }
 
+    // Import shaders required for text overlay pass.
     ShaderImporter importer;
     FragmentShader = importer.ImportShaderFromPath("Data/Shaders/TextOverlay.frag", Shader_Type_Fragment, pAssetManager);
     VertexShader = importer.ImportShaderFromPath("Data/Shaders/TextOverlay.vert", Shader_Type_Vertex, pAssetManager);
@@ -326,14 +345,14 @@ namespace sandbox
       return false;
     }
 
-    // Fragment shader here ...
+    // Fragment shader for text overlay pass is created here.
     astl::Ref<Shader> pFrag = pAssetManager->GetShaderWithHandle(FragmentShader);
     pFrag->Hnd = pRenderer->CreateShader(pFrag->Code, pFrag->Type);
     pFrag->Code.Release();
 
     if (pFrag->Hnd == INVALID_HANDLE) { return false; }
 
-    // Fragment shader here ...
+    // Vertex shader for text overlay pass is created here.
     astl::Ref<Shader> pVert = pAssetManager->GetShaderWithHandle(VertexShader);
     pVert->Hnd = pRenderer->CreateShader(pVert->Code, pVert->Type);
     pVert->Code.Release();
@@ -364,6 +383,12 @@ namespace sandbox
     textOverlayPipelineInfo.Topology = Topology_Type_Triangle;
     textOverlayPipelineInfo.Viewport = viewport;
     textOverlayPipelineInfo.Scissor = scissor;
+    textOverlayPipelineInfo.SrcColorBlendFactor = Blend_Factor_Src_Alpha;
+    textOverlayPipelineInfo.DstColorBlendFactor = Blend_Factor_One_Minus_Src_Alpha;
+    textOverlayPipelineInfo.ColorBlendOp = Blend_Op_Add;
+    textOverlayPipelineInfo.SrcAlphaBlendFactor = Blend_Factor_One_Minus_Src_Alpha;
+    textOverlayPipelineInfo.DstAlphaBlendFactor = Blend_Factor_Zero;
+    textOverlayPipelineInfo.AlphaBlendOp = Blend_Op_Add;
 
     PipelineHnd = pRenderer->CreatePipeline(textOverlayPipelineInfo);
     if (PipelineHnd == INVALID_HANDLE) { return false; }

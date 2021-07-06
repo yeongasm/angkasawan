@@ -46,6 +46,7 @@ namespace sandbox
 		using CallbackFunc = void(*)(CallbackFuncArgs&);
 		using CameraUbo = RendererSetup::CameraUbo;
 
+    CameraUbo CamUbo;
 		EngineImpl& Engine;
 		IRenderSystem& Renderer;
 		RendererSetup& Setup;

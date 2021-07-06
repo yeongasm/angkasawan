@@ -1,8 +1,41 @@
 <?xml version="1.0" encoding="utf-8"?>
 <AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
+  <Type Name="astl::Ref&lt;*&gt;">
+    <DisplayString>Reference with address {_Ptr}</DisplayString>
+    <Expand>
+      <ExpandedItem>_Ptr</ExpandedItem>
+    </Expand>
+  </Type>
+  <Type Name="astl::UniquePtr&lt;*&gt;">
+    <DisplayString>Unique Pointer with address {_Ptr}</DisplayString>
+    <Expand>
+      <ExpandedItem>_Ptr</ExpandedItem>
+    </Expand>
+  </Type>
+  <Type Name="Handle&lt;*&gt;">
+    <DisplayString>Handle with value {Value}</DisplayString>
+  </Type>
+  <Type Name="RefHnd&lt;*&gt;">
+    <DisplayString>Reference handle with address={_Ptr} and value={Value}</DisplayString>
+    <Expand>
+      <Item Name="Pointer">_Ptr</Item>
+      <Item Name="Handle">Value</Item>
+    </Expand>
+  </Type>
   <!--Array Visualizer-->
   <Type Name="astl::Array&lt;*,*&gt;">
     <DisplayString>Array with {Len} elements</DisplayString>
+    <Expand>
+      <Item Name="Length">Len</Item>
+      <Item Name="Capacity">Capacity</Item>
+      <ArrayItems>
+        <Size>Len</Size>
+        <ValuePointer>Data</ValuePointer>
+      </ArrayItems>
+    </Expand>
+  </Type>
+  <Type Name="astl::StaticArray&lt;*,*&gt;">
+    <DisplayString>Static Array with {Len} elements</DisplayString>
     <Expand>
       <Item Name="Length">Len</Item>
       <Item Name="Capacity">Capacity</Item>
@@ -85,7 +118,7 @@
     </Expand>
   </Type>
   <!--String Visualizer-->
-  <Type Name="BasicString&lt;char,*&gt;">
+  <Type Name="astl::BasicString&lt;char,*&gt;">
     <AlternativeType Name="String&lt;char,*&gt;"/>
     <DisplayString Condition="Capacity &lt;= SSO_MAX">{Buffer, s8}</DisplayString>
     <DisplayString Condition="Capacity &gt; SSO_MAX">{Data, s8}</DisplayString>
@@ -101,7 +134,7 @@
       </ArrayItems>
     </Expand>
   </Type>
-  <Type Name="BasicString&lt;wchar_t,*&gt;">
+  <Type Name="astl::BasicString&lt;wchar_t,*&gt;">
     <AlternativeType Name="String&lt;wchar_t,*&gt;"/>
     <DisplayString Condition="Capacity &lt;= SSO_MAX">{Buffer, s8}</DisplayString>
     <DisplayString Condition="Capacity &gt; SSO_MAX">{Data, s8}</DisplayString>

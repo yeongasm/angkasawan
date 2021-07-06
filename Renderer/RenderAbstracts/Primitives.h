@@ -57,6 +57,7 @@ struct SMemoryBuffer
 	uint8* pData;
 	size_t Size;
 	size_t Offset;
+  uint32 FirstBinding;
 	VkBuffer Hnd;
 };
 
@@ -65,6 +66,7 @@ struct BufferAllocateInfo
 	astl::BitSet<EBufferTypeFlagBits> Type;
 	EBufferLocality Locality;
 	size_t Size;
+  uint32 FirstBinding;
 };
 
 struct ImageSamplerState
@@ -158,7 +160,13 @@ struct SPipeline
 	ECullingMode CullMode;
 	EPolygonMode PolygonalMode;
 	EPipelineBindPoint BindPoint;
-	uint32 ColorOutputCount;
+  EBlendFactor SrcColorBlendFactor;
+  EBlendFactor DstColorBlendFactor;
+  EBlendOp ColorBlendOp;
+  EBlendFactor SrcAlphaBlendFactor;
+  EBlendFactor DstAlphaBlendFactor;
+  EBlendOp AlphaBlendOp;
+  uint32 ColorOutputCount;
 	bool HasDepthStencil;
 };
 
@@ -176,6 +184,12 @@ struct PipelineCreateInfo
 	ECullingMode CullMode;
 	EPolygonMode PolygonalMode;
 	EPipelineBindPoint BindPoint;
+  EBlendFactor SrcColorBlendFactor;
+  EBlendFactor DstColorBlendFactor;
+  EBlendOp ColorBlendOp;
+  EBlendFactor SrcAlphaBlendFactor;
+  EBlendFactor DstAlphaBlendFactor;
+  EBlendOp AlphaBlendOp;
 	uint32 ColorOutputCount;
 	bool HasDepthStencil;
 };
@@ -278,6 +292,7 @@ struct SBindable
 	{
 		astl::Ref<SDescriptorSet> pSet;
 		astl::Ref<SPipeline> pPipeline;
+    astl::Ref<SMemoryBuffer> pBuffer;
 	};
 	EBindableType Type;
 	bool Bound;
@@ -287,6 +302,60 @@ struct SBindable
 	{}
 
 	~SBindable() {}
+};
+
+struct SBuildCommand
+{
+  union
+  {
+    astl::Ref<SMemoryBuffer> pBuffer;
+    astl::Ref<SDescriptorPool> pPool;
+    astl::Ref<SDescriptorSetLayout> pSetLayout;
+    astl::Ref<SDescriptorSet> pSet;
+    astl::Ref<SImage> pImg;
+    astl::Ref<SImageSampler> pImgSampler;
+    astl::Ref<SShader> pShader;
+    astl::Ref<SPipeline> pPipeline;
+  };
+  EResourceBuildType Type;
+
+  SBuildCommand() :
+    pBuffer{}, Type{ EResourceBuildType::Resource_Build_Type_None }
+  {}
+
+  SBuildCommand(astl::Ref<SMemoryBuffer> pInBuffer) :
+    pBuffer{ pInBuffer }, Type{ EResourceBuildType::Resource_Build_Type_Buffer }
+  {}
+
+  SBuildCommand(astl::Ref<SDescriptorPool> pInPool) :
+    pPool{ pInPool }, Type{ EResourceBuildType::Resource_Build_Type_Descriptor_Pool }
+  {}
+
+  SBuildCommand(astl::Ref<SDescriptorSetLayout> pInSetLayout) :
+    pSetLayout{ pInSetLayout }, Type{ EResourceBuildType::Resource_Build_Type_Descriptor_Set_Layout }
+  {}
+
+  SBuildCommand(astl::Ref<SDescriptorSet> pInSet) :
+    pSet{ pInSet }, Type{ EResourceBuildType::Resource_Build_Type_Descriptor_Set }
+  {}
+
+  SBuildCommand(astl::Ref<SImage> pInImg) :
+    pImg{ pInImg }, Type{ EResourceBuildType::Resource_Build_Type_Image }
+  {}
+
+  SBuildCommand(astl::Ref<SImageSampler> pInImgSampler) :
+    pImgSampler{ pInImgSampler }, Type{ EResourceBuildType::Resource_Build_Type_Image_Sampler }
+  {}
+
+  SBuildCommand(astl::Ref<SShader> pShader) :
+    pShader{ pShader }, Type{ EResourceBuildType::Resource_Build_Type_Shader }
+  {}
+
+  SBuildCommand(astl::Ref<SPipeline> pInPipeline) :
+    pPipeline{ pInPipeline }, Type{ EResourceBuildType::Resource_Build_Type_Pipeline }
+  {}
+
+  ~SBuildCommand() {}
 };
 
 #endif // !LEARNVK_RENDERER_RENDER_ABSTRACT_PRIMITIVES_H

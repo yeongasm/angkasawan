@@ -515,8 +515,8 @@ void IFrameGraph::OnWindowResize()
 
 		SetupAttachments(ColorImage.pImg, DepthStencilImage.pImg);
 
-		Renderer.BuildImage(ColorImage.Hnd);
-		Renderer.BuildImage(DepthStencilImage.Hnd);
+		//Renderer.BuildImage(ColorImage.Hnd);
+		//Renderer.BuildImage(DepthStencilImage.Hnd);
 
 		Built = true;
 	}
@@ -535,7 +535,7 @@ void IFrameGraph::OnWindowResize()
 				attachment.pImg->Usage.Set(Image_Usage_Sampled);
 				attachment.pImg->Usage.Set(Image_Usage_Color_Attachment);
 
-				Renderer.BuildImage(attachment.Hnd);
+				//Renderer.BuildImage(attachment.Hnd);
 			}
 
 			if (pRenderPass->DepthStencilOutput.Hnd != INVALID_HANDLE)
@@ -548,7 +548,7 @@ void IFrameGraph::OnWindowResize()
 				outDepthStencil.pImg->Usage.Set(Image_Usage_Sampled);
 				outDepthStencil.pImg->Usage.Set(Image_Usage_Depth_Stencil_Attachment);
 
-				Renderer.BuildImage(outDepthStencil.Hnd);
+				//Renderer.BuildImage(outDepthStencil.Hnd);
 			}
 
 			DestroyFramebuffer(pRenderPass);
@@ -604,8 +604,8 @@ bool IFrameGraph::Build()
 	if (!RenderPasses.Length()) { return false; }
 	if (IsBuilt()) { return false; }
 
-	if (!Renderer.BuildImage(ColorImage.Hnd)) { return false; }
-	if (!Renderer.BuildImage(DepthStencilImage.Hnd)) { return false; }
+	//if (!Renderer.BuildImage(ColorImage.Hnd)) { return false; }
+	//if (!Renderer.BuildImage(DepthStencilImage.Hnd)) { return false; }
 
 	// NOTE(Ygsm):
 	// Should probably sort them according to dependencies in the future.
@@ -634,15 +634,15 @@ bool IFrameGraph::Build()
 	for (auto [hnd, pRenderPass] : RenderPasses)
 	{
 		size_t handleValue = hnd;
-		for (auto [imgHnd, pImg] : pRenderPass->ColorOutputs)
-		{
-			if (!Renderer.BuildImage(imgHnd)) { return false; }
-		}
+		//for (auto [imgHnd, pImg] : pRenderPass->ColorOutputs)
+		//{
+		//	if (!Renderer.BuildImage(imgHnd)) { return false; }
+		//}
 
-		if (pRenderPass->Flags.Has(RenderPass_Bit_DepthStencil_Output))
-		{
-			if (!Renderer.BuildImage(pRenderPass->DepthStencilOutput.Hnd)) { return false; }
-		}
+		//if (pRenderPass->Flags.Has(RenderPass_Bit_DepthStencil_Output))
+		//{
+		//	if (!Renderer.BuildImage(pRenderPass->DepthStencilOutput.Hnd)) { return false; }
+		//}
 
 		if (!CreateRenderPass(pRenderPass)) { return false; }
 		if (!CreateFramebuffer(pRenderPass)) { return false; }

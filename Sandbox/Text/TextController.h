@@ -35,11 +35,21 @@ namespace sandbox
       Handle<SMemoryBuffer> Hnd;
     };
 
+    struct GlyphBufferParams
+    {
+      math::vec2 Uv[4];
+      math::vec3 Color;
+    };
+
     GlyphQuad Quad;
     FontController FontCtrl;
+    Handle<SMemoryBuffer> GlyphIboHnd;
     astl::Array<TextEntry> Texts;
     astl::Ref<Font> DefaultFont;
     astl::Ref<IRenderSystem> pRenderer;
+    size_t MaxNumGlyphs;
+
+    void AllocateGlyphBuffer(size_t NumGlyphs);
 
   public:
 
@@ -48,14 +58,16 @@ namespace sandbox
 
     DELETE_COPY_AND_MOVE(TextController)
 
-    void Initialize();
+    void Initialize(size_t InitialMaxGlyphCount);
     void Terminate();
 
     void SetDefaultFont(Handle<Font> Hnd);
     Handle<Font> LoadFont(const astl::FilePath& Path, uint32 Size);
     Handle<SImage> GetFontAtlasHandle(Handle<Font> Hnd);
-    void Print(astl::String&& Text, const math::vec2 Pos, uint32 Size = 16, math::vec3 Color = { 0.f, 0.f, 0.f }, Handle<Font> FontHnd = INVALID_HANDLE);
-    void Finalize(astl::Array<math::mat4>& OutTransform, astl::Array<GlyphConstant>& OutConstants);
+    Handle<SMemoryBuffer> GetGlyphInstanceBufferHandle() const;
+    void Print(astl::String&& Text, const math::vec2 Pos, uint32 Size = 16, math::vec3 Color = { 1.f, 1.f, 1.f }, Handle<Font> FontHnd = INVALID_HANDLE);
+    void Finalize(astl::Array<math::mat4>& OutTransform, astl::Array<GlyphConstant>& OutConstants, float32 CanvasWidth, float32 CanvasHeight);
+
 
     VertexInformation& GetGlyphQuadVertexInformation();
     IndexInformation& GetGlyphQuadIndexInformation();

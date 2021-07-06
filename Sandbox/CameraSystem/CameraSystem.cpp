@@ -15,6 +15,7 @@ namespace sandbox
 	) :
 		SystemInterface(),
 		CameraBase(),
+    CamUbo{},
 		Engine(InEngine),
 		Renderer(InRenderer),
 		Setup(InRenderSetup),
@@ -68,14 +69,13 @@ namespace sandbox
 			UpdateView();
 		}
 
-		CameraUbo ubo;
-		ubo.ViewProj = Projection * View;
-		ubo.View = View;
+		CamUbo.ViewProj = Projection * View;
+		CamUbo.View = View;
 		
 		Renderer.DescriptorSetUpdateDataAtBinding(
 			Setup.GetDescriptorSetHandle(),
 			0,
-			&ubo,
+			&CamUbo,
 			sizeof(CameraUbo)
 		);
 

@@ -10,12 +10,15 @@ namespace sandbox
   Handle<MaterialDef> pbrMatDefinition;
   astl::Array<Handle<Material>> zeldaMaterialHandles;
   astl::Array<math::mat4> fontTransforms;
+  astl::Array<math::mat4> objectTransforms;
   astl::Array<GlyphConstant> glyphConst;
+
+  static constexpr size_t g_maxNumGlyphs = 500;
 
 	SandboxApp::SandboxApp() :
     AssetManager{ ao::FetchEngineCtx() },
     MatController(this->AssetManager, ao::FetchRenderSystem(), ao::FetchEngineCtx()),
-    //TypeWriter(ao::FetchRenderSystem(), ao::FetchEngineCtx()),
+    TypeWriter(ao::FetchRenderSystem(), ao::FetchEngineCtx()),
 		Setup(),
 		pRenderer(),
 		pCamera()
@@ -31,7 +34,7 @@ namespace sandbox
 		pEngine = &engine;
 
     MatController.Initialize();
-    //TypeWriter.Initialize();
+    TypeWriter.Initialize(g_maxNumGlyphs);
 
 		if (!Setup.Initialize(&engine, &renderer, &AssetManager))
 		{
@@ -210,7 +213,7 @@ namespace sandbox
       RefHnd<Texture> texHnd = textureImporter.ImportTextureFromPath(path, &AssetManager);
 
       texHnd->ImageHnd = pRenderer->CreateImage(texHnd->Width, texHnd->Height, texHnd->Channels, Texture_Type_2D, Texture_Format_Srgb);
-      pRenderer->BuildImage(texHnd->ImageHnd);
+      //pRenderer->BuildImage(texHnd->ImageHnd);
 
       staging.StageDataForImage(texHnd->Data, texHnd->Size, texHnd->ImageHnd, EQueueType::Queue_Type_Graphics);
       staging.TransferImageOwnership(texHnd->ImageHnd);
@@ -229,8 +232,8 @@ namespace sandbox
       zeldaMaterialHandles.Push(hnd);
     }
 
-    //Handle<Font> ibmPlex = TypeWriter.LoadFont("Data/Fonts/IBMPlexMono-Regular.ttf", 128);
-    //TypeWriter.SetDefaultFont(ibmPlex);
+    Handle<Font> ibmPlex = TypeWriter.LoadFont("Data/Fonts/IBMPlexMono-Regular.ttf", 128);
+    TypeWriter.SetDefaultFont(ibmPlex);
 
     astl::Array<Handle<SImage>> imageHandles;
     astl::Ref<MaterialDef> pbrDefinition = MatController.GetMaterialDefinition(pbrMatDefinition);
@@ -254,17 +257,16 @@ namespace sandbox
       imageHandles.Empty();
     }
 
-    //Handle<SImage> atlasHnd = TypeWriter.GetFontAtlasHandle(ibmPlex);
+    Handle<SImage> atlasHnd = TypeWriter.GetFontAtlasHandle(ibmPlex);
+    pRenderer->DescriptorSetMapToImage(
+      setHnd,
+      2,
+      &atlasHnd,
+      1,
+      pbrDefinition->SamplerHnd
+    );
 
-    //pRenderer->DescriptorSetMapToImage(
-    //  setHnd,
-    //  2,
-    //  &atlasHnd,
-    //  1,
-    //  pbrDefinition->SamplerHnd
-    //);
-
-		staging.Upload();
+		//staging.Upload();
 	}
 
 	/**
@@ -274,11 +276,17 @@ namespace sandbox
 	*/
 	void SandboxApp::Run(float32 Timestep)
 	{
+    //ScopedTimer<float32> timer([](float32 Time) { printf("Game loop time: %.3f\n", Time); });
 		static bool firstFrame = true;
 		if (pEngine->HasWindowSizeChanged() && !firstFrame)
 		{
 			HandleWindowResize();
 		}
+    const Extent2D wndExtent = pEngine->GetWindowInformation().Extent;
+
+    fontTransforms.Empty();
+    glyphConst.Empty();
+    objectTransforms.Empty();
 
 		pRenderer->BindPipeline(
 			Setup.GetColorPass().GetPipelineHandle(),
@@ -299,7 +307,13 @@ namespace sandbox
     math::Translate(transform1, vec3(250.0f, 0.0f, 0.0f));
     math::Rotate(transform1, pEngine->Clock.FElapsedTime(), vec3(0.0f, 1.0f, 0.0f));
 
-    math::mat4 transform[] = { transform0, transform1 };
+    math::mat4 transform2 = transform0;
+    math::Translate(transform2, math::vec3(-250.0f, 0.0f, 0.0f));
+    math::Rotate(transform2, 45.0f, math::vec3(0.0f, 1.0f, 0.0f));
+
+    objectTransforms.Push(astl::Move(transform0));
+    objectTransforms.Push(astl::Move(transform1));
+    objectTransforms.Push(astl::Move(transform2));
 
     uint32 textureIndices[] = { 0, 1, 2, 3, 4, 5, 3 };
 
@@ -312,50 +326,39 @@ namespace sandbox
     info.pConstants = textureIndices;
     info.ConstantsCount = 6;
     info.ConstantTypeSize = sizeof(uint32);
-    info.pTransforms = transform;
-    info.TransformCount = 2;
+    info.pTransforms = objectTransforms.First();
+    info.TransformCount = 3;
 
 		pRenderer->Draw(info);
 
-    DrawSubmissionInfo info2 = info;
+    // Bind text overlay pipeline and descriptor set.
+    pRenderer->BindPipeline(
+      Setup.GetTexOverlayPass().GetPipelineHandle(),
+      Setup.GetTexOverlayPass().GetRenderPassHandle()
+    );
+    pRenderer->BindDescriptorSet(
+      Setup.GetDescriptorSetHandle(),
+      Setup.GetTexOverlayPass().GetRenderPassHandle()
+    );
 
-    math::mat4 transform2 = transform0;
-    math::Translate(transform2, math::vec3(-250.0f, 0.0f, 0.0f));
-    math::Rotate(transform2, 45.0f, math::vec3(0.0f, 1.0f, 0.0f));
+    // Render "Hello World" to the screen.
+    TypeWriter.Print("Hello World", vec2(100.0f, 100.0f), 64, vec3(1.0f));
+    TypeWriter.Finalize(fontTransforms, glyphConst, static_cast<float32>(wndExtent.Width), static_cast<float32>(wndExtent.Height));
 
-    info2.pTransforms = &transform2;
-    info2.TransformCount = 1;
+    // Submit transforms to the renderer.
+    DrawSubmissionInfo textSubmission = {};
+    textSubmission.pTransforms = fontTransforms.First();
+    textSubmission.TransformCount = static_cast<uint32>(fontTransforms.Length());
+    textSubmission.pConstants = glyphConst.First();
+    textSubmission.ConstantsCount = static_cast<uint32>(glyphConst.Length());
+    textSubmission.ConstantTypeSize = sizeof(GlyphConstant);
+    textSubmission.DrawCount = 1;
+    textSubmission.pVertexInformation = &TypeWriter.GetGlyphQuadVertexInformation();
+    textSubmission.pIndexInformation = &TypeWriter.GetGlyphQuadIndexInformation();
+    textSubmission.RenderPassHnd = Setup.GetTexOverlayPass().GetRenderPassHandle();
+    textSubmission.PipelineHnd = Setup.GetTexOverlayPass().GetPipelineHandle();
 
-    pRenderer->Draw(info2);
-
-    //pRenderer->BindPipeline(
-    //  Setup.GetTexOverlayPass().GetPipelineHandle(),
-    //  Setup.GetTexOverlayPass().GetRenderPassHandle()
-    //);
-    //pRenderer->BindDescriptorSet(
-    //  Setup.GetDescriptorSetHandle(),
-    //  Setup.GetTexOverlayPass().GetRenderPassHandle()
-    //);
-
-    //TypeWriter.Print("Hello World", vec2(0.0f));
-    //TypeWriter.Finalize(fontTransforms, glyphConst);
-
-    //DrawSubmissionInfo textSubmission = {};
-    //textSubmission.pTransforms = fontTransforms.First();
-    //textSubmission.TransformCount = static_cast<uint32>(fontTransforms.Length());
-    //textSubmission.pConstants = glyphConst.First();
-    //textSubmission.ConstantsCount = static_cast<uint32>(glyphConst.Length());
-    //textSubmission.ConstantTypeSize = sizeof(GlyphConstant);
-    //textSubmission.DrawCount = 1;
-    //textSubmission.pVertexInformation = &TypeWriter.GetGlyphQuadVertexInformation();
-    //textSubmission.pIndexInformation = &TypeWriter.GetGlyphQuadIndexInformation();
-    //textSubmission.RenderPassHnd = Setup.GetTexOverlayPass().GetRenderPassHandle();
-    //textSubmission.PipelineHnd = Setup.GetTexOverlayPass().GetPipelineHandle();
-
-    //pRenderer->Draw(textSubmission);
-
-    //fontTransforms.Empty();
-    //glyphConst.Empty();
+    pRenderer->Draw(textSubmission);
 
 		firstFrame = false;
 	}
@@ -363,7 +366,7 @@ namespace sandbox
 	void SandboxApp::Terminate()
 	{
     MatController.Terminate();
-    //TypeWriter.Terminate();
+    TypeWriter.Terminate();
 		pCamera->OnTerminate();
 		Setup.Terminate();
 	}
@@ -380,6 +383,9 @@ namespace sandbox
 			Setup.GetColorPass().GetRenderPassHandle(),
 			wndExtent
 		);
+    frameGraph.SetRenderPassExtent(Setup.GetTexOverlayPass().GetRenderPassHandle(),
+      wndExtent
+    );
 		frameGraph.OnWindowResize();
 	}
 

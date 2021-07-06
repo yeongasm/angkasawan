@@ -71,6 +71,8 @@ namespace sandbox
 
     uint32 ConvertPixelsToPoints(uint32 Pixels, uint32 Dpi);
     uint32 ConvertPointsToPixels(uint32 Points, uint32 Dpi);
+
+    const uint32 GetNumOfFonts() const;
   };
 
 }

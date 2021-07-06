@@ -834,12 +834,14 @@ namespace astl
     mat4 OrthographicRH(float left, float right, float bottom, float top, float near, float far)
     {
       mat4 res(1.0f);
-      res.m00 = 2.0f / (right - left);
-      res.m11 = -(2.0f / (top - bottom));
+      res.m00 =  2.0f / (right - left);  // x-axis
+      res.m11 = -2.0f / (top - bottom);  // y-axis. Flip this because in vulkan positive y is down.
+      res.m22 =  1.0f / (far - near);    // z-axis
       res.m30 = -(right + left) / (right - left);
       res.m31 = -(top + bottom) / (top - bottom);
-      res.m22 = far / (near - far);
-      res.m32 = -(far * near) / (far - near);
+      res.m32 = -near / (far - near);    
+      //res.m22 = -2.0f / (far - near);
+      //res.m32 = -(far + near) / (far - near);
       return res;
     }
 

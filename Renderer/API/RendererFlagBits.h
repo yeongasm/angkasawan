@@ -16,7 +16,21 @@ enum class EBindableType : uint32
 {
 	Bindable_Type_None = 0, // Only during init.
 	Bindable_Type_Descriptor_Set = 1,
-	Bindable_Type_Pipeline = 2
+	Bindable_Type_Pipeline = 2,
+  Bindable_Type_Buffer = 3
+};
+
+enum class EResourceBuildType : uint32
+{
+  Resource_Build_Type_None                  = 0,
+  Resource_Build_Type_Buffer                = 1,
+  Resource_Build_Type_Descriptor_Pool       = 2,
+  Resource_Build_Type_Descriptor_Set_Layout = 3,
+  Resource_Build_Type_Descriptor_Set        = 4,
+  Resource_Build_Type_Image                 = 5,
+  Resource_Build_Type_Image_Sampler         = 6,
+  Resource_Build_Type_Shader                = 7,
+  Resource_Build_Type_Pipeline              = 8
 };
 
 enum class EQueueType : size_t
@@ -188,6 +202,38 @@ enum ECullingMode : uint32
 	Culling_Mode_Back			= 2,
 	Culling_Mode_Front_And_Back = 3,
 	Culling_Mode_Max			= 4
+};
+
+enum EBlendFactor : uint32
+{
+  Blend_Factor_Zero                     = 0,
+  Blend_Factor_One                      = 1,
+  Blend_Factor_Src_Color                = 2,
+  Blend_Factor_One_Minus_Src_Color      = 3,
+  Blend_Factor_Dst_Color                = 4,
+  Blend_Factor_One_Minus_Dst_Color      = 5,
+  Blend_Factor_Src_Alpha                = 6,
+  Blend_Factor_One_Minus_Src_Alpha      = 7,
+  Blend_Factor_Dst_Alpha                = 8,
+  Blend_Factor_One_Minus_Dst_Alpha      = 9,
+  Blend_Factor_Constant_Color           = 10,
+  Blend_Factor_One_Minus_Constant_Color = 11,
+  Blend_Factor_Constant_Alpha           = 12,
+  Blend_Factor_One_Minus_Constant_Alpha = 13,
+  Blend_Factor_Src_Alpha_Saturate       = 14,
+  Blend_Factor_Src1_Color               = 15,
+  Blend_Factor_One_Minus_Src1_Color     = 16,
+  Blend_Factor_Src1_Alpha               = 17,
+  Blend_Factor_One_Minus_Src1_Alpha     = 18,
+  Blend_Factor_Max                      = 19
+};
+
+enum EBlendOp : uint32
+{
+  Blend_Op_Add              = 0,
+  Blend_Op_Subtract         = 1,
+  Blend_Op_Reverse_Subtract = 2,
+  Blend_Op_Max              = 3
 };
 
 enum ESampleCount : uint32
