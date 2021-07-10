@@ -7,13 +7,6 @@
 namespace sandbox
 {
 
-  struct GlyphConstant
-  {
-    math::mat4 Projection;
-    math::vec2 Uv[4];
-    math::vec3 Color;
-  };
-
   // This ought to really be a system in the engine.
   class TextController
   {
@@ -21,11 +14,11 @@ namespace sandbox
 
     struct TextEntry
     {
-      astl::String Str;
+      astl::String Str; // This should be a string view in the future.
       astl::Ref<Font> pFont;
-      uint32 FontSize; // In pixels!
       math::vec2 Pos;
       math::vec3 Color;
+      float32 FontSizePx; // In pixels!
     };
 
     struct GlyphQuad
@@ -35,8 +28,9 @@ namespace sandbox
       Handle<SMemoryBuffer> Hnd;
     };
 
-    struct GlyphBufferParams
+    struct GlyphInstanceAttrib
     {
+      math::mat4 Transform;
       math::vec2 Uv[4];
       math::vec3 Color;
     };
@@ -45,6 +39,7 @@ namespace sandbox
     FontController FontCtrl;
     Handle<SMemoryBuffer> GlyphIboHnd;
     astl::Array<TextEntry> Texts;
+    astl::Array<GlyphInstanceAttrib> InstanceAttrib;
     astl::Ref<Font> DefaultFont;
     astl::Ref<IRenderSystem> pRenderer;
     size_t MaxNumGlyphs;
@@ -65,9 +60,8 @@ namespace sandbox
     Handle<Font> LoadFont(const astl::FilePath& Path, uint32 Size);
     Handle<SImage> GetFontAtlasHandle(Handle<Font> Hnd);
     Handle<SMemoryBuffer> GetGlyphInstanceBufferHandle() const;
-    void Print(astl::String&& Text, const math::vec2 Pos, uint32 Size = 16, math::vec3 Color = { 1.f, 1.f, 1.f }, Handle<Font> FontHnd = INVALID_HANDLE);
-    void Finalize(astl::Array<math::mat4>& OutTransform, astl::Array<GlyphConstant>& OutConstants, float32 CanvasWidth, float32 CanvasHeight);
-
+    void Print(astl::String&& Text, const math::vec2 Pos, float32 SizePx = 16.f, math::vec3 Color = { 1.f, 1.f, 1.f }, Handle<Font> FontHnd = INVALID_HANDLE);
+    void Finalize(math::mat4& ProjConstant, uint32& NumInstances, float32 CanvasWidth, float32 CanvasHeight);
 
     VertexInformation& GetGlyphQuadVertexInformation();
     IndexInformation& GetGlyphQuadIndexInformation();

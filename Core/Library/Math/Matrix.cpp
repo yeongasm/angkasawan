@@ -1,8 +1,4 @@
-#include <new>
 #include "Matrix.h"
-#include "Library/Templates/Templates.h"
-#include "Operations.h"
-#include "Vector.h"
 
 namespace astl
 {

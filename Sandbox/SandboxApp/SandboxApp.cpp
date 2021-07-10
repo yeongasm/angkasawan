@@ -11,7 +11,7 @@ namespace sandbox
   astl::Array<Handle<Material>> zeldaMaterialHandles;
   astl::Array<math::mat4> fontTransforms;
   astl::Array<math::mat4> objectTransforms;
-  astl::Array<GlyphConstant> glyphConst;
+  math::mat4 g_GlyphOrthoProj;
 
   static constexpr size_t g_maxNumGlyphs = 500;
 
@@ -212,7 +212,7 @@ namespace sandbox
     {
       RefHnd<Texture> texHnd = textureImporter.ImportTextureFromPath(path, &AssetManager);
 
-      texHnd->ImageHnd = pRenderer->CreateImage(texHnd->Width, texHnd->Height, texHnd->Channels, Texture_Type_2D, Texture_Format_Srgb);
+      texHnd->ImageHnd = pRenderer->CreateImage(texHnd->Width, texHnd->Height, texHnd->Channels, Texture_Type_2D, Texture_Format_Srgb, true);
       //pRenderer->BuildImage(texHnd->ImageHnd);
 
       staging.StageDataForImage(texHnd->Data, texHnd->Size, texHnd->ImageHnd, EQueueType::Queue_Type_Graphics);
@@ -232,7 +232,7 @@ namespace sandbox
       zeldaMaterialHandles.Push(hnd);
     }
 
-    Handle<Font> ibmPlex = TypeWriter.LoadFont("Data/Fonts/IBMPlexMono-Regular.ttf", 128);
+    Handle<Font> ibmPlex = TypeWriter.LoadFont("Data/Fonts/IBMPlexMono-Regular.ttf", 12);
     TypeWriter.SetDefaultFont(ibmPlex);
 
     astl::Array<Handle<SImage>> imageHandles;
@@ -263,10 +263,8 @@ namespace sandbox
       2,
       &atlasHnd,
       1,
-      pbrDefinition->SamplerHnd
+      Setup.GetTexOverlayPass().GetFontSampler()
     );
-
-		//staging.Upload();
 	}
 
 	/**
@@ -276,7 +274,6 @@ namespace sandbox
 	*/
 	void SandboxApp::Run(float32 Timestep)
 	{
-    //ScopedTimer<float32> timer([](float32 Time) { printf("Game loop time: %.3f\n", Time); });
 		static bool firstFrame = true;
 		if (pEngine->HasWindowSizeChanged() && !firstFrame)
 		{
@@ -284,9 +281,10 @@ namespace sandbox
 		}
     const Extent2D wndExtent = pEngine->GetWindowInformation().Extent;
 
-    fontTransforms.Empty();
-    glyphConst.Empty();
     objectTransforms.Empty();
+    g_GlyphOrthoProj = math::mat4(1.0f);
+
+    pRenderer->BufferBindToGlobal(TypeWriter.GetGlyphInstanceBufferHandle());
 
 		pRenderer->BindPipeline(
 			Setup.GetColorPass().GetPipelineHandle(),
@@ -328,6 +326,7 @@ namespace sandbox
     info.ConstantTypeSize = sizeof(uint32);
     info.pTransforms = objectTransforms.First();
     info.TransformCount = 3;
+    info.InstanceCount = 3;
 
 		pRenderer->Draw(info);
 
@@ -341,17 +340,24 @@ namespace sandbox
       Setup.GetTexOverlayPass().GetRenderPassHandle()
     );
 
+    uint32 numInstances = 0;
+
+    astl::String fps;
+    fps.Format("Fps: %.3f", pEngine->Clock.FFramerate());
+    astl::String frametime;
+    frametime.Format("Frametime: %.3fms", pEngine->Clock.FFrametime());
+
     // Render "Hello World" to the screen.
-    TypeWriter.Print("Hello World", vec2(100.0f, 100.0f), 64, vec3(1.0f));
-    TypeWriter.Finalize(fontTransforms, glyphConst, static_cast<float32>(wndExtent.Width), static_cast<float32>(wndExtent.Height));
+    TypeWriter.Print(astl::Move(frametime), vec2(10.0f, 10.0f), 12, vec3(1.0f));
+    TypeWriter.Print(astl::Move(fps), vec2(10.0f, 30.0f), 12, vec3(1.0f));
+    TypeWriter.Finalize(g_GlyphOrthoProj, numInstances, static_cast<float32>(wndExtent.Width), static_cast<float32>(wndExtent.Height));
 
     // Submit transforms to the renderer.
     DrawSubmissionInfo textSubmission = {};
-    textSubmission.pTransforms = fontTransforms.First();
-    textSubmission.TransformCount = static_cast<uint32>(fontTransforms.Length());
-    textSubmission.pConstants = glyphConst.First();
-    textSubmission.ConstantsCount = static_cast<uint32>(glyphConst.Length());
-    textSubmission.ConstantTypeSize = sizeof(GlyphConstant);
+    textSubmission.InstanceCount = numInstances;
+    textSubmission.pConstants = &g_GlyphOrthoProj;
+    textSubmission.ConstantsCount = 1;
+    textSubmission.ConstantTypeSize = sizeof(math::mat4);
     textSubmission.DrawCount = 1;
     textSubmission.pVertexInformation = &TypeWriter.GetGlyphQuadVertexInformation();
     textSubmission.pIndexInformation = &TypeWriter.GetGlyphQuadIndexInformation();

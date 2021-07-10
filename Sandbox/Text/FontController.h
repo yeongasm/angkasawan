@@ -19,12 +19,24 @@ namespace sandbox
     Font_Encoding_ASCII = 128
   };
 
+  enum EGlyphTexCoord : uint32
+  {
+    Glyph_TexCoord_TL = 0,
+    Glyph_TexCoord_TR = 1,
+    Glyph_TexCoord_BL = 2,
+    Glyph_TexCoord_BR = 3,
+    Glyph_TexCoord_Max = 4,
+  };
+
+  struct Font;
+
   struct Glyph
   {
-    math::vec2 TL;
-    math::vec2 BR;
+    math::vec2 Pos;
+    math::vec2 Dim;
     math::vec2 Bearing;
-    uint32 Advance;
+    math::vec2  TexCoords[Glyph_TexCoord_Max];
+    float32 Advance;
   };
 
   struct Font
@@ -35,12 +47,13 @@ namespace sandbox
       uint32 Width;
       uint32 Height;
     };
-    astl::Array<Glyph>    Characters;
-    FT_Face         Face;
-    uint32          SizeInPt;
-    uint32          Dpi;
-    AtlasInfo       Atlas;
-    EFontEncoding   Encoding;
+    astl::Array<Glyph> Characters;
+    FT_Face Face;
+    uint32 SizePx;
+    float32 FSizePx;
+    float32 FMaxFontHeight;
+    AtlasInfo Atlas;
+    EFontEncoding Encoding;
   };
 
   class FontController
@@ -62,15 +75,9 @@ namespace sandbox
 
     DELETE_COPY_AND_MOVE(FontController)
 
-    Handle<Font> LoadFont(const astl::FilePath& Path, EFontEncoding Encoding, uint32 FontSizeInPixels = 16, uint32 Dpi = 96);
+    Handle<Font> LoadFont(const astl::FilePath& Path, EFontEncoding Encoding, uint32 FontSizeInPixels = 16, uint32 Width = 4096, uint32 Height = 4096, uint32 HorzDpi = 96, uint32 VertDpi = 96);
     const astl::Ref<Font> GetFont(Handle<Font> Hnd);
     void UnloadFont(Handle<Font>& Hnd);
-
-    uint32 GetFontMaxSizePt(Handle<Font> Hnd);
-    uint32 GetFontMaxSizePx(Handle<Font> Hnd);
-
-    uint32 ConvertPixelsToPoints(uint32 Pixels, uint32 Dpi);
-    uint32 ConvertPointsToPixels(uint32 Points, uint32 Dpi);
 
     const uint32 GetNumOfFonts() const;
   };

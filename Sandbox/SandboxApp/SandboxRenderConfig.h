@@ -54,7 +54,7 @@ namespace sandbox
   private:
     RefHnd<Shader> VertexShader;
     RefHnd<Shader> FragmentShader;
-
+    Handle<SImageSampler> FontSamplerHnd;
   public:
     bool Initialize(astl::Ref<EngineImpl> pInEngine, astl::Ref<IRenderSystem> pInRenderSystem, astl::Ref<IAssetManager> pInAssetManager);
     void Terminate();
@@ -62,6 +62,7 @@ namespace sandbox
     const Handle<SRenderPass> GetRenderPassHandle() const;
     const Handle<SPipeline> GetPipelineHandle() const;
     const Handle<Shader> GetShaderHandle(EShaderType Type) const;
+    const Handle<SImageSampler> GetFontSampler() const;
   };
 
 	class RendererSetup

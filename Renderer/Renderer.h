@@ -16,7 +16,6 @@
 class IRenderDevice;
 struct IDeviceStore;
 
-
 class RENDERER_API IRenderSystem : public SystemInterface
 {
 private:
@@ -74,25 +73,19 @@ private:
 
 	uint32 CalcStrideForFormat(EShaderAttribFormat Format);
 	void PreprocessShader(astl::Ref<SShader> pShader);
-
 	void IterateBindableRange(BindableManager::BindableRange& Range);
-
 	void BindBindable(SBindable& Bindable);
 	void BindBindablesForRenderpass(Handle<SRenderPass> Hnd);
-
 	void DynamicStateSetup(astl::Ref<SRenderPass> pRenderPass);
-
 	void BindBuffers();
 	void BeginRenderPass(astl::Ref<SRenderPass> pRenderPass);
 	void EndRenderPass(astl::Ref<SRenderPass> pRenderPass);
-
 	void RecordDrawCommand(const DrawCommand& Command);
   void BindPushConstant(const DrawCommand& Command);
 
-	void Clear();
-
 	uint64 GenHashForImageSampler(const ImageSamplerState& State);
 
+	void Clear();
 	void BlitToDefault();
 
 	//void CopyToBuffer(astl::Ref<SMemoryBuffer> pBuffer, void* Data, size_t Size, size_t Offset, bool Update = false);
@@ -108,6 +101,10 @@ private:
 	void BuildImageSampler(astl::Ref<SImageSampler> pImgSampler);
 	void BuildShader(astl::Ref<SShader> pShader);
 	void BuildGraphicsPipeline(astl::Ref<SPipeline> pPipeline);
+
+  void BufferToGraphicsQueue(VkCommandBuffer CmdBuffer, astl::Ref<SMemoryBuffer> pBuffer, uint32 AccessFlag);
+  void ImageToGraphicsQueue(VkCommandBuffer CmdBuffer, astl::Ref<SImage> pImage);
+  void GenerateImageMipMaps(VkCommandBuffer CmdBuffer, astl::Ref<SImage> pImage);
 
   void BuildResourcesInQueue();
   void CopyBuffersInQueue();
@@ -146,6 +143,12 @@ public:
 
 	Handle<SMemoryBuffer> AllocateNewBuffer(const BufferAllocateInfo& AllocInfo);
   size_t GetBufferOffset(Handle<SMemoryBuffer> Hnd);
+
+  bool BufferBindToGlobal(Handle<SMemoryBuffer> Hnd);
+  bool BufferBindToPass(Handle<SMemoryBuffer> BufferHnd, Handle<SRenderPass> RenderpassHnd);
+
+  void ResetBufferOffset(Handle<SMemoryBuffer> Hnd);
+
   // WARNING: Only use this for CPU side buffers. GPU side buffers require data to be staged with the staging manager.
 	bool CopyDataToBuffer(Handle<SMemoryBuffer> Hnd, void* Data, size_t Size, size_t Offset, bool UpdateBufferOffset = false);
 	bool DestroyBuffer(Handle<SMemoryBuffer>& Hnd);

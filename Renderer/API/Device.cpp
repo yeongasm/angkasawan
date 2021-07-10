@@ -868,17 +868,18 @@ bool IRenderDevice::CreateVulkanInstance()
 	createInfo.enabledExtensionCount = extensionCount;
 
 #if RENDERER_DEBUG_RENDER_DEVICE
-	const char* layers[] = { "VK_LAYER_LUNARG_monitor", "VK_LAYER_KHRONOS_validation" };
+	//const char* layers[] = { "VK_LAYER_LUNARG_monitor", "VK_LAYER_KHRONOS_validation" };
+	const char* layers[] = { "VK_LAYER_KHRONOS_validation" };
 	createInfo.ppEnabledLayerNames = layers;
-	createInfo.enabledLayerCount = 2;
+	createInfo.enabledLayerCount = 1;
 
 	VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo;
 	PopulateDebugMessengerCreateInfo(debugCreateInfo);
 	createInfo.pNext = reinterpret_cast<VkDebugUtilsMessengerCreateInfoEXT*>(&debugCreateInfo);
 #else
-	const char* layers[] = { "VK_LAYER_LUNARG_monitor" };
-	createInfo.ppEnabledLayerNames = layers;
-	createInfo.enabledLayerCount = 1;
+	//const char* layers[] = { "VK_LAYER_LUNARG_monitor" };
+	//createInfo.ppEnabledLayerNames = layers;
+	//createInfo.enabledLayerCount = 1;
 #endif
 
 	if (vkCreateInstance(&createInfo, nullptr, &Instance) != VK_SUCCESS)

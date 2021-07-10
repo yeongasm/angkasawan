@@ -91,6 +91,27 @@ uint32 IRenderSystem::CalcStrideForFormat(EShaderAttribFormat Format)
 	return 0;
 }
 
+EShaderAttribFormat GetShaderAttribFormat(SpvReflectFormat Format)
+{
+  EShaderAttribFormat result;
+  switch (Format)
+  {
+  case SPV_REFLECT_FORMAT_R32_SFLOAT:
+    result = Shader_Attrib_Type_Float;
+    break;
+  case SPV_REFLECT_FORMAT_R32G32_SFLOAT:
+    result = Shader_Attrib_Type_Vec2;
+    break;
+  case SPV_REFLECT_FORMAT_R32G32B32_SFLOAT:
+    result = Shader_Attrib_Type_Vec3;
+    break;
+  case SPV_REFLECT_FORMAT_R32G32B32A32_SFLOAT:
+    result = Shader_Attrib_Type_Vec4;
+    break;
+  }
+  return result;
+}
+
 void IRenderSystem::PreprocessShader(astl::Ref<SShader> pShader)
 {
 	uint32 count = 0;
@@ -124,24 +145,23 @@ void IRenderSystem::PreprocessShader(astl::Ref<SShader> pShader)
 				}
 				continue;
 			}
-			else
-			{
-				switch (var->format)
-				{
-				case SPV_REFLECT_FORMAT_R32_SFLOAT:
-					attribute.Format = Shader_Attrib_Type_Float;
-					break;
-				case SPV_REFLECT_FORMAT_R32G32_SFLOAT:
-					attribute.Format = Shader_Attrib_Type_Vec2;
-					break;
-				case SPV_REFLECT_FORMAT_R32G32B32_SFLOAT:
-					attribute.Format = Shader_Attrib_Type_Vec3;
-					break;
-				case SPV_REFLECT_FORMAT_R32G32B32A32_SFLOAT:
-					attribute.Format = Shader_Attrib_Type_Vec4;
-					break;
-				}
-			}
+
+      if (var->type_description->op == SpvOpTypeArray)
+      {
+        for (uint32 i = 0; i < var->array.dims_count; i++)
+        {
+          for (uint32 j = 0; j < var->array.dims[i]; j++)
+          {
+            attribute.Format = GetShaderAttribFormat(var->format);
+            attribute.Location = var->location + j;
+            attribute.Offset = 0;
+            pShader->Attributes.Push(astl::Move(attribute));
+          }
+        }
+        continue;
+      }
+
+      attribute.Format = GetShaderAttribFormat(var->format);
 			attribute.Location = var->location;
 			attribute.Offset = 0;
 			pShader->Attributes.Push(astl::Move(attribute));
@@ -435,6 +455,7 @@ void IRenderSystem::BindPushConstant(const DrawCommand& Command)
   );
 }
 
+// Need to make this function cleaner.
 void IRenderSystem::MakeTransferToGpu()
 {
 	if (!pStaging->MakeTransfers.Value()) { return; }
@@ -444,39 +465,18 @@ void IRenderSystem::MakeTransferToGpu()
 		VK_COMMAND_BUFFER_LEVEL_PRIMARY, 
 		1
 	);
+
 	if (cmd == VK_NULL_HANDLE) { return; }
 	pDevice->BeginCommandBuffer(cmd, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 
   if (pStaging->MakeTransfers.Has(Ownership_Transfer_Type_Vertex_Buffer))
   {
-	  pDevice->BufferBarrier(
-		  cmd,
-		  VertexBuffer->Hnd,
-		  VertexBuffer->Size,
-		  0,
-		  VK_ACCESS_TRANSFER_WRITE_BIT,
-		  VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT,
-		  VK_PIPELINE_STAGE_TRANSFER_BIT,
-		  VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
-		  pDevice->GetGraphicsQueue().FamilyIndex,
-		  pDevice->GetGraphicsQueue().FamilyIndex
-	  );
+    BufferToGraphicsQueue(cmd, VertexBuffer, VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT);
   }
 
   if (pStaging->MakeTransfers.Has(Ownership_Transfer_Type_Index_Buffer))
   {
-    pDevice->BufferBarrier(
-      cmd,
-      IndexBuffer->Hnd,
-      IndexBuffer->Size,
-      0,
-      VK_ACCESS_TRANSFER_WRITE_BIT,
-      VK_ACCESS_INDEX_READ_BIT,
-      VK_PIPELINE_STAGE_TRANSFER_BIT,
-      VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
-      pDevice->GetGraphicsQueue().FamilyIndex,
-      pDevice->GetGraphicsQueue().FamilyIndex
-    );
+    BufferToGraphicsQueue(cmd, IndexBuffer, VK_ACCESS_INDEX_READ_BIT);
   }
 
   if (pStaging->MakeTransfers.Has(Ownership_Transfer_Type_Buffer_Or_Image))
@@ -485,42 +485,13 @@ void IRenderSystem::MakeTransferToGpu()
     {
       if (transfer.Type == Staging_Upload_Type_Buffer)
       {
-        pDevice->BufferBarrier(
-          cmd,
-          transfer.pBuffer->Hnd,
-          transfer.pBuffer->Size,
-          0,
-          VK_ACCESS_TRANSFER_WRITE_BIT,
-          VK_ACCESS_MEMORY_READ_BIT,
-          VK_PIPELINE_STAGE_TRANSFER_BIT,
-          VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
-          pDevice->GetGraphicsQueue().FamilyIndex,
-          pDevice->GetGraphicsQueue().FamilyIndex
-        );
+        BufferToGraphicsQueue(cmd, transfer.pBuffer, VK_ACCESS_MEMORY_READ_BIT);
       }
 
       if (transfer.Type == Staging_Upload_Type_Image)
       {
-        VkImageSubresourceRange range = {};
-        range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        range.baseMipLevel = 0;
-        range.levelCount = transfer.pImage->MipLevels;
-        range.baseArrayLayer = 0;
-        range.layerCount = 1;
-
-        pDevice->ImageBarrier(
-          cmd,
-          transfer.pImage->ImgHnd,
-          &range,
-          VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-          VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-          VK_PIPELINE_STAGE_TRANSFER_BIT,
-          VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-          pDevice->GetGraphicsQueue().FamilyIndex,
-          pDevice->GetGraphicsQueue().FamilyIndex,
-          VK_ACCESS_TRANSFER_WRITE_BIT,
-          VK_ACCESS_SHADER_READ_BIT
-        );
+        ImageToGraphicsQueue(cmd, transfer.pImage);
+        GenerateImageMipMaps(cmd, transfer.pImage);
       }
     }
   }
@@ -554,6 +525,8 @@ void IRenderSystem::Clear()
 		pair.Value = {};
 	}
 	BindableManager::_BindableAllocator.FlushMemory();
+  BindableManager::_GlobalBindables.pBegin = nullptr;
+  BindableManager::_GlobalBindables.pEnd = nullptr;
 }
 
 uint64 IRenderSystem::GenHashForImageSampler(const ImageSamplerState& State)
@@ -761,7 +734,6 @@ void IRenderSystem::OnUpdate()
 	BindBuffers();
 	for (auto& [hnd, pRenderPass] : pFrameGraph->RenderPasses)
 	{
-
 		BeginRenderPass(pRenderPass);
 		BindBindablesForRenderpass(hnd);
 		DynamicStateSetup(pRenderPass);
@@ -1070,10 +1042,11 @@ bool IRenderSystem::DescriptorSetBindToGlobal(Handle<SDescriptorSet> Hnd)
     range.pBegin = bindableNode;
     range.pEnd = bindableNode;
   }
-
-  range.pEnd->Next = bindableNode;
-  range.pEnd = bindableNode;
-
+  else
+  {
+    range.pEnd->Next = bindableNode;
+    range.pEnd = bindableNode;
+  }
   return true;
 }
 
@@ -1250,6 +1223,67 @@ size_t IRenderSystem::GetBufferOffset(Handle<SMemoryBuffer> Hnd)
   return pBuffer->Offset;
 }
 
+bool IRenderSystem::BufferBindToGlobal(Handle<SMemoryBuffer> Hnd)
+{
+  astl::Ref<SMemoryBuffer> pBuffer = pStore->GetBuffer(Hnd);
+  if (!pBuffer) { return false; }
+
+  astl::ForwardNode<SBindable>* bindableNode = astl::IAllocator::New<astl::ForwardNode<SBindable>>(BindableManager::_BindableAllocator);
+  BindableManager::BindableRange& range = BindableManager::_GlobalBindables;
+
+  bindableNode->Data.Type = EBindableType::Bindable_Type_Buffer;
+  bindableNode->Data.pBuffer = pBuffer;
+
+  if (!range.pBegin && !range.pEnd)
+  {
+    range.pBegin = bindableNode;
+    range.pEnd = bindableNode;
+  }
+  else
+  {
+    range.pEnd->Next = bindableNode;
+    range.pEnd = bindableNode;
+  }
+  return true;
+}
+
+bool IRenderSystem::BufferBindToPass(Handle<SMemoryBuffer> BufferHnd, Handle<SRenderPass> RenderpassHnd)
+{
+  astl::Ref<SMemoryBuffer> pBuffer = pStore->GetBuffer(BufferHnd);
+  astl::Ref<SRenderPass> pRenderpass = pStore->GetRenderPass(RenderpassHnd);
+  VKT_ASSERT(pBuffer && pRenderpass && "Invalid handle(s) supplied");
+
+  if (!pBuffer || !pRenderpass)
+  {
+    return false;
+  }
+
+  astl::ForwardNode<SBindable>* bindableNode = astl::IAllocator::New<astl::ForwardNode<SBindable>>(BindableManager::_BindableAllocator);
+  BindableManager::BindableRange& range = BindableManager::_Bindables[RenderpassHnd];
+
+  bindableNode->Data.Type = EBindableType::Bindable_Type_Buffer;
+  bindableNode->Data.pBuffer = pBuffer;
+
+  if (!range.pBegin && !range.pEnd)
+  {
+    range.pBegin = bindableNode;
+    range.pEnd = bindableNode;
+  }
+  else
+  {
+    range.pEnd->Next = bindableNode;
+    range.pEnd = bindableNode;
+  }
+  return true;
+}
+
+void IRenderSystem::ResetBufferOffset(Handle<SMemoryBuffer> Hnd)
+{
+  astl::Ref<SMemoryBuffer> pBuffer = pStore->GetBuffer(Hnd);
+  if (!pBuffer) { return; }
+  pBuffer->Offset = 0;
+}
+
 bool IRenderSystem::CopyDataToBuffer(Handle<SMemoryBuffer> Hnd, void* Data, size_t Size, size_t Offset, bool UpdateBufferOffset)
 {
   astl::Ref<SMemoryBuffer> pBuffer = pStore->GetBuffer(Hnd);
@@ -1330,6 +1364,11 @@ Handle<SImage> IRenderSystem::CreateImage(uint32 Width, uint32 Height, uint32 Ch
   pImg->Usage.Set(Image_Usage_Transfer_Dst);
   pImg->Usage.Set(Image_Usage_Sampled);
 
+  if (pImg->MipMaps)
+  {
+    pImg->Usage.Set(Image_Usage_Transfer_Src);
+  }
+
   return id;
 }
 
@@ -1353,7 +1392,6 @@ void IRenderSystem::BuildImage(astl::Ref<SImage> pImg)
     {
       pImg->MipLevels = MAX_IMAGE_MIP_MAP_LEVEL;
     }
-    //pImg->Usage.Set(Image_Usage_Transfer_Dst);
   }
 
   usage = GetImageUsageFlags(pImg);
@@ -1429,6 +1467,7 @@ Handle<SImageSampler> IRenderSystem::CreateImageSampler(const ImageSamplerCreate
   pImgSampler->CompareOp = CreateInfo.CompareOp;
   pImgSampler->MagFilter = CreateInfo.MagFilter;
   pImgSampler->MinFilter = CreateInfo.MinFilter;
+  pImgSampler->MaxLod = CreateInfo.MaxLod;
   pImgSampler->Hash = samplerHash;
 
   return id;
@@ -1442,8 +1481,10 @@ void IRenderSystem::BuildImageSampler(astl::Ref<SImageSampler> pImgSampler)
   createInfo.addressModeV = pDevice->GetSamplerAddressMode(pImgSampler->AddressModeV);
   createInfo.addressModeW = pDevice->GetSamplerAddressMode(pImgSampler->AddressModeW);
   createInfo.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
+  createInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
   createInfo.minFilter = pDevice->GetFilter(pImgSampler->MinFilter);
   createInfo.magFilter = pDevice->GetFilter(pImgSampler->MagFilter);
+  createInfo.maxLod = pImgSampler->MaxLod;
 
   if (pImgSampler->AnisotropyLvl)
   {
@@ -1853,6 +1894,148 @@ void IRenderSystem::BuildGraphicsPipeline(astl::Ref<SPipeline> pPipeline)
   }
 }
 
+void IRenderSystem::BufferToGraphicsQueue(VkCommandBuffer CmdBuffer, astl::Ref<SMemoryBuffer> pBuffer, uint32 AccessFlag)
+{
+  pDevice->BufferBarrier(
+    CmdBuffer,
+    pBuffer->Hnd,
+    pBuffer->Size,
+    0,
+    VK_ACCESS_TRANSFER_WRITE_BIT,
+    AccessFlag,
+    VK_PIPELINE_STAGE_TRANSFER_BIT,
+    VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
+    pDevice->GetGraphicsQueue().FamilyIndex,
+    pDevice->GetGraphicsQueue().FamilyIndex
+  );
+}
+
+void IRenderSystem::ImageToGraphicsQueue(VkCommandBuffer CmdBuffer, astl::Ref<SImage> pImage)
+{
+  VkAccessFlagBits dstFlag = VK_ACCESS_SHADER_READ_BIT;
+  VkImageLayout layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+  VkPipelineStageFlagBits pipelineStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+
+  if (pImage->MipMaps)
+  {
+    dstFlag = VK_ACCESS_TRANSFER_READ_BIT;
+    layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+    pipelineStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+  }
+
+  VkImageSubresourceRange range = {};
+  range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+  range.baseMipLevel = 0;
+  range.levelCount = 1; //pImage->MipLevels;
+  range.baseArrayLayer = 0;
+  range.layerCount = 1;
+
+  pDevice->ImageBarrier(
+    CmdBuffer,
+    pImage->ImgHnd,
+    &range,
+    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+    layout,
+    VK_PIPELINE_STAGE_TRANSFER_BIT,
+    pipelineStage,
+    pDevice->GetGraphicsQueue().FamilyIndex,
+    pDevice->GetGraphicsQueue().FamilyIndex,
+    VK_ACCESS_TRANSFER_WRITE_BIT,
+    dstFlag
+  );
+}
+
+void IRenderSystem::GenerateImageMipMaps(VkCommandBuffer CmdBuffer, astl::Ref<SImage> pImage)
+{
+  if (!pImage->MipMaps) { return; }
+
+  int32 mipWidth = pImage->Width;
+  int32 mipHeight = pImage->Height;
+
+  VkImageSubresourceRange mipSubresourceRange = {};
+  mipSubresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+  mipSubresourceRange.baseArrayLayer = 0;
+  mipSubresourceRange.layerCount = 1;
+  mipSubresourceRange.levelCount = 1;
+
+  for (uint32 i = 1; i < pImage->MipLevels; i++)
+  {
+    mipSubresourceRange.baseMipLevel = i;
+
+    // Convert the image at the mip level to transfer dst layout.
+    pDevice->ImageBarrier(
+      CmdBuffer,
+      pImage->ImgHnd,
+      &mipSubresourceRange,
+      VK_IMAGE_LAYOUT_UNDEFINED,
+      VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+      VK_PIPELINE_STAGE_TRANSFER_BIT,
+      VK_PIPELINE_STAGE_TRANSFER_BIT,
+      pDevice->GetGraphicsQueue().FamilyIndex,
+      pDevice->GetGraphicsQueue().FamilyIndex,
+      0,
+      VK_ACCESS_TRANSFER_WRITE_BIT
+    );
+
+    VkImageBlit blitInfo = {};
+    blitInfo.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    blitInfo.srcSubresource.mipLevel = i - 1;
+    blitInfo.srcSubresource.layerCount = 1;
+    blitInfo.srcOffsets[1] = { mipWidth >> (i - 1), mipHeight >> (i - 1), 1 };
+    blitInfo.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    blitInfo.dstSubresource.mipLevel = i;
+    blitInfo.dstSubresource.layerCount = 1;
+    blitInfo.dstOffsets[1] = { mipWidth >> i, mipHeight >> i, 1 };
+
+    vkCmdBlitImage(
+      CmdBuffer,
+      pImage->ImgHnd,
+      VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+      pImage->ImgHnd,
+      VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+      1,
+      &blitInfo,
+      VK_FILTER_LINEAR
+    );
+
+    //mipSubresourceRange.baseMipLevel = i;
+
+    // Use this mip level as base for the next level.
+    pDevice->ImageBarrier(
+      CmdBuffer,
+      pImage->ImgHnd,
+      &mipSubresourceRange,
+      VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+      VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+      VK_PIPELINE_STAGE_TRANSFER_BIT,
+      VK_PIPELINE_STAGE_TRANSFER_BIT,
+      pDevice->GetGraphicsQueue().FamilyIndex,
+      pDevice->GetGraphicsQueue().FamilyIndex,
+      VK_ACCESS_TRANSFER_WRITE_BIT,
+      VK_ACCESS_TRANSFER_READ_BIT
+    );
+  }
+
+
+  // Transition all mip levels of the image to their actual usage layout.
+  mipSubresourceRange.baseMipLevel = 0;
+  mipSubresourceRange.levelCount = pImage->MipLevels;
+
+  pDevice->ImageBarrier(
+    CmdBuffer,
+    pImage->ImgHnd,
+    &mipSubresourceRange,
+    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+    VK_PIPELINE_STAGE_TRANSFER_BIT,
+    VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+    pDevice->GetGraphicsQueue().FamilyIndex,
+    pDevice->GetGraphicsQueue().FamilyIndex,
+    VK_ACCESS_TRANSFER_READ_BIT,
+    VK_ACCESS_SHADER_READ_BIT
+  );
+}
+
 void IRenderSystem::BuildResourcesInQueue()
 {
   if (!BuildCommandQueue.Length()) { return; }
@@ -1946,10 +2129,11 @@ bool IRenderSystem::BindDescriptorSet(Handle<SDescriptorSet> Hnd, Handle<SRender
 		range.pBegin = bindableNode;
 		range.pEnd = bindableNode;
 	}
-
-	range.pEnd->Next = bindableNode;
-	range.pEnd = bindableNode;
-
+  else
+  {
+    range.pEnd->Next = bindableNode;
+    range.pEnd = bindableNode;
+  }
 	return true;
 }
 
@@ -1980,7 +2164,6 @@ bool IRenderSystem::BindPipeline(Handle<SPipeline> Hnd, Handle<SRenderPass> Rend
 	  range.pEnd->Next = bindableNode;
 	  range.pEnd = bindableNode;
   }
-
 	return true;
 }
 
@@ -1994,10 +2177,14 @@ void IRenderSystem::Draw(const DrawSubmissionInfo& Info)
 	VKT_ASSERT(Info.DrawCount && "Drawable count can not be zero!");
 
   astl::Array<DrawCommand>& drawCommandsAtPass = Drawables[pRenderPass->IndexForDraw];
-  uint32 instanceOffset = static_cast<uint32>(InstanceBuffer->Offset) / static_cast<uint32>(sizeof(math::mat4));
-  const size_t maxCopySize = sizeof(math::mat4) * Info.TransformCount;
-  CopyCommandQueue.Emplace(Info.pTransforms, maxCopySize, InstanceBuffer, InstanceBuffer->Offset);
-  InstanceBuffer->Offset += maxCopySize;
+  uint32 instanceOffset = 0;
+  if (Info.TransformCount && Info.pTransforms)
+  {
+    instanceOffset = static_cast<uint32>(InstanceBuffer->Offset) / static_cast<uint32>(sizeof(math::mat4));
+    const size_t maxCopySize = sizeof(math::mat4) * Info.TransformCount;
+    CopyCommandQueue.Emplace(Info.pTransforms, maxCopySize, InstanceBuffer, InstanceBuffer->Offset);
+    InstanceBuffer->Offset += maxCopySize;
+  }
   
   for (uint32 i = 0; i < Info.DrawCount; i++)
   {
@@ -2005,7 +2192,7 @@ void IRenderSystem::Draw(const DrawSubmissionInfo& Info)
     const IndexInformation& indexInfo = Info.pIndexInformation[i];
 
     DrawCommand drawCmd;
-    drawCmd.InstanceCount = Info.TransformCount;
+    drawCmd.InstanceCount = Info.InstanceCount;
     drawCmd.InstanceOffset = instanceOffset;
     drawCmd.VertexOffset = vertInfo.VertexOffset;
     drawCmd.NumVertices = vertInfo.NumVertices;

@@ -104,7 +104,7 @@ namespace sandbox
 		{
 			total += CachedMouseDelta[i];
 		}
-		return total / 8;
+		return total / 8.0f;
 	}
 
 	void CameraSystem::ClearMouseDragDeltaCache()

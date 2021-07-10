@@ -32,8 +32,9 @@ struct DrawSubmissionInfo
   void*               pConstants;
   size_t              ConstantTypeSize;
   uint32              DrawCount;
-  uint32              TransformCount;
+  uint32              TransformCount;     // Number of transforms that will be copied into the default instance buffer.
   uint32              ConstantsCount;
+  uint32              InstanceCount;      // Number of instances that will be drawn.
 };
 
 struct DrawCommand

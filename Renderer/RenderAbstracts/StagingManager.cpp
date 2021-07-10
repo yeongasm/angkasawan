@@ -133,7 +133,8 @@ IStagingManager::IStagingManager(IRenderSystem& InRenderer) :
   OwnershipTransfers{},
 	pRenderer(&InRenderer),
 	TxPool{},
-  MakeTransfers{}
+  MakeTransfers{},
+  HasUpload{}
 {}
 
 IStagingManager::~IStagingManager()
@@ -220,6 +221,7 @@ bool IStagingManager::StageDataForBuffer(void* Data, size_t Size, Handle<SMemory
 	Uploads.Push(astl::Move(upload));
 
   dst->Offset += Size;
+  HasUpload = true;
 
 	return true;
 }
@@ -270,13 +272,14 @@ bool IStagingManager::StageDataForImage(void* Data, size_t Size, Handle<SImage> 
   upload.SrcBuffer = astl::Move(temp);
   upload.Type = Staging_Upload_Type_Image;
   Uploads.Push(astl::Move(upload));
+  HasUpload = true;
 
   return true;
 }
 
 bool IStagingManager::Upload()
 {
-  if (!Uploads.Length()) { return true; }
+  if (!HasUpload) { return true; }
 
 	VkCommandBuffer cmd = pRenderer->pDevice->AllocateCommandBuffer(TxPool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, 1);
 	if (cmd == VK_NULL_HANDLE) { return false; }
@@ -319,6 +322,7 @@ bool IStagingManager::Upload()
 	}
 	pRenderer->pDevice->MoveToZombieList(cmd, TxPool);
 	Uploads.Empty();
+  HasUpload = false;
 
 	return true;
 }

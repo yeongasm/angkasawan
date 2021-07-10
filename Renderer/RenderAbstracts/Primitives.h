@@ -66,7 +66,7 @@ struct BufferAllocateInfo
 	astl::BitSet<EBufferTypeFlagBits> Type;
 	EBufferLocality Locality;
 	size_t Size;
-  uint32 FirstBinding;
+  uint32 FirstBinding;  // Only set if buffer will be used for vertex attrib binding. Ignore for UBOs or SSBOs.
 };
 
 struct ImageSamplerState
@@ -78,6 +78,7 @@ struct ImageSamplerState
 	ESamplerAddressMode AddressModeW;
 	ECompareOp CompareOp;
 	float32 AnisotropyLvl;
+  float32 MaxLod;
 };
 
 struct SImageSampler : ImageSamplerState

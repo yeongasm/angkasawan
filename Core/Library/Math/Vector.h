@@ -2,240 +2,1054 @@
 #ifndef LEARNVK_LIBRARY_MATH_VECTOR_H
 #define LEARNVK_LIBRARY_MATH_VECTOR_H
 
-#include "Platform/EngineAPI.h"
+#include "Operations.h"
 
 namespace astl
 {
   namespace math
   {
-    struct vec3;
-    struct vec4;
+    template <typename T>
+    struct Vector3;
 
-    struct ENGINE_API vec2
+    template <typename T>
+    struct Vector4;
+
+    template <typename T>
+    struct Vector2
     {
       union
       {
-        struct { float x, y; };
-        struct { float r, g; };
-        struct { float s, t; };
+        struct { T x, y; };
+        struct { T r, g; };
+        struct { T s, t; };
       };
 
-      vec2();
-      vec2(float s);
-      vec2(float a, float b);
+      Vector2() :
+        x(0), y(0)
+      {}
 
-      vec2(const vec3& v);
-      vec2(const vec4& v);
+      Vector2(T s) :
+        x(s), y(s)
+      {}
 
-      ~vec2();
+      Vector2(T a, T b) :
+        x(a), y(b)
+      {}
 
-      vec2(const vec2& v);
-      vec2(vec2&& v);
+      Vector2(const Vector3<T>& v) :
+        x(v.x), y(v.y)
+      {}
 
-      float& operator[]	(size_t i);
-      const float& operator[]	(size_t i) const;
+      Vector2(const Vector4<T>& v) :
+        x(v.x), y(v.y)
+      {}
 
-      vec2& operator= (const vec2& v);
-      vec2& operator= (vec2&& v);
+      ~Vector2()
+      {
+        x = y = 0;
+      }
 
-      vec2 operator-();
-      const vec2 operator-() const;
+      Vector2(const Vector2& v) { *this = v; }
+      Vector2(Vector2&& v)      { *this = Move(v); }
 
-      vec2& operator+= (const vec2& v);
-      vec2& operator+= (float s);
-      vec2& operator-= (const vec2& v);
-      vec2& operator-= (float s);
-      vec2& operator*= (const vec2& v);
-      vec2& operator*= (float s);
-      vec2& operator/= (const vec2& v);
-      vec2& operator/= (float s);
+      T& operator[]	(size_t i)
+      {
+        VKT_ASSERT(i < 2);
+        return (&x)[i];
+      }
+
+      const T& operator[]	(size_t i) const
+      {
+        VKT_ASSERT(i < 2);
+        return (&x)[i];
+      }
+
+      Vector2& operator= (const Vector2& v)
+      {
+        if (this != &v)
+        {
+          x = v.x;
+          y = v.y;
+        }
+        return *this;
+      }
+
+      Vector2& operator= (Vector2&& v)
+      {
+        if (this != &v)
+        {
+          x = v.x;
+          y = v.y;
+          new (&v) Vector2();
+        }
+        return *this;
+      }
+
+      Vector2 operator-()
+      {
+        return Vector2(-x, -y);
+      }
+
+      const Vector2 operator-() const
+      {
+        return Vector2(-x, -y);
+      }
+
+      Vector2& operator+= (const Vector2& v)
+      {
+        x += v.x;
+        y += v.y;
+        return *this;
+      }
+
+      Vector2& operator+= (T s)
+      {
+        x += s;
+        y += s;
+        return *this;
+      }
+
+      Vector2& operator-= (const Vector2& v)
+      {
+        x -= v.x;
+        y -= v.y;
+        return *this;
+      }
+
+      Vector2& operator-= (T s)
+      {
+        x -= s;
+        y -= s;
+        return *this;
+      }
+
+      Vector2& operator*= (const Vector2& v)
+      {
+        x *= v.x;
+        y *= v.y;
+        return *this;
+      }
+
+      Vector2& operator*= (T s)
+      {
+        x *= s;
+        y *= s;
+        return *this;
+      }
+
+      Vector2& operator/= (const Vector2& v)
+      {
+        x /= v.x;
+        y /= v.y;
+        return *this;
+      }
+
+      Vector2& operator/= (T s)
+      {
+        x /= s;
+        y /= s;
+        return *this;
+      }
     };
 
-    ENGINE_API vec2 operator+ (const vec2& l, const vec2& r);
-    ENGINE_API vec2 operator+ (const vec2& v, float s);
-    ENGINE_API vec2 operator+ (float s, const vec2& v);
-    ENGINE_API vec2 operator- (const vec2& l, const vec2& r);
-    ENGINE_API vec2 operator- (const vec2& v, float s);
-    ENGINE_API vec2 operator- (float s, const vec2& v);
-    ENGINE_API vec2 operator* (const vec2& l, const vec2& r);
-    ENGINE_API vec2 operator* (const vec2& v, float s);
-    ENGINE_API vec2 operator* (float s, const vec2& v);
-    ENGINE_API vec2 operator/ (const vec2& l, const vec2& r);
-    ENGINE_API vec2 operator/ (const vec2& v, float s);
-    ENGINE_API vec2 operator/ (float s, const vec2& v);
+    template <typename T>
+    Vector2<T> operator+ (const Vector2<T>& l, const Vector2<T>& r)
+    {
+      return Vector2<T>(l.x + r.x, l.y + r.y);
+    }
 
-    ENGINE_API bool operator== (const vec2& l, const vec2& r);
-    ENGINE_API bool operator!= (const vec2& l, const vec2& r);
+    template <typename T>
+    Vector2<T> operator+ (const Vector2<T>& v, T s)
+    {
+      return Vector2<T>(v.x + s, v.y + s);
+    }
 
-    ENGINE_API float Length(const vec2& v);
-    ENGINE_API void	Normalize(vec2& v);
-    ENGINE_API float Dot(const vec2& v);
-    ENGINE_API float Dot(const vec2& l, const vec2& r);
-    ENGINE_API vec2	Normalized(const vec2& v);
-    ENGINE_API bool	InBounds(const vec2& p, const vec2& min, const vec2& max);
+    template <typename T>
+    Vector2<T> operator+ (T s, const Vector2<T>& v)
+    {
+      return v + s;
+    }
 
-    struct ENGINE_API vec3
+    template <typename T>
+    Vector2<T> operator- (const Vector2<T>& l, const Vector2<T>& r)
+    {
+      return Vector2<T>(l.x - r.x, l.y - r.y);
+    }
+
+    template <typename T>
+    Vector2<T> operator- (const Vector2<T>& v, T s)
+    {
+      return Vector2<T>(v.x - s, v.y - s);
+    }
+
+    template <typename T>
+    Vector2<T> operator- (T s, const Vector2<T>& v)
+    {
+      return Vector2<T>(s - v.x, s - v.y);
+    }
+
+    template <typename T>
+    Vector2<T> operator* (const Vector2<T>& l, const Vector2<T>& r)
+    {
+      return Vector2<T>(l.x * r.x, l.y * r.y);
+    }
+
+    template <typename T>
+    Vector2<T> operator* (const Vector2<T>& v, T s)
+    {
+      return Vector2<T>(v.x * s, v.y * s);
+    }
+
+    template <typename T>
+    Vector2<T> operator* (T s, const Vector2<T>& v)
+    {
+      return Vector2<T>(s * v.x, s * v.y);
+    }
+
+    template <typename T>
+    Vector2<T> operator/ (const Vector2<T>& l, const Vector2<T>& r)
+    {
+      return Vector2<T>(l.x / r.x, l.y / r.y);
+    }
+
+    template <typename T>
+    Vector2<T> operator/ (const Vector2<T>& v, T s)
+    {
+      return Vector2<T>(v.x / s, v.y / s);
+    }
+
+    template <typename T>
+    Vector2<T> operator/ (T s, const Vector2<T>& v)
+    {
+      return Vector2<T>(s / v.x, s / v.y);
+    }
+
+    template <typename T>
+    bool operator== (const Vector2<T>& l, const Vector2<T>& r)
+    {
+      return (l.x == r.x) && (l.y == r.y);
+    }
+
+    template <typename T>
+    bool operator!= (const Vector2<T>& l, const Vector2<T>& r)
+    {
+      return l.x != r.x || l.y != r.y;
+    }
+
+    template <typename T>
+    T Length(const Vector2<T>& v)
+    {
+      return Sqrt(v.x * v.x + v.y * v.y);
+    }
+
+    template <typename T>
+    void	Normalize(Vector2<T>& v)
+    {
+      const T len = Length(v);
+      v /= len;
+    }
+
+    template <typename T>
+    T Dot(const Vector2<T>& v)
+    {
+      return v.x * v.x + v.y * v.y;
+    }
+
+    template <typename T>
+    T Dot(const Vector2<T>& l, const Vector2<T>& r)
+    {
+      return l.x * r.x + l.y * r.y;
+    }
+
+    template <typename T>
+    Vector2<T>	Normalized(const Vector2<T>& v)
+    {
+      const T len = Length(v);
+      return v / len;
+    }
+
+    template <typename T>
+    bool	InBounds(const Vector2<T>& p, const Vector2<T>& min, const Vector2<T>& max)
+    {
+      return (p.x > min.x && p.x < max.x) && (p.y > min.y && p.y < max.y);
+    }
+
+    template <typename T>
+    struct Vector3
     {
       union
       {
-        struct { float x, y, z; };
-        struct { float r, g, b; };
-        struct { float s, t, p; };
+        struct { T x, y, z; };
+        struct { T r, g, b; };
+        struct { T s, t, p; };
       };
 
-      vec3();
-      vec3(float s);
-      vec3(float a, float b, float c);
+      Vector3() :
+        x(0), y(0), z(0)
+      {}
 
-      vec3(const vec2& v, float s);
-      vec3(float s, const vec2& v);
+      Vector3(T s) :
+        x(s), y(s), z(s)
+      {}
 
-      vec3(const vec2& v);
-      vec3(const vec4& v);
+      Vector3(T a, T b, T c) :
+        x(a), y(b), z(c)
+      {}
 
-      vec3(const vec3& v);
-      vec3(vec3&& v);
+      Vector3(const Vector2<T>& v, T s) :
+        x(v.x), y(v.y), z(s)
+      {}
 
-      ~vec3();
+      Vector3(T s, const Vector2<T>& v) :
+        x(s), y(v.x), z(v.y)
+      {}
 
-      vec3& operator= (const vec3& v);
-      vec3& operator= (vec3&& v);
+      Vector3(const Vector2<T>& v) :
+        x(v.x), y(v.y), z(0)
+      {}
 
-      float& operator[] (size_t i);
-      const float& operator[] (size_t i) const;
+      Vector3(const Vector4<T>& v) :
+        x(v.x), y(v.y), z(v.z)
+      {}
 
-      vec3 operator-();
-      const vec3 operator-() const;
+      Vector3(const Vector3& v)
+      {
+        *this = v;
+      }
 
-      vec3& operator+= (const vec3& v);
-      vec3& operator+= (float s);
-      vec3& operator-= (const vec3& v);
-      vec3& operator-= (float s);
-      vec3& operator*= (const vec3& v);
-      vec3& operator*= (float s);
-      vec3& operator/= (const vec3& v);
-      vec3& operator/= (float s);
+      Vector3(Vector3&& v)
+      {
+        *this = Move(v);
+      }
+
+      ~Vector3()
+      {
+        x = y = z = 0;
+      }
+
+      Vector3& operator= (const Vector3& v)
+      {
+        if (this != &v)
+        {
+          x = v.x;
+          y = v.y;
+          z = v.z;
+        }
+        return *this;
+      }
+
+      Vector3& operator= (Vector3&& v)
+      {
+        if (this != &v)
+        {
+          x = v.x;
+          y = v.y;
+          z = v.z;
+          new (&v) Vector3();
+        }
+        return *this;
+      }
+
+      T& operator[] (size_t i)
+      {
+        VKT_ASSERT(i < 3);
+        return (&x)[i];
+      }
+
+      const T& operator[] (size_t i) const
+      {
+        VKT_ASSERT(i < 3);
+        return (&x)[i];
+      }
+
+      Vector3 operator-()
+      {
+        return Vector3(-x, -y, -z);
+      }
+
+      const Vector3 operator-() const
+      {
+        return Vector3(-x, -y, -z);
+      }
+
+      Vector3& operator+= (const Vector3& v)
+      {
+        x += v.x;
+        y += v.y;
+        z += v.z;
+        return *this;
+      }
+
+      Vector3& operator+= (T s)
+      {
+        x += s;
+        y += s;
+        z += s;
+        return *this;
+      }
+
+      Vector3& operator-= (const Vector3& v)
+      {
+        x -= v.x;
+        y -= v.y;
+        z -= v.z;
+        return *this;
+      }
+
+      Vector3& operator-= (T s)
+      {
+        x -= s;
+        y -= s;
+        z -= s;
+        return *this;
+      }
+
+      Vector3& operator*= (const Vector3& v)
+      {
+        x *= v.x;
+        y *= v.y;
+        z *= v.z;
+        return *this;
+      }
+
+      Vector3& operator*= (T s)
+      {
+        x *= s;
+        y *= s;
+        z *= s;
+        return *this;
+      }
+
+      Vector3& operator/= (const Vector3& v)
+      {
+        x /= v.x;
+        y /= v.y;
+        z /= v.z;
+        return *this;
+      }
+
+      Vector3& operator/= (T s)
+      {
+        x /= s;
+        y /= s;
+        z /= s;
+        return *this;
+      }
     };
 
-    ENGINE_API vec3 operator+ (const vec3& l, const vec3& r);
-    ENGINE_API vec3 operator+ (const vec3& l, const vec2& r);
-    ENGINE_API vec3 operator+ (const vec2& l, const vec3& r);
-    ENGINE_API vec3 operator+ (const vec3& v, float s);
-    ENGINE_API vec3 operator+ (float s, const vec3& v);
-    ENGINE_API vec3 operator- (const vec3& l, const vec3& r);
-    ENGINE_API vec3 operator- (const vec3& l, const vec2& r);
-    ENGINE_API vec3 operator- (const vec2& l, const vec3& r);
-    ENGINE_API vec3 operator- (const vec3& v, float s);
-    ENGINE_API vec3 operator- (float s, const vec3& v);
-    ENGINE_API vec3 operator* (const vec3& l, const vec3& r);
-    ENGINE_API vec3 operator* (const vec3& l, const vec2& r);
-    ENGINE_API vec3 operator* (const vec2& l, const vec3& r);
-    ENGINE_API vec3 operator* (const vec3& v, float s);
-    ENGINE_API vec3 operator* (float s, const vec3& v);
-    ENGINE_API vec3 operator/ (const vec3& l, const vec3& r);
-    ENGINE_API vec3 operator/ (const vec3& l, const vec2& r);
-    ENGINE_API vec3 operator/ (const vec2& l, const vec3& r);
-    ENGINE_API vec3 operator/ (const vec3& v, float s);
-    ENGINE_API vec3 operator/ (float s, const vec3& v);
+    template <typename T>
+    Vector3<T> operator+ (const Vector3<T>& l, const Vector3<T>& r)
+    {
+      return Vector3<T>(l.x + r.x, l.y + r.y, l.z + r.z);
+    }
 
-    ENGINE_API bool operator== (const vec3& l, const vec3& r);
-    ENGINE_API bool operator!= (const vec3& l, const vec3& r);
+    template <typename T>
+    Vector3<T> operator+ (const Vector3<T>& l, const Vector2<T>& r)
+    {
+      return Vector3<T>(l.x + r.x, l.y + r.y, l.z);
+    }
 
-    ENGINE_API float Length(const vec3& v);
-    ENGINE_API void	Normalize(vec3& v);
-    ENGINE_API float Dot(const vec3& v);
-    ENGINE_API float Dot(const vec3& l, const vec3& r);
-    ENGINE_API vec3	Cross(const vec3& l, const vec3& r);
-    ENGINE_API vec3	Normalized(const vec3& v);
+    template <typename T>
+    Vector3<T> operator+ (const Vector2<T>& l, const Vector3<T>& r)
+    {
+      return Vector3<T>(l.x + r.x, l.y + r.y, r.z);
+    }
 
-    struct ENGINE_API vec4
+    template <typename T>
+    Vector3<T> operator+ (const Vector3<T>& v, T s)
+    {
+      return Vector3<T>(v.x + s, v.y + s, v.z + s);
+    }
+
+    template <typename T>
+    Vector3<T> operator+ (T s, const Vector3<T>& v)
+    {
+      return v + s;
+    }
+
+    template <typename T>
+    Vector3<T> operator- (const Vector3<T>& l, const Vector3<T>& r)
+    {
+      return Vector3<T>(l.x - r.x, l.y - r.y, l.z - r.z);
+    }
+
+    template <typename T>
+    Vector3<T> operator- (const Vector3<T>& l, const Vector2<T>& r)
+    {
+      return Vector3<T>(l.x - r.x, l.y - r.y, l.z);
+    }
+
+    template <typename T>
+    Vector3<T> operator- (const Vector2<T>& l, const Vector3<T>& r)
+    {
+      return Vector3<T>(l.x - r.x, l.y - r.y, r.z);
+    }
+
+    template <typename T>
+    Vector3<T> operator- (const Vector3<T>& v, T s)
+    {
+      return Vector3<T>(v.x - s, v.y - s, v.z - s);
+    }
+
+    template <typename T>
+    Vector3<T> operator- (T s, const Vector3<T>& v)
+    {
+      return Vector3<T>(s - v.x, s - v.y, s - v.z);
+    }
+
+    template <typename T>
+    Vector3<T> operator* (const Vector3<T>& l, const Vector3<T>& r)
+    {
+      return Vector3<T>(l.x * r.x, l.y * r.y, l.z * r.z);
+    }
+
+    template <typename T>
+    Vector3<T> operator* (const Vector3<T>& l, const Vector2<T>& r)
+    {
+      return Vector3<T>(l.x * r.x, l.y * r.y, l.z);
+    }
+
+    template <typename T>
+    Vector3<T> operator* (const Vector2<T>& l, const Vector3<T>& r)
+    {
+      return Vector3<T>(l.x * r.x, l.y * r.y, r.z);
+    }
+
+    template <typename T>
+    Vector3<T> operator* (const Vector3<T>& v, T s)
+    {
+      return Vector3<T>(v.x * s, v.y * s, v.z * s);
+    }
+
+    template <typename T>
+    Vector3<T> operator* (T s, const Vector3<T>& v)
+    {
+      return v * s;
+    }
+
+    template <typename T>
+    Vector3<T> operator/ (const Vector3<T>& l, const Vector3<T>& r)
+    {
+      return Vector3<T>(l.x / r.x, l.y / r.y, l.z / r.z);
+    }
+
+    template <typename T>
+    Vector3<T> operator/ (const Vector3<T>& l, const Vector2<T>& r)
+    {
+      return Vector3<T>(l.x / r.x, l.y / r.y, l.z);
+    }
+
+    template <typename T>
+    Vector3<T> operator/ (const Vector2<T>& l, const Vector3<T>& r)
+    {
+      return Vector3<T>(l.x / r.x, l.y / r.y, r.z);
+    }
+
+    template <typename T>
+    Vector3<T> operator/ (const Vector3<T>& v, T s)
+    {
+      return Vector3<T>(v.x / s, v.y / s, v.z / s);
+    }
+
+    template <typename T>
+    Vector3<T> operator/ (T s, const Vector3<T>& v)
+    {
+      return Vector3<T>(s / v.x, s / v.y, s / v.z);
+    }
+
+    template <typename T>
+    bool operator== (const Vector3<T>& l, const Vector3<T>& r)
+    {
+      return (l.x == r.x) && (l.y == r.y) && (l.z == r.z);
+    }
+
+    template <typename T>
+    bool operator!= (const Vector3<T>& l, const Vector3<T>& r)
+    {
+      return (l.x != r.x) || (l.y != r.y) || (l.z != r.z);
+    }
+
+    template <typename T>
+    T Length(const Vector3<T>& v)
+    {
+      return Sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
+    }
+
+    template <typename T>
+    void	Normalize(Vector3<T>& v)
+    {
+      const T len = Length(v);
+      v /= len;
+    }
+
+    template <typename T>
+    T Dot(const Vector3<T>& v)
+    {
+      return v.x * v.x + v.y * v.y + v.z * v.z;
+    }
+
+    template <typename T>
+    T Dot(const Vector3<T>& l, const Vector3<T>& r)
+    {
+      return l.x * r.x + l.y * r.y + l.z * r.z;
+    }
+
+    template <typename T>
+    Vector3<T>	Cross(const Vector3<T>& l, const Vector3<T>& r)
+    {
+      return Vector3<T>(
+        l.y * r.z - l.z * r.y,
+        l.z * r.x - l.x * r.z,
+        l.x * r.y - l.y * r.x
+      );
+    }
+
+    template <typename T>
+    Vector3<T>	Normalized(const Vector3<T>& v)
+    {
+      const T len = Length(v);
+      return v / len;
+    }
+
+    template <typename T>
+    struct Vector4
     {
       union
       {
-        struct { float x, y, z, w; };
-        struct { float r, g, b, a; };
-        struct { float s, t, p, q; };
+        struct { T x, y, z, w; };
+        struct { T r, g, b, a; };
+        struct { T s, t, p, q; };
       };
 
-      vec4();
-      vec4(float s);
-      vec4(float a, float b, float c, float d);
+      Vector4() :
+        x(0), y(0), z(0), w(0)
+      {}
 
-      vec4(const vec2& v);
-      vec4(const vec2& v, float a, float b);
-      vec4(float a, float b, const vec2& v);
-      vec4(const vec2& a, const vec2& b);
-      vec4(const vec3& v, float s);
-      vec4(float s, const vec3& v);
+      Vector4(T s) :
+        x(s), y(s), z(s), w(s)
+      {}
 
-      vec4(const vec3& v);
+      Vector4(T a, T b, T c, T d) :
+        x(a), y(b), z(c), w(d)
+      {}
 
-      ~vec4();
+      Vector4(const Vector2<T>& v) :
+        x(v.x), y(v.y), z(0), w(0)
+      {}
 
-      vec4(const vec4& v);
-      vec4(vec4&& v);
+      Vector4(const Vector2<T>& v, T a, T b) :
+        x(v.x), y(v.y), z(a), w(b)
+      {}
 
-      vec4& operator= (const vec4& v);
-      vec4& operator= (vec4&& v);
+      Vector4(T a, T b, const Vector2<T>& v) :
+        x(a), y(b), z(v.x), w(v.y)
+      {}
 
-      float& operator[] (size_t i);
-      const float& operator[] (size_t i) const;
+      Vector4(const Vector2<T>& a, const Vector2<T>& b) :
+        x(a.x), y(a.y), z(b.x), w(b.y)
+      {}
 
-      vec4 operator-();
-      const vec4 operator-() const;
+      Vector4(const Vector3<T>& v, T s) :
+        x(v.x), y(v.y), z(v.z), w(s)
+      {}
 
-      vec4& operator+= (const vec4& v);
-      vec4& operator+= (float s);
-      vec4& operator-= (const vec4& v);
-      vec4& operator-= (float s);
-      vec4& operator*= (const vec4& v);
-      vec4& operator*= (float s);
-      vec4& operator/= (const vec4& v);
-      vec4& operator/= (float s);
+      Vector4(T s, const Vector3<T>& v) :
+        x(s), y(v.x), z(v.y), w(v.z)
+      {}
+
+      Vector4(const Vector3<T>& v) :
+        x(v.x), y(v.y), z(v.z), w(0)
+      {}
+
+      ~Vector4()
+      {
+        x = y = z = w = 0;
+      }
+
+      Vector4(const Vector4& v)
+      {
+        *this = v;
+      }
+
+      Vector4(Vector4&& v)
+      {
+        *this = Move(v);
+      }
+
+      Vector4& operator= (const Vector4& v)
+      {
+        if (this != &v)
+        {
+          x = v.x;
+          y = v.y;
+          z = v.z;
+          w = v.w;
+        }
+        return *this;
+      }
+
+      Vector4& operator= (Vector4&& v)
+      {
+        if (this != &v)
+        {
+          x = v.x;
+          y = v.y;
+          z = v.z;
+          w = v.w;
+          new (&v) Vector4();
+        }
+        return *this;
+      }
+
+      T& operator[] (size_t i)
+      {
+        VKT_ASSERT(i < 4);
+        return (&x)[i];
+      }
+
+      const T& operator[] (size_t i) const
+      {
+        VKT_ASSERT(i < 4);
+        return (&x)[i];
+      }
+
+      Vector4 operator-()
+      {
+        return Vector4(-x, -y, -z, -w);
+      }
+
+      const Vector4 operator-() const
+      {
+        return Vector4(-x, -y, -z, -w);
+      }
+
+      Vector4& operator+= (const Vector4& v)
+      {
+        x += v.x;
+        y += v.y;
+        z += v.z;
+        w += v.w;
+        return *this;
+      }
+
+      Vector4& operator+= (T s)
+      {
+        x += s;
+        y += s;
+        z += s;
+        w += s;
+        return *this;
+      }
+
+      Vector4& operator-= (const Vector4& v)
+      {
+        x -= v.x;
+        y -= v.y;
+        z -= v.z;
+        w -= v.w;
+        return *this;
+      }
+
+      Vector4& operator-= (T s)
+      {
+        x -= s;
+        y -= s;
+        z -= s;
+        w -= s;
+        return *this;
+      }
+
+      Vector4& operator*= (const Vector4& v)
+      {
+        x *= v.x;
+        y *= v.y;
+        z *= v.z;
+        w *= v.w;
+        return *this;
+      }
+
+      Vector4& operator*= (T s)
+      {
+        x *= s;
+        y *= s;
+        z *= s;
+        w *= s;
+        return *this;
+      }
+
+      Vector4& operator/= (const Vector4& v)
+      {
+        x /= v.x;
+        y /= v.y;
+        z /= v.z;
+        w /= v.w;
+        return *this;
+      }
+
+      Vector4& operator/= (T s)
+      {
+        x /= s;
+        y /= s;
+        z /= s;
+        w /= s;
+        return *this;
+      }
     };
 
-    ENGINE_API vec4 operator+ (const vec4& l, const vec4& r);
-    ENGINE_API vec4 operator+ (const vec4& l, const vec3& r);
-    ENGINE_API vec4 operator+ (const vec3& l, const vec4& r);
-    ENGINE_API vec4 operator+ (const vec4& l, const vec2& r);
-    ENGINE_API vec4 operator+ (const vec2& l, const vec4& r);
-    ENGINE_API vec4 operator+ (const vec4& v, float s);
-    ENGINE_API vec4 operator+ (float s, const vec4& v);
-    ENGINE_API vec4 operator- (const vec4& l, const vec4& r);
-    ENGINE_API vec4 operator- (const vec4& l, const vec3& r);
-    ENGINE_API vec4 operator- (const vec3& l, const vec4& r);
-    ENGINE_API vec4 operator- (const vec4& l, const vec2& r);
-    ENGINE_API vec4 operator- (const vec2& l, const vec4& r);
-    ENGINE_API vec4 operator- (const vec4& v, float s);
-    ENGINE_API vec4 operator- (float s, const vec4& v);
-    ENGINE_API vec4 operator* (const vec4& l, const vec4& r);
-    ENGINE_API vec4 operator* (const vec4& l, const vec3& r);
-    ENGINE_API vec4 operator* (const vec3& l, const vec4& r);
-    ENGINE_API vec4 operator* (const vec4& l, const vec2& r);
-    ENGINE_API vec4 operator* (const vec2& l, const vec4& r);
-    ENGINE_API vec4 operator* (const vec4& v, float s);
-    ENGINE_API vec4 operator* (float s, const vec4& v);
-    ENGINE_API vec4 operator/ (const vec4& l, const vec4& r);
-    ENGINE_API vec4 operator/ (const vec4& l, const vec3& r);
-    ENGINE_API vec4 operator/ (const vec3& l, const vec4& r);
-    ENGINE_API vec4 operator/ (const vec4& l, const vec2& r);
-    ENGINE_API vec4 operator/ (const vec2& l, const vec4& r);
-    ENGINE_API vec4 operator/ (const vec4& v, float s);
-    ENGINE_API vec4 operator/ (float s, const vec4& v);
+    template <typename T>
+    Vector4<T> operator+ (const Vector4<T>& l, const Vector4<T>& r)
+    {
+      return Vector4<T>(l.x + r.x, l.y + r.y, l.z + r.z, l.w + r.w);
+    }
 
-    ENGINE_API bool operator== (const vec4& l, const vec4& r);
-    ENGINE_API bool operator!= (const vec4& l, const vec4& r);
+    template <typename T>
+    Vector4<T> operator+ (const Vector4<T>& l, const Vector3<T>& r)
+    {
+      return Vector4<T>(l.x + r.x, l.y + r.y, l.z + r.z, l.w);
+    }
 
-    ENGINE_API float Length(const vec4& v);
-    ENGINE_API void Normalize(vec4& v);
-    ENGINE_API float Dot(const vec4& v);
-    ENGINE_API float Dot(const vec4& l, const vec4& r);
-    ENGINE_API vec4 Cross(const vec4& l, const vec4& r);
-    ENGINE_API vec4 Normalized(const vec4& v);
+    template <typename T>
+    Vector4<T> operator+ (const Vector3<T>& l, const Vector4<T>& r)
+    {
+      return r + l;
+      //return Vector4<T>(l.x + r.x, l.y + r.y, l.z + r.z, r.w);
+    }
 
-    ENGINE_API vec2 Reflect(const vec2& i, const vec2& n);
-    ENGINE_API vec3 Reflect(const vec3& i, const vec3& n);
-    ENGINE_API vec4 Reflect(const vec4& i, const vec4& n);
+    template <typename T>
+    Vector4<T> operator+ (const Vector4<T>& l, const Vector2<T>& r)
+    {
+      return Vector4<T>(l.x + r.x, l.y + r.y, l.z, l.w);
+    }
+
+    template <typename T>
+    Vector4<T> operator+ (const Vector2<T>& l, const Vector4<T>& r)
+    {
+      return Vector4<T>(l.x + r.x, l.y + r.y, r.z, r.w);
+    }
+
+    template <typename T>
+    Vector4<T> operator+ (const Vector4<T>& v, T s)
+    {
+      return Vector4<T>(v.x + s, v.y + s, v.z + s, v.w + s);
+    }
+
+    template <typename T>
+    Vector4<T> operator+ (T s, const Vector4<T>& v)
+    {
+      return v + s;
+    }
+
+    template <typename T>
+    Vector4<T> operator- (const Vector4<T>& l, const Vector4<T>& r)
+    {
+      return Vector4<T>(l.x - r.x, l.y - r.y, l.z - r.z, l.w - r.w);
+    }
+
+    template <typename T>
+    Vector4<T> operator- (const Vector4<T>& l, const Vector3<T>& r)
+    {
+      return Vector4<T>(l.x - r.x, l.y - r.y, l.z - r.z, l.w);
+    }
+
+    template <typename T>
+    Vector4<T> operator- (const Vector3<T>& l, const Vector4<T>& r)
+    {
+      return Vector4<T>(l.x - r.x, l.y - r.y, l.z - r.z, r.w);
+    }
+
+    template <typename T>
+    Vector4<T> operator- (const Vector4<T>& l, const Vector2<T>& r)
+    {
+      return Vector4<T>(l.x - r.x, l.y - r.y, l.z, l.w);
+    }
+
+    template <typename T>
+    Vector4<T> operator- (const Vector2<T>& l, const Vector4<T>& r)
+    {
+      return Vector4<T>(l.x - r.x, l.y - r.y, r.z, r.w);
+    }
+
+    template <typename T>
+    Vector4<T> operator- (const Vector4<T>& v, T s)
+    {
+      return Vector4<T>(v.x - s, v.y - s, v.z - s, v.w - s);
+    }
+
+    template <typename T>
+    Vector4<T> operator- (T s, const Vector4<T>& v)
+    {
+      return Vector4<T>(s - v.x, s - v.y, s - v.z, s - v.w);
+    }
+
+    template <typename T>
+    Vector4<T> operator* (const Vector4<T>& l, const Vector4<T>& r)
+    {
+      return Vector4<T>(l.x * r.x, l.y * r.y, l.z * r.z, l.w * r.w);
+    }
+
+    template <typename T>
+    Vector4<T> operator* (const Vector4<T>& l, const Vector3<T>& r)
+    {
+      return Vector4<T>(l.x * r.x, l.y * r.y, l.z * r.z, l.w);
+    }
+
+    template <typename T>
+    Vector4<T> operator* (const Vector3<T>& l, const Vector4<T>& r)
+    {
+      return r * l;
+      //return Vector4<T>(l.x * r.x, l.y * r.y, l.z * r.z, r.w);
+    }
+
+    template <typename T>
+    Vector4<T> operator* (const Vector4<T>& l, const Vector2<T>& r)
+    {
+      return Vector4<T>(l.x * r.x, l.y * r.y, l.z, l.w);
+    }
+
+    template <typename T>
+    Vector4<T> operator* (const Vector2<T>& l, const Vector4<T>& r)
+    {
+      return r * l;
+    }
+
+    template <typename T>
+    Vector4<T> operator* (const Vector4<T>& v, T s)
+    {
+      return Vector4<T>(v.x * s, v.y * s, v.z * s, v.w * s);
+    }
+
+    template <typename T>
+    Vector4<T> operator* (T s, const Vector4<T>& v)
+    {
+      return v * s;
+    }
+
+    template <typename T>
+    Vector4<T> operator/ (const Vector4<T>& l, const Vector4<T>& r)
+    {
+      return Vector4<T>(l.x / r.x, l.y / r.y, l.z / r.z, l.w / r.w);
+    }
+
+    template <typename T>
+    Vector4<T> operator/ (const Vector4<T>& l, const Vector3<T>& r)
+    {
+      return Vector4<T>(l.x / r.x, l.y / r.y, l.z / r.z, l.w);
+    }
+
+    template <typename T>
+    Vector4<T> operator/ (const Vector3<T>& l, const Vector4<T>& r)
+    {
+      return Vector4<T>(l.x / r.x, l.y / r.y, l.z / r.z, r.w);
+    }
+
+    template <typename T>
+    Vector4<T> operator/ (const Vector4<T>& l, const Vector2<T>& r)
+    {
+      return Vector4<T>(l.x / r.x, l.y / r.y, l.z, l.w);
+    }
+
+    template <typename T>
+    Vector4<T> operator/ (const Vector2<T>& l, const Vector4<T>& r)
+    {
+      return Vector4<T>(l.x / r.x, l.y / r.y, r.z, r.w);
+    }
+
+    template <typename T>
+    Vector4<T> operator/ (const Vector4<T>& v, T s)
+    {
+      return Vector4<T>(v.x / s, v.y / s, v.z / s, v.w / s);
+    }
+
+    template <typename T>
+    Vector4<T> operator/ (T s, const Vector4<T>& v)
+    {
+      return Vector4<T>(s / v.x, s / v.y, s / v.z, s / v.w);
+    }
+
+    template <typename T>
+    bool operator== (const Vector4<T>& l, const Vector4<T>& r)
+    {
+      return (l.x == r.x) && (l.y == r.y) && (l.z == r.z) && (l.w == r.w);
+    }
+
+    template <typename T>
+    bool operator!= (const Vector4<T>& l, const Vector4<T>& r)
+    {
+      return (l.x != r.x) || (l.y != r.y) || (l.z != r.z) || (l.w != r.w);
+    }
+
+    template <typename T>
+    T Length(const Vector4<T>& v)
+    {
+      return Sqrt(v.x * v.x + v.y * v.y + v.z * v.z + v.w * v.w);
+    }
+
+    template <typename T>
+    void Normalize(Vector4<T>& v)
+    {
+      const T len = Length(v);
+      v /= len;
+    }
+
+    template <typename T>
+    T Dot(const Vector4<T>& v)
+    {
+      return v.x * v.x + v.y * v.y + v.z * v.z + v.w * v.w;
+    }
+
+    template <typename T>
+    T Dot(const Vector4<T>& l, const Vector4<T>& r)
+    {
+      return l.x * r.x + l.y * r.y + l.z * r.z + l.w * r.w;
+    }
+
+    template <typename T>
+    Vector4<T> Cross(const Vector4<T>& l, const Vector4<T>& r)
+    {
+      return Vector4<T>(
+        l.y * r.z - l.z * r.y,
+        l.z * r.x - l.x * r.z,
+        l.x * r.y - l.y * r.x,
+        1
+      );
+    }
+
+    template <typename T>
+    Vector4<T> Normalized(const Vector4<T>& v)
+    {
+      const T len = Length(v);
+      return v / len;
+    }
+
+    template <typename T>
+    Vector2<T> Reflect(const Vector2<T>& i, const Vector2<T>& n)
+    {
+      return i - 2 * (Dot(i, n) * n);
+    }
+
+    template <typename T>
+    Vector3<T> Reflect(const Vector3<T>& i, const Vector3<T>& n)
+    {
+      return i - 2 * (Dot(i, n) * n);;
+    }
+
+    template <typename T>
+    Vector4<T> Reflect(const Vector4<T>& i, const Vector4<T>& n)
+    {
+      return i - 2 * (Dot(i, n) * n);
+    }
+
+    using vec2 = Vector2<float32>;
+    using vec3 = Vector3<float32>;
+    using vec4 = Vector4<float32>;
+
+    using ivec2 = Vector2<int32>;
+    using ivec3 = Vector3<int32>;
+    using ivec4 = Vector4<int32>;
+
+    using uvec2 = Vector2<uint32>;
+    using uvec3 = Vector3<uint32>;
+    using uvec4 = Vector4<uint32>;
   }
 }
 

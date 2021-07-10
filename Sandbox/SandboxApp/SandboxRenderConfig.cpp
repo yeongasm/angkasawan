@@ -230,6 +230,7 @@ namespace sandbox
     samplerInfo.CompareOp = Compare_Op_Less_Or_Equal;
     samplerInfo.MinFilter = Sampler_Filter_Nearest;
     samplerInfo.MagFilter = Sampler_Filter_Linear;
+    samplerInfo.MaxLod = 3.0f;
 
     ModelTexImgSamplerHnd = pRenderer->CreateImageSampler(samplerInfo);
     if (ModelTexImgSamplerHnd == INVALID_HANDLE) { return false; }
@@ -400,16 +401,37 @@ namespace sandbox
     vertexBindings.Stride = sizeof(Vertex);
     vertexBindings.Type = Vertex_Input_Rate_Vertex;
 
-    SPipeline::VertexInputBinding instanceBindings = {};
-    instanceBindings.Binding = 1;
-    instanceBindings.From = 5;
-    instanceBindings.To = 8;
-    instanceBindings.Stride = sizeof(math::mat4);
-    instanceBindings.Type = Vertex_Input_Rate_Instance;
+    SPipeline::VertexInputBinding glyphInstanceAttrBindings = {};
+    glyphInstanceAttrBindings.Binding = 2;
+    glyphInstanceAttrBindings.From = 5;
+    glyphInstanceAttrBindings.To = 13;
+    glyphInstanceAttrBindings.Stride = sizeof(math::mat4) + (sizeof(math::vec2) * 4) + sizeof(math::vec3);
+    glyphInstanceAttrBindings.Type = Vertex_Input_Rate_Instance;
+
+    //SPipeline::VertexInputBinding glyphAttribBindings = {};
+    //glyphAttribBindings.Binding = 2;
+    //glyphAttribBindings.From = 9;
+    //glyphAttribBindings.To = 13;
+    //glyphAttribBindings.Stride = sizeof(math::vec2) * 4 + sizeof(math::vec3);
+    //glyphAttribBindings.Type = Vertex_Input_Rate_Instance;
 
     pRenderer->PipelineAddVertexInputBinding(PipelineHnd, vertexBindings);
-    pRenderer->PipelineAddVertexInputBinding(PipelineHnd, instanceBindings);
+    pRenderer->PipelineAddVertexInputBinding(PipelineHnd, glyphInstanceAttrBindings);
+    //pRenderer->PipelineAddVertexInputBinding(PipelineHnd, glyphAttribBindings);
     pRenderer->PipelineAddRenderPass(PipelineHnd, RenderPassHnd);
+
+    ImageSamplerCreateInfo fontSamplerInfo = {};
+    fontSamplerInfo.AddressModeU = Sampler_Address_Mode_Clamp_To_Edge;
+    fontSamplerInfo.AddressModeV = Sampler_Address_Mode_Clamp_To_Edge;
+    fontSamplerInfo.AddressModeW = Sampler_Address_Mode_Clamp_To_Edge;
+    fontSamplerInfo.AnisotropyLvl = 8.0f;
+    fontSamplerInfo.CompareOp = Compare_Op_Never;
+    fontSamplerInfo.MaxLod = 4.0f;
+    fontSamplerInfo.MinFilter = Sampler_Filter_Nearest;
+    fontSamplerInfo.MagFilter = Sampler_Filter_Nearest;
+
+    FontSamplerHnd = pRenderer->CreateImageSampler(fontSamplerInfo);
+    VKT_ASSERT(FontSamplerHnd != INVALID_HANDLE);
 
     return true;
   }
@@ -423,6 +445,7 @@ namespace sandbox
 
     pRenderer->DestroyShader(pFragment->Hnd);
     pRenderer->DestroyShader(pVertex->Hnd);
+    pRenderer->DestroyImageSampler(FontSamplerHnd);
 
     pAssetManager->DestroyShader(FragmentShader);
     pAssetManager->DestroyShader(VertexShader);
@@ -441,6 +464,11 @@ namespace sandbox
   const Handle<Shader> CTextOverlayPass::GetShaderHandle(EShaderType Type) const
   {
     return (Type == Shader_Type_Vertex) ? VertexShader : FragmentShader;
+  }
+
+  const Handle<SImageSampler> CTextOverlayPass::GetFontSampler() const
+  {
+    return FontSamplerHnd;
   }
 
 }

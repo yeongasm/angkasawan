@@ -49,6 +49,7 @@ private:
 	astl::Ref<IRenderSystem> pRenderer;
 	VkCommandPool TxPool;
   astl::BitSet<EOwnershipTransferTypeFlagBits> MakeTransfers;
+  bool HasUpload;
 
 	decltype(auto) GetQueueForType(EQueueType Type);
 

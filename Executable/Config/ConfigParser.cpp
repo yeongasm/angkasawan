@@ -11,7 +11,7 @@ bool ConfigFileParser::InitializeFromConfigFile(EngineCreationInfo& CreateInfo)
 	astl::Ifstream configFile;
 	Document document;
 
-	configFile.Open(".cfg");
+	bool success = configFile.Open(".cfg");
 	size_t fileSize = configFile.Size() + 1;
 	char* buf = reinterpret_cast<char*>(astl::IMemory::Malloc(sizeof(uint8) * fileSize));
 	configFile.Read(buf, fileSize);

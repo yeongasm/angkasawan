@@ -269,10 +269,6 @@ xcopy "$(TargetDir)$(ProjectName).pdb" "$(SolutionDir)Bin\$(Configuration)\" /y 
     <ClCompile Include="Engine\Private\Abstraction.cpp" />
     <ClCompile Include="Engine\Private\Instance.cpp" />
     <ClCompile Include="Library\Algorithms\Private\xxhash.c" />
-    <ClCompile Include="Library\Math\Matrix.cpp" />
-    <ClCompile Include="Library\Math\Operations.cpp" />
-    <ClCompile Include="Library\Math\Quaternion.cpp" />
-    <ClCompile Include="Library\Math\Vector.cpp" />
     <ClCompile Include="Library\Stream\Ifstream.cpp" />
     <ClCompile Include="Library\Stream\Ofstream.cpp" />
     <ClCompile Include="dllmain.cpp" />
