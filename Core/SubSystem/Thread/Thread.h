@@ -40,7 +40,7 @@ struct WorkerState
 */
 struct alignas(64) WkThread
 {
-	Queue<Job>	Jobs	= {};
+	astl::Queue<Job>	Jobs	= {};
 	SpinLock	Lock	= {};
 	ThreadId	Id		= {};
 	size_t		State	= {};

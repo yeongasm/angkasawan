@@ -4,68 +4,72 @@
 
 #include "Deque.h"
 
-
-template <typename InElementType, size_t QueueSlack = 5>
-class Queue
+namespace astl
 {
-public:
 
-	using ElementType	= InElementType;
-	using Container		= Deque<ElementType, QueueSlack>;
-	using Iterator		= typename Container::Iterator;
-	//using ConstIterator = typename Container::ConstIterator;
+  template <typename InElementType, size_t QueueSlack = 5>
+  class Queue
+  {
+  public:
 
-private:
+    using ElementType = InElementType;
+    using Container = Deque<ElementType, QueueSlack>;
+    using Iterator = typename Container::Iterator;
+    //using ConstIterator = typename Container::ConstIterator;
 
-	Container Storage;
+  private:
 
-public:
+    Container Storage;
 
-	Queue() : Storage{} {}
-	~Queue() { Release(); }
+  public:
 
-	Queue(const Queue& Rhs) { *this = Rhs; }
-	Queue(Queue&& Rhs)		{ *this = Move(Rhs); }
+    Queue() : Storage{} {}
+    ~Queue() { Release(); }
 
-	Queue& operator= (const Queue& Rhs)
-	{
-		if (this != &Rhs)
-		{
-			Storage = Rhs.Storage;
-		}
-		return *this;
-	}
+    Queue(const Queue& Rhs) { *this = Rhs; }
+    Queue(Queue&& Rhs) { *this = Move(Rhs); }
 
-	Queue& operator= (Queue&& Rhs)
-	{
-		if (this != &Rhs)
-		{
-			Storage = Move(Rhs.Storage);
-			new (&Rhs) Queue();
-		}
-		return *this;
-	}
+    Queue& operator= (const Queue& Rhs)
+    {
+      if (this != &Rhs)
+      {
+        Storage = Rhs.Storage;
+      }
+      return *this;
+    }
 
-	ElementType& Front()	{ return Storage.Front(); }
-	ElementType& Back()		{ return Storage.Back(); }
+    Queue& operator= (Queue&& Rhs)
+    {
+      if (this != &Rhs)
+      {
+        Storage = Move(Rhs.Storage);
+        new (&Rhs) Queue();
+      }
+      return *this;
+    }
 
-	bool Empty(bool Reconstruct = true) const { Storage.Empty(Reconstruct); }
-	
-	size_t Size()	const { return Storage.Size(); }
-	size_t Length() const { return Storage.Length(); }
+    ElementType& Front() { return Storage.Front(); }
+    ElementType& Back() { return Storage.Back(); }
 
-	void Enqueue(const ElementType& Object) { Storage.PushBack(Object); }
-	void Enqueue(ElementType&& Object)		{ Storage.PushBack(Move(Object)); }
+    bool Empty(bool Reconstruct = true) const { Storage.Empty(Reconstruct); }
 
-	void Deque	()	{ Storage.PopFront(); }
-	void Empty	()	{ Storage.Empty(); }
-	void Release()	{ Storage.Release(); }
+    size_t Size()	const { return Storage.Size(); }
+    size_t Length() const { return Storage.Length(); }
 
-	Iterator		begin()			{ return Storage.begin(); }
-	//ConstIterator	begin() const	{ return Storage.begin(); }
+    void Enqueue(const ElementType& Object) { Storage.PushBack(Object); }
+    void Enqueue(ElementType&& Object) { Storage.PushBack(Move(Object)); }
 
-	Iterator		end()			{ return Storage.end(); }
-	//ConstIterator	end()	const	{ return Storage.end(); }
-};
+    void Deque() { Storage.PopFront(); }
+    void Empty() { Storage.Empty(); }
+    void Release() { Storage.Release(); }
+
+    Iterator		begin() { return Storage.begin(); }
+    //ConstIterator	begin() const	{ return Storage.begin(); }
+
+    Iterator		end() { return Storage.end(); }
+    //ConstIterator	end()	const	{ return Storage.end(); }
+  };
+
+}
 
 #endif // !LEANRVK_QUEUE

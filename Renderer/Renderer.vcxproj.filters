@@ -24,55 +24,22 @@
     <ClCompile Include="Renderer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="API\Vk\VulkanDriver.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="API\Vk\ShaderToSPIRVCompiler.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="Assets\Assets.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="API\Vk\Vk.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="External\stb\stb_image.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="External\cgltf\cgltf.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="RenderAbstracts\DescriptorSets.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="RenderAbstracts\FrameGraph.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="Assets\Importer.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="RenderAbstracts\RenderMemory.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="API\Vk\Src\spirv_reflect.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="RenderAbstracts\DrawCommand.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="RenderAbstracts\PipelineManager.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="RenderAbstracts\MaterialManager.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="RenderAbstracts\PushConstant.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="RenderAbstracts\TextureMemory.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="RenderAbstracts\StagingManager.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="API\Device.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -101,13 +68,7 @@
     <ClInclude Include="Renderer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="API\Vk\VulkanDriver.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="RenderPlatform\API.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="Assets\Assets.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="API\Vk\Vk.h">
@@ -131,43 +92,22 @@
     <ClInclude Include="API\Vk\ShaderToSPIRVCompiler.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="API\Context.h">
+    <ClInclude Include="API\Device.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="API\RendererFlagBits.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Assets\GPUHandles.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="API\Vk\vk_mem_alloc.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="External\stb\stb_image.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="External\cgltf\cgltf.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="RenderAbstracts\DescriptorSets.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="API\ShaderAttribute.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="RenderAbstracts\DrawCommand.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="RenderAbstracts\FrameGraph.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Assets\Importer.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="RenderAbstracts\Primitives.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="RenderAbstracts\RenderMemory.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="API\Vk\Src\spirv_reflect.h">
@@ -179,24 +119,19 @@
     <ClInclude Include="API\Definitions.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="RenderAbstracts\PipelineManager.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="RenderAbstracts\MaterialManager.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="RenderAbstracts\PushConstant.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="RenderAbstracts\TextureMemory.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="RenderAbstracts\StagingManager.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="API\Common.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderAbstracts\DrawCommand.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="API\Vk\VkFuncDecl.inl" />
+    <None Include=".editorconfig" />
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="vk_mem_alloc.natvis" />

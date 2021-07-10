@@ -26,26 +26,37 @@ enum AppState : uint32
 
 struct WindowInfo
 {
+	struct Position
+	{
+		int32 x;
+		int32 y;
+	};
+
+	struct Extent2D
+	{
+		uint32 Width;
+		uint32 Height;
+	};
+
 	WndHandle	Handle;
-	uint32		PosX;
-	uint32		PosY;
-	uint32		Width;
-	uint32		Height;
+	Position	Pos;
+	Extent2D	Extent;
 	bool		IsFullScreened;
 	bool		WindowSizeChanged;
+	bool		IsMoving;
 };
 
 struct EngineBase : public ApplicationInterface
 {
-	String64			Name;
+	astl::String64	Name;
 	WindowInfo			Window;
-	ResourceManager		Manager;
+	ResourceManager	Manager;
 	ThreadPool			JobSystem;
 	//SystemManager		Systems;
-	SystemClock			Clock;
+	SystemClock		Clock;
 	IOSystem			Io;
 	AppState			State;
-	GameManager			GameCoordinator;
+	GameManager		GameCoordinator;
 };
 
 #endif // !LEARNVK_ENGINE_H

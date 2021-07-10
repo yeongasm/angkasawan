@@ -6,7 +6,7 @@
 * Figure out what it does and if required, write a parser that searches for preprocessor definitions.
 */
 
-bool ShaderToSPIRVCompiler::PreprocessShader(const char* ShaderName, shaderc_shader_kind Type, const char* Code, String& Buf)
+bool ShaderToSPIRVCompiler::PreprocessShader(const char* ShaderName, shaderc_shader_kind Type, const char* Code, astl::String& Buf)
 {
 	shaderc::Compiler compiler;
 	shaderc::CompileOptions options;
@@ -25,7 +25,7 @@ bool ShaderToSPIRVCompiler::PreprocessShader(const char* ShaderName, shaderc_sha
 	return true;
 }
 
-bool ShaderToSPIRVCompiler::CompileShaderToAssembly(const char* ShaderName, shaderc_shader_kind Type, const char* Code, BinaryBuffer& Buf)
+bool ShaderToSPIRVCompiler::CompileShaderToAssembly(const char* ShaderName, shaderc_shader_kind Type, const char* Code, astl::Array<uint8>& Buf)
 {
 	shaderc::Compiler compiler;
 	shaderc::CompileOptions options;
@@ -53,7 +53,7 @@ bool ShaderToSPIRVCompiler::CompileShaderToAssembly(const char* ShaderName, shad
 	return true;
 }
 
-bool ShaderToSPIRVCompiler::CompileShader(const char* ShaderName, shaderc_shader_kind Type, const char* Code, DWordBuffer& Buf)
+bool ShaderToSPIRVCompiler::CompileShader(const char* ShaderName, shaderc_shader_kind Type, const char* Code, astl::Array<uint32>& Buf)
 {
 	shaderc::Compiler compiler;
 	shaderc::CompileOptions options;

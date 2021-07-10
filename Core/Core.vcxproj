@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -123,8 +123,11 @@
     <PostBuildEvent>
       <Command>xcopy "$(TargetDir)$(ProjectName).dll" "$(SolutionDir)Bin\$(Configuration)\" /y /q
 xcopy "$(TargetDir)$(ProjectName).pdb" "$(SolutionDir)Bin\$(Configuration)\" /y /q
-xcopy "$(TargetDir)$(ProjectName).ilk" "$(SolutionDir)Bin\$(Configuration)\" /y /q</Command>
+</Command>
     </PostBuildEvent>
+    <Manifest>
+      <EnableDpiAwareness>true</EnableDpiAwareness>
+    </Manifest>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
@@ -151,6 +154,9 @@ xcopy "$(TargetDir)$(ProjectName).ilk" "$(SolutionDir)Bin\$(Configuration)\" /y 
     <PostBuildEvent>
       <Command>xcopy "$(TargetDir)$(ProjectName).dll" "$(SolutionDir)Bin\$(Configuration)\" /y /q</Command>
     </PostBuildEvent>
+    <Manifest>
+      <EnableDpiAwareness>true</EnableDpiAwareness>
+    </Manifest>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
@@ -173,8 +179,11 @@ xcopy "$(TargetDir)$(ProjectName).ilk" "$(SolutionDir)Bin\$(Configuration)\" /y 
     <PostBuildEvent>
       <Command>xcopy "$(TargetDir)$(ProjectName).dll" "$(SolutionDir)Bin\$(Configuration)\" /y /q
 xcopy "$(TargetDir)$(ProjectName).pdb" "$(SolutionDir)Bin\$(Configuration)\" /y /q
-xcopy "$(TargetDir)$(ProjectName).ilk" "$(SolutionDir)Bin\$(Configuration)\" /y /q</Command>
+</Command>
     </PostBuildEvent>
+    <Manifest>
+      <EnableDpiAwareness>true</EnableDpiAwareness>
+    </Manifest>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
@@ -201,6 +210,9 @@ xcopy "$(TargetDir)$(ProjectName).ilk" "$(SolutionDir)Bin\$(Configuration)\" /y 
     <PostBuildEvent>
       <Command>xcopy "$(TargetDir)$(ProjectName).dll" "$(SolutionDir)Bin\$(Configuration)\" /y /q</Command>
     </PostBuildEvent>
+    <Manifest>
+      <EnableDpiAwareness>true</EnableDpiAwareness>
+    </Manifest>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="Engine\Private\System.h" />
@@ -246,6 +258,7 @@ xcopy "$(TargetDir)$(ProjectName).ilk" "$(SolutionDir)Bin\$(Configuration)\" /y 
     <ClInclude Include="Platform\Sync\Sync.h" />
     <ClInclude Include="SubSystem\Input\IO.h" />
     <ClInclude Include="SubSystem\Resource\ResourceManager.h" />
+    <ClInclude Include="SubSystem\Serializer\Serializer.h" />
     <ClInclude Include="SubSystem\Thread\Thread.h" />
     <ClInclude Include="SubSystem\Thread\ThreadPool.h" />
     <ClInclude Include="SubSystem\Time\ScopedTimer.h" />
@@ -256,10 +269,6 @@ xcopy "$(TargetDir)$(ProjectName).ilk" "$(SolutionDir)Bin\$(Configuration)\" /y 
     <ClCompile Include="Engine\Private\Abstraction.cpp" />
     <ClCompile Include="Engine\Private\Instance.cpp" />
     <ClCompile Include="Library\Algorithms\Private\xxhash.c" />
-    <ClCompile Include="Library\Math\Matrix.cpp" />
-    <ClCompile Include="Library\Math\Operations.cpp" />
-    <ClCompile Include="Library\Math\Quaternion.cpp" />
-    <ClCompile Include="Library\Math\Vector.cpp" />
     <ClCompile Include="Library\Stream\Ifstream.cpp" />
     <ClCompile Include="Library\Stream\Ofstream.cpp" />
     <ClCompile Include="dllmain.cpp" />
@@ -270,9 +279,11 @@ xcopy "$(TargetDir)$(ProjectName).ilk" "$(SolutionDir)Bin\$(Configuration)\" /y 
     <ClCompile Include="SubSystem\Game\GameAppManager.cpp" />
     <ClCompile Include="SubSystem\Input\IO.cpp" />
     <ClCompile Include="SubSystem\Resource\ResourceManager.cpp" />
+    <ClCompile Include="SubSystem\Serializer\Serializer.cpp" />
     <ClCompile Include="SubSystem\Thread\ThreadPool.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <None Include=".editorconfig" />
     <None Include="cpp.hint" />
     <None Include="SubSystem\Game\GameAppManager.inl" />
   </ItemGroup>

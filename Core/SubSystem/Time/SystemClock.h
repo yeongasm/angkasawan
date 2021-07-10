@@ -19,12 +19,16 @@ private:
 	TimePoint	CurrentTime;
 	TimePoint	LastFrameTime;
 	float64		DeltaTime;
-	TimeDuration elapsed;
+	TimeDuration Elapsed;
+  uint32 FrSecIndex;
+  float64 TotalSecPerFrame;
+  float64 SecPerFrame[120];
 
 public:
 
 	SystemClock() :
-		Start{}, LastFrameTime{}, CurrentTime{}, DeltaTime(0) {}
+    Start{}, LastFrameTime{}, CurrentTime{}, DeltaTime(0), Elapsed{}, FrSecIndex{ 0 }, TotalSecPerFrame{}, SecPerFrame{ 0 }
+  {}
 
 	~SystemClock() {}
 
@@ -42,37 +46,26 @@ public:
 	*/
 	void Tick()
 	{
-		//auto startMs	= std::chrono::time_point_cast<std::chrono::seconds>(Start);
 		CurrentTime		= Clock::now();
 		TimeDuration dt = CurrentTime - LastFrameTime;
-		elapsed += dt;
+		Elapsed += dt;
 		DeltaTime		= dt.count();
-		DeltaTime = Min(DeltaTime, 0.1);
+		DeltaTime = astl::Min(DeltaTime, 0.1);
 		LastFrameTime	= CurrentTime;
+
+    TotalSecPerFrame += DeltaTime - SecPerFrame[FrSecIndex];
+    SecPerFrame[FrSecIndex++] = DeltaTime;
+    FrSecIndex %= 120;
 	}
 
-	float64 Timestep() const 
-	{ 
-		return DeltaTime; 
-	}
-
-	float64 ElapsedTime() const 
-	{
-		return elapsed.count();
-	}
-
-	//float64 PrevFrameTime()	const { return LastFrameTime.count(); }
-
-	float32 FTimestep()	const 
-	{ 
-		return static_cast<float32>(DeltaTime); 
-	}
-
-	float32 FElapsedTime() const 
-	{ 
-		return static_cast<float32>(elapsed.count());
-	}
-	//float32 FPrevFrameTime()const { return static_cast<float32>(LastFrameTime.count()); }
+	float64 Timestep    ()  const { return DeltaTime; }
+	float64 ElapsedTime ()  const { return Elapsed.count(); }
+  float64 Framerate   ()  const { return 1.0 / (TotalSecPerFrame / 120.0); }
+  float64 Frametime   ()  const { return 1000.0 / Framerate(); }
+	float32 FTimestep   ()  const { return static_cast<float32>(DeltaTime); }
+	float32 FElapsedTime()  const { return static_cast<float32>(Elapsed.count()); }
+  float32 FFramerate  ()  const { return 1.0f / (static_cast<float32>(TotalSecPerFrame) / 120.0f); }
+  float32 FFrametime  ()  const { return 1000.0f / static_cast<float32>(FFramerate()); }
 };
 
 

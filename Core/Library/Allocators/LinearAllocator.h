@@ -4,105 +4,92 @@
 
 #include "BaseAllocator.h"
 
-/**
-* Linear allocator implementation.
-* 
-* Currently does not allow memory re-allocation.
-*/
-class LinearAllocator final : protected AllocatorInterface
+namespace astl
 {
-public:
 
-	LinearAllocator() : 
-		Block(nullptr), Size(0), Offset(0) 
-	{}
+  /**
+  * Linear allocator implementation.
+  * Currently does not allow memory re-allocation.
+  */
+  class LinearAllocator final : public IAllocator
+  {
+  public:
 
-	~LinearAllocator() 
-	{}
+    LinearAllocator() :
+      Block(nullptr), Size(0), Offset(0)
+    {}
 
-	DELETE_COPY_AND_MOVE(LinearAllocator)
+    LinearAllocator(size_t BlockSize) :
+      LinearAllocator()
+    {
+      Initialize(BlockSize);
+    }
 
-	void Initialize(size_t BlockSize)
-	{
-		if (Block) return;
-		Block = reinterpret_cast<uint8*>(FMemory::Malloc(BlockSize));
-		Size = BlockSize;
-	}
+    ~LinearAllocator()
+    {
+      Terminate();
+    }
 
-	void Terminate()
-	{
-		if (!Block) return;
-		FMemory::Free(Block);
-		new (this) LinearAllocator();
-	}
+    DELETE_COPY_AND_MOVE(LinearAllocator)
 
-	void* Malloc(size_t Size, size_t Alignment = 0x10) override
-	{
-		VKT_ASSERT("Not enough space for allocation" && Offset + Size <= this->Size);
+      void Initialize(size_t BlockSize)
+    {
+      if (Block) return;
+      Block = reinterpret_cast<uint8*>(IMemory::Malloc(BlockSize));
+      Size = BlockSize;
+    }
 
-		size_t padding = 0;
-		const uintptr_t currentAddress = reinterpret_cast<uintptr_t>(Block + Offset);
+    void Terminate()
+    {
+      if (!Block) return;
+      IMemory::Free(Block);
+      new (this) LinearAllocator();
+    }
 
-		if (Alignment != 0 && Offset % Alignment != 0)
-		{
-			padding = FMemory::CalculatePadding(currentAddress, Alignment);
-		}
+    void* Malloc(size_t Size, size_t Alignment = 0x10) override
+    {
+      VKT_ASSERT("Not enough space for allocation" && Offset + Size <= this->Size);
 
-		Offset += padding;
-		void* result = reinterpret_cast<void*>(currentAddress + padding);
-		Offset += Size;
+      size_t padding = 0;
+      const uintptr_t currentAddress = reinterpret_cast<uintptr_t>(Block + Offset);
 
-		FMemory::Memzero(result, Size);
-		return result;
-	}
+      if (Alignment != 0 && Offset % Alignment != 0)
+      {
+        padding = IMemory::CalculatePadding(currentAddress, Alignment);
+      }
 
-	void FlushMemory()
-	{
-		FMemory::Memzero(Block, Size);
-		Offset = 0;
-	}
+      Offset += padding;
+      void* result = reinterpret_cast<void*>(currentAddress + padding);
+      Offset += Size;
 
-	template <typename Type>
-	Type* New(bool Construct = true)
-	{
-		Type* p = reinterpret_cast<Type*>(Malloc(sizeof(Type), alignof(Type)));
-		if (Construct)
-		{
-			new (p) Type();
-		}
-		return p;
-	}
+      IMemory::Memzero(result, Size);
+      return result;
+    }
 
-	template <typename Type>
-	Type* New(size_t Num, bool Construct = true)
-	{
-		Type* p = reinterpret_cast<Type*>(Malloc(sizeof(Type) * Num, alignof(Type)));
-		if (Construct)
-		{
-			for (size_t i = 0; i < Num; i++)
-			{
-				new (p[i]) Type();
-			}
-		}
-		return p;
-	}
+    /**
+    * DO NOT USE!!! Free-ing a block will cause fragmentation.
+    */
+    void Free(void* Block) override {}
 
-private:
+    void FlushMemory()
+    {
+      //IMemory::Memzero(Block, Size);
+      Offset = 0;
+    }
 
-	uint8*	Block;
-	size_t	Size;
-	size_t	Offset;
+  private:
 
-	/**
-	* DO NOT USE!!! Reallocation is not supported in LinearAllocators. This is to avoid fragmentation.
-	*/
-	void* Realloc(void* Block, size_t Size) override { return nullptr; }
+    uint8* Block;
+    size_t	Size;
+    size_t	Offset;
 
-	/**
-	* DO NOT USE!!! Free-ing a block will cause fragmentation.
-	*/
-	void Free(void* Block) override {}
-};
+    /**
+    * DO NOT USE!!! Reallocation is not supported in LinearAllocators. This is to avoid fragmentation.
+    */
+    void* Realloc(void* Block, size_t Size) override { return nullptr; }
+  };
+
+}
 
 
 #endif // !LEARNVK_LINEAR_ALLOCATOR

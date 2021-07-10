@@ -15,7 +15,7 @@
 
 # Include Module directory
 [Mm]odules/
-[Ss]andbox/
+# [Ss]andbox/
 
 # Build results
 [Dd]ebug/

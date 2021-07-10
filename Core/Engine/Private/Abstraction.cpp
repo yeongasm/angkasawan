@@ -194,13 +194,14 @@ void EngineImpl::OnEvent(const OS::Event& e)
 			State = AppState::Exit;
 			break;
 		case OS::Event::Type::WINDOW_MOVE:
-			Window.PosX = e.WinMove.x;
-			Window.PosY = e.WinMove.y;
+			Window.Pos.x = e.WinMove.x;
+			Window.Pos.y = e.WinMove.y;
+			Window.IsMoving = true;
 			//Window.IsFullScreened = OS::IsWindowMaximized(Window.Handle);
 			break;
 		case OS::Event::Type::WINDOW_RESIZE:
-			Window.Width = e.WinSize.Width;
-			Window.Height = e.WinSize.Height;
+			Window.Extent.Width = e.WinSize.Width;
+			Window.Extent.Height = e.WinSize.Height;
 			Window.WindowSizeChanged = true;
 			//Window.IsFullScreened = OS::IsWindowMaximized(Window.Handle);
 			break;
@@ -225,10 +226,10 @@ void EngineImpl::OnInit()
 	wndInfo.Name = this->Name.C_Str();
 	wndInfo.FullScreen = Window.IsFullScreened;
 	wndInfo.HandleFileDrop = false;
-	wndInfo.PosX = Window.PosX;
-	wndInfo.PosY = Window.PosY;
-	wndInfo.Width = Window.Width;
-	wndInfo.Height = Window.Height;
+	wndInfo.PosX = Window.Pos.x;
+	wndInfo.PosY = Window.Pos.y;
+	wndInfo.Width = Window.Extent.Width;
+	wndInfo.Height = Window.Extent.Height;
 	Window.Handle = OS::CreateAppWindow(wndInfo);
 
 	if (Window.IsFullScreened)
@@ -262,6 +263,7 @@ void EngineImpl::EndFrame()
 {
 	Io.MouseWheel = 0.0f;
 	Window.WindowSizeChanged = false;
+	Window.IsMoving = false;
 }
 
 void EngineImpl::InitializeEngine(const EngineCreationInfo& Info)
@@ -270,10 +272,10 @@ void EngineImpl::InitializeEngine(const EngineCreationInfo& Info)
 	Clock.StartSystemClock();
 
 	Name	= Info.AppName;
-	Window.PosX = Info.StartPosX;
-	Window.PosY = Info.StartPosY;
-	Window.Width = Info.Width;
-	Window.Height = Info.Height;
+	Window.Pos.x = Info.StartPosX;
+	Window.Pos.y = Info.StartPosY;
+	Window.Extent.Width = Info.Width;
+	Window.Extent.Height = Info.Height;
 	Window.IsFullScreened = Info.FullScreen;
 	State = AppState::Running;
 
@@ -448,6 +450,11 @@ bool EngineImpl::HasWindowSizeChanged() const
 	return Window.WindowSizeChanged;
 }
 
+bool EngineImpl::IsWindowMoving() const
+{
+	return Window.IsMoving;
+}
+
 void EngineImpl::ShowCursor(bool Show)
 {
 	OS::ShowCursor(Show);
@@ -460,10 +467,10 @@ void EngineImpl::SetMousePosition(float32 x, float32 y)
 
 void* EngineImpl::AllocateAndRegisterSystem(size_t Size, SystemType Type, Handle<ISystem>* Hnd)
 {
-	using SystemContainer = Array<SystemInterface*>*;
+	using SystemContainer = astl::Array<SystemInterface*>*;
 	SystemInterface* system = reinterpret_cast<SystemInterface*>(SystemAllocator.Malloc(Size));
 	SystemContainer container = (Type == System_Engine_Type) ? &EngineSystems : &GameSystems;
-	*Hnd = container->Push(system);
+	*Hnd = container->Emplace(system);
 	return system;
 }
 
@@ -481,7 +488,7 @@ void EngineImpl::FreeAllSystems()
 
 SystemInterface* EngineImpl::GetRegisteredSystem(SystemType Type, Handle<ISystem> Hnd)
 {
-	using SystemContainer = Array<SystemInterface*>*;
+	using SystemContainer = astl::Array<SystemInterface*>*;
 	SystemContainer container = (Type == System_Engine_Type) ? &EngineSystems : &GameSystems;
 	return (*container)[Hnd];
 }

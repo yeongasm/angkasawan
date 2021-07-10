@@ -17,8 +17,8 @@ struct Resource
 {
 	uint32		Type		= 0;
 	uint32		RefCount	= 0;
-	uint32		Index		= -1;
-	FilePath	Path		= {};
+	uint32		Index		= uint32(-1);
+	astl::FilePath Path = {};
 };
 
 class ENGINE_API ResourceCache
@@ -34,7 +34,7 @@ public:
 	ResourceCache& operator=(ResourceCache&& Rhs);
 
 	uint32		Create		();
-	Resource*	Find		(const FilePath& Path);
+	Resource*	Find		(const astl::FilePath& Path);
 	Resource*	Get			(uint32 Id);
 	bool		IsReferenced(uint32 Id);
 	void		AddRef		(uint32 Id);
@@ -44,7 +44,7 @@ public:
 	bool		FreeCache	(bool Forced = false);
 	bool		FlushCache	(bool Forced = false);
 private:
-	using CacheMap = Map<uint32, Resource>;
+	using CacheMap = astl::Map<uint32, Resource>;
 	CacheMap		Cache;
 };
 
@@ -54,7 +54,7 @@ class ENGINE_API ResourceManager
 {
 private:
 
-	using ResourceTable = Map<ResourceType, ResourceCache>;
+	using ResourceTable = astl::Map<ResourceType, ResourceCache>;
 
 public:
 

@@ -121,7 +121,7 @@ namespace OS
 
 	struct DllModule
 	{
-		using FixedString	= StaticString<MAX_PATH_LENGTH>;
+		using FixedString	= astl::StaticString<MAX_PATH_LENGTH>;
 		using CallbackFunc	= void(*)(void*);
 
 		DllModule()	 = default;

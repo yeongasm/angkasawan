@@ -23,7 +23,7 @@ struct ShaderAttrib
 	~ShaderAttrib() {};
 
 	ShaderAttrib(const ShaderAttrib& Rhs) { *this = Rhs; };
-	ShaderAttrib(ShaderAttrib&& Rhs) { *this = Move(Rhs); };
+	ShaderAttrib(ShaderAttrib&& Rhs) { *this = astl::Move(Rhs); };
 
 	ShaderAttrib& operator=(const ShaderAttrib& Rhs)
 	{

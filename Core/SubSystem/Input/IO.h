@@ -6,6 +6,7 @@
 #include "Platform/EngineAPI.h"
 #include "Library/Math/Vector.h"
 
+namespace math = astl::math;
 using vec2 = math::vec2;
 
 enum IOMouseButton : uint32

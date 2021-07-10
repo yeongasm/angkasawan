@@ -102,7 +102,7 @@ private:
 
 	size_t CalculatePaddingWithHeader(const uintptr_t BaseAddress, const size_t Alignment)
 	{
-		size_t Padding = FMemory::CalculatePadding(BaseAddress, Alignment);
+		size_t Padding = IMemory::CalculatePadding(BaseAddress, Alignment);
 		size_t NeededSpace = sizeof(AllocationHeader);
 
 		if (Padding < NeededSpace)
@@ -175,7 +175,7 @@ private:
 	//		
 	//	if (Size)
 	//	{
-	//		FMemory::Realloc(Block, Size);
+	//		IMemory::Realloc(Block, Size);
 	//		Temp = Size - Temp;
 	//	}
 
@@ -211,7 +211,7 @@ public:
 	void Initialize(size_t BlockSize)
 	{
 		if (Block) return;
-		Block = reinterpret_cast<uint8*>(FMemory::Malloc(BlockSize));
+		Block = reinterpret_cast<uint8*>(IMemory::Malloc(BlockSize));
 		Size = BlockSize;
 
 		Node* FreeNode = reinterpret_cast<Node*>(Block);
@@ -225,7 +225,7 @@ public:
 	void Terminate()
 	{
 		if (!Block) return;
-		FMemory::Free(Block);
+		IMemory::Free(Block);
 		new (this) DynamicAllocator();
 	}
 
@@ -267,7 +267,7 @@ public:
 		BlockHeader->Padding = static_cast<uint8>(AlignmentPadding);
 
 		void* Result = reinterpret_cast<void*>(DataAddress);
-		FMemory::Memzero(Result, AllocationSize);
+		IMemory::Memzero(Result, AllocationSize);
 
 		return Result;
 	}
@@ -318,7 +318,7 @@ public:
 		BlockHeader->Padding = static_cast<uint8>(AlignmentPadding);
 
 		void* Result = reinterpret_cast<void*>(DataAddress);
-		FMemory::Memzero(Result, AllocationSize);
+		IMemory::Memzero(Result, AllocationSize);
 
 		return Result;
 	}
@@ -369,13 +369,13 @@ public:
 		FreeList.Insert(FreeNode);
 		Coalescence(FreeNode);
 
-		FMemory::Memzero(Pointer, Size);
+		IMemory::Memzero(Pointer, Size);
 	}
 		
 	void Flush()
 	{
 		FreeList.Reset();
-		FMemory::Memzero(Memory.Block, Memory.Size);
+		IMemory::Memzero(Memory.Block, Memory.Size);
 		RequestMemory(0);
 	}
 

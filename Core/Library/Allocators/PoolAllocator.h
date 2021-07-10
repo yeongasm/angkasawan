@@ -135,7 +135,7 @@ public:
 	void Free(void* Pointer, size_t Size)
 	{
 		if (!Pointer) return;
-		FMemory::Memzero(Pointer, Size);
+		IMemory::Memzero(Pointer, Size);
 		FreeList.Push(reinterpret_cast<Node*>(Pointer));
 		FreeChunks++;
 	}
@@ -167,7 +167,7 @@ public:
 	{
 		FreeChunks = 0;
 		FreeList.Reset();
-		FMemory::Memzero(Memory.Block, Memory.Size);
+		IMemory::Memzero(Memory.Block, Memory.Size);
 		RequestMemory(0);
 	}
 

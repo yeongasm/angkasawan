@@ -12,6 +12,35 @@ enum EBuildStatus
 	Build_Status_Compiled
 };
 
+enum class EBindableType : uint32
+{
+	Bindable_Type_None = 0, // Only during init.
+	Bindable_Type_Descriptor_Set = 1,
+	Bindable_Type_Pipeline = 2,
+  Bindable_Type_Buffer = 3
+};
+
+enum class EResourceBuildType : uint32
+{
+  Resource_Build_Type_None                  = 0,
+  Resource_Build_Type_Buffer                = 1,
+  Resource_Build_Type_Descriptor_Pool       = 2,
+  Resource_Build_Type_Descriptor_Set_Layout = 3,
+  Resource_Build_Type_Descriptor_Set        = 4,
+  Resource_Build_Type_Image                 = 5,
+  Resource_Build_Type_Image_Sampler         = 6,
+  Resource_Build_Type_Shader                = 7,
+  Resource_Build_Type_Pipeline              = 8
+};
+
+enum class EQueueType : size_t
+{
+	Queue_Type_Graphics = 0,
+	Queue_Type_Present = 1,
+	Queue_Type_Transfer = 2,
+	Queue_Type_Compute = 3
+};
+
 enum ESurfaceOffset : size_t
 {
 	Surface_Offset_X	= 0,
@@ -42,6 +71,13 @@ enum EColorChannel : size_t
 	Color_Channel_Max	= 4
 };
 
+enum EPipelineBindPoint : uint32
+{
+	Pipeline_Bind_Point_Graphics = 0,
+	Pipeline_Bind_Point_Compute = 1,
+	Pipeline_Bind_Point_Max = 2
+};
+
 enum ERenderPassType : uint32
 {
 	RenderPass_Type_Graphics	= 0,
@@ -61,6 +97,7 @@ enum ERenderPassOrder : uint32
 	RenderPass_Order_Last		= 1,
 	RenderPass_Order_InBetween	= 2
 };
+using ERenderPassOrderFlagBits = uint32;
 
 enum ERenderPassOrderValue : uint32
 {
@@ -76,7 +113,7 @@ enum ERenderPassState
 	RenderPass_State_Built
 };
 
-enum ERenderPassFlagBits : uint32
+enum ERenderPassFlags : uint32
 {
 	RenderPass_Bit_None						= 0,
 	RenderPass_Bit_Color_Input				= 1,
@@ -90,6 +127,7 @@ enum ERenderPassFlagBits : uint32
 	RenderPass_Bit_Stencil_Input			= 9,
 	RenderPass_Bit_Stencil_Output			= 10
 };
+using ERenderPassFlagBits = uint32;
 
 enum ECommandBufferLevel : uint32
 {
@@ -114,6 +152,7 @@ enum EShaderType : uint32
 	Shader_Type_Compute		= 3,
 	Shader_Type_Max			= 4
 };
+using EShaderTypeFlagBits = uint32;
 
 enum EShaderVarType : uint32
 {
@@ -165,6 +204,38 @@ enum ECullingMode : uint32
 	Culling_Mode_Max			= 4
 };
 
+enum EBlendFactor : uint32
+{
+  Blend_Factor_Zero                     = 0,
+  Blend_Factor_One                      = 1,
+  Blend_Factor_Src_Color                = 2,
+  Blend_Factor_One_Minus_Src_Color      = 3,
+  Blend_Factor_Dst_Color                = 4,
+  Blend_Factor_One_Minus_Dst_Color      = 5,
+  Blend_Factor_Src_Alpha                = 6,
+  Blend_Factor_One_Minus_Src_Alpha      = 7,
+  Blend_Factor_Dst_Alpha                = 8,
+  Blend_Factor_One_Minus_Dst_Alpha      = 9,
+  Blend_Factor_Constant_Color           = 10,
+  Blend_Factor_One_Minus_Constant_Color = 11,
+  Blend_Factor_Constant_Alpha           = 12,
+  Blend_Factor_One_Minus_Constant_Alpha = 13,
+  Blend_Factor_Src_Alpha_Saturate       = 14,
+  Blend_Factor_Src1_Color               = 15,
+  Blend_Factor_One_Minus_Src1_Color     = 16,
+  Blend_Factor_Src1_Alpha               = 17,
+  Blend_Factor_One_Minus_Src1_Alpha     = 18,
+  Blend_Factor_Max                      = 19
+};
+
+enum EBlendOp : uint32
+{
+  Blend_Op_Add              = 0,
+  Blend_Op_Subtract         = 1,
+  Blend_Op_Reverse_Subtract = 2,
+  Blend_Op_Max              = 3
+};
+
 enum ESampleCount : uint32
 {
 	Sample_Count_1	 = 0,
@@ -193,6 +264,12 @@ enum ETextureType : uint32
 	Texture_Type_Max = 3
 };
 
+enum ETextureFormat : uint32
+{
+  Texture_Format_Srgb = 0,
+  Texture_Format_Unorm = 1,
+};
+
 enum EImageUsageFlags : uint32
 {
 	Image_Usage_Transfer_Src	= 0,
@@ -202,6 +279,7 @@ enum EImageUsageFlags : uint32
 	Image_Usage_Depth_Stencil_Attachment = 4,
 	Image_Usage_Max = 5
 };
+using EImageUsageFlagBits = uint32;
 
 enum EAttachmentType : uint32
 {
@@ -218,6 +296,7 @@ enum EBufferType : uint32
 	Buffer_Type_Transfer_Dst = 4,
 	Buffer_Type_Max		= 5
 };
+using EBufferTypeFlagBits = uint32;
 
 enum EBufferLocality : uint32
 {
@@ -281,6 +360,21 @@ enum EPushConstantSize : size_t
 {
 	Push_Constant_Size = 128
 };
+
+enum EStagingUploadType : uint32
+{
+  Staging_Upload_Type_None = 0,
+  Staging_Upload_Type_Buffer = 1,
+  Staging_Upload_Type_Image = 2,
+};
+
+enum EOwnershipTransferType : uint32
+{
+  Ownership_Transfer_Type_Vertex_Buffer = 0,
+  Ownership_Transfer_Type_Index_Buffer = 1,
+  Ownership_Transfer_Type_Buffer_Or_Image = 2
+};
+using EOwnershipTransferTypeFlagBits = uint32;
 
 // Depth testing
 // Blending

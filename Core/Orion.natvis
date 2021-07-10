@@ -1,7 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
 <AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
+  <Type Name="astl::Ref&lt;*&gt;">
+    <DisplayString>Reference with address {_Ptr}</DisplayString>
+    <Expand>
+      <ExpandedItem>_Ptr</ExpandedItem>
+    </Expand>
+  </Type>
+  <Type Name="astl::UniquePtr&lt;*&gt;">
+    <DisplayString>Unique Pointer with address {_Ptr}</DisplayString>
+    <Expand>
+      <ExpandedItem>_Ptr</ExpandedItem>
+    </Expand>
+  </Type>
+  <Type Name="Handle&lt;*&gt;">
+    <DisplayString>Handle with value {Value}</DisplayString>
+  </Type>
+  <Type Name="RefHnd&lt;*&gt;">
+    <DisplayString>Reference handle with address={_Ptr} and value={Value}</DisplayString>
+    <Expand>
+      <Item Name="Pointer">_Ptr</Item>
+      <Item Name="Handle">Value</Item>
+    </Expand>
+  </Type>
   <!--Array Visualizer-->
-  <Type Name="Array&lt;*,*&gt;">
+  <Type Name="astl::Array&lt;*,*&gt;">
     <DisplayString>Array with {Len} elements</DisplayString>
     <Expand>
       <Item Name="Length">Len</Item>
@@ -12,18 +34,48 @@
       </ArrayItems>
     </Expand>
   </Type>
+  <Type Name="astl::StaticArray&lt;*,*&gt;">
+    <DisplayString>Static Array with {Len} elements</DisplayString>
+    <Expand>
+      <Item Name="Length">Len</Item>
+      <Item Name="Capacity">Capacity</Item>
+      <ArrayItems>
+        <Size>Len</Size>
+        <ValuePointer>Data</ValuePointer>
+      </ArrayItems>
+    </Expand>
+  </Type>
+  <Type Name="astl::BaseMap&lt;*,*,*&gt;::Bucket">
+    <DisplayString>Bucket with key = {Key}</DisplayString>
+    <Expand>
+      <Item Name="Key">Key</Item>
+      <Item Name="Value">Value</Item>
+      <Item Name="Status">Status</Item>
+      <Item Name="Previous">Previous</Item>
+      <Item Name="Next">Next</Item>
+    </Expand>
+  </Type>  
+  <!--<Type Name="astl::BaseMap&lt;*,*,*&gt;">
+    <Expand>
+      <Item Name="First Element">Head</Item>
+      <Item Name="Last Element">Tail</Item>
+      <Item Name="Bucket Count">NumBuckets</Item>
+    </Expand>
+  </Type>-->
   <!--Hash Map Visualizer-->
-  <Type Name="Map&lt;*,*,*,*,*&gt;">
+  <Type Name="astl::MapImpl&lt;*,*,*,*,*&gt;">
     <DisplayString>Map with {Entries.Capacity - NumBuckets} elements</DisplayString>
     <Expand>
       <Item Name="Free Buckets">NumBuckets</Item>
       <Item Name="Length">Entries.Capacity - NumBuckets</Item>
       <Item Name="Capacity">Entries.Capacity</Item>
+      <Item Name="First">Head</Item>
+      <Item Name="Last">Tail</Item>
       <LinkedListItems>
         <Size>Entries.Capacity  - NumBuckets</Size>
-        <HeadPointer>First</HeadPointer>
+        <HeadPointer>Head</HeadPointer>
         <NextPointer>Next</NextPointer>
-        <ValueNode>*reinterpret_cast&lt;PairNode*&gt;(this)</ValueNode>
+        <ValueNode>*reinterpret_cast&lt;Bucket*&gt;(this)</ValueNode>
       </LinkedListItems>
       <!--<IndexListItems>
         <Size>Entries.Capacity</Size>
@@ -32,7 +84,7 @@
       </IndexListItems>-->
     </Expand>
   </Type>
-  <Type Name="Map&lt;*,*,*,*,*&gt;">
+  <!-- <Type Name="Map&lt;*,*,*,*,*&gt;">
     <DisplayString>Map with {Entries.Capacity - NumBuckets} elements</DisplayString>
     <Expand>
       <Item Name="Free Buckets">NumBuckets</Item>
@@ -44,13 +96,13 @@
         <NextPointer>Next</NextPointer>
         <ValueNode>*reinterpret_cast&lt;PairNode*&gt;(this)</ValueNode>
       </LinkedListItems>
-      <!--<IndexListItems>
+      <IndexListItems>
         <Size>Entries.Capacity</Size>
         <ValueNode Condition="((SetPair*)Entries.AllocatorInstance.Data)[$i].Status == Bucket_IsOccupied">((SetPair*)Entries.AllocatorInstance.Data)[$i]</ValueNode>
         <ValueNode>"Empty",sb</ValueNode>
-      </IndexListItems>-->
+      </IndexListItems>
     </Expand>
-  </Type>
+  </Type> -->
   <!--Doubly Linked List Visualizer-->
   <Type Name="BaseList&lt;*,*&gt;">
     <!--<AlternativeType Name="TList&lt;*,*&gt;"/>-->
@@ -66,7 +118,7 @@
     </Expand>
   </Type>
   <!--String Visualizer-->
-  <Type Name="BasicString&lt;char,*&gt;">
+  <Type Name="astl::BasicString&lt;char,*&gt;">
     <AlternativeType Name="String&lt;char,*&gt;"/>
     <DisplayString Condition="Capacity &lt;= SSO_MAX">{Buffer, s8}</DisplayString>
     <DisplayString Condition="Capacity &gt; SSO_MAX">{Data, s8}</DisplayString>
@@ -82,7 +134,7 @@
       </ArrayItems>
     </Expand>
   </Type>
-  <Type Name="BasicString&lt;wchar_t,*&gt;">
+  <Type Name="astl::BasicString&lt;wchar_t,*&gt;">
     <AlternativeType Name="String&lt;wchar_t,*&gt;"/>
     <DisplayString Condition="Capacity &lt;= SSO_MAX">{Buffer, s8}</DisplayString>
     <DisplayString Condition="Capacity &gt; SSO_MAX">{Data, s8}</DisplayString>
@@ -99,7 +151,7 @@
     </Expand>
   </Type>
   <!--Pair Visualizer-->
-  <Type Name="Pair&lt;*,*&gt;">
+  <Type Name="astl::Pair&lt;*,*&gt;">
     <DisplayString>Key={Key}, Value={Value}</DisplayString>
     <Expand>
       <Item Name="Key">Key</Item>

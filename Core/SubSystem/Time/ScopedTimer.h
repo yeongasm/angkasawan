@@ -41,7 +41,7 @@ public:
 	TimerPrecision Now()
 	{
 		End = Clock::now();
-		Duration = Start - End;
+		Duration = End - Start;
 		return Duration.count();
 	}
 

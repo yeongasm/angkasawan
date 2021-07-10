@@ -19,35 +19,24 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="API\Device.cpp" />
     <ClCompile Include="API\Vk\ShaderToSPIRVCompiler.cpp" />
     <ClCompile Include="API\Vk\Src\spirv_reflect.c" />
     <ClCompile Include="API\Vk\Vk.cpp" />
-    <ClCompile Include="Assets\Assets.cpp" />
-    <ClCompile Include="Assets\Importer.cpp" />
-    <ClCompile Include="External\cgltf\cgltf.cpp" />
-    <ClCompile Include="External\stb\stb_image.cpp" />
-    <ClCompile Include="RenderAbstracts\DescriptorSets.cpp" />
-    <ClCompile Include="RenderAbstracts\DrawCommand.cpp" />
-    <ClCompile Include="RenderAbstracts\MaterialManager.cpp" />
-    <ClCompile Include="RenderAbstracts\PipelineManager.cpp" />
-    <ClCompile Include="RenderAbstracts\PushConstant.cpp" />
-    <ClCompile Include="RenderAbstracts\RenderMemory.cpp" />
     <ClCompile Include="RenderAbstracts\StagingManager.cpp" />
-    <ClCompile Include="RenderAbstracts\TextureMemory.cpp" />
     <ClCompile Include="Renderer.cpp" />
     <ClCompile Include="API\Vk\VulkanFunctions.cpp" />
-    <ClCompile Include="API\Vk\VulkanDriver.cpp" />
     <ClCompile Include="dllmain.cpp" />
     <ClCompile Include="RenderAbstracts\FrameGraph.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="API\Context.h" />
+    <ClInclude Include="API\Common.h" />
+    <ClInclude Include="API\Device.h" />
     <ClInclude Include="API\Definitions.h" />
     <ClInclude Include="API\ShaderAttribute.h" />
     <ClInclude Include="API\Vk\Src\spirv.h" />
     <ClInclude Include="API\Vk\Src\spirv_reflect.h" />
     <ClInclude Include="API\Vk\vk_mem_alloc.h" />
-    <ClInclude Include="Assets\GPUHandles.h" />
     <ClInclude Include="API\RendererFlagBits.h" />
     <ClInclude Include="API\Vk\ShaderToSPIRVCompiler.h" />
     <ClInclude Include="API\Vk\Src\shaderc.hpp" />
@@ -56,20 +45,10 @@
     <ClInclude Include="API\Vk\Src\shaderc\status.h" />
     <ClInclude Include="API\Vk\Src\shaderc\visibility.h" />
     <ClInclude Include="API\Vk\Vk.h" />
-    <ClInclude Include="Assets\Assets.h" />
-    <ClInclude Include="Assets\Importer.h" />
-    <ClInclude Include="External\cgltf\cgltf.h" />
-    <ClInclude Include="External\stb\stb_image.h" />
-    <ClInclude Include="RenderAbstracts\FrameGraph.h" />
-    <ClInclude Include="RenderAbstracts\DescriptorSets.h" />
     <ClInclude Include="RenderAbstracts\DrawCommand.h" />
-    <ClInclude Include="RenderAbstracts\MaterialManager.h" />
-    <ClInclude Include="RenderAbstracts\PipelineManager.h" />
+    <ClInclude Include="RenderAbstracts\FrameGraph.h" />
     <ClInclude Include="RenderAbstracts\Primitives.h" />
-    <ClInclude Include="RenderAbstracts\PushConstant.h" />
-    <ClInclude Include="RenderAbstracts\RenderMemory.h" />
     <ClInclude Include="RenderAbstracts\StagingManager.h" />
-    <ClInclude Include="RenderAbstracts\TextureMemory.h" />
     <ClInclude Include="RenderPlatform\API.h" />
     <ClInclude Include="Renderer.h" />
     <ClInclude Include="API\Vk\Src\vk_layer.h" />
@@ -79,9 +58,9 @@
     <ClInclude Include="API\Vk\Src\vulkan_core.h" />
     <ClInclude Include="API\Vk\Src\vulkan_win32.h" />
     <ClInclude Include="API\Vk\VulkanFunctions.h" />
-    <ClInclude Include="API\Vk\VulkanDriver.h" />
   </ItemGroup>
   <ItemGroup>
+    <None Include=".editorconfig" />
     <None Include="API\Vk\VkFuncDecl.inl" />
   </ItemGroup>
   <ItemGroup>
@@ -196,9 +175,11 @@
     <PostBuildEvent>
       <Command>xcopy "$(TargetDir)$(ProjectName).dll" "$(SolutionDir)Bin\$(Configuration)\" /y /q
 xcopy "$(TargetDir)$(ProjectName).pdb" "$(SolutionDir)Bin\$(Configuration)\" /y /q
-xcopy "$(TargetDir)$(ProjectName).ilk" "$(SolutionDir)Bin\$(Configuration)\" /y /q
 xcopy "$(SolutionDir)ExternalDLL\shaderc_shared.dll" "$(SolutionDir)Bin\$(Configuration)\" /y /q</Command>
     </PostBuildEvent>
+    <Manifest>
+      <EnableDpiAwareness>true</EnableDpiAwareness>
+    </Manifest>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
@@ -231,6 +212,9 @@ xcopy "$(TargetDir)$(ProjectName).pdb" "$(SolutionDir)Bin\$(Configuration)\" /y 
 xcopy "$(TargetDir)$(ProjectName).ilk" "$(SolutionDir)Bin\$(Configuration)\" /y /q
 xcopy "$(SolutionDir)ExternalDLL\shaderc_shared.dll" "$(SolutionDir)Bin\$(Configuration)\" /y /q</Command>
     </PostBuildEvent>
+    <Manifest>
+      <EnableDpiAwareness>true</EnableDpiAwareness>
+    </Manifest>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
@@ -256,9 +240,11 @@ xcopy "$(SolutionDir)ExternalDLL\shaderc_shared.dll" "$(SolutionDir)Bin\$(Config
     <PostBuildEvent>
       <Command>xcopy "$(TargetDir)$(ProjectName).dll" "$(SolutionDir)Bin\$(Configuration)\" /y /q
 xcopy "$(TargetDir)$(ProjectName).pdb" "$(SolutionDir)Bin\$(Configuration)\" /y /q
-xcopy "$(TargetDir)$(ProjectName).ilk" "$(SolutionDir)Bin\$(Configuration)\" /y /q
 xcopy "$(SolutionDir)ExternalDLL\shaderc_shared.dll" "$(SolutionDir)Bin\$(Configuration)\" /y /q</Command>
     </PostBuildEvent>
+    <Manifest>
+      <EnableDpiAwareness>true</EnableDpiAwareness>
+    </Manifest>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
@@ -291,6 +277,9 @@ xcopy "$(TargetDir)$(ProjectName).pdb" "$(SolutionDir)Bin\$(Configuration)\" /y 
 xcopy "$(TargetDir)$(ProjectName).ilk" "$(SolutionDir)Bin\$(Configuration)\" /y /q
 xcopy "$(SolutionDir)ExternalDLL\shaderc_shared.dll" "$(SolutionDir)Bin\$(Configuration)\" /y /q</Command>
     </PostBuildEvent>
+    <Manifest>
+      <EnableDpiAwareness>true</EnableDpiAwareness>
+    </Manifest>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

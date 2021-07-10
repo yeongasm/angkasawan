@@ -2,178 +2,147 @@
 #ifndef LEARNVK_RENDERER_RENDERGRAPH_RENDER_GRAPH_H
 #define LEARNVK_RENDERER_RENDERGRAPH_RENDER_GRAPH_H
 
+
 #include "Library/Containers/Bitset.h"
-#include "Library/Containers/Map.h"
-#include "Library/Allocators/LinearAllocator.h"
+#include "Library/Containers/Array.h"
+#include "Library/Containers/String.h"
+#include "Library/Containers/Pair.h"
 #include "SubSystem/Resource/Handle.h"
 #include "RenderPlatform/API.h"
 #include "API/RendererFlagBits.h"
-#include "RenderAbstracts/Primitives.h"
+#include "API/Definitions.h"
+#include "Engine/Interface.h"
 
-#define MAX_FRAMES_IN_FLIGHT 2
+class IFrameGraph;
+class IRenderSystem;
+struct SDescriptorSet;
+struct SPipeline;
+struct SRenderPass;
+struct SImage;
 
-class RenderSystem;
-class IRFrameGraph;
+using Extent2D = WindowInfo::Extent2D;
+using Position = WindowInfo::Position;
 
-struct AttachmentCreateInfo
+using VkRenderPass = struct VkRenderPass_T*;
+using VkFramebuffer = struct VkFramebuffer_T*;
+
+struct SRenderPass
 {
-	ETextureUsage	Usage;
-	ETextureType	Type;
+	struct OAttachment
+	{
+		Handle<SImage> Hnd;
+		astl::Ref<SImage> pImg;
+	};
+
+	struct IAttachment
+	{
+		astl::Ref<SRenderPass> pOwner;
+		uint32 AtIndex;
+	};
+
+	using OutputAttachments = astl::StaticArray<OAttachment, MAX_RENDERPASS_ATTACHMENT_COUNT>;
+	using InputAttachments = astl::StaticArray<IAttachment, MAX_RENDERPASS_ATTACHMENT_COUNT>;
+
+	Handle<SRenderPass> Hnd; // Not sure if I like this ... 
+	IFrameGraph* pOwner;
+	InputAttachments ColorInputs;
+	OutputAttachments ColorOutputs;
+	VkFramebuffer Framebuffer;
+	IAttachment DepthStencilInput;
+	OAttachment DepthStencilOutput;
+	VkRenderPass RenderPassHnd;
+	astl::BitSet<ERenderPassFlagBits> Flags;
+	Extent2D Extent;
+	Position Pos;
+	float32 Depth;
+	ERenderPassType Type;
+	astl::BitSet<ERenderPassOrderFlagBits> Order;
+  uint32 IndexForDraw;
+	bool Rebuild = false;
+};
+
+struct RenderPassCreateInfo
+{
+	astl::String64 Identifier;
+	Extent2D Extent;
+	Position Pos;
+	float32 Depth;
+	ERenderPassType Type;
 };
 
 /**
 * NOTE(Ygsm):
-* A RenderPass represents a rendering pass in the program.
-* Is able to output textures that will be sampled by another pass.
-* Also able to receive input from other RenderPasses to be sampled.
-* By default, all RenderPasses will render to the color & depth stencil output owned by the FrameGraph unless any of the No* functions are called.
+* Compute passes in the frame graph will be synchronous compute using the graphics queue.
+* Create another subsystem for async compute.
 * 
-*
+* The frame graph will own a descriptor set and slot 0 is reserved for it.
 */
-struct RENDERER_API RenderPass
-{
-//public:
-
-	RenderPass(IRFrameGraph& OwnerGraph, ERenderPassType Type, uint32 Order);
-	~RenderPass();
-
-	DELETE_COPY_AND_MOVE(RenderPass)
-
-	//bool AddShader				(Shader* ShaderSrc);
-	//bool AddPipeline			(Shader* VertexShader, Shader* FragmentShader);
-	//bool AddVertexInputBinding	(uint32 Binding, uint32 From, uint32 To, uint32 Stride, EVertexInputRateType Type);
-	void AddColorInput			(const String32& Identifier, RenderPass& From);
-	void AddColorOutput			(const String32& Identifier, const AttachmentCreateInfo& CreateInfo);
-
-	//void AddDepthInput			(const RenderPass& From);
-	//void AddDepthOutput			();
-
-	//void AddStencilInput		(const RenderPass& From);
-	//void AddStencilOutput		();
-
-	void AddDepthStencilInput	(const RenderPass& From);
-	void AddDepthStencilOutput	();
-
-	/**
-	* Feature not implemented yet!
-	*/
-	//bool AddSubpass		(RenderPass& Subpass);
-
-	/**
-	* Feature not implemented yet!
-	*/
-	//bool IsMainpass		() const;
-
-	/**
-	* Feature not implemented yet!
-	*/
-	//bool IsSubpass		() const;
-
-	void SetWidth		(float32 Width);
-	void SetHeight		(float32 Height);
-	void SetDepth		(float32 Depth);
-	//void SetSampleCount	(ESampleCount Samples);
-	//void SetTopology	(ETopologyType Type);
-	//void SetCullMode	(ECullingMode Mode);
-	//void SetPolygonMode	(EPolygonMode Mode);
-	//void SetFrontFace	(EFrontFaceDir Face);
-
-	void NoRender				();
-	void NoColorRender			();
-	void NoDepthStencilRender	();
-
-//private:
-
-	//struct VertexInputBinding
-	//{
-	//	uint32 Binding;
-	//	uint32 From;
-	//	uint32 To;
-	//	uint32 Stride;
-	//	EVertexInputRateType Type;
-	//};
-
-	//using VertexInputBindings = Array<VertexInputBinding>;
-
-	struct AttachmentInfo : public AttachmentCreateInfo
-	{
-		Handle<HImage> Handle;
-	};
-
-	using OutputAttachments = Map<String32, AttachmentInfo, MurmurHash<String32>, 1>;
-	using InputAttachments	= Map<String32, AttachmentInfo, MurmurHash<String32>, 1>;
-	//using ArrayOfDescLayouts = Array<DescriptorLayout*>;
-
-	IRFrameGraph&		Owner;
-	ERenderPassType		Type;
-
-	//ESampleCount		Samples;
-	//ETopologyType		Topology;
-	//EFrontFaceDir		FrontFace;
-	//ECullingMode		CullMode;
-	//EPolygonMode		PolygonalMode;
-	BitSet<uint32>		Flags;
-	float32				Width;
-	float32				Height;
-	float32				Depth;
-	uint32				Order;
-	uint32				PassType;
-
-	//Shader*				Shaders[Shader_Type_Max];
-	ERenderPassState	State;
-	//Handle<HPipeline>	PipelineHandle;
-	Handle<HRenderpass> RenderpassHandle;
-	Handle<HFramebuffer>FramebufferHandle;
-
-	InputAttachments	ColorInputs;
-	OutputAttachments	ColorOutputs;
-	AttachmentInfo		DepthStencilInput;
-	AttachmentInfo		DepthStencilOutput;
-
-	//RenderPass*			Parent;
-	//VertexInputBindings	VertexBindings;
-	//Array<RenderPass*>	Childrens;
-	//ArrayOfDescLayouts	BoundDescriptorLayouts;
-};
-
-
-class RENDERER_API IRFrameGraph
+class RENDERER_API IFrameGraph
 {
 private:
-	using RenderPassEnum = uint32;
+
+	friend class IRenderSystem;
+
+	using RenderPass = astl::Pair<Handle<SRenderPass>, astl::Ref<SRenderPass>>;
+	using PassContainer = astl::StaticArray<RenderPass, MAX_FRAMEGRAPH_PASS_COUNT>;
+
+	static size_t _HashSeed;
+
+	IRenderSystem& Renderer;
+	SRenderPass::OAttachment ColorImage;
+	SRenderPass::OAttachment DepthStencilImage;
+	PassContainer RenderPasses;
+	Extent2D Extent;
+	bool Built;
+
+	astl::Ref<SRenderPass> GetRenderPass(Handle<SRenderPass> Hnd);
+	size_t HashIdentifier(const astl::String64& Identifier);
+
+	// Create a vk framebuffer.
+	bool CreateFramebuffer(astl::Ref<SRenderPass> pRenderPass);
+	// Destroys a vk framebuffer.
+	void DestroyFramebuffer(astl::Ref<SRenderPass> pRenderPass);
+
+	// Creates a vk renderpass.
+	bool CreateRenderPass(astl::Ref<SRenderPass> pRenderPass);
+	// Destroys a vk renderpass.
+	void DestroyRenderPass(astl::Ref<SRenderPass> pRenderPass);
+
+	void SetupAttachments(astl::Ref<SImage> pColor, astl::Ref<SImage> pDepthStencil);
+
 public:
 
-	IRFrameGraph(LinearAllocator& GraphAllocator);
-	~IRFrameGraph();
+	IFrameGraph(IRenderSystem& InRenderer);
+	~IFrameGraph();
 
-	DELETE_COPY_AND_MOVE(IRFrameGraph)
+	DELETE_COPY_AND_MOVE(IFrameGraph)
 
-	Handle<RenderPass>	AddPass				(RenderPassEnum PassIdentity, ERenderPassType Type);
-	RenderPass&			GetRenderPass		(Handle<RenderPass> Handle);
-	Handle<HImage>		GetColorImage		()	const;
-	Handle<HImage>		GetDepthStencilImage()	const;
-	uint32				GetNumRenderPasses	()	const;
-	void				SetOutputExtent		(uint32 Width = 0, uint32 Height = 0);
+	bool AddColorInputFrom(Handle<SImage> Img, Handle<SRenderPass> Src, Handle<SRenderPass> Dst);
+	Handle<SImage> AddColorOutput(Handle<SRenderPass> Hnd);
+	bool AddDepthStencilInputFrom(Handle<SRenderPass> Src, Handle<SRenderPass> Dst);
+	bool AddDepthStencilOutput(Handle<SRenderPass> Hnd);
+	bool SetRenderPassExtent(Handle<SRenderPass> Hnd, Extent2D Extent);
+	bool SetRenderPassOrigin(Handle<SRenderPass> Hnd, Position Origin);
 
-	void OnWindowResize	();
-	void Destroy		();
-	bool Compile		();
-	bool Compiled		() const;
+	bool NoDefaultRender(Handle<SRenderPass> Hnd);
+	bool NoDefaultColorRender(Handle<SRenderPass> Hnd);
+	bool NoDefaultDepthStencilRender(Handle<SRenderPass> Hnd);
 
-private:			
+	Handle<SRenderPass> AddRenderPass(const RenderPassCreateInfo& CreateInfo);
 
-	friend class RenderSystem;
-	using RenderPassTable	= Map<RenderPassEnum, RenderPass*>;
+	bool GetRenderPassColorOutputCount(Handle<SRenderPass> Hnd, uint32& Count);
 
-	String128			Name;
-	LinearAllocator&	Allocator;
-	Texture				ColorImage;
-	Texture				DepthStencilImage;
-	//FrameImages			Images;
-	RenderPassTable		RenderPasses;
-	bool				IsCompiled;
+	size_t GetNumRenderPasses()	const;
+	void SetOutputExtent(uint32 Width = 0, uint32 Height = 0);
 
-	//void BindLayoutToRenderPass(DescriptorLayout& Layout, Handle<RenderPass> PassHandle);
+	void OnWindowResize();
+	
+	// Creates a CPU side image with the given extent.
+	// Does not create the resource on the GPU.
+	bool Initialize(const Extent2D& Extent);
+	void Terminate();
+	bool Build();
+	bool IsBuilt() const;
 };
 
 #endif // !LEARNVK_RENDERER_RENDERGRAPH_RENDER_GRAPH_H

@@ -3,164 +3,174 @@
 #define LEARNVK_BUFFER_H
 
 #include "Library/Templates/Templates.h"
+#include "Library/Templates/Types.h"
 #include "Library/Memory/Memory.h"
 
-template <typename ElementType>
-class Buffer
+namespace astl
 {
-public:
-	using Type = ElementType;
-	using ConstType = const Type;
-private:
 
-	Type* Buf;
-	size_t Len;
+  template <typename ElementType>
+  class Buffer
+  {
+  public:
+    using Type = ElementType;
+    using ConstType = const Type;
+  private:
 
-	void Destruct(size_t From, size_t To, bool Reconstruct)
-	{
-		for (size_t i = From; i < To; i++)
-		{
-			Buf[i].~Type();
-			if (Reconstruct)
-			{
-				new (Buf + i) Type();
-			}
-		}
-	}
+    Type* Buf;
+    size_t Len;
 
-public:
+    void Destruct(size_t From, size_t To, bool Reconstruct)
+    {
+      for (size_t i = From; i < To; i++)
+      {
+        Buf[i].~Type();
+        if (Reconstruct)
+        {
+          new (Buf + i) Type();
+        }
+      }
+    }
 
-	Buffer() :
-		Buf(nullptr), Len(0)
-	{}
+  public:
 
-	Buffer(size_t Capacity) :
-		Buf(nullptr), Len(0)
-	{
-		Alloc(Capacity);
-	}
+    Buffer() :
+      Buf(nullptr), Len(0)
+    {}
 
-	~Buffer()
-	{
-		Release();
-	}
+    Buffer(size_t Capacity) :
+      Buf(nullptr), Len(0)
+    {
+      Alloc(Capacity);
+    }
 
-	Buffer(const Buffer& Rhs)
-	{
-		*this = Rhs;
-	}
+    ~Buffer()
+    {
+      Release();
+    }
 
-	Buffer(Buffer&& Rhs)
-	{
-		*this = Move(Rhs);
-	}
+    Buffer(const Buffer& Rhs)
+    {
+      *this = Rhs;
+    }
 
-	Buffer& operator=(const Buffer& Rhs)
-	{
-		if (this != &Rhs)
-		{
-			if (Rhs.Count() > Count())
-			{
-				Alloc(Rhs.Count());
-			}
-			for (size_t i = 0; i < Count(); i++)
-			{
-				*this[i] = Rhs[i];
-			}
-		}
-		return *this;
-	}
+    Buffer(Buffer&& Rhs)
+    {
+      *this = Move(Rhs);
+    }
 
-	Buffer& operator=(Buffer&& Rhs)
-	{
-		if (this != &Rhs)
-		{
-			Buf = Rhs.Buf;
-			Len = Rhs.Len;
-			new (&Rhs) Buffer();
-		}
-		return *this;
-	}
+    Buffer& operator=(const Buffer& Rhs)
+    {
+      if (this != &Rhs)
+      {
+        if (Rhs.Count() > Count())
+        {
+          Alloc(Rhs.Count());
+        }
+        Len = Rhs.Len;
+        for (size_t i = 0; i < Count(); i++)
+        {
+          *this[i] = Rhs[i];
+        }
+      }
+      return *this;
+    }
 
-	Type& operator[](size_t Index)
-	{
-		VKT_ASSERT(Index < Len);
-		return Buf[Index];
-	}
+    Buffer& operator=(Buffer&& Rhs)
+    {
+      if (this != &Rhs)
+      {
+        Buf = Rhs.Buf;
+        Len = Rhs.Len;
+        new (&Rhs) Buffer();
+      }
+      return *this;
+    }
 
-	ConstType& operator[](size_t Index) const
-	{
-		VKT_ASSERT(Index < Len);
-		return Buf[Index];
-	}
+    Type& operator[](size_t Index)
+    {
+      VKT_ASSERT(Index < Len);
+      return Buf[Index];
+    }
 
-	operator void* ()
-	{
-		return Buf;
-	}
+    ConstType& operator[](size_t Index) const
+    {
+      VKT_ASSERT(Index < Len);
+      return Buf[Index];
+    }
 
-	operator Type* ()
-	{
-		return Buf;
-	}
+    operator void* ()
+    {
+      return Buf;
+    }
 
-	operator ConstType* () const
-	{
-		return Buf;
-	}
+    operator Type* ()
+    {
+      return Buf;
+    }
 
-	void Alloc(size_t Capacity)
-	{
-		if (Capacity < Len)
-		{
-			Destruct(Capacity, Len, false);
-		}
+    operator ConstType* () const
+    {
+      return Buf;
+    }
 
-		Type* Old = Buf;
-		size_t capacity = Capacity * sizeof(Type);
-		Buf = reinterpret_cast<Type*>(FMemory::Realloc(Old, capacity));
+    void Alloc(size_t Capacity)
+    {
+      if (Capacity < Len)
+      {
+        Destruct(Capacity, Len, false);
+      }
 
-		if (!Buf) { return; }
+      Type* Old = Buf;
+      size_t capacity = Capacity * sizeof(Type);
+      Buf = reinterpret_cast<Type*>(IMemory::Realloc(Old, capacity));
 
-		for (size_t i = Len; i < Capacity; i++)
-		{
-			new (Buf + i) Type();
-		}
+      if (!Buf) { return; }
 
-		Len = Capacity;
-	}
+      for (size_t i = Len; i < Capacity; i++)
+      {
+        new (Buf + i) Type();
+      }
 
-	void Flush()
-	{
-		FMemory::Memzero(Buf, Size());
-	}
+      Len = Capacity;
+    }
 
-	void Release()
-	{
-		if (!Buf) { return; }
-		FMemory::Free(Buf);
-		Buf = nullptr;
-	}
-	
-	size_t Size() const
-	{
-		return Len * sizeof(Type);
-	}
+    void Flush()
+    {
+      IMemory::Memzero(Buf, Size());
+    }
 
-	size_t Count() const
-	{
-		return Len;
-	}
+    void Release()
+    {
+      if (!Buf) { return; }
+      IMemory::Free(Buf);
+      new (this) Buffer();
+    }
 
-	Type* Data()
-	{
-		return Buf;
-	}
+    size_t Size() const
+    {
+      return Len * sizeof(Type);
+    }
 
-	ConstType* ConstData() const
-	{
-		return Buf;
-	}
-};
+    size_t Count() const
+    {
+      return Len;
+    }
+
+    Type* Data()
+    {
+      return Buf;
+    }
+
+    ConstType* ConstData() const
+    {
+      return Buf;
+    }
+  };
+
+  using BinaryBuffer = Buffer<uint8>;
+  using DWordBuffer = Buffer<uint32>;
+
+}
 
 #endif // !LEARNVK_BUFFER_H
