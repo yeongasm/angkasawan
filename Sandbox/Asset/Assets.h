@@ -29,7 +29,7 @@ namespace sandbox
 		math::vec3 Position;
 		math::vec3 Normal;
 		math::vec3 Tangent;
-		math::vec3 Bitangent;
+		//math::vec3 Bitangent;
 		math::vec2 TexCoord;
 	};
 

@@ -17,11 +17,11 @@ namespace sandbox
 
 	SandboxApp::SandboxApp() :
     AssetManager{ ao::FetchEngineCtx() },
-    MatController(this->AssetManager, ao::FetchRenderSystem(), ao::FetchEngineCtx()),
-    TypeWriter(ao::FetchRenderSystem(), ao::FetchEngineCtx()),
-		Setup(),
-		pRenderer(),
-		pCamera()
+    MatController{ this->AssetManager, ao::FetchRenderSystem(), ao::FetchEngineCtx() },
+    TypeWriter{ ao::FetchRenderSystem(), ao::FetchEngineCtx() },
+    RenderSetup{},
+    pRenderer{},
+    pCamera{}
 	{}
 
 	SandboxApp::~SandboxApp() {}
@@ -36,7 +36,7 @@ namespace sandbox
     MatController.Initialize();
     TypeWriter.Initialize(g_maxNumGlyphs);
 
-		if (!Setup.Initialize(&engine, &renderer, &AssetManager))
+		if (!RenderSetup.Initialize(&engine, &renderer, &AssetManager))
 		{
 			engine.State = AppState::Exit;
 			return;
@@ -51,7 +51,7 @@ namespace sandbox
 				&camHnd
 			)
 		);
-		new (pTemp) CameraSystem(engine, renderer, Setup, camHnd);
+		new (pTemp) CameraSystem(engine, renderer, RenderSetup, camHnd);
 		pCamera = pTemp;
 
 		pCamera->OnInit();
@@ -160,13 +160,6 @@ namespace sandbox
 			}
 		};
 
-		if (!Setup.Build())
-		{
-			VKT_ASSERT(false && "Failed to build rendering pipeline for application");
-			engine.State = AppState::Exit;
-			return;
-		}
-
     if (!CreateMaterialDefinition(pbrMatDefinition))
     {
       VKT_ASSERT(false && "Failed to create PBR material definition");
@@ -237,9 +230,6 @@ namespace sandbox
 
     astl::Array<Handle<SImage>> imageHandles;
     astl::Ref<MaterialDef> pbrDefinition = MatController.GetMaterialDefinition(pbrMatDefinition);
-    Handle<SDescriptorSet> setHnd = Setup.GetDescriptorSetHandle();
-    Handle<SMemoryBuffer> cameraUboHnd = Setup.GetCameraUboHandle();
-    pRenderer->DescriptorSetMapToBuffer(setHnd, 0, cameraUboHnd, 0, pRenderer->PadToAlignedSize(sizeof(RendererSetup::CameraUbo)));
 
     for (const MaterialType& type : pbrDefinition->MatTypes)
     {
@@ -248,7 +238,7 @@ namespace sandbox
         imageHandles.Push(texture->ImageHnd);
       }
       pRenderer->DescriptorSetMapToImage(
-        setHnd,
+        RenderSetup.GetDescriptorSet(),
         type.Binding,
         imageHandles.First(),
         static_cast<uint32>(imageHandles.Length()),
@@ -257,13 +247,14 @@ namespace sandbox
       imageHandles.Empty();
     }
 
+    ITextOverlayPassExtension* const pTextOverlayExt = (ITextOverlayPassExtension*)RenderSetup.GetFramePass(ESandboxFrames::Sandbox_Frame_TextOverlay)->pNext;
     Handle<SImage> atlasHnd = TypeWriter.GetFontAtlasHandle(ibmPlex);
     pRenderer->DescriptorSetMapToImage(
-      setHnd,
+      RenderSetup.GetDescriptorSet(),
       2,
       &atlasHnd,
       1,
-      Setup.GetTexOverlayPass().GetFontSampler()
+      pTextOverlayExt->ImgSamplerHnd
     );
 	}
 
@@ -335,10 +326,10 @@ namespace sandbox
       Setup.GetTexOverlayPass().GetPipelineHandle(),
       Setup.GetTexOverlayPass().GetRenderPassHandle()
     );
-    pRenderer->BindDescriptorSet(
-      Setup.GetDescriptorSetHandle(),
-      Setup.GetTexOverlayPass().GetRenderPassHandle()
-    );
+    //pRenderer->BindDescriptorSet(
+    //  Setup.GetDescriptorSetHandle(),
+    //  Setup.GetTexOverlayPass().GetRenderPassHandle()
+    //);
 
     uint32 numInstances = 0;
 
@@ -374,7 +365,7 @@ namespace sandbox
     MatController.Terminate();
     TypeWriter.Terminate();
 		pCamera->OnTerminate();
-		Setup.Terminate();
+		RenderSetup.Terminate();
 	}
 
 	void SandboxApp::HandleWindowResize()
@@ -389,7 +380,8 @@ namespace sandbox
 			Setup.GetColorPass().GetRenderPassHandle(),
 			wndExtent
 		);
-    frameGraph.SetRenderPassExtent(Setup.GetTexOverlayPass().GetRenderPassHandle(),
+    frameGraph.SetRenderPassExtent(
+      Setup.GetTexOverlayPass().GetRenderPassHandle(),
       wndExtent
     );
 		frameGraph.OnWindowResize();
@@ -397,6 +389,8 @@ namespace sandbox
 
   bool SandboxApp::CreateMaterialDefinition(Handle<MaterialDef>& DefHnd)
   {
+
+
     MaterialTypeBindingInfo albedoTypeBinding;
     albedoTypeBinding.Binding = 1;
     albedoTypeBinding.Type = Pbr_Texture_Type_Albedo;

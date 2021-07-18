@@ -26,7 +26,7 @@ namespace sandbox
 		IAssetManager AssetManager;
     MaterialController MatController;
     TextController TypeWriter;
-		RendererSetup Setup;
+    ISandboxRendererSetup RenderSetup;
 		astl::Ref<IRenderSystem> pRenderer;
 		astl::Ref<EngineImpl> pEngine;
 		astl::Ref<CameraSystem> pCamera;

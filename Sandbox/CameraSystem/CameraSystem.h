@@ -44,12 +44,11 @@ namespace sandbox
 		};
 
 		using CallbackFunc = void(*)(CallbackFuncArgs&);
-		using CameraUbo = RendererSetup::CameraUbo;
 
-    CameraUbo CamUbo;
+    SandboxSceneCameraUbo CamUbo;
 		EngineImpl& Engine;
 		IRenderSystem& Renderer;
-		RendererSetup& Setup;
+    ISandboxRendererSetup& Setup;
 		vec2 CaptMousePos;
 		vec2 LastMousePos;
 		vec2 Offsets;
@@ -69,7 +68,7 @@ namespace sandbox
 		CameraSystem(
 			EngineImpl& InEngine,
 			IRenderSystem& InRenderer,
-			RendererSetup& InRenderSetup,
+			ISandboxRendererSetup& InRenderSetup,
 			Handle<ISystem> Hnd);
 		~CameraSystem();
 

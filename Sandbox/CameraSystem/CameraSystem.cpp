@@ -10,7 +10,7 @@ namespace sandbox
 	CameraSystem::CameraSystem(
 		EngineImpl& InEngine, 
 		IRenderSystem& InRenderer, 
-		RendererSetup& InRenderSetup,
+    ISandboxRendererSetup& InRenderSetup,
 		Handle<ISystem> Hnd
 	) :
 		SystemInterface(),
@@ -71,12 +71,14 @@ namespace sandbox
 
 		CamUbo.ViewProj = Projection * View;
 		CamUbo.View = View;
-		
+
+    IGBufferPassExtension* pGBufferExt = (IGBufferPassExtension*)Setup.GetFramePass(ESandboxFrames::Sandbox_Frame_GBuffer)->pNext;
+
 		Renderer.DescriptorSetUpdateDataAtBinding(
-			Setup.GetDescriptorSetHandle(),
+			Setup.GetDescriptorSet(),
 			0,
 			&CamUbo,
-			sizeof(CameraUbo)
+			sizeof(SandboxSceneCameraUbo)
 		);
 
 		ResetState(Camera_State_IsDirty);
