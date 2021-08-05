@@ -32,7 +32,7 @@ namespace sandbox
 		astl::Ref<CameraSystem> pCamera;
 
 		void HandleWindowResize();
-    bool CreateMaterialDefinition(Handle<MaterialDef>& DefHnd);
+    //bool CreateMaterialDefinition(Handle<MaterialDef>& DefHnd);
 	};
 
 }

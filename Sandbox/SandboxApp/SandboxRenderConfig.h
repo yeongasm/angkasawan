@@ -28,6 +28,9 @@ namespace sandbox
   struct IGBufferPassExtension
   {
     Handle<SMemoryBuffer> CameraUboHnd;
+    Handle<SImage> PositionImgHnd;
+    Handle<SImage> NormalsImgHnd;
+    Handle<SImage> AlbedoImgHnd;
   };
 
   struct ITextOverlayPassExtension
@@ -56,7 +59,7 @@ namespace sandbox
     astl::Ref<EngineImpl> pEngine;
     astl::Ref<IRenderSystem> pRenderer;
     astl::Ref<IAssetManager> pAssetManager;
-    astl::Map<ESandboxFrames, ISandboxFramePass> FramePasses;
+    astl::Map<uint32, ISandboxFramePass> FramePasses;
 
     bool PrepareGBufferPass();
     bool PrepareTextOverlayPass();
@@ -64,6 +67,7 @@ namespace sandbox
   public:
 
     bool Initialize(astl::Ref<EngineImpl> pInEngine, astl::Ref<IRenderSystem> pInRenderSystem, astl::Ref<IAssetManager> pInAssetManager);
+    const ISandboxFramePass& GetSandboxFramePass(ESandboxFrames Frame) const;
     astl::Ref<ISandboxFramePass> GetFramePass(ESandboxFrames FrameId);
     const Handle<SDescriptorSet> GetDescriptorSet() const;
     void Terminate();

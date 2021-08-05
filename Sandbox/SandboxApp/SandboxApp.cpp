@@ -7,7 +7,7 @@ namespace sandbox
 {
 
 	Handle<Model> zeldaModel;
-  Handle<MaterialDef> pbrMatDefinition;
+  //Handle<MaterialDef> pbrMatDefinition;
   astl::Array<Handle<Material>> zeldaMaterialHandles;
   astl::Array<math::mat4> fontTransforms;
   astl::Array<math::mat4> objectTransforms;
@@ -160,12 +160,12 @@ namespace sandbox
 			}
 		};
 
-    if (!CreateMaterialDefinition(pbrMatDefinition))
-    {
-      VKT_ASSERT(false && "Failed to create PBR material definition");
-      engine.State = AppState::Exit;
-      return;
-    }
+    //if (!CreateMaterialDefinition(pbrMatDefinition))
+    //{
+    //  VKT_ASSERT(false && "Failed to create PBR material definition");
+    //  engine.State = AppState::Exit;
+    //  return;
+    //}
 
 		IStagingManager& staging = pRenderer->GetStagingManager();
 		ModelImporter modelImporter;
@@ -197,55 +197,61 @@ namespace sandbox
 			mesh.Indices.Release();
 		}
 
-    TextureImporter textureImporter;
-    astl::Array<astl::FilePath> zeldaTexPaths;
-    modelImporter.PathsToTextures(&zeldaTexPaths);
+    //TextureImporter textureImporter;
+    //astl::Array<astl::FilePath> zeldaTexPaths;
+    //modelImporter.PathsToTextures(&zeldaTexPaths);
 
-    for (const astl::FilePath& path : zeldaTexPaths)
-    {
-      RefHnd<Texture> texHnd = textureImporter.ImportTextureFromPath(path, &AssetManager);
+    //for (const astl::FilePath& path : zeldaTexPaths)
+    //{
+    //  RefHnd<Texture> texHnd = textureImporter.ImportTextureFromPath(path, &AssetManager);
 
-      texHnd->ImageHnd = pRenderer->CreateImage(texHnd->Width, texHnd->Height, texHnd->Channels, Texture_Type_2D, Texture_Format_Srgb, true);
-      //pRenderer->BuildImage(texHnd->ImageHnd);
+    //  texHnd->ImageHnd = pRenderer->CreateImage(
+    //    texHnd->Width,
+    //    texHnd->Height,
+    //    texHnd->Channels,
+    //    Texture_Type_2D,
+    //    Texture_Format_Srgb,
+    //    true
+    //  );
 
-      staging.StageDataForImage(texHnd->Data, texHnd->Size, texHnd->ImageHnd, EQueueType::Queue_Type_Graphics);
-      staging.TransferImageOwnership(texHnd->ImageHnd);
-      texHnd->Data.Release();
+    //  staging.StageDataForImage(texHnd->Data, texHnd->Size, texHnd->ImageHnd, EQueueType::Queue_Type_Graphics);
+    //  staging.TransferImageOwnership(texHnd->ImageHnd);
+    //  texHnd->Data.Release();
 
-      TextureTypeInfo textureInfo = {};
-      textureInfo.Hnd = texHnd;
-      textureInfo.Type = Pbr_Texture_Type_Albedo;
+    //  TextureTypeInfo textureInfo = {};
+    //  textureInfo.Hnd = texHnd;
+    //  textureInfo.Type = Pbr_Texture_Type_Albedo;
 
-      MaterialCreateInfo zeldaMatInfo = {};
-      zeldaMatInfo.DefinitionHnd = pbrMatDefinition;
-      zeldaMatInfo.NumTextureTypes = 1;
-      zeldaMatInfo.pInfo = &textureInfo;
+    //  MaterialCreateInfo zeldaMatInfo = {};
+    //  zeldaMatInfo.DefinitionHnd = pbrMatDefinition;
+    //  zeldaMatInfo.NumTextureTypes = 1;
+    //  zeldaMatInfo.pInfo = &textureInfo;
 
-      Handle<Material> hnd = MatController.CreateMaterial(zeldaMatInfo);
-      zeldaMaterialHandles.Push(hnd);
-    }
+    //  Handle<Material> hnd = MatController.CreateMaterial(zeldaMatInfo);
+    //  zeldaMaterialHandles.Push(hnd);
+    //}
 
     Handle<Font> ibmPlex = TypeWriter.LoadFont("Data/Fonts/IBMPlexMono-Regular.ttf", 12);
     TypeWriter.SetDefaultFont(ibmPlex);
 
-    astl::Array<Handle<SImage>> imageHandles;
-    astl::Ref<MaterialDef> pbrDefinition = MatController.GetMaterialDefinition(pbrMatDefinition);
+    //astl::Array<Handle<SImage>> imageHandles;
+    //astl::Ref<MaterialDef> pbrDefinition = MatController.GetMaterialDefinition(pbrMatDefinition);
 
-    for (const MaterialType& type : pbrDefinition->MatTypes)
-    {
-      for (astl::Ref<Texture> texture : type.Textures)
-      {
-        imageHandles.Push(texture->ImageHnd);
-      }
-      pRenderer->DescriptorSetMapToImage(
-        RenderSetup.GetDescriptorSet(),
-        type.Binding,
-        imageHandles.First(),
-        static_cast<uint32>(imageHandles.Length()),
-        pbrDefinition->SamplerHnd
-      );
-      imageHandles.Empty();
-    }
+    //for (const MaterialType& type : pbrDefinition->MatTypes)
+    //{
+    //  for (astl::Ref<Texture> texture : type.Textures)
+    //  {
+    //    imageHandles.Push(texture->ImageHnd);
+    //  }
+    //  pRenderer->DescriptorSetMapToImage(
+    //    RenderSetup.GetDescriptorSet(),
+    //    type.Binding,
+    //    imageHandles.First(),
+    //    static_cast<uint32>(imageHandles.Length()),
+    //    pbrDefinition->SamplerHnd
+    //  );
+    //  imageHandles.Empty();
+    //}
 
     ITextOverlayPassExtension* const pTextOverlayExt = (ITextOverlayPassExtension*)RenderSetup.GetFramePass(ESandboxFrames::Sandbox_Frame_TextOverlay)->pNext;
     Handle<SImage> atlasHnd = TypeWriter.GetFontAtlasHandle(ibmPlex);
@@ -277,13 +283,16 @@ namespace sandbox
 
     pRenderer->BufferBindToGlobal(TypeWriter.GetGlyphInstanceBufferHandle());
 
+    const ISandboxFramePass& gBufferPass = RenderSetup.GetSandboxFramePass(ESandboxFrames::Sandbox_Frame_GBuffer);
+    const ISandboxFramePass& textOverlayPass = RenderSetup.GetSandboxFramePass(ESandboxFrames::Sandbox_Frame_TextOverlay);
+
 		pRenderer->BindPipeline(
-			Setup.GetColorPass().GetPipelineHandle(),
-			Setup.GetColorPass().GetRenderPassHandle()
+      gBufferPass.PipelineHnd,
+      gBufferPass.RenderPassHnd
 		);
 		pRenderer->BindDescriptorSet(
-			Setup.GetDescriptorSetHandle(),
-			Setup.GetColorPass().GetRenderPassHandle()
+      RenderSetup.GetDescriptorSet(),
+      gBufferPass.RenderPassHnd
 		);
 
 		astl::Ref<Model> pZelda = AssetManager.GetModelWithHandle(zeldaModel);
@@ -310,8 +319,8 @@ namespace sandbox
     info.DrawCount = pZelda->NumDrawables;
 		info.pVertexInformation = pZelda->VertexInformations.First();
 		info.pIndexInformation = pZelda->IndexInformation.First();
-		info.RenderPassHnd = Setup.GetColorPass().GetRenderPassHandle();
-    info.PipelineHnd = Setup.GetColorPass().GetPipelineHandle();
+    info.RenderPassHnd = gBufferPass.RenderPassHnd;
+    info.PipelineHnd = gBufferPass.PipelineHnd;
     info.pConstants = textureIndices;
     info.ConstantsCount = 6;
     info.ConstantTypeSize = sizeof(uint32);
@@ -323,8 +332,8 @@ namespace sandbox
 
     // Bind text overlay pipeline and descriptor set.
     pRenderer->BindPipeline(
-      Setup.GetTexOverlayPass().GetPipelineHandle(),
-      Setup.GetTexOverlayPass().GetRenderPassHandle()
+      textOverlayPass.PipelineHnd,
+      textOverlayPass.RenderPassHnd
     );
     //pRenderer->BindDescriptorSet(
     //  Setup.GetDescriptorSetHandle(),
@@ -352,8 +361,8 @@ namespace sandbox
     textSubmission.DrawCount = 1;
     textSubmission.pVertexInformation = &TypeWriter.GetGlyphQuadVertexInformation();
     textSubmission.pIndexInformation = &TypeWriter.GetGlyphQuadIndexInformation();
-    textSubmission.RenderPassHnd = Setup.GetTexOverlayPass().GetRenderPassHandle();
-    textSubmission.PipelineHnd = Setup.GetTexOverlayPass().GetPipelineHandle();
+    textSubmission.RenderPassHnd = textOverlayPass.RenderPassHnd;
+    textSubmission.PipelineHnd = textOverlayPass.PipelineHnd;
 
     pRenderer->Draw(textSubmission);
 
@@ -376,35 +385,33 @@ namespace sandbox
 		pCamera->SetHeight(static_cast<float32>(wndExtent.Height));
 		pCamera->SetState(Camera_State_IsDirty);
 		frameGraph.SetOutputExtent(wndExtent.Width, wndExtent.Height);
-		frameGraph.SetRenderPassExtent(
-			Setup.GetColorPass().GetRenderPassHandle(),
+    frameGraph.SetRenderPassExtent(
+      RenderSetup.GetSandboxFramePass(ESandboxFrames::Sandbox_Frame_GBuffer).RenderPassHnd,
 			wndExtent
 		);
     frameGraph.SetRenderPassExtent(
-      Setup.GetTexOverlayPass().GetRenderPassHandle(),
+      RenderSetup.GetSandboxFramePass(ESandboxFrames::Sandbox_Frame_TextOverlay).RenderPassHnd,
       wndExtent
     );
 		frameGraph.OnWindowResize();
 	}
 
-  bool SandboxApp::CreateMaterialDefinition(Handle<MaterialDef>& DefHnd)
-  {
+  //bool SandboxApp::CreateMaterialDefinition(Handle<MaterialDef>& DefHnd)
+  //{
+  //  MaterialTypeBindingInfo albedoTypeBinding;
+  //  albedoTypeBinding.Binding = 1;
+  //  albedoTypeBinding.Type = Pbr_Texture_Type_Albedo;
 
+  //  MaterialDefCreateInfo definitionCreateInfo = {};
+  //  definitionCreateInfo.PipelineHnd = Setup.GetColorPass().GetPipelineHandle();
+  //  definitionCreateInfo.SamplerHnd = Setup.GetTextureImageSampler();
+  //  definitionCreateInfo.SetHnd = Setup.GetDescriptorSetHandle();
+  //  definitionCreateInfo.NumOfTypeBindings = 1;
+  //  definitionCreateInfo.pTypeBindings = &albedoTypeBinding;
 
-    MaterialTypeBindingInfo albedoTypeBinding;
-    albedoTypeBinding.Binding = 1;
-    albedoTypeBinding.Type = Pbr_Texture_Type_Albedo;
+  //  DefHnd = MatController.CreateMaterialDefinition(definitionCreateInfo);
+  //  if (DefHnd == INVALID_HANDLE) { return false; }
 
-    MaterialDefCreateInfo definitionCreateInfo = {};
-    definitionCreateInfo.PipelineHnd = Setup.GetColorPass().GetPipelineHandle();
-    definitionCreateInfo.SamplerHnd = Setup.GetTextureImageSampler();
-    definitionCreateInfo.SetHnd = Setup.GetDescriptorSetHandle();
-    definitionCreateInfo.NumOfTypeBindings = 1;
-    definitionCreateInfo.pTypeBindings = &albedoTypeBinding;
-
-    DefHnd = MatController.CreateMaterialDefinition(definitionCreateInfo);
-    if (DefHnd == INVALID_HANDLE) { return false; }
-
-    return true;
-  }
+  //  return true;
+  //}
 }

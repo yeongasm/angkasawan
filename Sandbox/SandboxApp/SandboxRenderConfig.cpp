@@ -30,6 +30,11 @@ namespace sandbox
       return false;
     }
 
+    // G Buffer attachment outputs.
+    pGBufferExt.PositionImgHnd = frameGraph.AddColorOutput(gBufferPass.RenderPassHnd);
+    pGBufferExt.NormalsImgHnd = frameGraph.AddColorOutput(gBufferPass.RenderPassHnd);
+    pGBufferExt.AlbedoImgHnd  = frameGraph.AddColorOutput(gBufferPass.RenderPassHnd);
+
     BufferAllocateInfo cameraUboInfo = {};
     cameraUboInfo.Locality = Buffer_Locality_Cpu_To_Gpu;
     cameraUboInfo.Type.Set(Buffer_Type_Uniform);
@@ -336,11 +341,11 @@ namespace sandbox
     if (!PrepareTextOverlayPass())  { return false; }
 
     pRenderer->PipelineAddDescriptorSetLayout(
-      FramePasses[ESandboxFrames::Sandbox_Frame_GBuffer].PipelineHnd,
+      FramePasses[static_cast<uint32>(ESandboxFrames::Sandbox_Frame_GBuffer)].PipelineHnd,
       DescriptorSetLayoutHnd
     );
     pRenderer->PipelineAddDescriptorSetLayout(
-      FramePasses[ESandboxFrames::Sandbox_Frame_TextOverlay].PipelineHnd,
+      FramePasses[static_cast<uint32>(ESandboxFrames::Sandbox_Frame_TextOverlay)].PipelineHnd,
       DescriptorSetLayoutHnd
     );
 
@@ -362,9 +367,14 @@ namespace sandbox
     return true;
   }
 
+  const ISandboxFramePass& ISandboxRendererSetup::GetSandboxFramePass(ESandboxFrames Frame) const
+  {
+    return FramePasses[static_cast<uint32>(Frame)];
+  }
+
   astl::Ref<ISandboxFramePass> ISandboxRendererSetup::GetFramePass(ESandboxFrames FrameId)
   {
-    return &FramePasses[FrameId];
+    return &FramePasses[static_cast<uint32>(FrameId)];
   }
 
   const Handle<SDescriptorSet> ISandboxRendererSetup::GetDescriptorSet() const
