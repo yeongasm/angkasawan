@@ -19,7 +19,7 @@ namespace sandbox
     math::mat4 View;
   };
 
-  enum class ESandboxFrames : uint32
+  enum ESandboxFrames : uint32
   {
     Sandbox_Frame_GBuffer,
     Sandbox_Frame_TextOverlay
@@ -67,7 +67,7 @@ namespace sandbox
   public:
 
     bool Initialize(astl::Ref<EngineImpl> pInEngine, astl::Ref<IRenderSystem> pInRenderSystem, astl::Ref<IAssetManager> pInAssetManager);
-    const ISandboxFramePass& GetSandboxFramePass(ESandboxFrames Frame) const;
+    //const ISandboxFramePass& GetSandboxFramePass(ESandboxFrames Frame) const;
     astl::Ref<ISandboxFramePass> GetFramePass(ESandboxFrames FrameId);
     const Handle<SDescriptorSet> GetDescriptorSet() const;
     void Terminate();

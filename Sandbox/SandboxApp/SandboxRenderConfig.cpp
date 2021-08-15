@@ -367,10 +367,10 @@ namespace sandbox
     return true;
   }
 
-  const ISandboxFramePass& ISandboxRendererSetup::GetSandboxFramePass(ESandboxFrames Frame) const
-  {
-    return FramePasses[static_cast<uint32>(Frame)];
-  }
+  //const ISandboxFramePass& ISandboxRendererSetup::GetSandboxFramePass(ESandboxFrames Frame) const
+  //{
+  //  return FramePasses[static_cast<uint32>(Frame)];
+  //}
 
   astl::Ref<ISandboxFramePass> ISandboxRendererSetup::GetFramePass(ESandboxFrames FrameId)
   {

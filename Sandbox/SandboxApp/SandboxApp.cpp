@@ -283,16 +283,16 @@ namespace sandbox
 
     pRenderer->BufferBindToGlobal(TypeWriter.GetGlyphInstanceBufferHandle());
 
-    const ISandboxFramePass& gBufferPass = RenderSetup.GetSandboxFramePass(ESandboxFrames::Sandbox_Frame_GBuffer);
-    const ISandboxFramePass& textOverlayPass = RenderSetup.GetSandboxFramePass(ESandboxFrames::Sandbox_Frame_TextOverlay);
+    astl::Ref<ISandboxFramePass> gBufferPass = RenderSetup.GetFramePass(ESandboxFrames::Sandbox_Frame_GBuffer);
+    astl::Ref<ISandboxFramePass> textOverlayPass = RenderSetup.GetFramePass(ESandboxFrames::Sandbox_Frame_TextOverlay);
 
 		pRenderer->BindPipeline(
-      gBufferPass.PipelineHnd,
-      gBufferPass.RenderPassHnd
+      gBufferPass->PipelineHnd,
+      gBufferPass->RenderPassHnd
 		);
 		pRenderer->BindDescriptorSet(
       RenderSetup.GetDescriptorSet(),
-      gBufferPass.RenderPassHnd
+      gBufferPass->RenderPassHnd
 		);
 
 		astl::Ref<Model> pZelda = AssetManager.GetModelWithHandle(zeldaModel);
@@ -319,8 +319,8 @@ namespace sandbox
     info.DrawCount = pZelda->NumDrawables;
 		info.pVertexInformation = pZelda->VertexInformations.First();
 		info.pIndexInformation = pZelda->IndexInformation.First();
-    info.RenderPassHnd = gBufferPass.RenderPassHnd;
-    info.PipelineHnd = gBufferPass.PipelineHnd;
+    info.RenderPassHnd = gBufferPass->RenderPassHnd;
+    info.PipelineHnd = gBufferPass->PipelineHnd;
     info.pConstants = textureIndices;
     info.ConstantsCount = 6;
     info.ConstantTypeSize = sizeof(uint32);
@@ -332,8 +332,8 @@ namespace sandbox
 
     // Bind text overlay pipeline and descriptor set.
     pRenderer->BindPipeline(
-      textOverlayPass.PipelineHnd,
-      textOverlayPass.RenderPassHnd
+      textOverlayPass->PipelineHnd,
+      textOverlayPass->RenderPassHnd
     );
     //pRenderer->BindDescriptorSet(
     //  Setup.GetDescriptorSetHandle(),
@@ -361,8 +361,8 @@ namespace sandbox
     textSubmission.DrawCount = 1;
     textSubmission.pVertexInformation = &TypeWriter.GetGlyphQuadVertexInformation();
     textSubmission.pIndexInformation = &TypeWriter.GetGlyphQuadIndexInformation();
-    textSubmission.RenderPassHnd = textOverlayPass.RenderPassHnd;
-    textSubmission.PipelineHnd = textOverlayPass.PipelineHnd;
+    textSubmission.RenderPassHnd = textOverlayPass->RenderPassHnd;
+    textSubmission.PipelineHnd = textOverlayPass->PipelineHnd;
 
     pRenderer->Draw(textSubmission);
 
@@ -386,11 +386,11 @@ namespace sandbox
 		pCamera->SetState(Camera_State_IsDirty);
 		frameGraph.SetOutputExtent(wndExtent.Width, wndExtent.Height);
     frameGraph.SetRenderPassExtent(
-      RenderSetup.GetSandboxFramePass(ESandboxFrames::Sandbox_Frame_GBuffer).RenderPassHnd,
+      RenderSetup.GetFramePass(ESandboxFrames::Sandbox_Frame_GBuffer)->RenderPassHnd,
 			wndExtent
 		);
     frameGraph.SetRenderPassExtent(
-      RenderSetup.GetSandboxFramePass(ESandboxFrames::Sandbox_Frame_TextOverlay).RenderPassHnd,
+      RenderSetup.GetFramePass(ESandboxFrames::Sandbox_Frame_TextOverlay)->RenderPassHnd,
       wndExtent
     );
 		frameGraph.OnWindowResize();
