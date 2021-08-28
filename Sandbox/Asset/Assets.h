@@ -16,12 +16,14 @@ namespace sandbox
 {
 	enum EPbrTextureType : size_t
 	{
-		Pbr_Texture_Type_Albedo		= 0,
-		Pbr_Texture_Type_Roughness	= 1,
-		Pbr_Texture_Type_Metallic	= 2,
-		Pbr_Texture_Type_Normal		= 3,
-		Pbr_Texture_Type_Ao			= 4,
-		Pbr_Texture_Type_Max		= 5
+    Pbr_Texture_Type_None     = 0,
+		Pbr_Texture_Type_Albedo		= 1,
+		Pbr_Texture_Type_Roughness	= 2,
+		Pbr_Texture_Type_Metallic	= 3,
+		Pbr_Texture_Type_Normal		= 4,
+    Pbr_Texture_Type_Metallic_Roughness = 5,
+		Pbr_Texture_Type_Emissive			= 6,
+		Pbr_Texture_Type_Max		= 7
 	};
 
 	struct Vertex

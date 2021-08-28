@@ -238,18 +238,22 @@ namespace astl
       width_t constant = 0;
       width_t hash = Hasher()(Arg);
       width_t index = GetHashIndex(hash, constant++, capacity);
+
+      if (Entries.Length() < index)
+      {
+        Entries.Resize(capacity - 1);
+      }
+
       TBucket* bucket = &Entries[index];
 
       while (bucket->Status == libenum::BucketStatus::Occupied)
       {
         index = GetHashIndex(hash, constant++, capacity);
-        bucket = &Entries[index];
       }
 
-      new (&bucket->Key) K(Forward<KeyType>(Arg));
-      new (&bucket->Value) V(Forward<ForwardType>(Args)...);
-      //new (bucket) TBucket(Forward<KeyType>(Arg), Forward<ForwardType>(Args)...);
+      bucket = &Entries.EmplaceAt(index, Forward<KeyType>(Arg), Forward<ForwardType>(Args)...);
       bucket->Status = libenum::BucketStatus::Occupied;
+
       NumBuckets--;
 
       if (!Head && !Tail)

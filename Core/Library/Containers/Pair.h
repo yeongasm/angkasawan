@@ -18,21 +18,30 @@ namespace astl
 
     ~Pair() {}
 
+    /**
+    * Copy constructor
+    */
     Pair(const KeyType& Key, const ValueType& Value) :
       Key(Key), Value(Value) {}
 
+    /**
+    * Move constructor
+    */
     Pair(KeyType&& Key, ValueType&& Value) :
       Key(Move(Key)), Value(Move(Value)) {}
 
-    Pair(const std::initializer_list<Pair<KeyType, ValueType>>& InitList) :
-      Key(InitList[0]), Value(InitList[1]) {}
+    template <typename A = KeyType, typename B = ValueType>
+    Pair(A&& Key, B&& Value) :
+      Key(Forward<A>(Key)), Value(Forward<B>(Value)) {}
 
-    Pair(std::initializer_list<Pair<KeyType, ValueType>>&& InitList) :
-      Key(Move(InitList[0])), Value(Move(InitList[1])) {}
+    //Pair(const std::initializer_list<Pair<KeyType, ValueType>>& InitList) :
+    //  Key(InitList[0]), Value(InitList[1]) {}
+
+    //Pair(std::initializer_list<Pair<KeyType, ValueType>>&& InitList) :
+    //  Key(Move(InitList[0])), Value(Move(InitList[1])) {}
 
     Pair(const Pair& Rhs) { *this = Rhs; }
     Pair(Pair&& Rhs) { *this = Move(Rhs); }
-
 
     Pair& operator= (const Pair& Rhs)
     {
@@ -45,9 +54,7 @@ namespace astl
 
     Pair& operator= (Pair&& Rhs)
     {
-      // Will throw an assertion in debug if you are copying the object to itself.
       VKT_ASSERT(this != &Rhs);
-
       if (this != &Rhs) {
         Key = Move(Rhs.Key);
         Value = Move(Rhs.Value);
@@ -55,15 +62,9 @@ namespace astl
       return *this;
     }
 
-    bool operator== (const Pair& Rhs) const { return Key == Rhs.Key; }
-    bool operator!= (const Pair& Rhs) const { return Key != Rhs.Key; }
-    bool operator<	(const Pair& Rhs) const { return Key < Rhs.Key; }
-
-    //void Free()
-    //{
-    //  Key.~KeyType();
-    //  Value.~ValueType();
-    //}
+    bool operator== (const Pair& Rhs) const { return (Key == Rhs.Key) && (Value == Rhs.Value); }
+    bool operator!= (const Pair& Rhs) const { return (Key != Rhs.Key) && (Value != Rhs.Value); }
+    //bool operator<	(const Pair& Rhs) const { return Key < Rhs.Key; }
   };
 
 }

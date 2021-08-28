@@ -51,8 +51,6 @@
       <Item Name="Key">Key</Item>
       <Item Name="Value">Value</Item>
       <Item Name="Status">Status</Item>
-      <Item Name="Previous">Previous</Item>
-      <Item Name="Next">Next</Item>
     </Expand>
   </Type>  
   <!--<Type Name="astl::BaseMap&lt;*,*,*&gt;">
@@ -69,14 +67,16 @@
       <Item Name="Free Buckets">NumBuckets</Item>
       <Item Name="Length">Entries.Capacity - NumBuckets</Item>
       <Item Name="Capacity">Entries.Capacity</Item>
-      <Item Name="First">Head</Item>
-      <Item Name="Last">Tail</Item>
-      <LinkedListItems>
+      <ArrayItems>
+        <Size>Entries.Len</Size>
+        <ValuePointer>Entries.Data</ValuePointer>
+      </ArrayItems>
+      <!--<LinkedListItems>
         <Size>Entries.Capacity  - NumBuckets</Size>
         <HeadPointer>Head</HeadPointer>
         <NextPointer>Next</NextPointer>
         <ValueNode>*reinterpret_cast&lt;Bucket*&gt;(this)</ValueNode>
-      </LinkedListItems>
+      </LinkedListItems>-->
       <!--<IndexListItems>
         <Size>Entries.Capacity</Size>
         <ValueNode Condition="((SetPair*)Entries.AllocatorInstance.Memory.Block)[$i].Status == Bucket_IsOccupied">((SetPair*)Entries.AllocatorInstance.Memory.Block)[$i]</ValueNode>

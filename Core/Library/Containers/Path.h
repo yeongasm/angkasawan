@@ -140,8 +140,8 @@ namespace astl
       Path[Len] = '\0';
       if (Hashify)
       {
-        MurmurHash<FilePath> hashFunc;
-        Hash = hashFunc(*this);
+        XxHash<FilePath> hashFunc;
+        Hash = static_cast<uint32>(hashFunc(*this));
       }
     }
   };

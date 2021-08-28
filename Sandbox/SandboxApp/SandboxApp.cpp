@@ -169,7 +169,8 @@ namespace sandbox
 
 		IStagingManager& staging = pRenderer->GetStagingManager();
 		ModelImporter modelImporter;
-		zeldaModel = modelImporter.ImportModelFromPath("Data/Models/zelda_-_breath_of_the_wild/scene.gltf", &AssetManager);
+		//zeldaModel = modelImporter.ImportModelFromPath("Data/Models/zelda_-_breath_of_the_wild/scene.gltf", &AssetManager);
+		zeldaModel = modelImporter.ImportModelFromPath("Data/Models/sponza/sponza.glb", &AssetManager);
 		//zeldaModel = importer.ImportModelFromPath("Data/Models/sponza/Sponza.gltf", &AssetManager);
 		astl::Ref<Model> pZelda = AssetManager.GetModelWithHandle(zeldaModel);
 
@@ -253,7 +254,7 @@ namespace sandbox
     //  imageHandles.Empty();
     //}
 
-    ITextOverlayPassExtension* const pTextOverlayExt = (ITextOverlayPassExtension*)RenderSetup.GetFramePass(ESandboxFrames::Sandbox_Frame_TextOverlay)->pNext;
+    astl::Ref<ITextOverlayPass> pTextOverlayExt = RenderSetup.GetTextOverlayPass();
     Handle<SImage> atlasHnd = TypeWriter.GetFontAtlasHandle(ibmPlex);
     pRenderer->DescriptorSetMapToImage(
       RenderSetup.GetDescriptorSet(),
@@ -283,8 +284,8 @@ namespace sandbox
 
     pRenderer->BufferBindToGlobal(TypeWriter.GetGlyphInstanceBufferHandle());
 
-    astl::Ref<ISandboxFramePass> gBufferPass = RenderSetup.GetFramePass(ESandboxFrames::Sandbox_Frame_GBuffer);
-    astl::Ref<ISandboxFramePass> textOverlayPass = RenderSetup.GetFramePass(ESandboxFrames::Sandbox_Frame_TextOverlay);
+    astl::Ref<IGBufferPass> gBufferPass = RenderSetup.GetGBufferPass();
+    astl::Ref<ITextOverlayPass> textOverlayPass = RenderSetup.GetTextOverlayPass();
 
 		pRenderer->BindPipeline(
       gBufferPass->PipelineHnd,
@@ -386,11 +387,11 @@ namespace sandbox
 		pCamera->SetState(Camera_State_IsDirty);
 		frameGraph.SetOutputExtent(wndExtent.Width, wndExtent.Height);
     frameGraph.SetRenderPassExtent(
-      RenderSetup.GetFramePass(ESandboxFrames::Sandbox_Frame_GBuffer)->RenderPassHnd,
+      RenderSetup.GetGBufferPass()->RenderPassHnd,
 			wndExtent
 		);
     frameGraph.SetRenderPassExtent(
-      RenderSetup.GetFramePass(ESandboxFrames::Sandbox_Frame_TextOverlay)->RenderPassHnd,
+      RenderSetup.GetTextOverlayPass()->RenderPassHnd,
       wndExtent
     );
 		frameGraph.OnWindowResize();

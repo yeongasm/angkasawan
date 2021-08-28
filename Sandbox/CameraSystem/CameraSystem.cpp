@@ -72,8 +72,6 @@ namespace sandbox
 		CamUbo.ViewProj = Projection * View;
 		CamUbo.View = View;
 
-    IGBufferPassExtension* pGBufferExt = (IGBufferPassExtension*)Setup.GetFramePass(ESandboxFrames::Sandbox_Frame_GBuffer)->pNext;
-
 		Renderer.DescriptorSetUpdateDataAtBinding(
 			Setup.GetDescriptorSet(),
 			0,
