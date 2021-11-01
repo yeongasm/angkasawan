@@ -233,16 +233,12 @@ namespace astl
         }
         Entries.Reserve(capacity + NumBuckets);
         capacity = Entries.Size();
+        Entries.Resize(capacity - 1);
       }
 
       width_t constant = 0;
       width_t hash = Hasher()(Arg);
       width_t index = GetHashIndex(hash, constant++, capacity);
-
-      if (Entries.Length() < index)
-      {
-        Entries.Resize(capacity - 1);
-      }
 
       TBucket* bucket = &Entries[index];
 

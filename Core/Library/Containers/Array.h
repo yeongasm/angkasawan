@@ -237,7 +237,7 @@ namespace astl
     decltype(auto) EmplaceAt(width_t Index, ForwardType&&... Args)
     {
       VKT_ASSERT((Index < Len) && "Index specified exceeded array's length");
-      if (Len == Capacity) { Grow(); }
+      //if (Len == Capacity) { Grow(); }
       return Super::EmplaceAt(Data, Index, Forward<ForwardType>(Args)...);
     }
 
@@ -709,8 +709,8 @@ namespace astl
   };
 
   /**
-  * NOTE(Ygsm):
-  * This container is incomplete and have yet to be battle tested. Do not use it!
+  * TODO(Ygsm):
+  * Battle test this container.
   */
   template <typename T, typename UintWidth = size_t, UintWidth Capacity = 8>
   class SparseArray final : public IsContainerDynamicallyAllocated<true>
@@ -719,32 +719,31 @@ namespace astl
 
     using Type = T;
     using width_t = UintWidth;
-    using Super = BaseArray<T, width_t>;
 
     struct SparseBlock
     {
-      T Data[Capacity];
-      size_t Len;
+      Type Data[Capacity];
+      width_t Len;
       SparseBlock* Previous;
       SparseBlock* Next;
     };
 
     SparseBlock* Root;
     SparseBlock* Current;
-    size_t Len;
-    size_t NumOfBlocks;
+    width_t Len;
+    width_t NumOfBlocks;
 
-    size_t GetTotalCapacity() const
+    width_t GetTotalCapacity() const
     {
       return NumOfBlocks * Capacity;
     }
 
-    void Grow(size_t Size = 0)
+    void Grow(width_t Size = 0)
     {
-      size_t blockCountBefore = NumOfBlocks;
+      width_t blockCountBefore = NumOfBlocks;
       SparseBlock* previousBlock = Current;
 
-      size_t allocCount = 1;
+      width_t allocCount = 1;
       if (Size)
       {
         allocCount = ((Size - GetTotalCapacity()) / Capacity) + 1;
@@ -781,62 +780,62 @@ namespace astl
       }
     }
 
-    size_t GetBlockIndex(size_t Index) const
+    width_t GetBlockIndex(width_t Index) const
     {
       return Index / Capacity;
     }
 
-    size_t RealIndex(size_t Index, size_t BlockIndex) const
+    width_t RealIndex(width_t Index, width_t BlockIndex) const
     {
       return Index - (BlockIndex * Capacity);
     }
 
-    SparseBlock* GetBlockWithIndex(size_t Index)
+    SparseBlock* GetBlockWithIndex(width_t Index)
     {
-      size_t blockIndex = GetBlockIndex(Index);
+      width_t blockIndex = GetBlockIndex(Index);
       SparseBlock* pBlock = Root;
-      for (size_t i = 0; i < blockIndex; i++)
+      for (width_t i = 0; i < blockIndex; i++)
       {
         pBlock = pBlock->Next;
       }
       return pBlock;
     }
 
-    T& GetElementAtIndex(size_t Index)
+    Type& GetElementAtIndex(width_t Index)
     {
       SparseBlock* pBlock = GetBlockWithIndex(Index);
-      size_t realIndex = RealIndex(Index, GetBlockIndex(Index));
+      width_t realIndex = RealIndex(Index, GetBlockIndex(Index));
       return pBlock->Data[realIndex];
     }
 
     template <typename... ForwardType>
-    size_t EmplaceInternal(ForwardType&&... Args)
+    width_t EmplaceInternal(ForwardType&&... Args)
     {
-      new (Current->Data + Current->Len) T(Forward<ForwardType>(Args)...);
+      new (Current->Data + Current->Len) Type(Forward<ForwardType>(Args)...);
       Current->Len++;
       return Len++;
     }
 
-    void Destruct(size_t From, size_t To, bool Reconstruct = false)
+    void Destruct(width_t From, width_t To, bool Reconstruct = false)
     {
       SparseBlock* pSrcBlock = GetBlockWithIndex(From);
       SparseBlock* pDstBlock = GetBlockWithIndex(To);
 
       if (pSrcBlock == pDstBlock)
       {
-        for (size_t i = From; i < To; i++)
+        for (width_t i = From; i < To; i++)
         {
           pSrcBlock->Data[i].~T();
           if (Reconstruct)
           {
-            new (pSrcBlock->Data + i) T();
+            new (pSrcBlock->Data + i) Type();
           }
         }
         return;
       }
 
-      size_t index = RealIndex(To, GetBlockIndex(To));
-      size_t count = To - From;
+      width_t index = RealIndex(To, GetBlockIndex(To));
+      width_t count = To - From;
 
       while (count)
       {
@@ -875,8 +874,8 @@ namespace astl
         {
           Reserve(Rhs.GetTotalCapacity());
         }
-        const size_t containerLength = Rhs.Length();
-        for (size_t i = 0; i < containerLength; i++)
+        const width_t containerLength = Rhs.Length();
+        for (width_t i = 0; i < containerLength; i++)
         {
           Emplace(Rhs[i]);
         }
@@ -903,7 +902,7 @@ namespace astl
     void Release()
     {
       Empty();
-      for (size_t i = 0; i < NumOfBlocks; i++)
+      for (width_t i = 0; i < NumOfBlocks; i++)
       {
         SparseBlock* pPrevious = Root;
         Root = Root->Next;
@@ -913,7 +912,7 @@ namespace astl
     }
 
     template <typename... ForwardType>
-    size_t Emplace(ForwardType&&... Args)
+    width_t Emplace(ForwardType&&... Args)
     {
       if (Len == GetTotalCapacity()) { Grow(); }
       if (Current->Len == GetSlack()) { Current = Current->Next; }
@@ -921,14 +920,40 @@ namespace astl
     }
 
     template <typename... ForwardType>
-    size_t EmplaceAt(size_t Index, ForwardType&&... Args)
+    decltype(auto) EmplaceAt(width_t Index, ForwardType&&... Args)
     {
-      // TODO: !!!
+      VKT_ASSERT((Index < Len) && "Index specified exceeded Sparse Array's length");
+      Destruct(Index, Index + 1);
+      Type& element = GetElementAtIndex(Index);
+      new (&element) Type(Forward<ForwardType>(Args)...);
+      return element;
     }
 
-    size_t GetSlack() const { return Capacity; }
+    width_t Push(const Type& Element)
+    {
+      return Emplace(Element);
+    }
 
-    void Reserve(size_t Size)
+    width_t Push(Type&& Element)
+    {
+      return Emplace(Move(Element));
+    }
+
+    decltype(auto) Insert(const Type& Element)
+    {
+      width_t index = Emplace(Element);
+      return GetElementAtIndex(index);
+    }
+
+    decltype(auto) Insert(Type&& Element)
+    {
+      width_t index = Emplace(Move(Element));
+      return GetElementAtIndex(index);
+    }
+
+    width_t GetSlack() const { return Capacity; }
+
+    void Reserve(width_t Size)
     {
       if (Size < GetTotalCapacity())
       {
@@ -938,7 +963,7 @@ namespace astl
     }
 
     template <typename... ForwardType>
-    void Resize(size_t Count, ForwardType&&... Args)
+    void Resize(width_t Count, ForwardType&&... Args)
     {
       if (Count < Len)
       {
@@ -947,22 +972,22 @@ namespace astl
       }
       else
       {
-        for (size_t i = Len; i < Count; i++)
+        for (width_t i = Len; i < Count; i++)
         {
           Emplace(Forward<ForwardType>(Args)...);
         }
       }
     }
 
-    T& operator[] (size_t Index)
+    T& operator[] (width_t Index)
     {
-      VKT_ASSERT((Index < Len) && "Index specified exceeded the Sparse Array's capacity");
+      VKT_ASSERT((Index < Len) && "Index specified exceeded Sparse Array's length");
       return GetElementAtIndex(Index);
     }
 
-    const T& operator[] (size_t Index) const
+    const T& operator[] (width_t Index) const
     {
-      VKT_ASSERT((Index < Len) && "Index specified exceeded the Sparse Array's capacity");
+      VKT_ASSERT((Index < Len) && "Index specified exceeded Sparse Array's length");
       return GetElementAtIndex(Index);
     }
 
@@ -973,23 +998,29 @@ namespace astl
       Current = Root;
     }
 
-    void Pop(size_t Count = 1)
+    void Pop(width_t Count = 1)
     {
       Destruct(Len - Count, Len, true);
       Len -= Count;
       Len = (Len < 0) ? 0 : Len;
     }
 
+    void PopAt(width_t Index)
+    {
+      VKT_ASSERT((Index < Len) && "Index specified exceeded Sparse Array's length.");
+      Destruct(Index, Index + 1, true);
+    }
+
     void Shrink()
     {
-      size_t numBlocksToRelease = (GetTotalCapacity() - Len) / GetSlack();
+      width_t numBlocksToRelease = (GetTotalCapacity() - Len) / GetSlack();
       if (numBlocksToRelease)
       {
         Destruct(Len, GetTotalCapacity() - 1);
 
         // Get last block ... 
         SparseBlock* pLastBlock = Root;
-        for (size_t i = 1; i < NumOfBlocks; i++)
+        for (width_t i = 1; i < NumOfBlocks; i++)
         {
           pLastBlock = pLastBlock->Next;
         }
@@ -1009,8 +1040,16 @@ namespace astl
       }
     }
 
-    size_t Length() const { return Len; }
-    size_t Size()	const { return GetTotalCapacity(); }
+    width_t Length() const { return Len; }
+    width_t Size()	const { return GetTotalCapacity(); }
+    Type* First() { return Root->Data; }
+    const Type* First() const { return Root->Data; }
+    Type* Last() { return &GetElementAtIndex(Len - 1); }
+    const Type* Last() const { return &GetElementAtIndex(Len - 1); }
+    Type& Front() { return *Root->Data; }
+    const Type& Front() const { return *Root->Data; }
+    Type& Back() { return GetElementAtIndex(Len - 1); }
+    const Type& Back() const { return GetElementAtIndex(Len - 1); }
 
   };
 
