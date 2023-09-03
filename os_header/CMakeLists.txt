@@ -8,8 +8,8 @@ set(
 
 add_library(OSHeader INTERFACE ${source_list})
 
-set_property(TARGET OSHeader PROPERTY FOLDER library)
+#set_property(TARGET OSHeader PROPERTY FOLDER library)
 target_compile_features(OSHeader INTERFACE cxx_std_20)
 
-target_include_directories(OSHeader INTERFACE ".")
+target_include_directories(OSHeader INTERFACE .)
 assign_source_group(${source_list})

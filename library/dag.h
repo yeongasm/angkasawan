@@ -1,38 +1,39 @@
 #pragma once
-#ifndef FOUNDATION_GRAPHS_DAG_H
-#define FOUNDATION_GRAPHS_DAG_H
+#ifndef DAG_H
+#define DAG_H
 
-#include "containers/map.h"
-#include "containers/set.h"
-#include "containers/array.h"
+#include "set.h"
+#include "array.h"
 
-FTLBEGIN
+namespace lib
+{
 
 /**
 * Implementation of a directed acyclic graph (DAG).
 * This implementation of a DAG is not thread-safe. Sorting is done single-threadedly.
 */
-template <typename T, ProvidesMemory AllocatorType = SystemMemory>
-class Digraph
+template <typename T, provides_memory provided_allocator = system_memory>
+class digraph
 {
 private:
-	struct Edge
+	struct graph_edge
 	{
 		size_t from;	// Index of the source vertex.
 		size_t to;		// Index of the destination vertex.
 	};
 
-	using ConstRefType = const T&;
-	using Vertices_t = Set<T, AllocatorType>;
-	using Edges_t	 = Array<Edge, AllocatorType>;
+	using value_type		= T;
+	using const_reference	= value_type const&;
+	using vertex_set		= set<T, provided_allocator>;
+	using edge_list			= array<graph_edge, provided_allocator>;
 
-	Vertices_t	m_vertices;
-	Edges_t		m_edges;
-	bool		m_isAcylic;
+	vertex_set	m_vertices;
+	edge_list	m_edges;
+	bool		m_is_acyclic;
 
 	constexpr bool connection_exist(size_t from, size_t to) const
 	{
-		for (const Edge& edge : m_edges)
+		for (graph_edge const& edge : m_edges)
 		{
 			if (edge.from == from && 
 				edge.to == to)
@@ -51,31 +52,31 @@ private:
 
 public:
 
-	constexpr Digraph() :
-		m_vertices{}, m_edges{}, m_isAcylic{ true }
+	constexpr digraph() :
+		m_vertices{}, m_edges{}, m_is_acyclic{ true }
 	{}
 
-	constexpr ~Digraph() { release(); }
+	constexpr ~digraph() { release(); }
 
-	constexpr Digraph(size_t capacity) :
-		Digraph{}
+	constexpr digraph(size_t capacity) :
+		digraph{}
 	{
 		m_vertices.reserve(capacity);
 	}
 
-	constexpr Digraph(const Digraph& rhs) :
-		m_vertices{}, m_edges{}, m_isAcylic{ true }
+	constexpr digraph(const digraph& rhs) :
+		m_vertices{}, m_edges{}, m_is_acyclic{ true }
 	{ 
 		*this = rhs; 
 	}
 
-	constexpr Digraph(Digraph&& rhs) :
-		m_vertices{}, m_edges{}, m_isAcylic{ true } 
+	constexpr digraph(digraph&& rhs) :
+		m_vertices{}, m_edges{}, m_is_acyclic{ true } 
 	{ 
 		*this = std::move(rhs); 
 	}
 
-	constexpr Digraph& operator=(const Digraph& rhs)
+	constexpr digraph& operator=(const digraph& rhs)
 	{
 		if (this != &rhs)
 		{
@@ -85,14 +86,14 @@ public:
 		return *this;
 	}
 
-	constexpr Digraph& operator=(Digraph&& rhs)
+	constexpr digraph& operator=(digraph&& rhs)
 	{
 		if (this != &rhs)
 		{
 			m_vertices = std::move(rhs.m_vertices);
 			m_edges = std::move(rhs.m_edges);
 
-			new (&rhs) Digraph{};
+			new (&rhs) digraph{};
 		}
 		return *this;
 	}
@@ -113,15 +114,15 @@ public:
 	template <typename... ForwardType>
 	constexpr void add_edge(T&& from, ForwardType&&... args)
 	{
-		m_isAcylic = false;
+		m_is_acyclic = false;
 		T to{ std::forward<ForwardType>(args)... };
 
 		if (from != to)
 		{
-			m_isAcylic = true;
+			m_is_acyclic = true;
 
 			auto result = m_vertices.try_insert(to, std::move(to));
-			size_t bucket = result.value_or(Vertices_t::invalid_bucket());
+			size_t bucket = result.value_or(vertex_set::invalid_bucket_v);
 
 			if (bucket == Vertices_t::invalid_bucket())
 			{
@@ -130,7 +131,7 @@ public:
 
 			size_t parent = m_vertices.bucket(from);
 
-			if (parent == Vertices_t::invalid_bucket())
+			if (parent == vertex_set::invalid_bucket_v)
 			{
 				parent = m_vertices.insert(std::move(from));
 			}
@@ -152,7 +153,7 @@ public:
 
 	constexpr bool is_acyclic() const
 	{
-		return m_isAcylic;
+		return m_is_acyclic;
 	}
 
 	// TODO(Afiq):
@@ -196,9 +197,9 @@ public:
 	{
 		size_t count = 0;
 		const size_t bucket = m_vertices.bucket(key);
-		if (bucket != Vertices_t::invalid_bucket())
+		if (bucket != vertex_set::invalid_bucket_v)
 		{
-			for (const Edge& edge : m_edges)
+			for (graph_edge const& edge : m_edges)
 			{
 				if (edge.from == bucket)
 				{
@@ -224,18 +225,18 @@ public:
 	* Returns an ascending ordered list of T based on it's dependencies.
 	* If the graph is cyclic, the method returns an empty list.
 	*/
-	constexpr Array<T, AllocatorType> sort()
+	constexpr array<T, provided_allocator> sort()
 	{
-		Array<T, AllocatorType> result{ m_vertices.size() };
+		array<T, provided_allocator> result{ m_vertices.size() };
 
 		// Make copies of edges and vertices so that we don't modify the DAG's internal data.
-		Edges_t	edges = m_edges;
-		Vertices_t vertices	= m_vertices;
+		edge_list	edges = m_edges;
+		vertex_set	vertices = m_vertices;
 
-		auto loop_edges = [&](size_t& node, Edge* pEdge) -> bool 
+		auto loop_edges = [&](size_t& node, graph_edge* pEdge) -> bool 
 		{
 			// Check if the node being passed into this lambda contain any edges.
-			for (const Edge& e : edges)
+			for (graph_edge const& e : edges)
 			{
 				// If the current node contains an edge, we set the current node to the vertex at the other end of the edge.
 				// The edge is then cached in "pEdge". Doing this ensures that we can traverse back to the previous node.
@@ -260,7 +261,7 @@ public:
 			// Cater for edge cases where the graph only has 1 node and no-edges.
 			if (edges.size())
 			{
-				auto removePredicate = [node](const Edge& e) -> bool { return e.to == node; };
+				auto removePredicate = [node](graph_edge const& e) -> bool { return e.to == node; };
 				auto it = std::remove_if(edges.begin(), edges.end(), removePredicate);
 				edges.erase(it, edges.end());
 			}
@@ -273,7 +274,7 @@ public:
 		auto visit_node = [&](size_t& node) -> void
 		{
 			// This is the edges cache. 
-			Edge e{ static_cast<size_t>(-1), static_cast<size_t>(-1) };
+			graph_edge e{ static_cast<size_t>(-1), static_cast<size_t>(-1) };
 
 			// Loop through all of edges in the edges list until we've reached a node with no edge.
 			while (loop_edges(node, &e));
@@ -315,6 +316,6 @@ public:
 	}
 };
 
-FTLEND
+}
 
-#endif // !FOUNDATION_GRAPHS_DAG_H
+#endif // !DAG_H

@@ -29,7 +29,7 @@ namespace graph
 struct AttachmentInfo
 {
 	rhi::ImageInfo imageInfo;
-	rhi::ColorBlendInfo blendInfo; // Ignored for depth and stencil attachment.
+	rhi::ColorBlendInfo colorBlendInfo; // Ignored for depth and stencil attachment.
 };
 
 struct RenderPassAttachmentInfo

@@ -60,7 +60,7 @@ RenderPassAttachment* RenderGraph::register_attachment_internal(RenderPassAttach
 	RenderPassAttachment attachment{
 		.name		= name,
 		.image		= entry.resource.get(),
-		.blendInfo	= info.info.value().blendInfo,
+		.blendInfo	= info.info.value().colorBlendInfo,
 		.references = 1
 	};
 

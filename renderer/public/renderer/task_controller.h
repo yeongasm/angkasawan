@@ -9,11 +9,6 @@ namespace gpu
 namespace task_controller
 {
 
-/**
-* A command queue is the high level abstraction of a device queue (VkQueue in Vulkan).
-* The renderer essentially will have 3 CommandStreamQueue, one for each queue type (main/graphics, async compute & transfer).
-*
-*/
 struct TaskController final
 {
 	/**

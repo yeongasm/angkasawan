@@ -1,19 +1,19 @@
 #pragma once
-#ifndef FOUNDATION_VECTOR_H
-#define FOUNDATION_VECTOR_H
+#ifndef MATH_LIBRARY_VECTOR_H
+#define MATH_LIBRARY_VECTOR_H
 
-#include "Math.h"
+#include "math.h"
 
 namespace math
 {
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     struct Vector3;
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     struct Vector4;
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     struct Vector2
     {
         union
@@ -151,129 +151,129 @@ namespace math
         }
     };
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector2<T> operator+ (const Vector2<T>& l, const Vector2<T>& r)
     {
         return Vector2<T>(l.x + r.x, l.y + r.y);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector2<T> operator+ (const Vector2<T>& v, T s)
     {
         return Vector2<T>(v.x + s, v.y + s);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector2<T> operator+ (T s, const Vector2<T>& v)
     {
         return v + s;
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector2<T> operator- (const Vector2<T>& l, const Vector2<T>& r)
     {
         return Vector2<T>(l.x - r.x, l.y - r.y);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector2<T> operator- (const Vector2<T>& v, T s)
     {
         return Vector2<T>(v.x - s, v.y - s);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector2<T> operator- (T s, const Vector2<T>& v)
     {
         return Vector2<T>(s - v.x, s - v.y);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector2<T> operator* (const Vector2<T>& l, const Vector2<T>& r)
     {
         return Vector2<T>(l.x * r.x, l.y * r.y);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector2<T> operator* (const Vector2<T>& v, T s)
     {
         return Vector2<T>(v.x * s, v.y * s);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector2<T> operator* (T s, const Vector2<T>& v)
     {
         return Vector2<T>(s * v.x, s * v.y);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector2<T> operator/ (const Vector2<T>& l, const Vector2<T>& r)
     {
         return Vector2<T>(l.x / r.x, l.y / r.y);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector2<T> operator/ (const Vector2<T>& v, T s)
     {
         return Vector2<T>(v.x / s, v.y / s);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector2<T> operator/ (T s, const Vector2<T>& v)
     {
         return Vector2<T>(s / v.x, s / v.y);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr bool operator== (const Vector2<T>& l, const Vector2<T>& r)
     {
         return (l.x == r.x) && (l.y == r.y);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr bool operator!= (const Vector2<T>& l, const Vector2<T>& r)
     {
         return l.x != r.x || l.y != r.y;
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     T length(const Vector2<T>& v)
     {
         return sqrt(v.x * v.x + v.y * v.y);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr void normalize(Vector2<T>& v)
     {
         const T len = length(v);
         v /= len;
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr T dot(const Vector2<T>& v)
     {
         return v.x * v.x + v.y * v.y;
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr T dot(const Vector2<T>& l, const Vector2<T>& r)
     {
         return l.x * r.x + l.y * r.y;
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector2<T> normalized(const Vector2<T>& v)
     {
         const T len = length(v);
         return v / len;
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr bool in_bounds(const Vector2<T>& p, const Vector2<T>& min, const Vector2<T>& max)
     {
         return (p.x > min.x && p.x < max.x) && (p.y > min.y && p.y < max.y);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     struct Vector3
     {
         union
@@ -436,181 +436,181 @@ namespace math
         }
     };
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector3<T> operator+ (const Vector3<T>& l, const Vector3<T>& r)
     {
         return Vector3<T>(l.x + r.x, l.y + r.y, l.z + r.z);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector3<T> operator+ (const Vector3<T>& l, const Vector2<T>& r)
     {
         return Vector3<T>(l.x + r.x, l.y + r.y, l.z);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector3<T> operator+ (const Vector2<T>& l, const Vector3<T>& r)
     {
         return Vector3<T>(l.x + r.x, l.y + r.y, r.z);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector3<T> operator+ (const Vector3<T>& v, T s)
     {
         return Vector3<T>(v.x + s, v.y + s, v.z + s);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector3<T> operator+ (T s, const Vector3<T>& v)
     {
         return v + s;
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector3<T> operator- (const Vector3<T>& l, const Vector3<T>& r)
     {
         return Vector3<T>(l.x - r.x, l.y - r.y, l.z - r.z);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector3<T> operator- (const Vector3<T>& l, const Vector2<T>& r)
     {
         return Vector3<T>(l.x - r.x, l.y - r.y, l.z);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector3<T> operator- (const Vector2<T>& l, const Vector3<T>& r)
     {
         return Vector3<T>(l.x - r.x, l.y - r.y, r.z);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector3<T> operator- (const Vector3<T>& v, T s)
     {
         return Vector3<T>(v.x - s, v.y - s, v.z - s);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector3<T> operator- (T s, const Vector3<T>& v)
     {
         return Vector3<T>(s - v.x, s - v.y, s - v.z);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector3<T> operator* (const Vector3<T>& l, const Vector3<T>& r)
     {
         return Vector3<T>(l.x * r.x, l.y * r.y, l.z * r.z);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector3<T> operator* (const Vector3<T>& l, const Vector2<T>& r)
     {
         return Vector3<T>(l.x * r.x, l.y * r.y, l.z);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector3<T> operator* (const Vector2<T>& l, const Vector3<T>& r)
     {
         return Vector3<T>(l.x * r.x, l.y * r.y, r.z);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector3<T> operator* (const Vector3<T>& v, T s)
     {
         return Vector3<T>(v.x * s, v.y * s, v.z * s);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector3<T> operator* (T s, const Vector3<T>& v)
     {
         return v * s;
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector3<T> operator/ (const Vector3<T>& l, const Vector3<T>& r)
     {
         return Vector3<T>(l.x / r.x, l.y / r.y, l.z / r.z);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector3<T> operator/ (const Vector3<T>& l, const Vector2<T>& r)
     {
         return Vector3<T>(l.x / r.x, l.y / r.y, l.z);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector3<T> operator/ (const Vector2<T>& l, const Vector3<T>& r)
     {
         return Vector3<T>(l.x / r.x, l.y / r.y, r.z);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector3<T> operator/ (const Vector3<T>& v, T s)
     {
         return Vector3<T>(v.x / s, v.y / s, v.z / s);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector3<T> operator/ (T s, const Vector3<T>& v)
     {
         return Vector3<T>(s / v.x, s / v.y, s / v.z);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr bool operator== (const Vector3<T>& l, const Vector3<T>& r)
     {
         return (l.x == r.x) && (l.y == r.y) && (l.z == r.z);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr bool operator!= (const Vector3<T>& l, const Vector3<T>& r)
     {
         return (l.x != r.x) || (l.y != r.y) || (l.z != r.z);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     T length(const Vector3<T>& v)
     {
         return sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr void normalize(Vector3<T>& v)
     {
         const T len = length(v);
         v /= len;
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr T dot(const Vector3<T>& v)
     {
         return v.x * v.x + v.y * v.y + v.z * v.z;
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     T dot(const Vector3<T>& l, const Vector3<T>& r)
     {
         return l.x * r.x + l.y * r.y + l.z * r.z;
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector3<T> cross(const Vector3<T>& l, const Vector3<T>& r)
     {
         return Vector3<T>(
             l.y * r.z - l.z * r.y,
             l.z * r.x - l.x * r.z,
             l.x * r.y - l.y * r.x
-            );
+        );
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector3<T> normalized(const Vector3<T>& v)
     {
         const T len = length(v);
         return v / len;
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     struct Vector4
     {
         union
@@ -795,214 +795,214 @@ namespace math
         }
     };
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector4<T> operator+ (const Vector4<T>& l, const Vector4<T>& r)
     {
         return Vector4<T>(l.x + r.x, l.y + r.y, l.z + r.z, l.w + r.w);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector4<T> operator+ (const Vector4<T>& l, const Vector3<T>& r)
     {
         return Vector4<T>(l.x + r.x, l.y + r.y, l.z + r.z, l.w);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector4<T> operator+ (const Vector3<T>& l, const Vector4<T>& r)
     {
         return r + l;
         //return Vector4<T>(l.x + r.x, l.y + r.y, l.z + r.z, r.w);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector4<T> operator+ (const Vector4<T>& l, const Vector2<T>& r)
     {
         return Vector4<T>(l.x + r.x, l.y + r.y, l.z, l.w);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector4<T> operator+ (const Vector2<T>& l, const Vector4<T>& r)
     {
         return Vector4<T>(l.x + r.x, l.y + r.y, r.z, r.w);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector4<T> operator+ (const Vector4<T>& v, T s)
     {
         return Vector4<T>(v.x + s, v.y + s, v.z + s, v.w + s);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector4<T> operator+ (T s, const Vector4<T>& v)
     {
         return v + s;
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector4<T> operator- (const Vector4<T>& l, const Vector4<T>& r)
     {
         return Vector4<T>(l.x - r.x, l.y - r.y, l.z - r.z, l.w - r.w);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector4<T> operator- (const Vector4<T>& l, const Vector3<T>& r)
     {
         return Vector4<T>(l.x - r.x, l.y - r.y, l.z - r.z, l.w);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector4<T> operator- (const Vector3<T>& l, const Vector4<T>& r)
     {
         return Vector4<T>(l.x - r.x, l.y - r.y, l.z - r.z, r.w);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector4<T> operator- (const Vector4<T>& l, const Vector2<T>& r)
     {
         return Vector4<T>(l.x - r.x, l.y - r.y, l.z, l.w);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector4<T> operator- (const Vector2<T>& l, const Vector4<T>& r)
     {
         return Vector4<T>(l.x - r.x, l.y - r.y, r.z, r.w);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector4<T> operator- (const Vector4<T>& v, T s)
     {
         return Vector4<T>(v.x - s, v.y - s, v.z - s, v.w - s);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector4<T> operator- (T s, const Vector4<T>& v)
     {
         return Vector4<T>(s - v.x, s - v.y, s - v.z, s - v.w);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector4<T> operator* (const Vector4<T>& l, const Vector4<T>& r)
     {
         return Vector4<T>(l.x * r.x, l.y * r.y, l.z * r.z, l.w * r.w);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector4<T> operator* (const Vector4<T>& l, const Vector3<T>& r)
     {
         return Vector4<T>(l.x * r.x, l.y * r.y, l.z * r.z, l.w);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector4<T> operator* (const Vector3<T>& l, const Vector4<T>& r)
     {
         return r * l;
         //return Vector4<T>(l.x * r.x, l.y * r.y, l.z * r.z, r.w);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector4<T> operator* (const Vector4<T>& l, const Vector2<T>& r)
     {
         return Vector4<T>(l.x * r.x, l.y * r.y, l.z, l.w);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector4<T> operator* (const Vector2<T>& l, const Vector4<T>& r)
     {
         return r * l;
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector4<T> operator* (const Vector4<T>& v, T s)
     {
         return Vector4<T>(v.x * s, v.y * s, v.z * s, v.w * s);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector4<T> operator* (T s, const Vector4<T>& v)
     {
         return v * s;
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector4<T> operator/ (const Vector4<T>& l, const Vector4<T>& r)
     {
         return Vector4<T>(l.x / r.x, l.y / r.y, l.z / r.z, l.w / r.w);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector4<T> operator/ (const Vector4<T>& l, const Vector3<T>& r)
     {
         return Vector4<T>(l.x / r.x, l.y / r.y, l.z / r.z, l.w);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector4<T> operator/ (const Vector3<T>& l, const Vector4<T>& r)
     {
         return Vector4<T>(l.x / r.x, l.y / r.y, l.z / r.z, r.w);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector4<T> operator/ (const Vector4<T>& l, const Vector2<T>& r)
     {
         return Vector4<T>(l.x / r.x, l.y / r.y, l.z, l.w);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector4<T> operator/ (const Vector2<T>& l, const Vector4<T>& r)
     {
         return Vector4<T>(l.x / r.x, l.y / r.y, r.z, r.w);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector4<T> operator/ (const Vector4<T>& v, T s)
     {
         return Vector4<T>(v.x / s, v.y / s, v.z / s, v.w / s);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector4<T> operator/ (T s, const Vector4<T>& v)
     {
         return Vector4<T>(s / v.x, s / v.y, s / v.z, s / v.w);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr bool operator== (const Vector4<T>& l, const Vector4<T>& r)
     {
         return (l.x == r.x) && (l.y == r.y) && (l.z == r.z) && (l.w == r.w);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr bool operator!= (const Vector4<T>& l, const Vector4<T>& r)
     {
         return (l.x != r.x) || (l.y != r.y) || (l.z != r.z) || (l.w != r.w);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     T length(const Vector4<T>& v)
     {
         return sqrt(v.x * v.x + v.y * v.y + v.z * v.z + v.w * v.w);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr void normalize(Vector4<T>& v)
     {
         const T len = length(v);
         v /= len;
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr T dot(const Vector4<T>& v)
     {
         return v.x * v.x + v.y * v.y + v.z * v.z + v.w * v.w;
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr T dot(const Vector4<T>& l, const Vector4<T>& r)
     {
         return l.x * r.x + l.y * r.y + l.z * r.z + l.w * r.w;
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector4<T> cross(const Vector4<T>& l, const Vector4<T>& r)
     {
         return Vector4<T>(
@@ -1013,26 +1013,26 @@ namespace math
         );
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector4<T> normalized(const Vector4<T>& v)
     {
         const T len = length(v);
         return v / len;
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector2<T> reflect(const Vector2<T>& i, const Vector2<T>& n)
     {
         return i - 2 * (dot(i, n) * n);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector3<T> reflect(const Vector3<T>& i, const Vector3<T>& n)
     {
         return i - 2 * (dot(i, n) * n);;
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector4<T> reflect(const Vector4<T>& i, const Vector4<T>& n)
     {
         return i - 2 * (dot(i, n) * n);
@@ -1055,4 +1055,4 @@ namespace math
     using uvec4 = Vector4<uint32>;
 }
 
-#endif // !FOUNDATION_VECTOR_H
+#endif // !MATH_LIBRARY_VECTOR_H

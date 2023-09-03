@@ -1,4 +1,4 @@
-﻿	# CMakeList.txt : Top-level CMake project file, do global configuration
+﻿# CMakeList.txt : Top-level CMake project file, do global configuration
 # and include sub-projects here.
 #
 cmake_minimum_required (VERSION 3.16)
@@ -13,7 +13,8 @@ set(EXECUTABLE_DIR "${PROJECT_BINARY_DIR}/exe/")
 
 # Include sub-projects.
 add_subdirectory(exe)
-add_subdirectory(foundation)
+add_subdirectory(library)
+add_subdirectory(math)
 add_subdirectory(core)
 add_subdirectory(renderer)
 add_subdirectory(unit_tests)

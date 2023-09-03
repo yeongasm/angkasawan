@@ -1,14 +1,15 @@
 #pragma once
-#ifndef FOUNDATION_COMMON_H
-#define FOUNDATION_COMMON_H
+#ifndef COMMON_H
+#define COMMON_H
 
 #include <cassert>
+#include <memory>
 #include <new>
 #include <utility>
 #include <optional>
-#include <concepts>
 #include <algorithm>
 #include <functional>
+#include <compare>
 
 using int8		= char;
 using int16		= short;
@@ -31,9 +32,6 @@ using float64	= double;
 using literal_t			= const char*;
 using wide_literal_t	= const wchar_t*;
 
-#define FTLBEGIN namespace ftl {
-#define FTLEND }
-
 #define FLOAT_EPSILON	0.0001f
 #define DOUBLE_EPSILON	0.0001
 
@@ -43,4 +41,4 @@ using wide_literal_t	= const wchar_t*;
 #define ASSERTION(expr)
 #endif
 
-#endif // !FOUNDATION_COMMON_H
+#endif // !COMMON_H

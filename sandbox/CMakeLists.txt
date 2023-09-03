@@ -15,6 +15,7 @@ set(
 )
 
 add_library(Sandbox SHARED ${sandbox_header_files} ${sandbox_source_files})
+target_compile_features(Sandbox PUBLIC cxx_std_20)
 target_compile_definitions(Sandbox PRIVATE "SANDBOX_EXPORT")
 
 if (MSVC)
@@ -24,14 +25,14 @@ else()
 	set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} -fno-rtti -fno-exceptions)
 endif()
 
-set_target_properties(
-	Sandbox
-	PROPERTIES 
-		CXX_STANDARD 20 
-		CXX_STANDARD_REQUIRED ON
-		CXX_EXTENSIONS OFF
-		LINKER_LANGUAGE CXX
-)
+#set_target_properties(
+#	Sandbox
+#	PROPERTIES 
+#		CXX_STANDARD 20 
+#		CXX_STANDARD_REQUIRED ON
+#		CXX_EXTENSIONS OFF
+#		LINKER_LANGUAGE CXX
+#)
 target_include_directories(
 	Sandbox 
 	PUBLIC "public"

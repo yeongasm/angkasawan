@@ -1,12 +1,12 @@
-//#include <memory>
 #include <map>
 #include <cstdlib>
 #include <cstring>
 #include <atomic>
 #include "memory.h"
-#include "fmt/format.h"
+//#include "fmt/format.h"
 
-FTLBEGIN
+namespace lib
+{
 
 void memmove(void* dst, void* src, size_t size)
 {
@@ -51,44 +51,42 @@ bool is_64bit_aligned(void* pointer)
 	return (address & 0x7) == 0;
 }
 
-// --- System Memory ---
-
-class SystemMemory final
+class system_memory final
 {
 public:
-	struct Memory
+	struct memory
 	{
-		void*	m_pointer;
-		size_t	m_allocationSize;
+		void*	pointer;
+		size_t	size;
 	};
-	
-	SystemMemory() : m_allocatedSize{ 0 }, m_memoryTracker{} {}
 
-	~SystemMemory()
+	system_memory() : m_allocated_size{ 0 }, m_memory_tracker{} {}
+
+	~system_memory()
 	{
 #if _DEBUG
 
-#define MEMORY_LEAK_STR R"(
-[MEMORY LEAK DETECTED]
-Unreleased memory: {} Bytes.
-------------------------------------------------------------------------------------------------------------------------------------
-)"
-		if (m_allocatedSize != 0)
-		{
-			fmt::print(MEMORY_LEAK_STR, m_allocatedSize.load());
-			fmt::print("Address\t\t| Size\t\t| Function\t\t| Line\t\t| File\t\t\n");
-			for (auto const& [address, location] : m_memoryTracker)
-			{
-				size_t size = *static_cast<size_t*>(address);
-				fmt::print("------------------------------------------------------------------------------------------------------------------------------------\n");
-				fmt::print("{}\t| {} Bytes\t| {}\t\t| {}\t\t| {}\t\n", address, size, location.function_name(), location.line(), location.file_name());
-			}
-		}
+//#define MEMORY_LEAK_STR R"(
+//[MEMORY LEAK DETECTED]
+//Unreleased memory: {} Bytes.
+//------------------------------------------------------------------------------------------------------------------------------------
+//)"
+//		if (m_allocated_size != 0)
+//		{
+//			fmt::print(MEMORY_LEAK_STR, m_allocated_size.load());
+//			fmt::print("Address\t\t| Size\t\t| Function\t\t| Line\t\t| File\t\t\n");
+//			for (auto const& [address, location] : m_memory_tracker)
+//			{
+//				size_t size = *static_cast<size_t*>(address);
+//				fmt::print("------------------------------------------------------------------------------------------------------------------------------------\n");
+//				fmt::print("{}\t| {} Bytes\t| {}\t\t| {}\t\t| {}\t\n", address, size, location.function_name(), location.line(), location.file_name());
+//			}
+//		}
 #endif
-		m_allocatedSize = 0;
+		m_allocated_size = 0;
 	}
 
-	Memory malloc(size_t size, size_t alignment = 16, std::source_location _ = std::source_location::current())
+	memory malloc(size_t size, size_t alignment = 16, std::source_location location = std::source_location::current())
 	{
 		size_t allocated = 0;
 
@@ -102,9 +100,9 @@ Unreleased memory: {} Bytes.
 
 		ASSERTION(is_64bit_aligned(pointer) && "Address is not 64 bit aligned");
 
-		m_allocatedSize.fetch_add(allocated);
+		m_allocated_size.fetch_add(allocated);
 
-		m_memoryTracker.emplace(pointer, _);
+		m_memory_tracker.emplace(pointer, location);
 
 		return { pointer, allocated };
 	}
@@ -114,19 +112,18 @@ Unreleased memory: {} Bytes.
 		ASSERTION(pointer != nullptr && "Pointer being released is null!");
 		if (pointer)
 		{
-			m_memoryTracker.erase(pointer);
+			m_memory_tracker.erase(pointer);
 			aligned_free(pointer);
 		}
 	}
 
-	size_t total_memory_allocated() const { return m_allocatedSize.load(); }
+	size_t total_memory_allocated() const { return m_allocated_size.load(); }
 
 private:
 	friend void release_memory(void*);
 
-	// Should be atomic.
-	std::atomic_size_t						m_allocatedSize;
-	std::map<void*, std::source_location>	m_memoryTracker;
+	std::atomic_size_t						m_allocated_size;
+	std::map<void*, std::source_location>	m_memory_tracker;
 
 	void* aligned_alloc(size_t size, size_t& alignment, size_t& total)
 	{
@@ -154,7 +151,7 @@ private:
 
 		ASSERTION(is_64bit_aligned(p1) && "Address is not aligned!");
 		*(static_cast<void**>(p1) - 1) = p0;
-				
+
 		return p1;
 	}
 
@@ -165,14 +162,14 @@ private:
 	}
 };
 
-static SystemMemory systemMemory{};
+static system_memory global_memory{};
 
-void* allocate_memory(size_t size, size_t alignment, std::source_location location)
+void* allocate_memory(allocate_info const& info)
 {
-	SystemMemory::Memory memory = systemMemory.malloc(size + sizeof(size_t), alignment, location);
-	void* pointer = memory.m_pointer;
+	system_memory::memory memory = global_memory.malloc(info.size + sizeof(size_t), info.alignment, info.location);
+	void* pointer = memory.pointer;
 
-	new (pointer) size_t{ memory.m_allocationSize };
+	new (pointer) size_t{ memory.size };
 
 	pointer = static_cast<uint8*>(pointer) + sizeof(size_t);
 	ASSERTION(is_64bit_aligned(pointer) && "Address is not aligned!");
@@ -183,13 +180,13 @@ void* allocate_memory(size_t size, size_t alignment, std::source_location locati
 void release_memory(void* pointer)
 {
 	size_t* base = reinterpret_cast<size_t*>(static_cast<uint8*>(pointer) - sizeof(size_t));
-	systemMemory.m_allocatedSize.fetch_sub(*base);
-	systemMemory.free(base);
+	global_memory.m_allocated_size.fetch_sub(*base);
+	global_memory.free(base);
 }
 
 size_t total_memory_allocated()
 {
-	return systemMemory.total_memory_allocated();
+	return global_memory.total_memory_allocated();
 }
 
-FTLEND
+}

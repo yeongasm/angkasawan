@@ -46,6 +46,7 @@ set(
 )
 
 add_library(Core SHARED ${source_list})
+target_compile_features(Core PUBLIC cxx_std_20)
 target_compile_definitions(Core PRIVATE "CORE_EXPORT")
 target_compile_definitions(Core PRIVATE SIMDJSON_EXCEPTIONS=OFF $<$<CONFIG:Debug>:SIMDJSON_DEVELOPMENT_CHECKS=1>)
 target_compile_definitions(Core PUBLIC "UNICODE" "_UNICODE")
@@ -60,7 +61,7 @@ else()
 endif()
 
 target_include_directories(Core PUBLIC ".")
-target_link_libraries(Core PUBLIC Foundation OSHeader simdjson)
+target_link_libraries(Core PUBLIC Library Math OSHeader simdjson)
 
 # no longer needed as Executable copies all runtime dll dependencies to it's directory.
 #add_custom_command(

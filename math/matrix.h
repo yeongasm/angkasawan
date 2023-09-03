@@ -1,13 +1,13 @@
 #pragma once
-#ifndef FOUNDATION_MATRIX_H
-#define FOUNDATION_MATRIX_H
+#ifndef MATH_LIBRARY_MATRIX_H
+#define MATH_LIBRARY_MATRIX_H
 
-#include "Vector.h"
+#include "vector.h"
 
 namespace math
 {
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     struct Matrix3x3
     {
         T m00, m01, m02;
@@ -157,7 +157,7 @@ namespace math
         }
     };
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Matrix3x3<T> operator+ (const Matrix3x3<T>& l, const Matrix3x3<T>& r)
     {
         Matrix3x3<T> res;
@@ -173,7 +173,7 @@ namespace math
         return res;
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Matrix3x3<T> operator+ (const Matrix3x3<T>& m, T s)
     {
         Matrix3x3<T> res;
@@ -189,13 +189,13 @@ namespace math
         return res;
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Matrix3x3<T> operator+ (T s, const Matrix3x3<T>& m)
     {
         return m + s;
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Matrix3x3<T> operator- (const Matrix3x3<T>& l, const Matrix3x3<T>& r)
     {
         Matrix3x3<T> res;
@@ -211,7 +211,7 @@ namespace math
         return res;
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Matrix3x3<T> operator- (const Matrix3x3<T>& m, T s)
     {
         Matrix3x3<T> res;
@@ -227,7 +227,7 @@ namespace math
         return res;
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Matrix3x3<T> operator- (T s, const Matrix3x3<T>& m)
     {
         Matrix3x3<T> res;
@@ -243,7 +243,7 @@ namespace math
         return res;
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Matrix3x3<T> operator* (const Matrix3x3<T>& l, const Matrix3x3<T>& r)
     {
         Matrix3x3<T> res;
@@ -259,7 +259,7 @@ namespace math
         return res;
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Matrix3x3<T> operator* (const Matrix3x3<T>& m, T s)
     {
         Matrix3x3<T> res;
@@ -275,13 +275,13 @@ namespace math
         return res;
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Matrix3x3<T> operator* (T s, const Matrix3x3<T>& m)
     {
         return m * s;
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector3<T> operator* (const Matrix3x3<T>& m, const Vector3<T>& v)
     {
         Vector3<T> res;
@@ -291,14 +291,14 @@ namespace math
         return res;
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector3<T> operator* (const Vector3<T>& v, const Matrix3x3<T>& m)
     {
         const Matrix3x3<T> transposed = transpose(m);
         return transposed * v;
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr T determinant(const Matrix3x3<T>& m)
     {
         T a = m.m00 * ((m.m11 * m.m22) - (m.m12 * m.m21));
@@ -307,7 +307,7 @@ namespace math
         return a - b + c;
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Matrix3x3<T> transpose(const Matrix3x3<T>& m)
     {
         Matrix3x3<T> res;
@@ -323,7 +323,7 @@ namespace math
         return res;
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Matrix3x3<T> inverse(const Matrix3x3<T>& m)
     {
         Matrix3x3<T> res;
@@ -340,19 +340,19 @@ namespace math
         return res;
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr void transposed(Matrix3x3<T>& m)
     {
         m = transpose(m);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr void inversed(Matrix3x3<T>& m)
     {
         m = inverse(m);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     struct Matrix4x4
     {
         T m00, m01, m02, m03;
@@ -382,9 +382,9 @@ namespace math
         }
 
         constexpr Matrix4x4(T x0, T y0, T z0, T w0,
-            T x1, T y1, T z1, T w1,
-            T x2, T y2, T z2, T w2,
-            T x3, T y3, T z3, T w3) :
+                            T x1, T y1, T z1, T w1,
+                            T x2, T y2, T z2, T w2,
+                            T x3, T y3, T z3, T w3) :
             m00(x0), m01(y0), m02(z0), m03(w0),
             m10(x1), m11(y1), m12(z1), m13(w1),
             m20(x2), m21(y2), m22(z2), m23(w2),
@@ -532,7 +532,7 @@ namespace math
 
     };
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Matrix4x4<T> operator+ (const Matrix4x4<T>& l, const Matrix4x4<T>& r)
     {
         Matrix4x4<T> res;
@@ -555,7 +555,7 @@ namespace math
         return res;
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Matrix4x4<T> operator+ (const Matrix4x4<T>& m, T s)
     {
         Matrix4x4<T> res;
@@ -578,13 +578,13 @@ namespace math
         return res;
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Matrix4x4<T> operator+ (T s, const Matrix4x4<T>& m)
     {
         return m + s;
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Matrix4x4<T> operator- (const Matrix4x4<T>& l, const Matrix4x4<T>& r)
     {
         Matrix4x4<T> res;
@@ -607,7 +607,7 @@ namespace math
         return res;
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Matrix4x4<T> operator- (const Matrix4x4<T>& m, T s)
     {
         Matrix4x4<T> res;
@@ -630,7 +630,7 @@ namespace math
         return res;
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Matrix4x4<T> operator- (T s, const Matrix4x4<T>& m)
     {
         Matrix4x4<T> res;
@@ -653,7 +653,7 @@ namespace math
         return res;
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Matrix4x4<T> operator* (const Matrix4x4<T>& l, const Matrix4x4<T>& r)
     {
         Matrix4x4<T> res;
@@ -676,7 +676,7 @@ namespace math
         return res;
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Matrix4x4<T> operator* (const Matrix4x4<T>& m, T s)
     {
         Matrix4x4<T> res;
@@ -699,13 +699,13 @@ namespace math
         return res;
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Matrix4x4<T> operator* (T s, const Matrix4x4<T>& m)
     {
         return m * s;
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector4<T> operator* (const Matrix4x4<T>& m, const Vector4<T>& v)
     {
         Vector4<T> res;
@@ -716,14 +716,14 @@ namespace math
         return res;
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector4<T> operator* (const Vector4<T>& v, const Matrix4x4<T>& m)
     {
         const Matrix4x4<T> transposed = transpose(m);
         return transposed * v;
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector3<T> operator* (const Matrix4x4<T>& m, const Vector3<T>& v)
     {
         Vector3<T> res;
@@ -733,14 +733,14 @@ namespace math
         return res;
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Vector3<T> operator* (const Vector3<T>& v, const Matrix4x4<T>& m)
     {
         const Matrix4x4<T> transposed = transpose(m);
         return m * v;
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr T determinant(const Matrix4x4<T>& m)
     {
         T sf00 = m.m22 * m.m33 - m.m32 * m.m23;
@@ -758,7 +758,7 @@ namespace math
         return m.m00 * dc0 + m.m01 * dc1 + m.m02 * dc2 + m.m03 * dc3;
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Matrix4x4<T> transpose(const Matrix4x4<T>& m)
     {
         Matrix4x4<T> res;
@@ -781,7 +781,7 @@ namespace math
         return res;
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Matrix4x4<T> inverse(const Matrix4x4<T>& m)
     {
         Matrix4x4<T> res;
@@ -807,37 +807,37 @@ namespace math
         return res;
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr void transposed(Matrix4x4<T>& m)
     {
         m = transpose(m);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr void inversed(Matrix4x4<T>& m)
     {
         m = inverse(m);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr void translate(Matrix4x4<T>& m, const Vector3<T>& v)
     {
         m = translated(m, v);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr void rotate(Matrix4x4<T>& m, T a, const Vector3<T>& v)
     {
         m = rotated(m, a, v);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr void scale(Matrix4x4<T>& m, const Vector3<T>& v)
     {
         m = scaled(m, v);
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Matrix4x4<T> translated(const Matrix4x4<T>& m, const Vector3<T>& v)
     {
         Matrix4x4<T> t(1);
@@ -848,7 +848,7 @@ namespace math
         return m * t;
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Matrix4x4<T> rotated(const Matrix4x4<T>& m, T a, const Vector3<T>& v)
     {
         const T c = static_cast<T>(Cos(a));
@@ -874,7 +874,7 @@ namespace math
         return m * rot;
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Matrix4x4<T> scaled(const Matrix4x4<T>& m, const Vector3<T>& v)
     {
         Matrix4x4<T> s(1);
@@ -885,7 +885,7 @@ namespace math
     }
 
     // Vulkan specific implementation of an orthographic projection.
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Matrix4x4<T> orthographic_rh(T left, T right, T bottom, T top, T znear, T zfar)
     {
         Matrix4x4<T> res(1);
@@ -901,7 +901,7 @@ namespace math
     }
 
     // Vulkan specific implementation of a perspective projection.
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Matrix4x4<T> perspective_rh(T fov, T aspect, T znear, T zfar)
     {
         Matrix4x4<T> res(0);
@@ -918,7 +918,7 @@ namespace math
         return res;
     }
 
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     constexpr Matrix4x4<T> LookAtRH(const Vector3<T>& eye, const Vector3<T>& center, const Vector3<T>& up)
     {
         const Vector3<T> f(normalized(center - eye));
@@ -965,4 +965,4 @@ namespace math
 
 }
 
-#endif // !FOUNDATION_MATRIX_H
+#endif // !MATH_LIBRARY_MATRIX_H

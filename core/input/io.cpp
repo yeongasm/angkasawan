@@ -1,5 +1,5 @@
 #include "io.h"
-#include "math/math.h"
+#include "math.h"
 #include "windowing/windowing.h"
 #include "time/system_clock.h"
 

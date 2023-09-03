@@ -1,13 +1,12 @@
 #pragma once
-#ifndef FOUNDATION_QUATERNION_H
-#define FOUNDATION_QUATERNION_H
+#ifndef MATH_LIBRARY_QUATERNION_H
+#define MATH_LIBRARY_QUATERNION_H
 
-#include "Matrix.h"
+#include "matrix.h"
 
 namespace math
 {
-
-    template <IsArithmetic T>
+    template <is_arithmetic T>
     struct Quaternion
     {
         T w, x, y, z;
@@ -293,4 +292,4 @@ namespace math
 
 }
 
-#endif // !FOUNDATION_QUATERNION_H
+#endif // !MATH_LIBRARY_QUATERNION_H

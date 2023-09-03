@@ -1,14 +1,15 @@
 #pragma once
-#ifndef FOUNDATION_MATH_H
-#define FOUNDATION_MATH_H
+#ifndef MATH_LIBRARY_MATH_H
+#define MATH_LIBRARY_MATH_H
 
-#include "common.h"
+#include <type_traits>
+#include <concepts>
 #include <cmath>
 
 namespace math
 {
     template <typename T>
-    concept IsArithmetic = std::is_arithmetic_v<T>;
+    concept is_arithmetic = std::is_arithmetic_v<T>;
 
     auto cosf(std::floating_point auto num)
     {
@@ -45,7 +46,7 @@ namespace math
         return std::sqrtf(num);
     }
 
-    constexpr auto sqr(IsArithmetic auto num)
+    constexpr auto sqr(is_arithmetic auto num)
     {
         return num * num;
     }
@@ -147,4 +148,4 @@ namespace math
     }
 }
 
-#endif
+#endif // MATH_LIBRARY_MATH_H

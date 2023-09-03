@@ -9,16 +9,17 @@ set(
 )
 
 add_executable(Executable ${source_list})
+target_compile_features(Executable PUBLIC cxx_std_20)
 
-set_target_properties(
-	Executable 
-	PROPERTIES 
-		CXX_STANDARD 20 
-		CXX_STANDARD_REQUIRED ON
-		CXX_EXTENSIONS OFF
-		LINKER_LANGUAGE CXX
-		UNITY_BUILD ON
-)
+#set_target_properties(
+#	Executable 
+#	PROPERTIES 
+#		CXX_STANDARD 20 
+#		CXX_STANDARD_REQUIRED ON
+#		CXX_EXTENSIONS OFF
+#		LINKER_LANGUAGE CXX
+#		UNITY_BUILD ON
+#)
 
 #for testing ...
 target_link_libraries(Executable PRIVATE Core)
