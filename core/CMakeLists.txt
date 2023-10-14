@@ -23,33 +23,42 @@ endif()
 
 set(
 	source_list
-	"engine.h"
-	"engine_api.h"
-	"engine.cpp"
-	"core_minimal.h"
-	"windowing/windowing.h"
-	"windowing/windowing.cpp"
-	"utility/bootstrapper.h"
-	"utility/bootstrapper.cpp"
-	"time/system_clock.h"
-	"time/win/win_clock.h"
-	"time/win/win_clock.cpp"
-	"shared/engine_common.h"
-	"platform_interface/platform_common.h"
-	"platform_interface/platform_interface.h"
-	"platform_interface/win/win_interface.h"
-	"platform_interface/win/win_interface.cpp"
-	"module/module_manager.h"
-	"module/module_manager.cpp"
-	"input/io.h"
-	"input/io.cpp"
+	"public/core/application.h"
+	"public/core/engine.h"
+	"public/core/engine_common.h"
+	"public/core/io.h"
+	"public/core/io_enums.h"
+	"public/core/stat.h"
+	"public/core/windowing.h"
+	"public/core/core_minimal.h"
+	"public/core/engine_api.h"
+	"public/core/event_queue.h"
+	"private/include/platform_header.h"
+	"private/src/engine.cpp"
+	"private/src/io.cpp"
+	"private/src/windowing.cpp"
+)
+
+set(
+	win_source_list
+	"private/src/win/win_engine.cpp"
+	"private/src/win/win_event_queue.cpp"
+	"private/src/win/win_stat.cpp"
+	"private/src/win/win_windowing.cpp"
 )
 
 add_library(Core SHARED ${source_list})
 target_compile_features(Core PUBLIC cxx_std_20)
 target_compile_definitions(Core PRIVATE "CORE_EXPORT")
 target_compile_definitions(Core PRIVATE SIMDJSON_EXCEPTIONS=OFF $<$<CONFIG:Debug>:SIMDJSON_DEVELOPMENT_CHECKS=1>)
+target_compile_definitions(Core PUBLIC $<$<PLATFORM_ID:Windows>:PLATFORM_OS_WINDOWS> $<$<PLATFORM_ID:Darwin>:PLATFORM_OS_APPLE> $<$<PLATFORM_ID:Linux>:PLATFORM_OS_LINUX>)
 target_compile_definitions(Core PUBLIC "UNICODE" "_UNICODE")
+
+target_sources(
+	Core 
+	PRIVATE
+	$<$<PLATFORM_ID:Windows>:${win_source_list}>
+)
 
 # Disable RTTI and exceptions.
 # It's 2022 and CMake doesn't have built in properties for this, pathetic.
@@ -60,18 +69,14 @@ else()
 	set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} -fno-rtti -fno-exceptions)
 endif()
 
-target_include_directories(Core PUBLIC ".")
-target_link_libraries(Core PUBLIC Library Math OSHeader simdjson)
-
-# no longer needed as Executable copies all runtime dll dependencies to it's directory.
-#add_custom_command(
-#    TARGET 
-#		Core POST_BUILD
-#    COMMAND 
-#		${CMAKE_COMMAND} -E copy
-#        "${CMAKE_CURRENT_BINARY_DIR}/$<TARGET_FILE_NAME:Core>"
-#        "${EXECUTABLE_DIR}"
-#) 
+target_include_directories(
+	Core 
+	PUBLIC "public"
+	PRIVATE "public/core"
+	PRIVATE "private/include"
+)
+#target_link_libraries(Core PUBLIC Library Math simdjson)
+target_link_libraries(Core PUBLIC Library simdjson)
 
 add_custom_command(
 	TARGET 

@@ -16,15 +16,15 @@
         "num_systems_hint": 5,
         "stack": 4194304,
         "modules": {
-            "sandbox": {
-                "dll": "Sandbox.dll",
-                "run": "sync",
-                "dependencies": ["vulkan_renderer"]
-            },
-            "vulkan_renderer": {
-                "dll": "Renderer.dll",
-                "run": "sync"
-            }
+            //"sandbox": {
+            //    "dll": "Sandbox.dll",
+            //    "run": "sync",
+            //    "dependencies": ["vulkan_renderer"]
+            //},
+            //"vulkan_renderer": {
+            //    "dll": "Renderer.dll",
+            //    "run": "sync"
+            //}
         }
     }
 }

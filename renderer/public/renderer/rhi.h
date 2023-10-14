@@ -20,7 +20,7 @@ namespace rhi
 // renderer constants.
 inline constexpr uint32 MAX_COMMAND_BUFFER_PIPELINE_BARRIER_BATCH_SIZE = 16;
 inline constexpr uint32 MAX_PIPELINE_COLOR_ATTACHMENT_COUNT = 8;
-inline constexpr uint32 MAX_COMMAND_BUFFER_PER_POOL = 4;
+inline constexpr uint32 MAX_COMMAND_BUFFER_PER_POOL = 16;
 inline constexpr uint32 MAX_COMMAND_BUFFER_SUBMISSION_RING_SIZE = 4;
 inline constexpr uint32 MAX_FRAMES_IN_FLIGHT_ALLOWED = 4;
 //inline constexpr uint32 MAX_TASK_WORKLOAD_PER_THREAD = 64;
@@ -147,59 +147,64 @@ enum class DeviceQueueType
 	Compute
 };
 
-enum class PipelineStage : RhiFlag
+enum class PipelineStage : uint64
 {
-	Top_Of_Pipe					= 1 << 0,
-	Draw_Indirect				= 1 << 1,
-	Vertex_Input				= 1 << 2,
-	Vertex_Shader				= 1 << 3,
-	Tesselation_Control			= 1 << 4,
-	Tesselation_Evaluation		= 1 << 5,
-	Geometry_Shader				= 1 << 6,
-	Fragment_Shader				= 1 << 7,
-	Pixel_Shader				= Fragment_Shader,
-	Early_Fragment_Test			= 1 << 8,
-	Late_Fragment_Test			= 1 << 8,
-	Color_Attachment_Output		= 1 << 10,
-	Compute_Shader				= 1 << 11,
-	Transfer					= 1 << 12,
-	Bottom_Of_Pipe				= 1 << 13,
-	Host						= 1 << 14,
-	All_Graphics				= 1 << 15,
-	All_Commands				= 1 << 16,
-	Copy						= 1 << 17,
-	Resolve						= 1 << 18,
-	Blit						= 1 << 19,
-	Clear						= 1 << 20,
-	Index_Input					= 1 << 21,
-	Vertex_Attribute_Input		= 1 << 22,
-	Pre_Rasterization_Shaders	= 1 << 23,
-	None						= 0
+	Top_Of_Pipe						= 1ull << 0ull,
+	Draw_Indirect					= 1ull << 1ull,
+	Vertex_Input					= 1ull << 2ull,
+	Vertex_Shader					= 1ull << 3ull,
+	Tesselation_Control				= 1ull << 4ull,
+	Tesselation_Evaluation			= 1ull << 5ull,
+	Geometry_Shader					= 1ull << 6ull,
+	Fragment_Shader					= 1ull << 7ull,
+	Pixel_Shader					= Fragment_Shader,
+	Early_Fragment_Test				= 1ull << 8ull,
+	Late_Fragment_Test				= 1ull << 9ull,
+	Color_Attachment_Output			= 1ull << 10ull,
+	Compute_Shader					= 1ull << 11ull,
+	Transfer						= 1ull << 12ull,
+	Bottom_Of_Pipe					= 1ull << 13ull,
+	Host							= 1ull << 14ull,
+	All_Graphics					= 1ull << 15ull,
+	All_Commands					= 1ull << 16ull,
+	Copy							= 1ull << 32ull,
+	Resolve							= 1ull << 33ull,
+	Blit							= 1ull << 19ull,
+	Clear							= 1ull << 35ull,
+	Index_Input						= 1ull << 36ull,
+	Vertex_Attribute_Input			= 1ull << 36ull,
+	Pre_Rasterization_Shaders		= 1ull << 37ull,
+	Acceleration_Structure_Build	= 1ull << 25ull,
+	Ray_Tracing_Shader				= 1ull << 21ull,
+	Task_Shader						= 1ull << 19ull,
+	Mesh_Shader						= 1ull << 20ull,
+	Acceleration_Structure_Copy		= 1ull << 28ull,
+	None							= 0ull
 };
 
-enum class MemoryAccessType : RhiFlag
+enum class MemoryAccessType : uint64
 {
-	Indirect_Command_Read	= 1 << 0,
-	Index_Read				= 1 << 1,
-	Vertex_Attribute_Read	= 1 << 2,
-	Uniform_Read			= 1 << 3,
-	Input_Attachment_Read	= 1 << 4,
-	Shader_Read				= 1 << 5,
-	Shader_Write			= 1 << 6,
-	Color_Attachment_Read	= 1 << 7,
-	Color_Attachment_Write	= 1 << 8,
-	Depth_Stencil_Read		= 1 << 9,
-	Depth_Stencil_Write		= 1 << 10,
-	Transfer_Read			= 1 << 11,
-	Transfer_Write			= 1 << 12,
-	Host_Read				= 1 << 13,
-	Host_Write				= 1 << 14,
-	Memory_Read				= 1 << 15,
-	Memory_Write			= 1 << 16,
-	Sampled_Read			= 1 << 17,
-	Storage_Read			= 1 << 18,
-	Storage_Write			= 1 << 19,
-	None					= 0
+	Indirect_Command_Read			= 1ull << 0ull,
+	Index_Read						= 1ull << 1ull,
+	Vertex_Attribute_Read			= 1ull << 2ull,
+	Uniform_Read					= 1ull << 3ull,
+	Input_Attachment_Read			= 1ull << 4ull,
+	Shader_Read						= 1ull << 5ull,
+	Shader_Write					= 1ull << 6ull,
+	Color_Attachment_Read			= 1ull << 7ull,
+	Color_Attachment_Write			= 1ull << 8ull,
+	Depth_Stencil_Attachment_Read	= 1ull << 9ull,
+	Depth_Stencil_Attachment_Write	= 1ull << 10ull,
+	Transfer_Read					= 1ull << 11ull,
+	Transfer_Write					= 1ull << 12ull,
+	Host_Read						= 1ull << 13ull,
+	Host_Write						= 1ull << 14ull,
+	Memory_Read						= 1ull << 15ull,
+	Memory_Write					= 1ull << 16ull,
+	Shader_Sampled_Read				= 1ull << 32ull,
+	Shader_Storage_Read				= 1ull << 33ull,
+	Shader_Storage_Write			= 1ull << 33ull,
+	None							= 0ull
 };
 
 enum class TopologyType
@@ -1029,11 +1034,11 @@ struct Semaphore
 
 struct ImageSubresource
 {
-	ImageAspect	aspectFlags		= ImageAspect::Color;
-	uint32		mipLevel		= 0u;
-	uint32		levelCount		= 1u;
-	uint32		baseArrayLayer	= 0u;
-	uint32		layerCount		= 1u;
+	ImageAspect	aspectFlags	= ImageAspect::Color;
+	uint32 mipLevel	= 0u;
+	uint32 levelCount = 1u;
+	uint32 baseArrayLayer = 0u;
+	uint32 layerCount = 1u;
 };
 
 struct FrameInfo

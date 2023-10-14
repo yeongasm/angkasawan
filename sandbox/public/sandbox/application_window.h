@@ -20,10 +20,10 @@ public:
 	gpu::Handle<gpu::Swapchain>	get_swapchain_handle() const;
 
 private:
-	ftl::Ref<gpu::Renderer>		m_renderer;
-	core::WindowingManager*		m_windowManager;
-	core::NativeWindow*			m_window;
-	gpu::Handle<gpu::Swapchain> m_swapchain;
+	//ftl::Ref<gpu::Renderer>		m_renderer;
+	//core::WindowingManager*		m_windowManager;
+	//core::NativeWindow*			m_window;
+	//gpu::Handle<gpu::Swapchain> m_swapchain;
 };
 
 }

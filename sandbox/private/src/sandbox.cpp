@@ -1,163 +1,124 @@
+#include <fstream>
+#include <utility>
 #include "sandbox.h"
-#include "stream/fstream.h"
-
-DECLARE_MODULE(sandbox::Application, SANDBOX_API)
+#include "triangle_demo_app.h"
 
 namespace sandbox
 {
 
-Application::Application(core::Engine& engine, gpu::Renderer& renderer) :
-	m_engine{ &engine },
-	m_renderer{ &renderer },
-	m_appWindow{ renderer, engine.windowing_manager() }
+SandboxApp::SandboxApp() :
+	m_root_app_window{},
+	m_demo_applications{},
+	m_showcased_demo{},
+	m_instance{},
+	m_device{},
+	m_swapchain{},
+	m_frame_index{}
 {}
 
-bool Application::init(core::NativeWindowCreateInfo const& windowInfo)
+SandboxApp::~SandboxApp() {}
+
+bool SandboxApp::initialize()
 {
-	// Initialize the root window of the application.
-	if (!m_appWindow.init(windowInfo))
+	core::Engine& engine = core::engine();
+	m_root_app_window = engine.create_window({
+		.title = L"Sandbox",
+		.position = { 0, 0 },
+		.dimension = { 800, 600 }
+		});
+	if (!m_root_app_window.valid())
 	{
 		return false;
 	}
-	// Signal the application to terminate when the window is closed.
-	m_appWindow.on(core::NativeWindowEvent::Close, [this]() -> void {
-		m_engine->set_engine_state(core::EngineState::Terminating);
+	engine.register_window_listener(
+		m_root_app_window,
+		core::wnd::WindowEvent::Close,
+		[]() -> void {
+		core::Engine& engine = core::engine();
+		engine.set_state(core::EngineState::Terminating);
+	},
+		L"on_main_window_close"
+	);
+	m_instance = rhi::create_instance();
+	if (!m_instance)
+	{
+		return false;
+	}
+	m_device = &rhi::create_device(
+		m_instance,
+		{
+			.name = "Main GPU Device",
+			.appName = "AngkasawanRenderer",
+			.appVersion = { 0, 1, 0, 0 },
+			.engineName = "AngkasawanRenderingEngine",
+			.engineVersion = { 0, 1, 0, 0 },
+			.preferredDevice = rhi::DeviceType::Discrete_Gpu,
+			.config = { .framesInFlight = 2, .swapchainImageCount = 2 },
+			.shadingLanguage = rhi::ShaderLang::GLSL,
+			.validation = true,
+			.callback = [](
+				[[maybe_unused]] rhi::ErrorSeverity severity,
+				[[maybe_unused]] literal_t message
+			) -> void
+			{
+				fmt::print("{}\n\n", message);
+			}
+		}
+	);
+	auto dim = engine.get_window_dimension(m_root_app_window);
+	m_swapchain = m_device->create_swapchain({
+		.name = "main_window",
+		.surfaceInfo = {
+			.name = "main_window",
+			.preferredSurfaceFormats = { rhi::ImageFormat::B8G8R8A8_Srgb },
+			.instance = engine.get_application_handle(),
+			.window = engine.get_window_native_handle(m_root_app_window)
+		},
+		.dimension = { static_cast<uint32>(dim.width), static_cast<uint32>(dim.height) },
+		.imageCount = 4,
+		.imageUsage = rhi::ImageUsage::Color_Attachment | rhi::ImageUsage::Transfer_Dst,
+		.presentationMode = rhi::SwapchainPresentMode::Mailbox
 	});
 
-	if (!setup_render_pipeline())
+	m_demo_applications.push_back(std::make_unique<TriangleDemoApp>(m_root_app_window, *m_device, m_swapchain, m_frame_index));
+
+	for (auto&& demo : m_demo_applications)
 	{
-		return false;
+		if (!demo->initialize())
+		{
+			return false;
+		}
 	}
+
+	m_showcased_demo = m_demo_applications.front().get();
 
 	return true;
 }
 
-void Application::terminate()
+void SandboxApp::run()
 {
-	m_appWindow.terminate();
+
+	rhi::DeviceConfig const& config = m_device->device_config();
+
+	if (!m_showcased_demo.is_null())
+	{
+		m_showcased_demo->run();
+	}
+
+	m_frame_index = (m_frame_index + 1) % static_cast<size_t>(config.framesInFlight);
 }
 
-bool Application::setup_render_pipeline()
+void SandboxApp::terminate()
 {
-	std::string errorStringBuffer;
-	
-	// Load default shaders.
-	ftl::Ifstream shader{ "data/test_shaders/triangle.glsl" };
-	if (!shader.good())
+	for (auto&& app : m_demo_applications)
 	{
-		return false;
+		app->terminate();
 	}
-	std::string shaderCode;
-	shaderCode.resize(shader.size() + 1);
-	shader.read(shaderCode.data(), shader.size());
-
-	// Compile vertex shader.
-	rhi::ShaderCompileInfo triangleShader{
-		.type		= rhi::ShaderType::Vertex,
-		.filename	= "data/test_shaders/triangle.glsl",
-		.entryPoint = "main",
-		.sourceCode = std::move(shaderCode)
-	};
-	triangleShader.add_preprocessor("VERTEX_SHADER");
-
-	auto vertexShaderHnd = m_renderer->create_shader(triangleShader, &errorStringBuffer);
-
-	if (vertexShaderHnd == gpu::resource_invalid_handle_v<gpu::Shader>)
-	{
-		return false;
-	}
-
-	// Compile fragment shader.
-	triangleShader.type = rhi::ShaderType::Fragment;
-	triangleShader.clear_preprocessors();
-	triangleShader.add_preprocessor("FRAGMENT_SHADER");
-
-	auto fragmentShaderHnd = m_renderer->create_shader(triangleShader, &errorStringBuffer);
-
-	if (fragmentShaderHnd == gpu::resource_invalid_handle_v<gpu::Shader>)
-	{
-		return false;
-	}
-
-	// CTAD rocks!
-	std::array triangleRenderShaders{ vertexShaderHnd, fragmentShaderHnd };
-
-	// Create frame graph
-	auto graphHandle = m_renderer->create_render_graph("application_frame_graph");
-	auto graph = m_renderer->get_render_graph(graphHandle);
-
-	bool result = graph->add_pass({
-		.name			= "triangle_render_pass",
-		.viewport		= m_appWindow.get_viewport(),
-		.pipelineInfo	= {
-			.shaders = triangleRenderShaders
-		},
-		.colorAttachments = {
-			gpu::graph::RenderPassAttachmentInfo{
-				.name = "triangle_output_attachment",
-				.info = gpu::graph::AttachmentInfo{
-					.imageInfo = {
-						.type		= rhi::ImageType::Image_2D,
-						.format		= rhi::ImageFormat::R8G8B8A8_Srgb,
-						.samples	= rhi::SampleCount::Sample_Count_1,
-						.tiling		= rhi::ImageTiling::Optimal,
-						.imageUsage = rhi::ImageUsage::Color_Attachment | rhi::ImageUsage::Transfer_Src,
-						.locality	= rhi::MemoryLocality::Gpu,
-						.dimension	= m_appWindow.get_extent_3d()
-					}
-				}
-			}
-		}/*,
-		.execute = [](gpu::command::CommandItem& commandItem) {
-			commandItem.bind_pipeline();
-			commandItem.set_viewport();
-			commandItem.set_scissor();
-			commandItem.draw();
-		}*/
-	},
-	&errorStringBuffer);
-
-	if (!result)
-	{
-		return false;
-	}
-	
-	if (graph.value().compile())
-	{
-		return false;
-	}
-
-	return true;
-}
-
-bool sandbox_on_initialize(void* pModule)
-{
-	Application* app = static_cast<Application*>(pModule);
-
-	core::NativeWindowCreateInfo windowInfo{
-		.title = L"Sandbox",
-		.position = core::Point{ 0, 0 },
-		.dimension = core::Dimension{ 800, 600 },
-		.flags = core::Native_Window_Flags_Root_Window | core::Native_Window_Flags_Catch_Input
-	};
-
-	if (!app->init(windowInfo))
-	{
-		return false;
-	}
-
-	return true;
-}
-
-void sandbox_on_update(void* pModule)
-{
-	[[maybe_unused]] Application* app = static_cast<Application*>(pModule);
-}
-
-void sandbox_on_terminate(void* pModule)
-{
-	Application* app = static_cast<Application*>(pModule);
-	app->~Application();
+	m_device->destroy_swapchain(m_swapchain, true);
+	rhi::destroy_device(*m_device);
+	rhi::destroy_instance();
+	core::Engine& engine = core::engine();
+	engine.destroy_window(m_root_app_window);
 }
 
 }

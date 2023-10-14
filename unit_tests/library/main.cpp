@@ -1,12 +1,10 @@
 #include <gtest/gtest.h>
 
 // Include foundation headers.
-#include "array.h"
-//#include "map.h"
-//#include "set.h"
-//#include <string.h>
-
-// Include {fmt} for print debuggin.
+#include "lib/array.h"
+#include "lib/string.h"
+#include "lib/map.h"
+#include "lib/set.h"
 
 /**
 * UNIT TEST(Array)
@@ -39,15 +37,13 @@ TEST(ArrayFoundationUnitTest, InsertDelete)
 	lib::array<int32> testArray;
 	for (size_t i = 0; i < count; i++)
 	{
-		testArray.emplace(static_cast<int32>(i));
+		testArray.push_back(static_cast<int32>(i));
 	}
-	EXPECT_EQ(testArray.length(), count);
+	EXPECT_EQ(testArray.size(), count);
 
-	for (size_t i = 0; i < count; i++)
-	{
-		testArray.pop(1);
-	}
-	EXPECT_EQ(testArray.length(), 0);
+	testArray.pop(count);
+
+	EXPECT_EQ(testArray.size(), 0);
 }
 
 TEST(ArrayFoundationUnitTest, ReserveInsertDelete)
@@ -57,15 +53,13 @@ TEST(ArrayFoundationUnitTest, ReserveInsertDelete)
 	testArray.reserve(count);
 	for (size_t i = 0; i < count; i++)
 	{
-		testArray.emplace(static_cast<int32>(i));
+		testArray.push_back(static_cast<int32>(i));
 	}
-	EXPECT_EQ(testArray.length(), count);
+	EXPECT_EQ(testArray.size(), count);
 
-	for (size_t i = 0; i < count; i++)
-	{
-		testArray.pop(1);
-	}
-	EXPECT_EQ(testArray.length(), 0);
+	testArray.pop(count);
+
+	EXPECT_EQ(testArray.size(), 0);
 }
 
 TEST(ArrayFoundationUnitTest, ReserveInsertInsertRelease)
@@ -73,22 +67,23 @@ TEST(ArrayFoundationUnitTest, ReserveInsertInsertRelease)
 	constexpr size_t count = 100000;
 	lib::array<int32> testArray;
 	testArray.reserve(count);
-	EXPECT_EQ(testArray.size(), count);
+	EXPECT_EQ(testArray.capacity(), count);
 	for (size_t i = 0; i < count; i++)
 	{
-		testArray.emplace(static_cast<int32>(i));
+		testArray.push_back(static_cast<int32>(i));
 	}
-	EXPECT_EQ(testArray.length(), count);
+	EXPECT_EQ(testArray.size(), count);
 
 	for (size_t i = 0; i < count; i++)
 	{
-		testArray.emplace(static_cast<int32>(i));
+		testArray.push_back(static_cast<int32>(i));
 	}
-	EXPECT_EQ(testArray.length(), count * 2);
+	EXPECT_EQ(testArray.size(), count * 2);
 
 	testArray.release();
-	EXPECT_EQ(testArray.length(), 0);
-	EXPECT_EQ(testArray.first(), nullptr);
+
+	EXPECT_EQ(testArray.size(), 0);
+	EXPECT_EQ(testArray.data(), nullptr);
 }
 
 TEST(ArrayFoundationUnitTest, InsertPopInMiddle)
@@ -99,25 +94,25 @@ TEST(ArrayFoundationUnitTest, InsertPopInMiddle)
 	{
 		if (i >= 45)
 		{
-			controlArray.push(static_cast<int32>(i + 10));
+			controlArray.push_back(static_cast<int32>(i + 10));
 			continue;
 		}
-		controlArray.push(static_cast<int32>(i));
+		controlArray.push_back(static_cast<int32>(i));
 	}
 
 	constexpr size_t count = 100;
 	lib::array<int32> testArray;
 	for (size_t i = 0; i < count; i++)
 	{
-		testArray.emplace(static_cast<int32>(i));
+		testArray.push_back(static_cast<int32>(i));
 	}
-	EXPECT_EQ(testArray.length(), count);
+	EXPECT_EQ(testArray.size(), count);
 
 	for (size_t i = 0; i < 10; i++)
 	{
 		testArray.pop_at(45);
 	}
-	EXPECT_EQ(testArray.length(), 90);
+	EXPECT_EQ(testArray.size(), 90);
 	bool isDifferent = false;
 	for (size_t i = 0; i < 90; i++)
 	{
@@ -179,73 +174,73 @@ TEST(ArrayFoundationUnitTest, InsertPopInMiddle)
 *	2. String should be equal to "The quick brown fox jumps over the lazy dog!".
 */
 
-//TEST(StringFoundationUnitTest, AssignSmallString)
-//{
-//	lib::string str = "Hello World!";
-//	EXPECT_LT(str.length(), 24);
-//	EXPECT_EQ(str.is_small_string(), true);
-//}
-//
-//TEST(StringFoundationUnitTest, AssignSmallStringThenLarge)
-//{
-//	lib::string str = "Hello World!";
-//	EXPECT_LT(str.length(), 24);
-//	EXPECT_EQ(str.is_small_string(), true);
-//	str = "The quick brown fox jumps over the lazy dog!";
-//	EXPECT_GT(str.length(), 24);
-//	EXPECT_EQ(str.is_small_string(), false);
-//}
-//
-//TEST(StringFoundationUnitTest, AssignSmallThenLargeThenSmall)
-//{
-//	lib::string str = "Hello World!";
-//	EXPECT_LT(str.length(), 24);
-//	EXPECT_EQ(str.is_small_string(), true);
-//	str = "The quick brown fox jumps over the lazy dog!";
-//	EXPECT_GT(str.length(), 24);
-//	EXPECT_EQ(str.is_small_string(), false);
-//	str = "Hello World!";
-//	EXPECT_LT(str.length(), 24);
-//	EXPECT_EQ(str.is_small_string(), false);
-//}
-//
-//TEST(StringFoundationUnitTest, StringFormating)
-//{
-//	lib::string str;
-//	str.format("Hello World! {}", 123);
-//	EXPECT_LT(str.length(), 24);
-//	EXPECT_EQ(str.is_small_string(), true);
-//	str = ftl::format("The quick brown fox jumps over the lazy dog! {}", "See you soon space cowboy.");
-//	EXPECT_GT(str.length(), 24);
-//	EXPECT_EQ(str.is_small_string(), false);
-//}
-//
-//TEST(StringFoundationUnitTest, Substring)
-//{
-//	lib::string a = "Hello World!";
-//	lib::string b = a.substr(0, 5);
-//	EXPECT_EQ(a, "Hello World!");
-//	EXPECT_EQ(b, "Hello");
-//}
-//
-//TEST(StringFoundationUnitTest, AssignLargeStringOnInit)
-//{
-//	lib::string str = "The quick brown fox jumps over the lazy dog!";
-//	EXPECT_GT(str.length(), 24);
-//	EXPECT_EQ(str.is_small_string(), false);
-//}
-//
-//TEST(StringFoundationUnitTest, PushCharactersIntoString)
-//{
-//	const lib::string text = "The quick brown fox jumps over the lazy dog!";
-//	lib::string str{ text.length() + 1 };
-//
-//	for (const char ch : text)
-//	{
-//		str.push(ch);
-//	}
-//	EXPECT_EQ(str, text);
-//}
+TEST(StringFoundationUnitTest, AssignSmallString)
+{
+	lib::string str = "Hello World!";
+	EXPECT_LT(str.length(), 24);
+	EXPECT_EQ(str.is_small_string(), true);
+}
+
+TEST(StringFoundationUnitTest, AssignSmallStringThenLarge)
+{
+	lib::string str = "Hello World!";
+	EXPECT_LT(str.length(), 24);
+	EXPECT_EQ(str.is_small_string(), true);
+	str = "The quick brown fox jumps over the lazy dog!";
+	EXPECT_GT(str.length(), 24);
+	EXPECT_EQ(str.is_small_string(), false);
+}
+
+TEST(StringFoundationUnitTest, AssignSmallThenLargeThenSmall)
+{
+	lib::string str = "Hello World!";
+	EXPECT_LT(str.length(), 24);
+	EXPECT_EQ(str.is_small_string(), true);
+	str = "The quick brown fox jumps over the lazy dog!";
+	EXPECT_GT(str.length(), 24);
+	EXPECT_EQ(str.is_small_string(), false);
+	str = "Hello World!";
+	EXPECT_LT(str.length(), 24);
+	EXPECT_EQ(str.is_small_string(), false);
+}
+
+TEST(StringFoundationUnitTest, StringFormating)
+{
+	lib::string str;
+	str.format("Hello World! {}", 123);
+	EXPECT_LT(str.length(), 24);
+	EXPECT_EQ(str.is_small_string(), true);
+	str = lib::format("The quick brown fox jumps over the lazy dog! {}", "See you soon space cowboy.");
+	EXPECT_GT(str.length(), 24);
+	EXPECT_EQ(str.is_small_string(), false);
+}
+
+TEST(StringFoundationUnitTest, Substring)
+{
+	lib::string a = "Hello World!";
+	lib::string b = a.substr(0, 5);
+	EXPECT_EQ(a, "Hello World!");
+	EXPECT_EQ(b, "Hello");
+}
+
+TEST(StringFoundationUnitTest, AssignLargeStringOnInit)
+{
+	lib::string str = "The quick brown fox jumps over the lazy dog!";
+	EXPECT_GT(str.length(), 24);
+	EXPECT_EQ(str.is_small_string(), false);
+}
+
+TEST(StringFoundationUnitTest, PushCharactersIntoString)
+{
+	const lib::string text = "The quick brown fox jumps over the lazy dog!";
+	lib::string str{ text.length() + 1 };
+
+	for (const char ch : text)
+	{
+		str.push(ch);
+	}
+	EXPECT_EQ(str, text);
+}
 
 /**
 * UNIT TEST(Map & Set [Hash Container])
@@ -276,100 +271,96 @@ TEST(ArrayFoundationUnitTest, InsertPopInMiddle)
 * D. Reserve space for 4 element, insert 6, shrink to 4.
 */
 
-//TEST(HashContainerUnitTest, MapAssignStringAsKeyAndIntAsValue)
-//{
-//	lib::map<lib::string, int32> map;
-//	map.emplace(lib::string{ "one" },	1);
-//	map.emplace(lib::string{ "two" },	2);
-//	map.emplace(lib::string{ "three" }, 3);
-//
-//	int32& value = map["one"];
-//	EXPECT_EQ(value, 1);
-//
-//	map["four"] = 4;
-//	EXPECT_EQ(map["four"], 4);
-//	EXPECT_EQ(map.length(), 4);
-//}
-//
-//TEST(HashContainerUnitTest, MapEmplaceUniquePointers)
-//{
-//	lib::map<lib::string, lib::unique_ptr<int32>> map;
-//	map.emplace("first_element", lib::make_unique<int32>(5));
-//
-//	lib::unique_ptr<int32>& pointer = map["first_element"];
-//	EXPECT_EQ(*pointer, 5);
-//	EXPECT_EQ(map.length(), 1);
-//}
-//
-//TEST(HashContainerUnitTest, HashContainerTestRehash)
-//{
-//	int32 sum = 0;	// 21.
-//	const lib::array<std::pair<lib::string, int32>> arr = {
-//		{ "one",	 1 },
-//		{ "two",	 2 },
-//		{ "three",	 3 },
-//		{ "four",	 4 },
-//		{ "five",	 5 },
-//		{ "six",	 6 },
-//	};
-//	lib::map<lib::string, int32> map;
-//	map.reserve(4);
-//
-//	for (auto& pair : arr)
-//	{
-//		map.emplace(pair);
-//	}
-//
-//	EXPECT_EQ(map.length(), 6);
-//	EXPECT_EQ(map.size(), 20);
-//
-//	for (const auto& [key, value] : map)
-//	{
-//		sum += value;
-//	}
-//	EXPECT_EQ(sum, 21);
-//}
-//
-//TEST(HashContainerUnitTest, CopyHashContainer)
-//{
-//	lib::map<lib::string, int32> a;
-//	a.emplace(lib::string{ "one" }, 1);
-//	a.emplace(lib::string{ "two" }, 2);
-//	a.emplace(lib::string{ "three" }, 3);
-//
-//	lib::map<lib::string, int32> b = a;
-//	EXPECT_EQ(b.length(), a.length());
-//	EXPECT_EQ(b["one"], 1);
-//	EXPECT_EQ(b["two"], 2);
-//	EXPECT_EQ(b["three"], 3);
-//	EXPECT_EQ(b.length(), a.length());
-//}
-//
-//#include <unordered_map>
-//
-//TEST(HashContainerUnitTest, HashContainerTestRehashAndShrink)
-//{
-//	std::unordered_map<std::string, int32> test;
-//	//int32 sum = 0;	// 21.
-//	const lib::array<std::pair<lib::string, int32>> arr = {
-//		{ "one",	 1 },
-//		{ "two",	 2 },
-//		{ "three",	 3 },
-//		{ "four",	 4 },
-//		{ "five",	 5 },
-//		{ "six",	 6 },
-//	};
-//	lib::map<lib::string, int32> map;
-//	map.reserve(4);
-//
-//	for (auto& pair : arr)
-//	{
-//		map.emplace(pair);
-//	}
-//
-//	EXPECT_EQ(map.length(), 6);
-//	EXPECT_EQ(map.size(), 20);
-//
-//	map.reserve(4);
-//	EXPECT_EQ(map.size(), 4);
-//}
+TEST(HashContainerUnitTest, MapAssignStringAsKeyAndIntAsValue)
+{
+	lib::map<lib::string, int32> foo;
+	foo.emplace(lib::string{ "one" },	1);
+	foo.emplace(lib::string{ "two" },	2);
+	foo.emplace(lib::string{ "three" }, 3);
+
+	int32& value = foo["one"];
+	EXPECT_EQ(value, 1);
+
+	foo["four"] = 4;
+	EXPECT_EQ(foo["four"], 4);
+	EXPECT_EQ(foo.size(), 4);
+}
+
+TEST(HashContainerUnitTest, MapEmplaceUniquePointers)
+{
+	lib::map<lib::string, lib::unique_ptr<int32>> foo;
+	foo.emplace("first_element", lib::make_unique<int32>(5));
+
+	lib::unique_ptr<int32>& pointer = foo["first_element"];
+	EXPECT_EQ(*pointer, 5);
+	EXPECT_EQ(foo.size(), 1);
+}
+
+TEST(HashContainerUnitTest, HashContainerTestRehash)
+{
+	int32 sum = 0;	// 21.
+	const lib::array<std::pair<lib::string, int32>> arr = {
+		{ "one",	 1 },
+		{ "two",	 2 },
+		{ "three",	 3 },
+		{ "four",	 4 },
+		{ "five",	 5 },
+		{ "six",	 6 },
+	};
+	lib::map<lib::string, int32> foo;
+	foo.reserve(4);
+
+	for (auto& pair : arr)
+	{
+		foo.emplace(pair);
+	}
+
+	EXPECT_EQ(foo.size(), 6);
+	EXPECT_EQ(foo.capacity(), 20);
+
+	for (const auto& [key, value] : foo)
+	{
+		sum += value;
+	}
+	EXPECT_EQ(sum, 21);
+}
+
+TEST(HashContainerUnitTest, CopyHashContainer)
+{
+	lib::map<lib::string, int32> a;
+	a.emplace(lib::string{ "one" }, 1);
+	a.emplace(lib::string{ "two" }, 2);
+	a.emplace(lib::string{ "three" }, 3);
+
+	lib::map<lib::string, int32> b = a;
+	EXPECT_EQ(b.size(), a.size());
+	EXPECT_EQ(b["one"], 1);
+	EXPECT_EQ(b["two"], 2);
+	EXPECT_EQ(b["three"], 3);
+	EXPECT_EQ(b.size(), a.size());
+}
+
+TEST(HashContainerUnitTest, HashContainerTestRehashAndShrink)
+{
+	const lib::array<std::pair<lib::string, int32>> arr = {
+		{ "one",	 1 },
+		{ "two",	 2 },
+		{ "three",	 3 },
+		{ "four",	 4 },
+		{ "five",	 5 },
+		{ "six",	 6 },
+	};
+	lib::map<lib::string, int32> foo;
+	foo.reserve(4);
+
+	for (auto& pair : arr)
+	{
+		foo.emplace(pair);
+	}
+
+	EXPECT_EQ(foo.size(), 6);
+	EXPECT_EQ(foo.capacity(), 20);
+
+	foo.reserve(4);
+	EXPECT_EQ(foo.capacity(), 4);
+}

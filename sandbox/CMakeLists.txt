@@ -4,14 +4,17 @@ set(
 	sandbox_header_files
 	"public/sandbox/sandbox.h"
 	"public/sandbox/sandbox_api.h"
-	"public/sandbox/application_window.h"
+	"private/include/sandbox_demo_application.h"
+	"private/include/triangle_demo_app.h"
+	#"public/sandbox/application_window.h"
 )
 
 set(
 	sandbox_source_files
-	"module.cpp"
+	#"module.cpp"
 	"private/src/sandbox.cpp"
-	"private/src/application_window.cpp"
+	"private/src/triangle_demo_app.cpp"
+	#"private/src/application_window.cpp"
 )
 
 add_library(Sandbox SHARED ${sandbox_header_files} ${sandbox_source_files})
@@ -25,21 +28,14 @@ else()
 	set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} -fno-rtti -fno-exceptions)
 endif()
 
-#set_target_properties(
-#	Sandbox
-#	PROPERTIES 
-#		CXX_STANDARD 20 
-#		CXX_STANDARD_REQUIRED ON
-#		CXX_EXTENSIONS OFF
-#		LINKER_LANGUAGE CXX
-#)
 target_include_directories(
 	Sandbox 
 	PUBLIC "public"
 	PRIVATE "public/sandbox"
 	PRIVATE "private/include"
 )
-target_link_libraries(Sandbox PRIVATE Core Renderer)
+target_link_libraries(Sandbox PRIVATE Core)
+target_link_libraries(Sandbox PUBLIC RHI)
 
 add_custom_command(
     TARGET 

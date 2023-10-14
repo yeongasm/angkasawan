@@ -1,35 +1,27 @@
 #include "sandbox_api.h"
-#include "engine.h"
-#include "renderer/renderer.h"
-#include "application_window.h"
+#include "core/engine.h"
+#include "rhi/rhi.h"
 
 namespace sandbox
 {
 
-class Application final
+class SandboxApp final : public core::Application
 {
-private:
-
-	ftl::Ref<core::Engine>	m_engine;
-	ftl::Ref<gpu::Renderer>	m_renderer;
-	ApplicationWindow		m_appWindow;
-
 public:
-	Application(core::Engine& engine, gpu::Renderer& renderer);
-	~Application() = default;
+	SANDBOX_API SandboxApp();
+	SANDBOX_API virtual ~SandboxApp() override;
 
-	bool init(core::NativeWindowCreateInfo const& windowInfo);
-	void terminate();
-
+	SANDBOX_API virtual bool initialize()	override;
+	SANDBOX_API virtual void run()			override;
+	SANDBOX_API virtual void terminate()	override;
 private:
-
-	bool setup_render_pipeline();
-
-	MAKE_SINGLETON(Application)
+	core::wnd::window_handle m_root_app_window;
+	lib::array<std::unique_ptr<core::Application>> m_demo_applications;
+	lib::ref<core::Application> m_showcased_demo;
+	rhi::Instance m_instance;
+	rhi::Device* m_device;
+	rhi::Swapchain m_swapchain;
+	size_t m_frame_index;
 };
-
-bool sandbox_on_initialize(void*);
-void sandbox_on_update(void*);
-void sandbox_on_terminate(void*);
 
 }

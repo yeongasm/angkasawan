@@ -1,9 +1,6 @@
-#include <map>
 #include <cstdlib>
 #include <cstring>
-#include <atomic>
-#include "memory.h"
-//#include "fmt/format.h"
+#include "lib/memory.h"
 
 namespace lib
 {
@@ -51,42 +48,15 @@ bool is_64bit_aligned(void* pointer)
 	return (address & 0x7) == 0;
 }
 
-class system_memory final
+struct memory
 {
-public:
-	struct memory
-	{
-		void*	pointer;
-		size_t	size;
-	};
+	void*	pointer;
+	size_t	size;
+};
 
-	system_memory() : m_allocated_size{ 0 }, m_memory_tracker{} {}
-
-	~system_memory()
-	{
-#if _DEBUG
-
-//#define MEMORY_LEAK_STR R"(
-//[MEMORY LEAK DETECTED]
-//Unreleased memory: {} Bytes.
-//------------------------------------------------------------------------------------------------------------------------------------
-//)"
-//		if (m_allocated_size != 0)
-//		{
-//			fmt::print(MEMORY_LEAK_STR, m_allocated_size.load());
-//			fmt::print("Address\t\t| Size\t\t| Function\t\t| Line\t\t| File\t\t\n");
-//			for (auto const& [address, location] : m_memory_tracker)
-//			{
-//				size_t size = *static_cast<size_t*>(address);
-//				fmt::print("------------------------------------------------------------------------------------------------------------------------------------\n");
-//				fmt::print("{}\t| {} Bytes\t| {}\t\t| {}\t\t| {}\t\n", address, size, location.function_name(), location.line(), location.file_name());
-//			}
-//		}
-#endif
-		m_allocated_size = 0;
-	}
-
-	memory malloc(size_t size, size_t alignment = 16, std::source_location location = std::source_location::current())
+struct system_memory final
+{
+	static memory malloc(size_t size, size_t alignment = 16)
 	{
 		size_t allocated = 0;
 
@@ -100,32 +70,21 @@ public:
 
 		ASSERTION(is_64bit_aligned(pointer) && "Address is not 64 bit aligned");
 
-		m_allocated_size.fetch_add(allocated);
-
-		m_memory_tracker.emplace(pointer, location);
-
 		return { pointer, allocated };
 	}
 
-	void free(void* pointer)
+	static void free(void* pointer)
 	{
 		ASSERTION(pointer != nullptr && "Pointer being released is null!");
 		if (pointer)
 		{
-			m_memory_tracker.erase(pointer);
 			aligned_free(pointer);
 		}
 	}
 
-	size_t total_memory_allocated() const { return m_allocated_size.load(); }
-
 private:
-	friend void release_memory(void*);
 
-	std::atomic_size_t						m_allocated_size;
-	std::map<void*, std::source_location>	m_memory_tracker;
-
-	void* aligned_alloc(size_t size, size_t& alignment, size_t& total)
+	static void* aligned_alloc(size_t size, size_t& alignment, size_t& total)
 	{
 		// Code shamefully taken from, https://stackoverflow.com/q/38088732.
 		ASSERTION(is_power_of_two(alignment) && "Alignment needs to be a power of 2!");
@@ -141,7 +100,8 @@ private:
 		size_t offset = alignment - 1 + sizeof(void*);
 		total = size + offset;
 
-		p0 = std::malloc(total);
+		p0 = operator new(total);
+
 		if (!p0)
 		{
 			return nullptr;
@@ -155,18 +115,16 @@ private:
 		return p1;
 	}
 
-	void aligned_free(void* pointer)
+	static void aligned_free(void* pointer)
 	{
 		void* root = *(static_cast<void**>(pointer) - 1);
-		std::free(root);
+		operator delete(root);
 	}
 };
 
-static system_memory global_memory{};
-
 void* allocate_memory(allocate_info const& info)
 {
-	system_memory::memory memory = global_memory.malloc(info.size + sizeof(size_t), info.alignment, info.location);
+	memory memory = system_memory::malloc(info.size + sizeof(size_t), info.alignment);
 	void* pointer = memory.pointer;
 
 	new (pointer) size_t{ memory.size };
@@ -180,13 +138,7 @@ void* allocate_memory(allocate_info const& info)
 void release_memory(void* pointer)
 {
 	size_t* base = reinterpret_cast<size_t*>(static_cast<uint8*>(pointer) - sizeof(size_t));
-	global_memory.m_allocated_size.fetch_sub(*base);
-	global_memory.free(base);
-}
-
-size_t total_memory_allocated()
-{
-	return global_memory.total_memory_allocated();
+	system_memory::free(base);
 }
 
 }

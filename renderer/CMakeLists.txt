@@ -60,7 +60,7 @@ target_include_directories(
 	PRIVATE "public/renderer"
 	PRIVATE "private/include"
 )
-target_link_libraries(Renderer PRIVATE Core OSHeader)
+target_link_libraries(Renderer PRIVATE Core)
 
 if (RENDERER_USE_VULKAN)
 	FetchContent_Declare(

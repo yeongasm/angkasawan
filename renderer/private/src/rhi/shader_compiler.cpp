@@ -55,28 +55,7 @@ literal_t get_shader_name(ShaderType type)
 	}
 }
 
-ShaderAttribute::Format translate_to_shader_attribute_format(SpvReflectFormat spvFormat)
-{
-	switch (spvFormat)
-	{
-	case SPV_REFLECT_FORMAT_UNDEFINED:
-		return ShaderAttribute::Format::Undefined;
-	case SPV_REFLECT_FORMAT_R32_UINT:
-		return ShaderAttribute::Format::Uint;
-	case SPV_REFLECT_FORMAT_R32_SINT:
-		return ShaderAttribute::Format::Int;
-	case SPV_REFLECT_FORMAT_R32_SFLOAT:
-		return ShaderAttribute::Format::Float;
-	case SPV_REFLECT_FORMAT_R32G32_SFLOAT:
-		return ShaderAttribute::Format::Vec2;
-	case SPV_REFLECT_FORMAT_R32G32B32_SFLOAT:
-		return ShaderAttribute::Format::Vec3;
-	case SPV_REFLECT_FORMAT_R32G32B32A32_SFLOAT:
-		return ShaderAttribute::Format::Vec4;
-	default:
-		return ShaderAttribute::Format::Undefined;
-	}
-}
+
 
 std::vector<ShaderAttribute> reflect_spirv_shader_attributes(spv_reflect::ShaderModule const& shaderModule)
 {

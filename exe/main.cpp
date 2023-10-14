@@ -8,5 +8,5 @@ int main(int argc, char* argv[])
 		app.run();
 		app.stop();
 	}
-	return app.get_last_error_code();
+	return 0;
 }

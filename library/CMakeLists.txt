@@ -12,23 +12,24 @@ target_compile_features(fmt PUBLIC cxx_std_20)
 
 set(
 	source_list
-	"api.h"
-	".natvis"
-	"common.h"
-	"type_wrapper.h"
-	"named_type.h"
-	"handle.h"
-	"memory.h"
+	"lib/api.h"
+	"lib/.natvis"
+	"lib/common.h"
+	"lib/type.h"
+	"lib/named_type.h"
+	"lib/handle.h"
+	"lib/memory.h"
 	"private/memory.cpp"
-	"dag.h"
-	"array.h"
-	"bitset.h"
-	"hash.h"
-	"map.h"
-	"set.h"
-	"string.h"
-	"utility.h"
-	"linear_allocator.h"
+	"lib/dag.h"
+	"lib/array.h"
+	"lib/paged_array.h"
+	"lib/bitset.h"
+	"lib/hash.h"
+	"lib/map.h"
+	"lib/set.h"
+	"lib/string.h"
+	"lib/utility.h"
+	"lib/linear_allocator.h"
 )
 
 add_library(Library SHARED ${source_list})
@@ -40,13 +41,14 @@ target_compile_definitions(Library PRIVATE "LIBRARY_EXPORT")
 if (MSVC)
 	string(REPLACE "/GR" "/GR-" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
 	string(REPLACE "/EHsc" "/EHs-c-" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
+	target_compile_definitions(Library PUBLIC "MSVC_COMPILER")
 else()
 	set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} -fno-rtti -fno-exceptions)
 endif()
 
 target_include_directories(Library PUBLIC .)
 
-#target_link_libraries(Library PUBLIC fmt)
+target_link_libraries(Library PUBLIC fmt)
 
 add_custom_command(
     TARGET 
