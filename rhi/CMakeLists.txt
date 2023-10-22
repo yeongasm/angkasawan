@@ -7,16 +7,18 @@ set(
 	"public/rhi/command_buffer.h"
 	"public/rhi/command_pool.h"
 	"public/rhi/common.h"
+	"public/rhi/constants.h"
 	"public/rhi/device.h"
 	"public/rhi/image.h"
 	"public/rhi/pipeline.h"
 	"public/rhi/resource.h"
 	"public/rhi/rhi.h"
 	"public/rhi/rhi_api.h"
+	"public/rhi/sampler.h"
 	"public/rhi/shader.h"
 	"public/rhi/swapchain.h"
 	"public/rhi/sync.h"
-	#"public/rhi/work_graph.h"
+	"public/rhi/util/shader_compiler.h"
 )
 
 set(
@@ -24,7 +26,6 @@ set(
 	"private/src/common.cpp"
 	"private/src/resource.cpp"
 	"private/src/rhi.cpp"
-	#"private/src/work_graph.cpp"
 )
 
 add_library(RHI SHARED ${rhi_header_files} ${rhi_source_files})
@@ -59,9 +60,11 @@ if (USE_VULKAN)
 		"private/src/vulkan/image.cpp"
 		"private/src/vulkan/pipeline.cpp"
 		"private/src/vulkan/shader.cpp"
+		"private/src/vulkan/sampler.cpp"
 		"private/src/vulkan/swapchain.cpp"
 		"private/src/vulkan/sync.cpp"
 		"private/src/vulkan/vk.cpp"
+		"private/src/util/spirv_shader_compiler.cpp"
 	)
 
 	target_sources(
@@ -132,3 +135,4 @@ add_custom_command(
 
 assign_source_group(${source_list})
 warnings_as_errors(RHI)
+target_compile_options(RHI PRIVATE /wd4530)

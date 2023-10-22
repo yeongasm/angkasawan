@@ -3,7 +3,6 @@
 
 namespace rhi
 {
-
 Image::Image(
 	ImageInfo&& info,
 	APIContext* context,
@@ -38,5 +37,4 @@ auto Image::info() const -> ImageInfo const&
 {
 	return m_info;
 }
-
 }

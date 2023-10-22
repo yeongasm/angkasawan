@@ -11,18 +11,6 @@ namespace rhi
 * 
 * [ ] - Add support for tesselation control shader, tesselation evaluation shader, geometry shader and mesh shaders.
 */
-struct RasterPipelineInfo
-{
-	lib::string name;
-	Shader* vertexShader;
-	Shader* pixelShader;
-	lib::array<ColorAttachment> colorAttachments;
-	lib::array<VertexInputBinding> inputBindings = {};
-	RasterizationStateInfo rasterization = {};
-	DepthTestInfo depthTest = {};
-	TopologyType topology = TopologyType::Triangle;
-	uint32 pushConstantSize = 0;
-};
 
 class Pipeline : public Resource
 {

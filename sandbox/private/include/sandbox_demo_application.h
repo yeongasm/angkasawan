@@ -4,6 +4,7 @@
 
 #include "core/engine.h"
 #include "rhi/rhi.h"
+#include "rhi/util/shader_compiler.h"
 
 namespace sandbox
 {
@@ -13,12 +14,14 @@ public:
 	DemoApplication() = default;
 
 	DemoApplication(
-		core::wnd::window_handle rootWindowHandle, 
+		core::wnd::window_handle rootWindowHandle,
+		rhi::util::ShaderCompiler& shaderCompiler,
 		rhi::Device& device, 
 		rhi::Swapchain& rootWindowSwapchain,
 		size_t const& frameIndex 
 	) :
 		m_root_app_window{ rootWindowHandle },
+		m_shader_compiler{ shaderCompiler },
 		m_device{ device },
 		m_swapchain{ rootWindowSwapchain },
 		m_frame_index{ frameIndex }
@@ -31,10 +34,34 @@ public:
 	virtual void terminate() = 0;
 protected:
 	core::wnd::window_handle m_root_app_window;
+	rhi::util::ShaderCompiler& m_shader_compiler;
 	rhi::Device& m_device;
 	rhi::Swapchain& m_swapchain;
 	size_t const& m_frame_index;
 };
+
+inline auto open_file(std::filesystem::path path) -> lib::string
+{
+	lib::string result = {};
+	std::ifstream stream{ path, std::ios_base::in | std::ios_base::binary | std::ios_base::ate};
+
+	if (stream.good() && 
+		stream.is_open())
+	{
+		uint32 size = static_cast<uint32>(stream.tellg());
+		stream.seekg(0, std::ios::beg);
+
+		result.reserve(size + 1);
+
+		stream.read(result.data(), size);
+		result[size] = lib::null_terminator<lib::string::value_type>::val;
+
+		stream.close();
+	}
+
+	return result;
+}
+
 }
 
 #endif // !SANDBOX_DEMO_APPLICATION_H

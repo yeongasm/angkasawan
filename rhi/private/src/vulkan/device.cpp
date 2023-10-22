@@ -53,7 +53,7 @@ namespace rhi
 
 auto translate_image_usage_flags(ImageUsage flags) -> VkImageUsageFlags
 {
-	RhiFlag const mask = static_cast<RhiFlag>(flags);
+	uint32 const mask = static_cast<uint32>(flags);
 	if (mask == 0)
 	{
 		return VK_IMAGE_USAGE_FLAG_BITS_MAX_ENUM;
@@ -74,9 +74,9 @@ auto translate_image_usage_flags(ImageUsage flags) -> VkImageUsageFlags
 	VkImageUsageFlags result{};
 	for (uint32 i = 0; i < static_cast<uint32>(std::size(flagBits)); ++i)
 	{
-		uint32 const exist = (mask & (1 << i));
+		uint32 const exist = (mask & (1u << i)) != 0u;
 		auto const bit = flagBits[i];
-		result |= (exist & bit);
+		result |= exist * bit;
 	}
 	return result;
 }
@@ -126,37 +126,24 @@ auto translate_shader_stage(ShaderType type) -> VkShaderStageFlagBits
 
 auto translate_buffer_usage_flags(BufferUsage flags) -> VkBufferUsageFlags
 {
-	RhiFlag const mask = static_cast<RhiFlag>(flags);
+	uint32 const mask = static_cast<uint32>(flags);
 	constexpr VkBufferUsageFlagBits flagBits[] = {
 		VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
 		VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
 		VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
 		VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
 		VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-		VK_BUFFER_USAGE_TRANSFER_DST_BIT
+		VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+		VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT
 	};
 	VkBufferUsageFlags result{};
 	for (uint32 i = 0; i < static_cast<uint32>(std::size(flagBits)); ++i)
 	{
-		uint32 const exist = (mask & (1 << i));
+		uint32 const exist = (mask & (1u << i)) != 0u;
 		auto const bit = flagBits[i];
-		result |= (exist & bit);
+		result |= exist * bit;
 	}
 	return result;
-}
-
-auto translate_memory_usage_flag(MemoryLocality locality) -> VmaMemoryUsage
-{
-	switch (locality)
-	{
-	case MemoryLocality::Gpu:
-		return VMA_MEMORY_USAGE_GPU_ONLY;
-	case MemoryLocality::Cpu_To_Gpu:
-		return VMA_MEMORY_USAGE_CPU_TO_GPU;
-	case MemoryLocality::Cpu:
-	default:
-		return VMA_MEMORY_USAGE_CPU_ONLY;
-	}
 }
 
 auto translate_image_type(ImageType type) -> VkImageType
@@ -202,7 +189,7 @@ auto translate_image_tiling(ImageTiling tiling) -> VkImageTiling
 	}
 }
 
-auto translate_image_format(ImageFormat format) -> VkFormat
+auto translate_format(Format format) -> VkFormat
 {
 	constexpr VkFormat formats[] = {
 		VK_FORMAT_UNDEFINED,
@@ -337,7 +324,95 @@ auto translate_image_format(ImageFormat format) -> VkFormat
 		VK_FORMAT_D24_UNORM_S8_UINT,
 		VK_FORMAT_D32_SFLOAT_S8_UINT
 	};
-	return formats[static_cast<std::underlying_type_t<ImageFormat>>(format)];
+	return formats[static_cast<std::underlying_type_t<Format>>(format)];
+}
+
+auto translate_texel_filter(TexelFilter filter) -> VkFilter
+{
+	switch (filter)
+	{
+	case TexelFilter::Nearest:
+		return VK_FILTER_NEAREST;
+	case TexelFilter::Cubic_Image:
+		return VK_FILTER_CUBIC_IMG;
+	default:
+	case TexelFilter::Linear:
+		return VK_FILTER_LINEAR;
+	}
+}
+
+auto translate_mipmap_mode(MipmapMode mode) -> VkSamplerMipmapMode
+{
+	switch (mode)
+	{
+	case MipmapMode::Nearest:
+		return VK_SAMPLER_MIPMAP_MODE_NEAREST;
+	case MipmapMode::Linear:
+	default:
+		return VK_SAMPLER_MIPMAP_MODE_LINEAR;
+	}
+}
+
+auto translate_sampler_address_mode(SamplerAddress address) -> VkSamplerAddressMode
+{
+	switch (address)
+	{
+	case SamplerAddress::Repeat:
+		return VK_SAMPLER_ADDRESS_MODE_REPEAT;
+	case SamplerAddress::Mirrored_Repeat:
+		return VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
+	case SamplerAddress::Clamp_To_Border:
+		return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+	case SamplerAddress::Mirror_Clamp_To_Edge:
+		return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+	case SamplerAddress::Clamp_To_Edge:
+	default:
+		return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+	}
+}
+
+auto translate_compare_op(CompareOp op) -> VkCompareOp
+{
+	switch (op)
+	{
+	case CompareOp::Less:
+		return VK_COMPARE_OP_LESS;
+	case CompareOp::Equal:
+		return VK_COMPARE_OP_EQUAL;
+	case CompareOp::Less_Or_Equal:
+		return VK_COMPARE_OP_LESS_OR_EQUAL;
+	case CompareOp::Greater:
+		return VK_COMPARE_OP_GREATER;
+	case CompareOp::Not_Equal:
+		return VK_COMPARE_OP_NOT_EQUAL;
+	case CompareOp::Greater_Or_Equal:
+		return VK_COMPARE_OP_GREATER_OR_EQUAL;
+	case CompareOp::Always:
+		return VK_COMPARE_OP_ALWAYS;
+	case CompareOp::Never:
+	default:
+		return VK_COMPARE_OP_NEVER;
+	}
+}
+
+auto translate_border_color(BorderColor color) -> VkBorderColor
+{
+	switch (color)
+	{
+	case BorderColor::Int_Transparent_Black:
+		return VK_BORDER_COLOR_INT_TRANSPARENT_BLACK;
+	case BorderColor::Float_Opaque_Black:
+		return VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK;
+	case BorderColor::Int_Opaque_Black:
+		return VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+	case BorderColor::Float_Opaque_White:
+		return VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+	case BorderColor::Int_Opaque_White:
+		return VK_BORDER_COLOR_INT_OPAQUE_WHITE;
+	case BorderColor::Float_Transparent_Black:
+	default:
+		return VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
+	}
 }
 
 auto translate_attachment_load_op(AttachmentLoadOp loadOp) -> VkAttachmentLoadOp
@@ -394,43 +469,43 @@ auto translate_sample_count(SampleCount samples) -> VkSampleCountFlagBits
 	}
 }
 
-auto stride_for_shader_attrib_format(ShaderAttribute::Format format) -> uint32
+auto stride_for_shader_attrib_format(Format format) -> uint32
 {
 	switch (format)
 	{
-	case ShaderAttribute::Format::Int:
-	case ShaderAttribute::Format::Uint:
-	case ShaderAttribute::Format::Float:
+	case Format::R32_Int:
+	case Format::R32_Uint:
+	case Format::R32_Float:
 		return 4;
-	case ShaderAttribute::Format::Vec2:
+	case Format::R32G32_Float:
 		return 8;
-	case ShaderAttribute::Format::Vec3:
+	case Format::R32G32B32_Float:
 		return 12;
-	case ShaderAttribute::Format::Vec4:
+	case Format::R32G32B32A32_Float:
 		return 16;
-	case ShaderAttribute::Format::Undefined:
+	case Format::Undefined:
 	default:
 		return 0;
 	}
 }
 
-auto translate_shader_attrib_format(ShaderAttribute::Format format) -> VkFormat
+auto translate_shader_attrib_format(Format format) -> VkFormat
 {
 	switch (format)
 	{
-	case ShaderAttribute::Format::Int:
+	case Format::R32_Int:
 		return VK_FORMAT_R32_SINT;
-	case ShaderAttribute::Format::Uint:
+	case Format::R32_Uint:
 		return VK_FORMAT_R32_UINT;
-	case ShaderAttribute::Format::Float:
+	case Format::R32_Float:
 		return VK_FORMAT_R32_SFLOAT;
-	case ShaderAttribute::Format::Vec2:
+	case Format::R32G32_Float:
 		return VK_FORMAT_R32G32_SFLOAT;
-	case ShaderAttribute::Format::Vec3:
+	case Format::R32G32B32_Float:
 		return VK_FORMAT_R32G32B32_SFLOAT;
-	case ShaderAttribute::Format::Vec4:
+	case Format::R32G32B32A32_Float:
 		return VK_FORMAT_R32G32B32A32_SFLOAT;
-	case ShaderAttribute::Format::Undefined:
+	case Format::Undefined:
 	default:
 		return VK_FORMAT_UNDEFINED;
 	}
@@ -453,30 +528,6 @@ auto translate_topology(TopologyType topology) -> VkPrimitiveTopology
 	case TopologyType::Triangle:
 	default:
 		return VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-	}
-}
-
-auto translate_compare_op(CompareOp op) -> VkCompareOp
-{
-	switch (op)
-	{
-	case CompareOp::Less:
-		return VK_COMPARE_OP_LESS;
-	case CompareOp::Equal:
-		return VK_COMPARE_OP_EQUAL;
-	case CompareOp::Less_Or_Equal:
-		return VK_COMPARE_OP_LESS_OR_EQUAL;
-	case CompareOp::Greater:
-		return VK_COMPARE_OP_GREATER;
-	case CompareOp::Not_Equal:
-		return VK_COMPARE_OP_NOT_EQUAL;
-	case CompareOp::Greater_Or_Equal:
-		return VK_COMPARE_OP_GREATER_OR_EQUAL;
-	case CompareOp::Always:
-		return VK_COMPARE_OP_ALWAYS;
-	case CompareOp::Never:
-	default:
-		return VK_COMPARE_OP_NEVER;
 	}
 }
 
@@ -582,18 +633,63 @@ auto translate_blend_op(BlendOp op) -> VkBlendOp
 	}
 }
 
-auto translate_texel_filter(TexelFilter filter) -> VkFilter
+auto get_sampler_info_packed_uint64(SamplerInfo const& info) -> uint64
 {
-	switch (filter)
+	uint64 packed = 0;
+	uint64 const minf = static_cast<uint64>(info.minFilter);
+	uint64 const magf = static_cast<uint64>(info.magFilter);
+	uint64 const mipm = static_cast<uint64>(info.mipmapMode);
+	uint64 const admu = static_cast<uint64>(info.addressModeU);
+	uint64 const admv = static_cast<uint64>(info.addressModeV);
+	uint64 const admw = static_cast<uint64>(info.addressModeW);
+	uint64 const cmpe = (info.compareOp != CompareOp::Never) ? 1ull : 0ull;
+	uint64 const anie = (info.maxAnisotropy > 0.f) ? 1ull : 0ull;
+	uint64 const cmpo = static_cast<uint64>(info.compareOp);
+	uint64 const bcol = static_cast<uint64>(info.borderColor);
+	uint64 const cord = (info.unnormalizedCoordinates) ? 1ull : 0ull;
+
+	uint64 const mplb = static_cast<uint64>(info.mipLodBias);
+	uint64 const maxa = static_cast<uint64>(info.maxAnisotropy);
+	uint64 const minl = static_cast<uint64>(info.minLod);
+	uint64 const maxl = static_cast<uint64>(info.maxLod);
+
+	packed |= 0x000000000000000FULL & minf;
+	packed |= 0x00000000000000F0ULL & magf;
+	packed |= 0x0000000000000F00ULL & mipm;
+	packed |= 0x000000000000F000ULL & bcol;
+	packed |= 0x00000000000F0000ULL & admu;
+	packed |= 0x0000000000F00000ULL & admv;
+	packed |= 0x000000000F000000ULL & admw;
+	packed |= 0x00000000F0000000ULL & cmpo;
+	packed |= 0x0000000F00000000ULL & mplb;
+	packed |= 0x000000F000000000ULL & maxa;
+	packed |= 0x00000F0000000000ULL & minl;
+	packed |= 0x0000F00000000000ULL & maxl;
+	packed |= 0x2000000000000000ULL & anie;
+	packed |= 0x4000000000000000ULL & cmpe;
+	packed |= 0x8000000000000000ULL & cord;
+
+	return packed;
+}
+
+auto translate_memory_usage(MemoryUsage usage) -> VmaAllocationCreateFlags
+{
+	uint32 const inputFlags = static_cast<uint32>(usage);
+	VmaAllocationCreateFlagBits bits[] = {
+		VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,
+		VMA_ALLOCATION_CREATE_CAN_ALIAS_BIT,
+		VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT,
+		VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT,
+		VMA_ALLOCATION_CREATE_STRATEGY_MIN_MEMORY_BIT,
+		VMA_ALLOCATION_CREATE_STRATEGY_MIN_TIME_BIT
+	};
+	VmaAllocationCreateFlags result = 0;
+	for (uint32 i = 0; i < static_cast<uint32>(std::size(bits)); ++i)
 	{
-	case TexelFilter::Linear:
-		return VK_FILTER_LINEAR;
-	case TexelFilter::Cubic_Image:
-		return VK_FILTER_CUBIC_IMG;
-	case TexelFilter::Nearest:
-	default:
-		return VK_FILTER_NEAREST;
+		uint32 const exist = (inputFlags & (1u << i)) != 0u;
+		result |= exist * bits[i];
 	}
+	return result;
 }
 
 auto ResourcePool::location_of(vulkan::Swapchain& swapchain) -> uint32
@@ -614,6 +710,11 @@ auto ResourcePool::location_of(vulkan::Buffer& buffer) -> uint32
 auto ResourcePool::location_of(vulkan::Image& image) -> uint32
 {
 	return images.index_of(image).id;
+}
+
+auto ResourcePool::location_of(vulkan::Sampler& sampler) -> uint32
+{
+	return samplers.index_of(sampler).id;
 }
 
 auto ResourcePool::location_of(vulkan::Pipeline& pipeline) -> uint32
@@ -731,7 +832,7 @@ auto APIContext::choose_physical_device() -> bool
 	auto score_device = [&](VkPhysicalDevice& device) -> uint32
 	{
 		uint32 score = 0;
-		VkPhysicalDeviceProperties properties;
+		VkPhysicalDeviceProperties properties = {};
 		vkGetPhysicalDeviceProperties(device, &properties);
 
 		score += static_cast<uint32>(properties.limits.maxMemoryAllocationCount / 1000u);
@@ -911,30 +1012,38 @@ auto APIContext::create_logical_device() -> bool
 
 	literal_t extensions[] = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
 
-	//VkPhysicalDeviceFragmentShaderBarycentricFeaturesKHR barycentricExtension{
-	//	.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_SHADER_BARYCENTRIC_FEATURES_KHR,
-	//	.fragmentShaderBarycentric = VK_TRUE
-	//};
-
 	VkPhysicalDeviceVulkan13Features deviceFeatures13{
 		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
-		//.pNext = &barycentricExtension,
 		.synchronization2 = VK_TRUE,
 		.dynamicRendering = VK_TRUE
 	};
+
+	//VkPhysicalDeviceBufferDeviceAddressFeatures bufferDeviceAddressFeature{
+	//	.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES,
+	//	.pNext = &deviceFeatures13,
+	//	.bufferDeviceAddress = VK_TRUE
+	//};
 
 	VkPhysicalDeviceVulkan12Features deviceFeatures12{
 		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
 		.pNext = &deviceFeatures13,
 		.drawIndirectCount = VK_TRUE,
+		.shaderInt8 = VK_TRUE,
 		.descriptorIndexing = VK_TRUE,
+		.shaderUniformBufferArrayNonUniformIndexing = VK_TRUE,
+		.shaderSampledImageArrayNonUniformIndexing = VK_TRUE,
+		.shaderStorageBufferArrayNonUniformIndexing = VK_TRUE,
+		.shaderStorageImageArrayNonUniformIndexing = VK_TRUE,
 		.descriptorBindingSampledImageUpdateAfterBind = VK_TRUE,
 		.descriptorBindingStorageImageUpdateAfterBind = VK_TRUE,
 		.descriptorBindingStorageBufferUpdateAfterBind = VK_TRUE,
 		.descriptorBindingUpdateUnusedWhilePending = VK_TRUE,
 		.descriptorBindingPartiallyBound = VK_TRUE,
+		.runtimeDescriptorArray = VK_TRUE,
+		.scalarBlockLayout = VK_TRUE,
 		.timelineSemaphore = VK_TRUE,
-		.bufferDeviceAddress = VK_TRUE
+		.bufferDeviceAddress = VK_TRUE,
+		.vulkanMemoryModel = VK_TRUE
 	};
 
 	VkPhysicalDeviceFeatures2 deviceFeatures{
@@ -944,9 +1053,22 @@ auto APIContext::create_logical_device() -> bool
 			.fullDrawIndexUint32 = VK_TRUE,
 			.multiDrawIndirect = VK_TRUE,
 			.multiViewport = VK_TRUE,
-			.samplerAnisotropy = VK_TRUE
+			.samplerAnisotropy = VK_TRUE,
+			.shaderUniformBufferArrayDynamicIndexing = VK_TRUE,
+			.shaderSampledImageArrayDynamicIndexing = VK_TRUE,
+			.shaderStorageBufferArrayDynamicIndexing = VK_TRUE,
+			.shaderStorageImageArrayDynamicIndexing = VK_TRUE,
+			.shaderFloat64 = VK_TRUE,
+			.shaderInt64 = VK_TRUE,
+			.shaderInt16 = VK_TRUE
 		}
 	};
+
+	//VkPhysicalDeviceBufferDeviceAddressFeatures bdaFeature{
+	//	.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES,
+	//	.pNext = &deviceFeatures,
+	//	.bufferDeviceAddress = VK_TRUE
+	//};
 
 	VkDeviceCreateInfo info{
 		.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
@@ -997,7 +1119,7 @@ auto APIContext::clear_zombies() -> void
 	*/
 	vkDeviceWaitIdle(device);
 
-	for (vulkan::Zombie const& zombie : pool.zombies)
+	for (vulkan::Zombie const& zombie : gpuResourcePool.zombies)
 	{
 		if (zombie.type == vulkan::Resource::Swapchain)
 		{
@@ -1019,6 +1141,10 @@ auto APIContext::clear_zombies() -> void
 		{
 			destroy_image_zombie(zombie.location);
 		}
+		else if (zombie.type == vulkan::Resource::Sampler)
+		{
+			destroy_sampler_zombie(zombie.location);
+		}
 		else if (zombie.type == vulkan::Resource::CommandPool)
 		{
 			destroy_command_pool_zombie(zombie.location);
@@ -1037,10 +1163,9 @@ auto APIContext::clear_zombies() -> void
 auto APIContext::initialize_resource_pool() -> void
 {
 	// Readjust configuration values.
-	config.sampledImageDescriptorsCount = std::min(std::min(properties.limits.maxDescriptorSetSampledImages, properties.limits.maxDescriptorSetStorageImages), config.sampledImageDescriptorsCount);
-	config.storageImageDescriptorsCount = std::min(std::min(properties.limits.maxDescriptorSetStorageImages, properties.limits.maxDescriptorSetSampledImages), config.bufferDescriptorsCount);
-	config.bufferDescriptorsCount = std::min(properties.limits.maxDescriptorSetStorageBuffers, config.bufferDescriptorsCount);
-	config.samplerDescriptorCount = std::min(properties.limits.maxDescriptorSetSamplers, config.samplerDescriptorCount);
+	config.maxImages = std::min(std::min(properties.limits.maxDescriptorSetSampledImages, properties.limits.maxDescriptorSetStorageImages), config.maxImages);
+	config.maxBuffers = std::min(properties.limits.maxDescriptorSetStorageBuffers, config.maxBuffers);
+	config.maxSamplers = std::min(properties.limits.maxDescriptorSetSamplers, config.maxSamplers);
 	config.pushConstantMaxSize = std::min(properties.limits.maxPushConstantsSize, config.pushConstantMaxSize);
 }
 
@@ -1053,55 +1178,62 @@ auto APIContext::cleanup_resource_pool() -> void
 
 auto APIContext::destroy_surface_zombie(std::uintptr_t address) -> void
 {
-	vulkan::Surface& surface = pool.surfaces[address];
+	vulkan::Surface& surface = gpuResourcePool.surfaces[address];
 	vkDestroySurfaceKHR(instance, surface.handle, nullptr);
-	pool.surfaces.erase(address);
+	gpuResourcePool.surfaces.erase(address);
 }
 
 auto APIContext::destroy_swapchain_zombie(uint32 location) -> void
 {
-	vulkan::Swapchain& swapchain = pool.swapchains[location];
+	vulkan::Swapchain& swapchain = gpuResourcePool.swapchains[location];
 	for (auto& imageView : swapchain.imageViews)
 	{
 		vkDestroyImageView(device, imageView, nullptr);
 	}
 	vkDestroySwapchainKHR(device, swapchain.handle, nullptr);
-	pool.swapchains.erase(location);
+	gpuResourcePool.swapchains.erase(location);
 }
 
 auto APIContext::destroy_shader_zombie(uint32 location) -> void
 {
-	vulkan::Shader& shader = pool.shaders[location];
+	vulkan::Shader& shader = gpuResourcePool.shaders[location];
 	vkDestroyShaderModule(device, shader.handle, nullptr);
-	pool.shaders.erase(location);
+	gpuResourcePool.shaders.erase(location);
 }
 
 auto APIContext::destroy_buffer_zombie(uint32 location) -> void
 {
-	vulkan::Buffer& buffer = pool.buffers[location];
+	vulkan::Buffer& buffer = gpuResourcePool.buffers[location];
 	vmaDestroyBuffer(allocator, buffer.handle, buffer.allocation);
-	pool.buffers.erase(location);
+	gpuResourcePool.buffers.erase(location);
 }
 
 auto APIContext::destroy_image_zombie(uint32 location) -> void
 {
-	vulkan::Image& image = pool.images[location];
+	vulkan::Image& image = gpuResourcePool.images[location];
 	vmaDestroyImage(allocator, image.handle, image.allocation);
-	pool.images.erase(location);
+	gpuResourcePool.images.erase(location);
+}
+
+auto APIContext::destroy_sampler_zombie(uint32 location) -> void
+{
+	vulkan::Sampler& sampler = gpuResourcePool.samplers[location];
+	vkDestroySampler(device, sampler.handle, nullptr);
+	gpuResourcePool.samplers.erase(location);
 }
 
 auto APIContext::destroy_command_pool_zombie(uint32 location) -> void
 {
-	vulkan::CommandPool& cmdPool = pool.commandPools[location];
+	vulkan::CommandPool& cmdPool = gpuResourcePool.commandPools[location];
 	std::uintptr_t address = reinterpret_cast<std::uintptr_t>(&cmdPool);
 	vkDestroyCommandPool(device, cmdPool.handle, nullptr);
-	pool.commandPools.erase(location);
-	pool.commandBufferPools.erase(address);
+	gpuResourcePool.commandPools.erase(location);
+	gpuResourcePool.commandBufferPools.erase(address);
 }
 
 auto APIContext::destroy_command_buffer_zombie(std::uintptr_t address, size_t location) -> void
 {
-	vulkan::CommandBufferPool& cmdBufferPool = pool.commandBufferPools[address];
+	vulkan::CommandBufferPool& cmdBufferPool = gpuResourcePool.commandBufferPools[address];
 	
 	// The standard says uintptr_t is an unsigned integer capable of holding a pointer.
 	// But I'm not too sure if the line of code below would work.
@@ -1118,9 +1250,9 @@ auto APIContext::destroy_command_buffer_zombie(std::uintptr_t address, size_t lo
 
 auto APIContext::destroy_semaphore_zombie(uint32 location) -> void
 {
-	vulkan::Semaphore& semaphore = pool.semaphores[location];
+	vulkan::Semaphore& semaphore = gpuResourcePool.semaphores[location];
 	vkDestroySemaphore(device, semaphore.handle, nullptr);
-	pool.semaphores.erase(location);
+	gpuResourcePool.semaphores.erase(location);
 }
 
 auto APIContext::create_surface(SurfaceInfo const& info) -> vulkan::Surface*
@@ -1144,7 +1276,7 @@ auto APIContext::create_surface(SurfaceInfo const& info) -> vulkan::Surface*
 #elif PLATFORM_OS_LINUX
 #endif
 
-	vulkan::Surface& surfaceResource = pool.surfaces[key];
+	vulkan::Surface& surfaceResource = gpuResourcePool.surfaces[key];
 	surfaceResource.handle = handle;
 
 	uint32 count = 0;
@@ -1161,36 +1293,35 @@ auto APIContext::create_surface(SurfaceInfo const& info) -> vulkan::Surface*
 
 auto APIContext::create_descriptor_pool() -> bool
 {
-	VkDescriptorPoolSize bufferDescriptorPoolSize{
+	VkDescriptorPoolSize bufferPoolSize{
 		.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-		.descriptorCount = config.bufferDescriptorsCount
+		.descriptorCount = config.maxBuffers + 1
 	};
 
-	VkDescriptorPoolSize storageImageDescriptorPoolSize{
+	VkDescriptorPoolSize storageImagePoolSize{
 		.type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-		.descriptorCount = config.storageImageDescriptorsCount
+		.descriptorCount = config.maxImages
 	};
 
-	VkDescriptorPoolSize sampledImageDescriptorPoolSize{
+	VkDescriptorPoolSize sampledImagePoolSize{
 		.type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-		.descriptorCount = config.sampledImageDescriptorsCount
+		.descriptorCount = config.maxImages
 	};
 
-	VkDescriptorPoolSize samplerDescriptorPoolSize{
+	VkDescriptorPoolSize samplerPoolSize{
 		.type = VK_DESCRIPTOR_TYPE_SAMPLER,
-		.descriptorCount = config.samplerDescriptorCount
+		.descriptorCount = config.maxSamplers
 	};
 
 	VkDescriptorPoolSize poolSizes[] = {
-		bufferDescriptorPoolSize,
-		storageImageDescriptorPoolSize,
-		sampledImageDescriptorPoolSize,
-		samplerDescriptorPoolSize
+		bufferPoolSize,
+		storageImagePoolSize,
+		sampledImagePoolSize,
+		samplerPoolSize
 	};
 
 	VkDescriptorPoolCreateInfo descriptorPoolInfo{
 		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-		.pNext = nullptr,
 		.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT | VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT,
 		.maxSets = 1,
 		.poolSizeCount = static_cast<uint32>(std::size(poolSizes)),
@@ -1202,77 +1333,71 @@ auto APIContext::create_descriptor_pool() -> bool
 
 auto APIContext::create_descriptor_set_layout() -> bool
 {
-	VkDescriptorSetLayoutBinding bufferDescriptorLayoutBinding{
-		.binding = 0,
-		.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-		.descriptorCount = config.bufferDescriptorsCount,
-		.stageFlags = VK_SHADER_STAGE_ALL,
-		.pImmutableSamplers = nullptr,
-	};
-
-	VkDescriptorSetLayoutBinding storageImageDescriptorLayoutBinding{
-		.binding = 1,
+	VkDescriptorSetLayoutBinding storageImageLayout{
+		.binding = STORAGE_IMAGE_BINDING,
 		.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-		.descriptorCount = config.storageImageDescriptorsCount,
-		.stageFlags = VK_SHADER_STAGE_ALL,
-		.pImmutableSamplers = nullptr,
+		.descriptorCount = config.maxImages,
+		.stageFlags = VK_SHADER_STAGE_ALL
 	};
 
-	VkDescriptorSetLayoutBinding sampledImageDescriptorLayoutBinding{
-		.binding = 2,
+	VkDescriptorSetLayoutBinding combinedImageSamplerLayout{
+		.binding = COMBINED_IMAGE_SAMPLER_BINDING,
+		.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+		.descriptorCount = config.maxImages,
+		.stageFlags = VK_SHADER_STAGE_ALL
+	};
+
+	VkDescriptorSetLayoutBinding sampledImageLayout{
+		.binding = SAMPLED_IMAGE_BINDING,
 		.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-		.descriptorCount = config.sampledImageDescriptorsCount,
-		.stageFlags = VK_SHADER_STAGE_ALL,
-		.pImmutableSamplers = nullptr,
+		.descriptorCount = config.maxImages,
+		.stageFlags = VK_SHADER_STAGE_ALL
 	};
 
-	VkDescriptorSetLayoutBinding samplerDescriptorLayoutBinding{
-		.binding = 3,
+	VkDescriptorSetLayoutBinding samplerLayout{
+		.binding = SAMPLER_BINDING,
 		.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
-		.descriptorCount = config.samplerDescriptorCount,
-		.stageFlags = VK_SHADER_STAGE_ALL,
-		.pImmutableSamplers = nullptr,
+		.descriptorCount = config.maxSamplers,
+		.stageFlags = VK_SHADER_STAGE_ALL
 	};
 
-	/*VkDescriptorSetLayoutBinding bufferAddressDescriptorLayoutBinding{
-		.binding = 4,
+	VkDescriptorSetLayoutBinding bufferDeviceAddressLayout{
+		.binding = BUFFER_DEVICE_ADDRESS_BINDING,
 		.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
 		.descriptorCount = 1,
-		.stageFlags = VK_SHADER_STAGE_ALL,
-		.pImmutableSamplers = nullptr,
-	};*/
+		.stageFlags = VK_SHADER_STAGE_ALL
+	};
 
 	VkDescriptorSetLayoutBinding descriptorSetLayoutBindings[] = {
-		bufferDescriptorLayoutBinding,
-		storageImageDescriptorLayoutBinding,
-		sampledImageDescriptorLayoutBinding,
-		samplerDescriptorLayoutBinding/*,
-		bufferAddressDescriptorLayoutBinding,*/
+		storageImageLayout,
+		combinedImageSamplerLayout,
+		sampledImageLayout,
+		samplerLayout,
+		bufferDeviceAddressLayout
 	};
 
-	VkDescriptorBindingFlags descriptorBindingFlags[] = {
-		VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT | VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,
-		VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT | VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,
-		VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT | VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,
-		VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT | VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT/*,
-		VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT | VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT*/
+	VkDescriptorBindingFlags bindingFlags[] = {
+		VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,
+		VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,
+		VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,
+		VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,
+		VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT
 	};
 
-	VkDescriptorSetLayoutBindingFlagsCreateInfo descriptorSetLayoutBindingCreateInfo{
+	VkDescriptorSetLayoutBindingFlagsCreateInfo layoutBindingFlagsCreateInfo{
 		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO,
-		.pNext = nullptr,
-		.bindingCount = static_cast<uint32>(std::size(descriptorBindingFlags)),
-		.pBindingFlags = descriptorBindingFlags,
+		.bindingCount = static_cast<uint32>(std::size(bindingFlags)),
+		.pBindingFlags = bindingFlags,
 	};
 
 	VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo{
 		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-		.pNext = &descriptorSetLayoutBindingCreateInfo,
+		.pNext = &layoutBindingFlagsCreateInfo,
 		.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT,
 		.bindingCount = static_cast<uint32>(std::size(descriptorSetLayoutBindings)),
 		.pBindings = descriptorSetLayoutBindings,
 	};
-
+	
 	return vkCreateDescriptorSetLayout(device, &descriptorSetLayoutCreateInfo, nullptr, &descriptorCache.descriptorSetLayout) == VK_SUCCESS;
 }
 
@@ -1285,7 +1410,6 @@ auto APIContext::allocate_descriptor_set() -> bool
 		.descriptorSetCount = 1u,
 		.pSetLayouts = &descriptorCache.descriptorSetLayout,
 	};
-
 	return vkAllocateDescriptorSets(device, &descriptorSetAllocateInfo, &descriptorCache.descriptorSet) == VK_SUCCESS;
 }
 
@@ -1365,6 +1489,28 @@ auto APIContext::initialize_descriptor_cache() -> bool
 		return false;
 	}
 
+	// Set up buffer device address.
+	{	
+		// Set up buffer device address.
+		VkBufferCreateInfo bufferInfo{
+			.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+			.size = config.maxBuffers * sizeof(uint64),
+			.usage = VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+			.sharingMode = VK_SHARING_MODE_EXCLUSIVE
+		};
+
+		VmaAllocationCreateInfo allocInfo{
+			.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,
+			.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE
+		};
+
+		if (vmaCreateBuffer(allocator, &bufferInfo, &allocInfo, &descriptorCache.bdaBuffer, &descriptorCache.bdaAllocation, nullptr) == VK_SUCCESS)
+		{
+			vmaMapMemory(allocator, descriptorCache.bdaAllocation, reinterpret_cast<void**>(&descriptorCache.bdaHostAddress));
+		}
+	}
+
+
 	if constexpr (ENABLE_DEBUG_RESOURCE_NAMES)
 	{
 		VkDebugUtilsObjectNameInfoEXT debugObjectNameInfo{
@@ -1405,6 +1551,8 @@ auto APIContext::initialize_descriptor_cache() -> bool
 
 auto APIContext::clear_descriptor_cache() -> void
 {
+	vmaUnmapMemory(allocator, descriptorCache.bdaAllocation);
+	vmaDestroyBuffer(allocator, descriptorCache.bdaBuffer, descriptorCache.bdaAllocation);
 	// Remove pre-allocated pipeline layouts.
 	for (auto const& [_, layout] : descriptorCache.pipelineLayouts)
 	{
@@ -1520,7 +1668,7 @@ auto APIContext::create_swapchain(SwapchainInfo&& info, Swapchain* oldSwapchain)
 	}
 
 	std::uintptr_t surfaceAddress = reinterpret_cast<std::uintptr_t>(info.surfaceInfo.instance) | reinterpret_cast<std::uintptr_t>(info.surfaceInfo.window);
-	auto cachedSurface = pool.surfaces.at(surfaceAddress);
+	auto cachedSurface = gpuResourcePool.surfaces.at(surfaceAddress);
 	vulkan::Surface* pSurface = nullptr;
 
 	vulkan::Swapchain* pOldSwapchain = nullptr;
@@ -1551,9 +1699,9 @@ auto APIContext::create_swapchain(SwapchainInfo&& info, Swapchain* oldSwapchain)
 	bool foundPreferred = false;
 	VkSurfaceFormatKHR surfaceFormat = pSurface->availableColorFormats[0];
 
-	for (ImageFormat format : info.surfaceInfo.preferredSurfaceFormats)
+	for (Format format : info.surfaceInfo.preferredSurfaceFormats)
 	{
-		VkFormat preferredFormat = translate_image_format(format);
+		VkFormat preferredFormat = translate_format(format);
 
 		if (foundPreferred)
 		{
@@ -1598,7 +1746,7 @@ auto APIContext::create_swapchain(SwapchainInfo&& info, Swapchain* oldSwapchain)
 		return Swapchain{};
 	}
 
-	auto [index, swapchainResource] = pool.swapchains.emplace(pSurface, hnd, surfaceFormat);
+	auto [index, swapchainResource] = gpuResourcePool.swapchains.emplace(pSurface, hnd, surfaceFormat);
 
 	swapchainResource.images.reserve(imageCount);
 	swapchainResource.images.resize(imageCount);
@@ -1644,24 +1792,24 @@ auto APIContext::destroy_swapchain(Swapchain& swapchain, bool destroySurface) ->
 		std::uintptr_t surfaceAddress = reinterpret_cast<std::uintptr_t>(info.surfaceInfo.instance) | 
 										reinterpret_cast<std::uintptr_t>(info.surfaceInfo.window);
 		vulkan::Swapchain& swapchainResource = base.as<vulkan::Swapchain>();
-		uint32 location = pool.location_of(swapchainResource);
-		pool.zombies.emplace_back(0ull, location, vulkan::Resource::Swapchain);
+		uint32 location = gpuResourcePool.location_of(swapchainResource);
+		gpuResourcePool.zombies.emplace_back(0ull, location, vulkan::Resource::Swapchain);
 		if (destroySurface)
 		{
-			pool.zombies.emplace_back(surfaceAddress, 0u, vulkan::Resource::Surface);
+			gpuResourcePool.zombies.emplace_back(surfaceAddress, 0u, vulkan::Resource::Surface);
 		}
 	}
 	swapchain.~Swapchain();
 }
 
-auto APIContext::create_shader(ShaderInfo&& info) -> Shader
+auto APIContext::create_shader(CompiledShaderInfo&& info) -> Shader
 {
 	if (!info.binaries.size())
 	{
 		return Shader{};
 	}
 
-	constexpr std::string_view shader_types[] = {
+	static constexpr std::string_view shader_types[] = {
 		"vertex",
 		"pixel",
 		"geometry",
@@ -1670,27 +1818,26 @@ auto APIContext::create_shader(ShaderInfo&& info) -> Shader
 		"compute"
 	};
 
-	VkShaderModule hnd;
+	auto [index, shader] = gpuResourcePool.shaders.emplace();
+
 	VkShaderModuleCreateInfo shaderInfo{
 		.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-		.codeSize = info.binaries.size() * sizeof(uint32),
+		.codeSize = info.binaries.size_bytes(),
 		.pCode = info.binaries.data()
 	};
 
-	VkResult result = vkCreateShaderModule(device, &shaderInfo, nullptr, &hnd);
+	VkResult result = vkCreateShaderModule(device, &shaderInfo, nullptr, &shader.handle);
 	if (result != VK_SUCCESS)
 	{
+		gpuResourcePool.shaders.erase(index);
 		return Shader{};
 	}
+	shader.stage = translate_shader_stage(info.type);
 
-	VkShaderStageFlagBits const stage = translate_shader_stage(info.type);
-	auto [index, shaderResource] = pool.shaders.emplace(hnd);
-	shaderResource.stage = stage;
+	using index_type = std::underlying_type_t<ShaderType>;
+	lib::string name{ "<shader:{}>:{}", shader_types[(index_type)info.type].data(), info.path }; 
 
-	using enum_type = std::underlying_type_t<ShaderType>;
-	info.name.format("<shader:{}>:{}", shader_types[static_cast<enum_type>(info.type)].data(), info.name.c_str());
-
-	return Shader{ std::move(info), this, &shaderResource, resource_type_id_v<vulkan::Shader> };
+	return Shader{ ShaderInfo{ .name = std::move(name), .type = info.type, .entryPoint = info.entryPoint }, this, &shader, resource_type_id_v<vulkan::Shader>};
 }
 
 auto APIContext::destroy_shader(Shader& shader) -> void
@@ -1699,59 +1846,55 @@ auto APIContext::destroy_shader(Shader& shader) -> void
 	{
 		Resource& base = shader;
 		vulkan::Shader& shaderResource = base.as<vulkan::Shader>();
-		uint32 location = pool.location_of(shaderResource);
-		pool.zombies.emplace_back(0ull, location, vulkan::Resource::Shader);
+		uint32 location = gpuResourcePool.location_of(shaderResource);
+		gpuResourcePool.zombies.emplace_back(0ull, location, vulkan::Resource::Shader);
 	}
 	shader.~Shader();
 }
 
 auto APIContext::allocate_buffer(BufferInfo&& info) -> Buffer
 {
-	constexpr std::string_view buffer_locality[] = {
-		"cpu",
-		"gpu",
-		"cpu_to_gpu"
-	};
+	auto [index, buffer] = gpuResourcePool.buffers.emplace();
 
 	VkBufferCreateInfo bufferInfo{
-		.sType			= VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-		.size			= info.size,
-		.usage			= translate_buffer_usage_flags(info.usage),
-		.sharingMode	= VK_SHARING_MODE_EXCLUSIVE
+		.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+		.size = info.size,
+		.usage = VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | translate_buffer_usage_flags(info.bufferUsage),
+		.sharingMode = VK_SHARING_MODE_EXCLUSIVE
 	};
 
-	VmaAllocationCreateInfo allocInfo{ 
-		.usage = translate_memory_usage_flag(info.locality) 
+	auto allocationFlags = translate_memory_usage(info.memoryUsage);
+
+	if ((allocationFlags & VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT) != 0 ||
+		(allocationFlags & VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT) != 0)
+	{
+		allocationFlags |= VMA_ALLOCATION_CREATE_MAPPED_BIT;
+	}
+
+	VmaAllocationCreateInfo allocInfo{
+		.flags = allocationFlags,
+		.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE
 	};
 
-	VkBuffer hnd;
-	VmaAllocation allocation;
-	VkResult result = vmaCreateBuffer(allocator, &bufferInfo, &allocInfo, &hnd, &allocation, nullptr);
+	VmaAllocationInfo allocationInfo = {};
+	VkResult result = vmaCreateBuffer(allocator, &bufferInfo, &allocInfo, &buffer.handle, &buffer.allocation, &allocationInfo);
+
 	ASSERTION(result == VK_SUCCESS);
-
 	if (result != VK_SUCCESS)
 	{
+		gpuResourcePool.buffers.erase(index);
 		return Buffer{};
 	}
 
 	VkBufferDeviceAddressInfo addressInfo{
-		.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_CREATE_INFO_EXT,
-		.buffer = hnd
+		.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO_EXT,
+		.buffer = buffer.handle
 	};
-	VkDeviceAddress deviceAddress = vkGetBufferDeviceAddressKHR(device, &addressInfo);
+	buffer.address = vkGetBufferDeviceAddress(device, &addressInfo);
 
-	auto [index, bufferResource] = pool.buffers.emplace(hnd, deviceAddress, allocation);
-	void* pAddress = nullptr;
+	info.name.format("<buffer>:{}", info.name.c_str());
 
-	if (info.locality != MemoryLocality::Gpu)
-	{
-		vmaMapMemory(allocator, allocation, &pAddress);
-		vmaUnmapMemory(allocator, allocation);
-	}
-	using enum_type = std::underlying_type_t<MemoryLocality>;
-	info.name.format("<buffer:{}>:{}", buffer_locality[static_cast<enum_type>(info.locality)].data(), info.name.c_str());
-
-	return Buffer{ std::move(info), this, pAddress, &bufferResource, resource_type_id_v<vulkan::Buffer> };
+	return Buffer{ std::move(info), allocationInfo.pMappedData, this, &buffer, resource_type_id_v<vulkan::Buffer> };
 }
 
 auto APIContext::release_buffer(Buffer& buffer) -> void
@@ -1760,17 +1903,18 @@ auto APIContext::release_buffer(Buffer& buffer) -> void
 	{
 		Resource& base = buffer;
 		vulkan::Buffer& bufferResource = base.as<vulkan::Buffer>();
-		uint32 location = pool.location_of(bufferResource);
-		pool.zombies.emplace_back(0ull, location, vulkan::Resource::Buffer);
+		uint32 location = gpuResourcePool.location_of(bufferResource);
+		gpuResourcePool.zombies.emplace_back(0ull, location, vulkan::Resource::Buffer);
 	}
 	buffer.~Buffer();
 }
 
 auto APIContext::create_image(ImageInfo&& info) -> Image
 {
+	auto [index, image] = gpuResourcePool.images.emplace();
 	constexpr uint32 MAX_IMAGE_MIP_LEVEL = 4u;
 
-	VkFormat format = translate_image_format(info.format);
+	VkFormat format = translate_format(info.format);
 	VkImageUsageFlags usage = translate_image_usage_flags(info.imageUsage);
 
 	VkImageAspectFlags aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -1790,58 +1934,65 @@ auto APIContext::create_image(ImageInfo&& info) -> Image
 
 	if (info.mipLevel > 1)
 	{
-		const float32 width		= static_cast<const float32>(info.dimension.width);
-		const float32 height	= static_cast<const float32>(info.dimension.height);
+		const float32 width = static_cast<const float32>(info.dimension.width);
+		const float32 height = static_cast<const float32>(info.dimension.height);
 
 		mipLevels = static_cast<uint32>(std::floorf(std::log2f(std::max(width, height)))) + 1u;
 		mipLevels = std::min(mipLevels, MAX_IMAGE_MIP_LEVEL);
 	}
 
 	VkImageCreateInfo imgInfo{
-		.sType			= VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-		.imageType		= translate_image_type(info.type),
-		.format			= format,
-		.extent			= VkExtent3D{ info.dimension.width, info.dimension.width, depth },
-		.mipLevels		= mipLevels,
-		.arrayLayers	= 1,
-		.samples		= translate_sample_count(info.samples),
-		.tiling			= translate_image_tiling(info.tiling),
-		.usage			= usage,
-		.sharingMode	= VK_SHARING_MODE_EXCLUSIVE,
-		.initialLayout	= VK_IMAGE_LAYOUT_UNDEFINED,
+		.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+		.imageType = translate_image_type(info.type),
+		.format	= format,
+		.extent	= VkExtent3D{ info.dimension.width, info.dimension.width, depth },
+		.mipLevels	= mipLevels,
+		.arrayLayers = 1,
+		.samples = translate_sample_count(info.samples),
+		.tiling	= translate_image_tiling(info.tiling),
+		.usage = usage,
+		.sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+		.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
 	};
 
-	VmaAllocationCreateInfo allocInfo{ .usage = VMA_MEMORY_USAGE_GPU_ONLY };
-	VkImage hnd;
-	VmaAllocation allocation;
+	auto allocationFlags = translate_memory_usage(info.memoryUsage);
+	
+	if ((allocationFlags & VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT) != 0 ||
+		(allocationFlags & VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT) != 0)
+	{
+		allocationFlags |= VMA_ALLOCATION_CREATE_MAPPED_BIT;
+	}
 
-	VkResult result = vmaCreateImage(allocator, &imgInfo, &allocInfo, &hnd, &allocation, nullptr);
+	VmaAllocationCreateInfo allocInfo{
+		.flags = allocationFlags,
+		.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE 
+	};
+	VmaAllocationInfo allocationInfo = {};
+
+	VkResult result = vmaCreateImage(allocator, &imgInfo, &allocInfo, &image.handle, &image.allocation, &allocationInfo);
 	ASSERTION(result == VK_SUCCESS);
-
 	if (result != VK_SUCCESS)
 	{
+		gpuResourcePool.images.erase(index);
 		return Image{};
 	}
 
-	VkImageView imgViewHnd;
 	VkImageViewCreateInfo imgViewInfo{
-		.sType		= VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-		.image		= hnd,
-		.viewType	= translate_image_view_type(info.type),
-		.format		= format,
+		.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+		.image = image.handle,
+		.viewType = translate_image_view_type(info.type),
+		.format	= format,
 		.subresourceRange = {
-			.aspectMask		= aspectFlags,
-			.baseMipLevel	= 0,
-			.levelCount		= mipLevels,
+			.aspectMask	= aspectFlags,
+			.baseMipLevel = 0,
+			.levelCount	= mipLevels,
 			.baseArrayLayer = 0,
-			.layerCount		= 1
+			.layerCount = 1
 		}
 	};
-	vkCreateImageView(device, &imgViewInfo, nullptr, &imgViewHnd);
+	vkCreateImageView(device, &imgViewInfo, nullptr, &image.imageView);
 
-	auto [index, imageResource] = pool.images.emplace(hnd, imgViewHnd, allocation);
-
-	return Image{ std::move(info), this, &imageResource, resource_type_id_v<vulkan::Image> };
+	return Image{ std::move(info), this, &image, resource_type_id_v<vulkan::Image> };
 }
 
 auto APIContext::destroy_image(Image& image) -> void
@@ -1850,88 +2001,153 @@ auto APIContext::destroy_image(Image& image) -> void
 	{
 		Resource& base = image;
 		vulkan::Image& imageResource = base.as<vulkan::Image>();
-		uint32 location = pool.location_of(imageResource);
-		pool.zombies.emplace_back(0ull, location, vulkan::Resource::Image);
+		uint32 location = gpuResourcePool.location_of(imageResource);
+		gpuResourcePool.zombies.emplace_back(0ull, location, vulkan::Resource::Image);
 	}
 	image.~Image();
 }
 
-auto APIContext::create_pipeline(RasterPipelineInfo&& info) -> RasterPipeline
+auto APIContext::create_sampler(SamplerInfo&& info) -> Sampler
+{
+	uint64 packed = get_sampler_info_packed_uint64(info);
+
+	if (gpuResourcePool.samplerCache.contains(packed))
+	{
+		uint32 location = gpuResourcePool.samplerCache[packed];
+		vulkan::Sampler& existingSampler = gpuResourcePool.samplers[location];
+		++existingSampler.references;
+
+		return Sampler{ std::move(info), packed, this, &existingSampler, resource_type_id_v<vulkan::Sampler> };
+	}
+
+	auto [index, sampler] = gpuResourcePool.samplers.emplace();
+
+	++sampler.references;
+
+	VkSamplerCreateInfo createInfo{
+		.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+		.magFilter = translate_texel_filter(info.magFilter),
+		.minFilter = translate_texel_filter(info.minFilter),
+		.mipmapMode = translate_mipmap_mode(info.mipmapMode),
+		.addressModeU = translate_sampler_address_mode(info.addressModeU),
+		.addressModeV = translate_sampler_address_mode(info.addressModeV),
+		.addressModeW = translate_sampler_address_mode(info.addressModeW),
+		.mipLodBias = info.mipLodBias,
+		.anisotropyEnable = (info.maxAnisotropy > 0.f) ? VK_TRUE : VK_FALSE,
+		.maxAnisotropy = info.maxAnisotropy,
+		.compareEnable = (info.compareOp != CompareOp::Never) ? VK_TRUE : VK_FALSE,
+		.compareOp = translate_compare_op(info.compareOp),
+		.minLod = info.minLod,
+		.maxLod = info.maxLod,
+		.borderColor = translate_border_color(info.borderColor),
+		.unnormalizedCoordinates = info.unnormalizedCoordinates ? VK_TRUE : VK_FALSE
+	};
+
+	VkResult result = vkCreateSampler(device, &createInfo, nullptr, &sampler.handle);
+	if (result != VK_SUCCESS)
+	{
+		gpuResourcePool.samplers.erase(index);
+		return Sampler{};
+	}
+	// Store the sampler info's hash.
+	gpuResourcePool.samplerCache[packed] = index.id;
+
+	return Sampler{ std::move(info), packed, this, &sampler, resource_type_id_v<vulkan::Sampler> };
+}
+
+auto APIContext::destroy_sampler(Sampler& sampler) -> void
+{
+	if (sampler.valid())
+	{
+		Resource& base = sampler;
+		vulkan::Sampler& samplerResource = base.as<vulkan::Sampler>();
+
+		if (samplerResource.references == 1)
+		{
+			gpuResourcePool.samplerCache.erase(sampler.m_packed_info);
+			uint32 location = gpuResourcePool.location_of(samplerResource);
+			gpuResourcePool.zombies.emplace_back(0ull, location, vulkan::Resource::Sampler);
+		}
+		else
+		{
+			--samplerResource.references;
+		}
+	}
+	sampler.~Sampler();
+}
+
+auto APIContext::create_pipeline(RasterPipelineInfo&& info, PipelineShaderInfo const& pipelineShaders) -> RasterPipeline
 {
 	/**
 	* TODO(afiq):
 	* Add support for compute, tesselation control, tesselation evaluation and geometry shaders.
  	**/
 	// It is necessary for raster pipelines to have a vertex shader and fragment shader.
-	if (!info.vertexShader || !info.pixelShader)
+	if (!pipelineShaders.vertexShader || 
+		!pipelineShaders.pixelShader)
 	{
 		return RasterPipeline{};
 	}
 
-	size_t shaderCount = 0;
-	std::array<VkPipelineShaderStageCreateInfo, 5> shaderStages{}; 
+	auto [index, rasterPipeline] = gpuResourcePool.pipelines.emplace();
+
+	vulkan::Shader& vertexShader = pipelineShaders.vertexShader->as<vulkan::Shader>();
+	vulkan::Shader& pixelShader = pipelineShaders.pixelShader->as<vulkan::Shader>();
 
 	// Vertex shader.
-	VkPipelineShaderStageCreateInfo& vertexShaderStage = shaderStages[shaderCount++];
-	vulkan::Shader& vertexShaderResource = info.vertexShader->as<vulkan::Shader>();
-	vertexShaderStage = {
+	VkPipelineShaderStageCreateInfo vertexStage{
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-		.stage = vertexShaderResource.stage,
-		.module = vertexShaderResource.handle,
-		.pName = info.vertexShader->info().entryPoint.c_str()
+		.stage = vertexShader.stage,
+		.module = vertexShader.handle,
+		.pName = pipelineShaders.vertexShader->info().entryPoint.c_str()
 	};
 
 	// Pixel shader.
-	VkPipelineShaderStageCreateInfo& pixelShaderStage = shaderStages[shaderCount++];
-	vulkan::Shader& pixelShaderResource = info.pixelShader->as<vulkan::Shader>();
-	pixelShaderStage = {
+	VkPipelineShaderStageCreateInfo pixelShadingStage{
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-		.stage = pixelShaderResource.stage,
-		.module = pixelShaderResource.handle,
-		.pName = info.pixelShader->info().entryPoint.c_str()
+		.stage = pixelShader.stage,
+		.module = pixelShader.handle,
+		.pName = pipelineShaders.pixelShader->info().entryPoint.c_str()
 	};
 
-	std::span<VertexInputBinding const> inputBindings{ 
-		info.inputBindings.data(), 
-		info.inputBindings.size()
-	};
+	std::array shaderStages = { vertexStage, pixelShadingStage };
 
-	size_t bindingDescCount = 0;
-	size_t attributeDescCount = 0;
-	std::array<VkVertexInputBindingDescription, 32> bindingDescriptions{};
+	uint32 numBindings = 0;
+	uint32 numAttributes = 0;
+	std::array<VkVertexInputBindingDescription, 32> inputBindings{};
 	std::array<VkVertexInputAttributeDescription, 64> attributeDescriptions{};
 
-	for (size_t i = 0; i < inputBindings.size(); ++i, ++bindingDescCount)
+	for (VertexInputBinding const& input : info.vertexInputBindings)
 	{
-		VertexInputBinding const& input = inputBindings[i];
-		bindingDescriptions[i] = {
-			.binding = input.binding,
+		inputBindings[numBindings] = {
+			.binding = numBindings,
 			.stride = input.stride,
 			.inputRate = (input.instanced) ? VK_VERTEX_INPUT_RATE_INSTANCE : VK_VERTEX_INPUT_RATE_VERTEX
 		};
-		uint32 stride = 0;
-		auto shaderAttributes = info.vertexShader->attributes();
-		if (shaderAttributes.size())
+		if (pipelineShaders.vertexInputAttributes.size())
 		{
-			for (size_t j = input.from; j <= input.to; ++j)
+			uint32 stride = 0;
+			for (uint32 i = input.from; i <= input.to; ++i)
 			{
-				auto const& attrib = shaderAttributes[j];
-				attributeDescriptions[attributeDescCount++] = {
-					.location = attrib.location,
-					.binding = input.binding,
-					.format = translate_shader_attrib_format(attrib.format),
+				auto&& attribute = pipelineShaders.vertexInputAttributes[i];
+				attributeDescriptions[numAttributes] = {
+					.location = attribute.location,
+					.binding = numBindings,
+					.format = translate_shader_attrib_format(attribute.format),
 					.offset = stride,
 				};
-				stride += stride_for_shader_attrib_format(attrib.format);
+				stride += stride_for_shader_attrib_format(attribute.format);
+				++numAttributes;
 			}
 		}
+		++numBindings;
 	}
 
 	VkPipelineVertexInputStateCreateInfo pipelineVertexState{
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-		.vertexBindingDescriptionCount = static_cast<uint32>(bindingDescCount),
-		.pVertexBindingDescriptions	= bindingDescriptions.data(),
-		.vertexAttributeDescriptionCount = static_cast<uint32>(attributeDescCount),
+		.vertexBindingDescriptionCount = numBindings,
+		.pVertexBindingDescriptions	= inputBindings.data(),
+		.vertexAttributeDescriptionCount = numAttributes,
 		.pVertexAttributeDescriptions = attributeDescriptions.data(),
 	};
 
@@ -2006,7 +2222,7 @@ auto APIContext::create_pipeline(RasterPipelineInfo&& info) -> RasterPipeline
 			.alphaBlendOp = translate_blend_op(attachment.blendInfo.alphaBlendOp),
 			.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT
 		};
-		colorAttachmentFormats[i] = translate_image_format(attachment.format);
+		colorAttachmentFormats[i] = translate_format(attachment.format);
 	}
 
 	VkPipelineColorBlendStateCreateInfo pipelineColorBlendState{
@@ -2036,13 +2252,12 @@ auto APIContext::create_pipeline(RasterPipelineInfo&& info) -> RasterPipeline
 		.stencilAttachmentFormat = VK_FORMAT_UNDEFINED
 	};
 
-	VkPipelineLayout hlayout = get_appropriate_pipeline_layout(info.pushConstantSize, properties.limits.maxPushConstantsSize);
+	VkPipelineLayout layoutHandle = get_appropriate_pipeline_layout(info.pushConstantSize, properties.limits.maxPushConstantsSize);
 
-	VkPipeline hpipeline;
 	VkGraphicsPipelineCreateInfo pipelineCreateInfo{
 		.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
 		.pNext = &pipelineRendering,
-		.stageCount	= static_cast<uint32>(shaderCount),
+		.stageCount	= (uint32)shaderStages.size(),
 		.pStages = shaderStages.data(),
 		.pVertexInputState = &pipelineVertexState,
 		.pInputAssemblyState = &pipelineInputAssembly,
@@ -2053,7 +2268,7 @@ auto APIContext::create_pipeline(RasterPipelineInfo&& info) -> RasterPipeline
 		.pDepthStencilState = &pipelineDepthStencilState,
 		.pColorBlendState = &pipelineColorBlendState,
 		.pDynamicState = &pipelineDynamicState,
-		.layout	= hlayout,
+		.layout	= layoutHandle,
 		.renderPass	= nullptr,
 		.subpass = 0,
 		.basePipelineHandle = VK_NULL_HANDLE,
@@ -2062,18 +2277,19 @@ auto APIContext::create_pipeline(RasterPipelineInfo&& info) -> RasterPipeline
 
 	// TODO(Afiq):
 	// The only way this can fail is when we run out of host / device memory OR shader linkage has failed.
-	VkResult result = vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &hpipeline);
+	VkResult result = vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &rasterPipeline.handle);
 	ASSERTION(result == VK_SUCCESS);
 	if (result != VK_SUCCESS)
 	{
+		gpuResourcePool.pipelines.erase(index);
 		return RasterPipeline{};
 	}
 
-	auto [index, pipelineResource] = pool.pipelines.emplace(hpipeline, hlayout);
+	rasterPipeline.layout = layoutHandle;
 
 	info.name.format("<pipeline>:{}", info.name.c_str());
 
-	return RasterPipeline{ std::move(info), this, &pipelineResource, resource_type_id_v<vulkan::Pipeline> };
+	return RasterPipeline{ std::move(info), this, &rasterPipeline, resource_type_id_v<vulkan::Pipeline> };
 }
 
 auto APIContext::destroy_pipeline(RasterPipeline& pipeline) -> void
@@ -2088,8 +2304,8 @@ auto APIContext::destroy_pipeline(RasterPipeline& pipeline) -> void
 auto APIContext::destroy_pipeline_internal(Pipeline& pipeline) -> void
 {
 	vulkan::Pipeline& pipelineResource = pipeline.as<vulkan::Pipeline>();
-	uint32 location = pool.location_of(pipelineResource);
-	pool.zombies.emplace_back(0ull, location, vulkan::Resource::Pipeline);
+	uint32 location = gpuResourcePool.location_of(pipelineResource);
+	gpuResourcePool.zombies.emplace_back(0ull, location, vulkan::Resource::Pipeline);
 }
 
 auto APIContext::flush_submit_info_buffers() -> void
@@ -2141,7 +2357,7 @@ auto APIContext::create_command_pool(CommandPoolInfo&& info) -> CommandPool
 	{
 		return CommandPool{};
 	}
-	auto [index, commandPoolResource] = pool.commandPools.emplace(hcommandPool);
+	auto [index, commandPoolResource] = gpuResourcePool.commandPools.emplace(hcommandPool);
 
 	info.name.format("<command_pool>:{}", info.name.c_str());
 
@@ -2153,8 +2369,8 @@ auto APIContext::destroy_command_pool(CommandPool& commandPool) -> void
 	if (commandPool.valid())
 	{
 		vulkan::CommandPool& cmdPool = commandPool.as<vulkan::CommandPool>();
-		uint32 location = pool.location_of(cmdPool);
-		pool.zombies.emplace_back(0ull, location, vulkan::Resource::CommandPool);
+		uint32 location = gpuResourcePool.location_of(cmdPool);
+		gpuResourcePool.zombies.emplace_back(0ull, location, vulkan::Resource::CommandPool);
 	}
 	commandPool.~CommandPool();
 }
@@ -2170,7 +2386,7 @@ auto APIContext::create_binary_semaphore(SemaphoreInfo&& info) -> Semaphore
 	{
 		return Semaphore{};
 	}
-	auto [index, binarySemaphoreResource] = pool.semaphores.emplace(semaphoreHandle, VK_SEMAPHORE_TYPE_BINARY);
+	auto [index, binarySemaphoreResource] = gpuResourcePool.semaphores.emplace(semaphoreHandle, VK_SEMAPHORE_TYPE_BINARY);
 
 	info.name.format("<semaphore>:{}", info.name.c_str());
 
@@ -2182,8 +2398,8 @@ auto APIContext::destroy_binary_semaphore(Semaphore& semaphore) -> void
 	if (semaphore.valid())
 	{
 		vulkan::Semaphore& binarySemaphore = semaphore.as<vulkan::Semaphore>();
-		uint32 location = pool.location_of(binarySemaphore);
-		pool.zombies.emplace_back(0ull, location, vulkan::Resource::Semaphore);
+		uint32 location = gpuResourcePool.location_of(binarySemaphore);
+		gpuResourcePool.zombies.emplace_back(0ull, location, vulkan::Resource::Semaphore);
 	}
 	semaphore.~Semaphore();
 }
@@ -2205,7 +2421,7 @@ auto APIContext::create_timeline_semaphore(FenceInfo&& info) -> Fence
 	{
 		return Fence{};
 	}
-	auto [index, semaphoreResource] = pool.semaphores.emplace(semaphoreHandle, VK_SEMAPHORE_TYPE_TIMELINE, info.initialValue);
+	auto [index, semaphoreResource] = gpuResourcePool.semaphores.emplace(semaphoreHandle, VK_SEMAPHORE_TYPE_TIMELINE, info.initialValue);
 
 	info.name.format("<timeline_semaphore>:{}", info.name.c_str());
 
@@ -2217,8 +2433,8 @@ auto APIContext::destroy_timeline_semaphore(Fence& fence) -> void
 	if (fence.valid())
 	{
 		vulkan::Semaphore& timelineSemaphore = fence.as<vulkan::Semaphore>();
-		uint32 location = pool.location_of(timelineSemaphore);
-		pool.zombies.emplace_back(0ull, location, vulkan::Resource::Semaphore);
+		uint32 location = gpuResourcePool.location_of(timelineSemaphore);
+		gpuResourcePool.zombies.emplace_back(0ull, location, vulkan::Resource::Semaphore);
 	}
 	fence.~Fence();
 }
@@ -2404,6 +2620,25 @@ auto APIContext::setup_debug_name(Image const& image) -> void
 	}
 }
 
+auto APIContext::setup_debug_name(Sampler const& sampler) -> void
+{
+	if constexpr (ENABLE_DEBUG_RESOURCE_NAMES)
+	{
+		auto&& name = sampler.info().name;
+		if (name.size())
+		{
+			vulkan::Sampler& smp = sampler.as<vulkan::Sampler>();
+			VkDebugUtilsObjectNameInfoEXT debugResourceNameInfo{
+				.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+				.objectType = VK_OBJECT_TYPE_SAMPLER,
+				.objectHandle = reinterpret_cast<uint64_t>(smp.handle),
+				.pObjectName = name.c_str(),
+			};
+			vkSetDebugUtilsObjectNameEXT(device, &debugResourceNameInfo);
+		}
+	}
+}
+
 auto APIContext::setup_debug_name(RasterPipeline const& pipeline) -> void
 {
 	if constexpr (ENABLE_DEBUG_RESOURCE_NAMES)
@@ -2499,6 +2734,91 @@ auto APIContext::setup_debug_name(Fence const& fence) -> void
 	}
 }
 
+//auto APIContext::update_descriptor_set_buffer(VkBuffer buffer, size_t offset, size_t size, uint32 index) -> void
+//{
+//	VkDescriptorBufferInfo bufferInfo{
+//		.buffer = buffer,
+//		.offset = offset,
+//		.range = size,
+//	};
+//	VkWriteDescriptorSet writeDescriptorSetBuffer{
+//		.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+//		.dstSet = descriptorCache.descriptorSet,
+//		.dstBinding = BUFFER_BINDING,
+//		.dstArrayElement = index,
+//		.descriptorCount = 1,
+//		.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+//		.pBufferInfo = &bufferInfo
+//	};
+//	vkUpdateDescriptorSets(device, 1, &writeDescriptorSetBuffer, 0, nullptr);
+//}
+
+//auto APIContext::update_descriptor_set_image(VkImageView imageView, ImageUsage usage, uint32 index) -> void
+//{
+//	uint32 count = 0;
+//	std::array<VkWriteDescriptorSet, 2> descriptorSetWrites{};
+//
+//	VkDescriptorImageInfo imageInfo{
+//		.sampler = VK_NULL_HANDLE,
+//		.imageView = imageView,
+//		.imageLayout = VK_IMAGE_LAYOUT_READ_ONLY_OPTIMAL
+//	};
+//
+//	VkDescriptorImageInfo storageImageInfo{
+//		.sampler = VK_NULL_HANDLE,
+//		.imageView = imageView,
+//		.imageLayout = VK_IMAGE_LAYOUT_GENERAL
+//	};
+//
+//	if ((usage & ImageUsage::Sampled) != ImageUsage::None)
+//	{
+//		descriptorSetWrites[count++] = {
+//			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+//			.dstSet = descriptorCache.descriptorSet,
+//			.dstBinding = SAMPLED_IMAGE_BINDING,
+//			.dstArrayElement = index,
+//			.descriptorCount = 1,
+//			.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+//			.pImageInfo = &imageInfo
+//		};
+//	}
+//
+//	if ((usage & ImageUsage::Storage) != ImageUsage::None)
+//	{
+//		descriptorSetWrites[count++] = {
+//			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+//			.dstSet = descriptorCache.descriptorSet,
+//			.dstBinding = STORAGE_IMAGE_BINDING,
+//			.dstArrayElement = index,
+//			.descriptorCount = 1,
+//			.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+//			.pImageInfo = &storageImageInfo
+//		};
+//	}
+//
+//	vkUpdateDescriptorSets(device, count, descriptorSetWrites.data(), 0, nullptr);
+//}
+
+//auto APIContext::update_descriptor_set_sampler(VkSampler sampler, uint32 index) -> void
+//{
+//	VkDescriptorImageInfo samplerInfo{
+//		.sampler = sampler,
+//		.imageView = VK_NULL_HANDLE,
+//		.imageLayout = VK_IMAGE_LAYOUT_UNDEFINED
+//	};
+//
+//	VkWriteDescriptorSet writeDescriptorSetImage{
+//		.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+//		.dstSet = descriptorCache.descriptorSet,
+//		.dstBinding = SAMPLER_BINDING,
+//		.dstArrayElement = index,
+//		.descriptorCount = 1,
+//		.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
+//		.pImageInfo = &samplerInfo
+//	};
+//	vkUpdateDescriptorSets(device, 1, &writeDescriptorSetImage, 0, nullptr);
+//}
+
 auto Device::device_info() const -> DeviceInfo const&
 {
 	return m_info;
@@ -2519,7 +2839,7 @@ auto Device::destroy_swapchain(Swapchain& swapchain, bool destroySurface) -> voi
 	m_context->destroy_swapchain(swapchain, destroySurface);
 }
 
-auto Device::create_shader(ShaderInfo&& info) -> Shader
+auto Device::create_shader(CompiledShaderInfo&& info) -> Shader
 {
 	return m_context->create_shader(std::move(info));
 }
@@ -2549,9 +2869,19 @@ auto Device::destroy_image(Image& image) -> void
 	m_context->destroy_image(image);
 }
 
-auto Device::create_pipeline(RasterPipelineInfo&& info) -> RasterPipeline
+auto Device::create_sampler(SamplerInfo&& info) -> Sampler
 {
-	return m_context->create_pipeline(std::move(info));
+	return m_context->create_sampler(std::move(info));
+}
+
+auto Device::destroy_sampler(Sampler& sampler) -> void
+{
+	m_context->destroy_sampler(sampler);
+}
+
+auto Device::create_pipeline(RasterPipelineInfo&& info, PipelineShaderInfo const& pipelineShaders) -> RasterPipeline
+{
+	return m_context->create_pipeline(std::move(info), pipelineShaders);
 }
 
 auto Device::destroy_pipeline(RasterPipeline& pipeline) -> void

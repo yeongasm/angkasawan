@@ -38,7 +38,7 @@ Swapchain::Swapchain(
 	
 	m_gpu_elapsed_frames = m_context->create_timeline_semaphore({ .name = "gpu_frame_timeline", .initialValue = 0 });
 
-	uint32 maxFramesInFlight = m_context->config.framesInFlight;
+	uint32 maxFramesInFlight = m_context->config.maxFramesInFlight;
 	m_acquire_semaphore.reserve(static_cast<size_t>(maxFramesInFlight));
 	m_present_semaphore.reserve(static_cast<size_t>(maxFramesInFlight));
 
@@ -55,11 +55,11 @@ Swapchain::Swapchain(
 		ImageInfo swapchainImageInfo{
 			.name = lib::format("<swapchain_image_{}>:{}", i, m_info.name.c_str()),
 			.type = ImageType::Image_2D,
-			.format = static_cast<ImageFormat>(swapchainData.surfaceColorFormat.format),
+			.format = static_cast<Format>(swapchainData.surfaceColorFormat.format),
 			.samples = SampleCount::Sample_Count_1,
 			.tiling = ImageTiling::Optimal,
 			.imageUsage = m_info.imageUsage,
-			.locality = MemoryLocality::Gpu,
+			.memoryUsage = MemoryUsage::Dedicated,
 			.dimension = { .width = m_info.dimension.width, .height = m_info.dimension.height, .depth = 0u },
 			.clearValue = { .color = { .f32 = { 0.f, 0.f, 0.f, 1.f } } },
 			.mipLevel = 0
@@ -129,7 +129,7 @@ auto Swapchain::acquire_next_image() -> Image const&
 	{
 		return NULL_SWAPCHAIN_IMAGE;
 	}
-	[[maybe_unused]] int64 const maxFramesInFlight = static_cast<int64>(m_context->config.framesInFlight);
+	[[maybe_unused]] int64 const maxFramesInFlight = static_cast<int64>(m_context->config.maxFramesInFlight);
 	// We wait until the gpu elapsed frame count is behind our swapchain's elapsed frame count.
 	[[maybe_unused]] uint64 currentValue = m_gpu_elapsed_frames.value();
 	m_gpu_elapsed_frames.wait_for_value(static_cast<uint64>(std::max(0ll, static_cast<int64>(m_cpu_elapsed_frames))));
@@ -197,9 +197,9 @@ auto Swapchain::get_gpu_fence() const -> Fence const&
 	return m_gpu_elapsed_frames;
 }
 
-auto Swapchain::image_format() const -> ImageFormat
+auto Swapchain::image_format() const -> Format
 {
-	ImageFormat format = ImageFormat::Undefined;
+	Format format = Format::Undefined;
 	if (m_images.size())
 	{
 		format = m_images[0].info().format;

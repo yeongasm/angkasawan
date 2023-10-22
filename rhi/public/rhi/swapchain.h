@@ -29,7 +29,7 @@ public:
 	RHI_API auto cpu_frame_count() const -> uint64;
 	RHI_API auto gpu_frame_count() const -> uint64;
 	RHI_API auto get_gpu_fence() const -> Fence const&;
-	RHI_API auto image_format() const -> ImageFormat;
+	RHI_API auto image_format() const -> Format;
 private:
 	friend struct APIContext;
 

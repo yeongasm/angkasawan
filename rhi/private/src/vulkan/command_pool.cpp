@@ -50,7 +50,7 @@ auto CommandPool::allocate_command_buffer(CommandBufferInfo&& info) -> CommandBu
 {
 	vulkan::CommandPool& cmdPool = as<vulkan::CommandPool>();
 	std::uintptr_t cmdPoolAddress = reinterpret_cast<std::uintptr_t>(&cmdPool);
-	vulkan::CommandBufferPool& cmdBufferPool = m_context->pool.commandBufferPools[cmdPoolAddress];
+	vulkan::CommandBufferPool& cmdBufferPool = m_context->gpuResourcePool.commandBufferPools[cmdPoolAddress];
 
 	if (cmdBufferPool.commandBufferCount + 1 >= MAX_COMMAND_BUFFER_PER_POOL)
 	{
@@ -105,14 +105,14 @@ auto CommandPool::free_command_buffer(CommandBuffer& commandBuffer) -> void
 
 	vulkan::CommandPool& cmdPool = as<vulkan::CommandPool>();
 	std::uintptr_t cmdPoolAddress = reinterpret_cast<std::uintptr_t>(&cmdPool);
-	vulkan::CommandBufferPool& cmdBufferPool = m_context->pool.commandBufferPools[cmdPoolAddress];
+	vulkan::CommandBufferPool& cmdBufferPool = m_context->gpuResourcePool.commandBufferPools[cmdPoolAddress];
 	vulkan::CommandBuffer& cmdBufferResource = commandBuffer.as<vulkan::CommandBuffer>();
 
 	if (&cmdBufferResource >= cmdBufferPool.commandBuffers.data() && 
 		&cmdBufferResource < cmdBufferPool.commandBuffers.data() + MAX_COMMAND_BUFFER_PER_POOL)
 	{
 		size_t index = static_cast<size_t>(&cmdBufferResource - cmdBufferPool.commandBuffers.data());
-		m_context->pool.zombies.emplace_back(cmdPoolAddress, static_cast<uint32>(index), vulkan::Resource::CommandBuffer);
+		m_context->gpuResourcePool.zombies.emplace_back(cmdPoolAddress, static_cast<uint32>(index), vulkan::Resource::CommandBuffer);
 		m_command_buffers.erase(index);
 	}
 }

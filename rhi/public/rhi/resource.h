@@ -2,6 +2,7 @@
 #ifndef RHI_RESOURCE_H
 #define RHI_RESOURCE_H
 
+#include "lib/named_type.h"
 #include "common.h"
 
 namespace rhi
@@ -12,8 +13,6 @@ inline RHI_API resource_type next_rhi_resource_type_id();
 
 template <typename T>
 inline RHI_API const resource_type resource_type_id_v{ next_rhi_resource_type_id() };
-
-struct APIContext;
 
 // Managed move only resources that are returned by the Device.
 class Resource

@@ -581,13 +581,6 @@ enum class BufferUsage : RhiFlag
 	Transfer_Dst	= 1 << 5
 };
 
-enum class MemoryLocality
-{
-	Cpu,
-	Gpu,
-	Cpu_To_Gpu
-};
-
 struct Viewport
 {
 	float32 x;
@@ -885,22 +878,22 @@ struct ShaderInfo
 
 struct BufferInfo
 {
-	BufferUsage		usage;
-	MemoryLocality	locality;
-	size_t			size;
+	BufferUsage	usage;
+	MemoryUsage memoryUsage;
+	size_t size;
 };
 
 struct ImageInfo
 {
-	ImageType		type;
-	ImageFormat		format;
-	SampleCount		samples;
-	ImageTiling		tiling;
-	ImageUsage		imageUsage;
-	MemoryLocality	locality;
-	Extent3D		dimension;
-	ClearValue		clearValue;
-	uint32			mipLevel;
+	ImageType type;
+	ImageFormat	format;
+	SampleCount	samples;
+	ImageTiling	tiling;
+	ImageUsage imageUsage;
+	MemoryUsage	memoryUsage;
+	Extent3D dimension;
+	ClearValue clearValue;
+	uint32 mipLevel;
 };
 
 struct DepthTestInfo

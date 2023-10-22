@@ -12,24 +12,26 @@ target_compile_features(fmt PUBLIC cxx_std_20)
 
 set(
 	source_list
-	"lib/api.h"
 	"lib/.natvis"
-	"lib/common.h"
-	"lib/type.h"
-	"lib/named_type.h"
-	"lib/handle.h"
-	"lib/memory.h"
-	"private/memory.cpp"
-	"lib/dag.h"
+	"lib/api.h"
 	"lib/array.h"
-	"lib/paged_array.h"
 	"lib/bitset.h"
+	"lib/bit_mask.h"
+	"lib/common.h"
+	"lib/concepts.h"
+	"lib/dag.h"
+	"lib/handle.h"
 	"lib/hash.h"
+	"lib/linear_allocator.h"
 	"lib/map.h"
+	"lib/memory.h"
+	"lib/named_type.h"
+	"lib/paged_array.h"
 	"lib/set.h"
 	"lib/string.h"
+	"lib/type.h"
 	"lib/utility.h"
-	"lib/linear_allocator.h"
+	"private/memory.cpp"
 )
 
 add_library(Library SHARED ${source_list})

@@ -2,6 +2,8 @@
 #ifndef LIB_ARRAY_H
 #define LIB_ARRAY_H
 
+#include <span>
+#include <vector>
 #include "memory.h"
 #include "utility.h"
 
@@ -125,13 +127,12 @@ public:
     }
 
 protected:
+    friend typename array_type;
 
     constexpr void verify_offset_is_in_range(difference_type const offset) const noexcept
     {
-#if _DEBUG
         ASSERTION(((m_data + offset) >= m_container->data()) && "Iterator exceeded past start range of the array.");
         ASSERTION(((m_data + offset) <= m_container->data() + m_container->size()) && "Iterator exceeded past end range of the array.");
-#endif
     }
 
     ptr_t               m_data;
@@ -432,14 +433,19 @@ public:
         }
     }
 
-    constexpr void resize(size_t count)
+    constexpr void resize(size_t size)
     {
-        if (count < m_len)
+        if (size < m_len)
         {
-            super::destruct(m_data, count - 1, m_len - 1);
+            super::destruct(m_data, size - 1, m_len - 1);
         }
 
-        for (size_t i = m_len; i < count; ++i)
+        if (size >= m_capacity)
+        {
+            grow(size);
+        }
+
+        for (size_t i = m_len; i < size; ++i)
         {  
             emplace_back(value_type{});
         }
@@ -550,7 +556,7 @@ public:
     constexpr iterator insert(const_iterator pos, size_type count, value_type const& value)
     {
         ASSERTION(pos.data() >= m_data && pos <= cend() && "Iterator is not within the range of the array.");
-        iterator it = pos;
+        iterator it{ pos.m_data, *this };
         if (pos == cend())
         {
             for (size_t i = 0; i < count; ++i)
@@ -716,6 +722,9 @@ public:
     constexpr size_t    size    () const { return m_len; }
     constexpr size_t    capacity() const { return m_capacity; }
     constexpr pointer   data    () const { return m_data; }
+    constexpr size_t    bytes   () const { return m_len * sizeof(value_type); }
+
+    constexpr size_t    size_bytes() const { return bytes(); }
 
     /**
     * Returns a pointer to the first element in the array.

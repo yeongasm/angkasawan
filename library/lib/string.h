@@ -144,7 +144,7 @@ protected:
     /**
     * Calls { fmt } to format string (non-allocator referenced version).
     */
-    constexpr size_type write_fv(fmt::string_view str, fmt::format_args args) requires std::same_as<allocator_type, default_allocator>
+    constexpr size_type write_fv(fmt::basic_string_view <char_type>str, fmt::format_args args) requires std::same_as<allocator_type, default_allocator>
     {
         //SystemAllocator systemAllocator;
         fmt_allocator fmtAlloc;
@@ -158,7 +158,7 @@ protected:
     /**
     * Calls { fmt } to format string (allocator referenced version).
     */
-    constexpr size_type write_fv(allocator_type& allocator, fmt::string_view str, fmt::format_args args) requires !std::same_as<allocator_type, default_allocator>
+    constexpr size_type write_fv(allocator_type& allocator, fmt::basic_string_view <char_type>str, fmt::format_args args) requires !std::same_as<allocator_type, default_allocator>
     {
         fmt_allocator fmtAlloc{ &allocator };
         fmt_buffer buffer{ fmtAlloc };
@@ -187,7 +187,7 @@ protected:
         return m_len;
     }
 
-    constexpr size_type append_internal(fmt::string_view str, fmt::format_args args) requires std::same_as<allocator_type, default_allocator>
+    constexpr size_type append_internal(fmt::basic_string_view<char_type> str, fmt::format_args args) requires std::same_as<allocator_type, default_allocator>
     {
         fmt_allocator fmtAlloc;
         fmt_buffer buffer{ fmtAlloc };
@@ -197,7 +197,7 @@ protected:
         return append_internal(buffer.data(), static_cast<size_type>(buffer.size()));
     }
 
-    constexpr size_type append_internal(allocator_type& allocator, fmt::string_view str, fmt::format_args args) requires !std::same_as<allocator_type, default_allocator>
+    constexpr size_type append_internal(allocator_type& allocator, fmt::basic_string_view<char_type> str, fmt::format_args args) requires !std::same_as<allocator_type, default_allocator>
     {
         fmt_allocator fmtAlloc{ &allocator };
         fmt_buffer buffer{ fmtAlloc };
@@ -243,6 +243,10 @@ private:
         {
             memmove(ptr, m_data, m_len * sizeof(value_type));
             this->free_storage(m_data);
+        }
+        else
+        {
+            memcopy(ptr, m_buffer, m_len * sizeof(value_type));
         }
 
         ASSERTION(ptr != nullptr && "Unable to allocate memory!");
@@ -341,6 +345,20 @@ public:
         basic_string{}
     {
         write_fv(str, string_length(str));
+    }
+
+    template <typename... Args>
+    constexpr basic_string(std::basic_string_view<char_type> str, Args&&... args) requires std::same_as<allocator_type, default_allocator> :
+        basic_string{}
+    {
+        write_fv(fmt::basic_string_view<char_type>{ str.data(), str.size() }, fmt::make_format_args(args...));
+    }
+
+    template <typename... Args>
+    constexpr basic_string(allocator_type& allocator, const_pointer str, Args&&... args) requires !std::same_as<allocator_type, default_allocator> :
+        basic_string{ allocator }
+    {
+        write_fv(this->get_allocator(), fmt::basic_string_view<char_type>{ str }, fmt::make_format_args(args...));
     }
 
     constexpr basic_string(allocator_type& allocator, const_pointer str) requires !std::same_as<allocator_type, default_allocator> :
@@ -512,6 +530,10 @@ public:
         return ptr[index];
     }
 
+    constexpr explicit operator std::basic_string_view<char_type>() const
+    {
+        return std::basic_string_view<char_type>{ data(), size() };
+    }
 
     /**
     * Clears all data from the string and releases it from memory.
@@ -568,20 +590,24 @@ public:
     * Uses { fmt } internally.
     */
     template <typename... Args>
-    constexpr size_type format(const_pointer str, Args&&... args)
+    constexpr size_type format(std::basic_string_view<char_type> str, Args&&... args)
     {
         if constexpr (std::is_same_v<allocator_type, default_allocator>)
         {
-            write_fv(fmt::string_view{ str }, fmt::make_format_args(args...));
+            write_fv(fmt::basic_string_view<char_type>{ str.data(), str.size() }, fmt::make_format_args(args...));
         }
         else
         {
-            write_fv(this->get_allocator(), fmt::string_view{ str }, fmt::make_format_args(args...));
+            write_fv(this->get_allocator(), fmt::basic_string_view<char_type>{ str.data(), str.size() }, fmt::make_format_args(args...));
         }
 
         return m_len;
     }
 
+    static constexpr size_type sso_size()
+    {
+        return SSO_MAX;
+    }
 
     /**
     * Assign a string literal into the string object.
@@ -669,16 +695,42 @@ public:
     }
 
     template <typename... Args>
-    constexpr basic_string& append(const_pointer str, Args&&... args)
+    constexpr basic_string& append(std::basic_string_view<char_type> str, Args&&... args)
     {
         if constexpr (std::is_same_v<allocator_type, default_allocator>)
         {
-            append_internal(fmt::string_view{ str }, fmt::make_format_args(args...));
+            append_internal(fmt::basic_string_view<char_type>{ str.data(), str.size() }, fmt::make_format_args(args...));
         }
         else
         {
-            append_internal(this->get_allocator(), fmt::string_view{ str }, fmt::make_format_args(args...));
+            append_internal(this->get_allocator(), fmt::basic_string_view<char_type>{ str.data(), str.size() }, fmt::make_format_args(args...));
         }
+        return *this;
+    }
+
+    template <std::contiguous_iterator It>
+    constexpr basic_string& append(It begin, It end)
+    {
+        if constexpr (std::is_pointer_v<It>)
+        {
+            using removed_pointer_type = std::remove_pointer_t<It>;
+            using decayed_type = std::remove_reference_t<std::remove_cv_t<removed_pointer_type>>;
+
+            static_assert(std::is_same_v<value_type, decayed_type>, "types provided do not match!");
+            append_internal(begin, std::distance(begin, end));
+        }
+        else
+        {
+            using it_value_type = It::value_type;
+            static_assert(std::is_same_v<value_type, it_value_type>, "types provided do not match!");
+            append_internal(&(*begin), std::distance(begin, end));
+        }
+        return *this;
+    }
+
+    constexpr basic_string& append(basic_string const& other)
+    {
+        append_internal(other.data(), other.size());
         return *this;
     }
 
@@ -1146,7 +1198,7 @@ constexpr basic_string<char_type> format(char_type const* str, Args&&... argumen
     fmt_allocator fmtAlloc;
     fmt::basic_memory_buffer<char_type, fmt::inline_buffer_size, fmt_allocator> buffer{ fmtAlloc };
 
-    fmt::vformat_to(std::back_inserter(buffer), fmt::string_view{ str }, fmt::make_format_args(arguments...));
+    fmt::vformat_to(std::back_inserter(buffer), fmt::basic_string_view<char_type>{ str }, fmt::make_format_args(arguments...));
 
     return string_type{ buffer.data(), static_cast<typename string_type::size_type>(buffer.size()) };
 }
@@ -1161,7 +1213,7 @@ constexpr basic_string<char_type> format(char_type const* str, Args&&... argumen
 //    fmt_allocator fmtAlloc{ &allocator };
 //    fmt::basic_memory_buffer<char_type, fmt::inline_buffer_size, fmt_allocator> buffer{ fmtAlloc };
 //
-//    fmt::vformat_to(std::back_inserter(buffer), fmt::string_view{ str }, fmt::make_format_args(arguments...));
+//    fmt::vformat_to(std::back_inserter(buffer), fmt::basic_string_view<char_type>{ str }, fmt::make_format_args(arguments...));
 //
 //    return basic_string<char_type>{ buffer.data(), buffer.size() };
 //}
@@ -1171,6 +1223,7 @@ class string_pool
 {
 private:
     std::list<string> m_pools = {};
+    string m_formatBuffer;
     string* m_current = nullptr;
 
     void new_pool()
@@ -1180,8 +1233,8 @@ private:
         m_pools.push_back(std::move(_temp));
         m_current = &m_pools.back();
     }
-public:
-    std::string_view append(std::string_view str)
+
+    void try_allocate_new_pool(std::string_view str)
     {
         if (!m_pools.size())
         {
@@ -1191,11 +1244,37 @@ public:
         {
             new_pool();
         }
+    }
+public:
+    std::string_view append(std::string_view str)
+    {
+        try_allocate_new_pool(str);
+
         string& current = *m_current;
-        size_t const offset = current.size();
+        auto it = current.end();
         current.append(str);
 
-        return std::string_view{ current.begin() + offset, current.end() };
+        return std::string_view{ it.data(), str.size()};
+    }
+
+    template <typename... Args>
+    std::string_view append(std::string_view str, Args&&... args)
+    {
+        m_formatBuffer.clear();
+        m_formatBuffer.format(str, std::forward<Args>(args)...);
+        try_allocate_new_pool((std::string_view)m_formatBuffer);
+
+        string& current = *m_current;
+        auto it = current.end();
+        current.append(m_formatBuffer);
+
+        return std::string_view{ it.data(), m_formatBuffer.size()};
+    }
+
+    template <typename T>
+    std::string_view append(T const& value)
+    {
+        return append("{}", value);
     }
 };
 

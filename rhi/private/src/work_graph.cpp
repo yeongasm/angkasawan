@@ -82,7 +82,7 @@ void RenderGraph::resolve_color_attachments(std::span<RenderPassAttachmentInfo> 
 	{
 		if (attachment.info.has_value())
 		{
-			rhi::ImageFormat format = attachment.info.value().imageInfo.format;
+			rhi::Format format = attachment.info.value().imageInfo.format;
 			if (!rhi::is_color_format(format))
 			{
 				log(
@@ -134,7 +134,7 @@ void RenderGraph::resolve_color_attachments(std::span<RenderPassAttachmentInfo> 
 				continue;
 			}
 
-			rhi::ImageFormat format = pAttachment->image->info.format;
+			rhi::Format format = pAttachment->image->info.format;
 			if (!rhi::is_color_format(format))
 			{
 				log(
@@ -168,7 +168,7 @@ void RenderGraph::resolve_depth_attachment(RenderPassAttachmentInfo const& depth
 	if (depthAttachmentInfo.info.has_value())
 	{
 		AttachmentInfo const& createInfo = depthAttachmentInfo.info.value();
-		rhi::ImageFormat format = createInfo.imageInfo.format;
+		rhi::Format format = createInfo.imageInfo.format;
 		if (!rhi::is_depth_format(format))
 		{
 			log(
@@ -220,7 +220,7 @@ void RenderGraph::resolve_depth_attachment(RenderPassAttachmentInfo const& depth
 			return;
 		}
 		
-		rhi::ImageFormat format = pDepthAttachment->image->info.format;
+		rhi::Format format = pDepthAttachment->image->info.format;
 		if (!rhi::is_depth_format(format))
 		{
 			log(
@@ -253,7 +253,7 @@ void RenderGraph::resolve_stencil_attachment(RenderPassAttachmentInfo const& ste
 	if (stencilAttachmentInfo.info.has_value())
 	{
 		AttachmentInfo const& createInfo = stencilAttachmentInfo.info.value();
-		rhi::ImageFormat format = createInfo.imageInfo.format;
+		rhi::Format format = createInfo.imageInfo.format;
 		if (!rhi::is_stencil_format(format))
 		{
 			log(
@@ -305,7 +305,7 @@ void RenderGraph::resolve_stencil_attachment(RenderPassAttachmentInfo const& ste
 			return;
 		}
 
-		rhi::ImageFormat format = pStencilAttachment->image->info.format;
+		rhi::Format format = pStencilAttachment->image->info.format;
 		if (!rhi::is_stencil_format(format))
 		{
 			log(
@@ -524,7 +524,7 @@ bool RenderGraph::add_pass(RasterPassInfo&& info, std::string* debugOutput)
 		// Steps below needs to be done in the compile phase.
 		auto& depthAttachment = renderPass.depthAttachment.value();
 
-		rhi::ImageFormat format = depthAttachment.attachment->image->info.format;
+		rhi::Format format = depthAttachment.attachment->image->info.format;
 		rhi::ImageLayout layout = rhi::ImageLayout::Depth_Stencil_Attachment;
 		rhi::AttachmentLoadOp loadOp = rhi::AttachmentLoadOp::Clear;
 
@@ -533,9 +533,9 @@ bool RenderGraph::add_pass(RasterPassInfo&& info, std::string* debugOutput)
 			loadOp = rhi::AttachmentLoadOp::Load;
 		}
 
-		if (format == rhi::ImageFormat::D16_Unorm ||
-			format == rhi::ImageFormat::D32_Float ||
-			format == rhi::ImageFormat::X8_D24_Unorm_Pack32)
+		if (format == rhi::Format::D16_Unorm ||
+			format == rhi::Format::D32_Float ||
+			format == rhi::Format::X8_D24_Unorm_Pack32)
 		{
 			layout = rhi::ImageLayout::Depth_Attachment;
 		}

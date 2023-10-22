@@ -9,7 +9,7 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(simdjson)
 set_target_properties(
-	simdjson 
+	simdjson
 	PROPERTIES 
 		FOLDER thirdparty
 		CXX_STANDARD 20

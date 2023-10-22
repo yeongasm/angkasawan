@@ -164,7 +164,7 @@ public:
 		reserve(length);
 	}
 
-	constexpr hash_container_base(size_t length, allocator_type& allocator) requires !std::same_as<allocator_type, default_allocator> :
+	constexpr hash_container_base(allocator_type& allocator, size_t length) requires !std::same_as<allocator_type, default_allocator> :
 		hash_container_base{ allocator }
 	{
 		reserve(length);
@@ -186,6 +186,24 @@ public:
 		m_metadata{}, m_data{}, m_len{}, m_capacity{}
 	{
 		*this = std::move(rhs);
+	}
+
+	constexpr hash_container_base(std::initializer_list<type> const& initializer) requires std::same_as<allocator_type, default_allocator> :
+		hash_container_base{}
+	{
+		for (type const& pair : initializer)
+		{
+			emplace_internal(pair);
+		}
+	}
+
+	constexpr hash_container_base(allocator_type& allocator, std::initializer_list<type> const& initializer) requires !std::same_as<allocator_type, default_allocator> :
+	hash_container_base{ allocator }
+	{
+		for (type const& pair : initializer)
+		{
+			emplace_internal(pair);
+		}
 	}
 
 	hash_container_base& operator=(hash_container_base const& rhs)

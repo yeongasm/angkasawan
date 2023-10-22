@@ -15,13 +15,9 @@ extern VkFilter				translate_texel_filter			(TexelFilter filter);
 
 auto translate_image_aspect_flags(ImageAspect flags) -> VkImageAspectFlags
 {
-	RhiFlag const mask = static_cast<RhiFlag>(flags);
-	if (mask == 0)
-	{
-		return VK_IMAGE_ASPECT_NONE;
-	}
+	uint32 const mask = (uint32)flags;
 
-	constexpr VkImageAspectFlags flagBits[] = {
+	constexpr VkImageAspectFlagBits bits[] = {
 		VK_IMAGE_ASPECT_COLOR_BIT,
 		VK_IMAGE_ASPECT_DEPTH_BIT,
 		VK_IMAGE_ASPECT_STENCIL_BIT,
@@ -30,12 +26,13 @@ auto translate_image_aspect_flags(ImageAspect flags) -> VkImageAspectFlags
 		VK_IMAGE_ASPECT_PLANE_1_BIT,
 		VK_IMAGE_ASPECT_PLANE_2_BIT
 	};
-	VkImageUsageFlags result{};
-	for (uint32 i = 0; i < static_cast<uint32>(std::size(flagBits)); ++i)
+
+	uint32 const numBits = (uint32)std::size(bits);
+	VkImageUsageFlags result = 0;
+	for (uint32 i = 0; i < numBits; ++i)
 	{
-		uint32 const exist = (mask & (1 << i));
-		auto const bit = flagBits[i];
-		result |= (exist & bit);
+		uint32 const exist = (mask & (1 << i)) != 0;
+		result |= (exist * bits[i]);
 	}
 	return result;
 }
@@ -44,7 +41,6 @@ auto translate_image_layout(ImageLayout layout) -> VkImageLayout
 {
 	switch (layout)
 	{
-		;
 	case ImageLayout::General:
 		return VK_IMAGE_LAYOUT_GENERAL;
 	case ImageLayout::Color_Attachment:
@@ -93,12 +89,9 @@ auto translate_image_layout(ImageLayout layout) -> VkImageLayout
 
 auto translate_pipeline_stage_flags(PipelineStage stages) -> VkPipelineStageFlags2
 {
-	VkFlags64 mask = static_cast<VkFlags64>(stages);
-	if (!mask)
-	{
-		return VK_PIPELINE_STAGE_2_NONE;
-	}
-	constexpr VkPipelineStageFlagBits2 flagBits[] = {
+	uint64 const mask = (uint64)stages;
+
+	constexpr VkPipelineStageFlagBits2 bits[] = {
 		VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
 		VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT,
 		VK_PIPELINE_STAGE_2_VERTEX_INPUT_BIT,
@@ -129,51 +122,37 @@ auto translate_pipeline_stage_flags(PipelineStage stages) -> VkPipelineStageFlag
 		VK_PIPELINE_STAGE_2_MESH_SHADER_BIT_NV,
 		VK_PIPELINE_STAGE_2_ACCELERATION_STRUCTURE_COPY_BIT_KHR
 	};
-	VkPipelineStageFlags2 result = 0ull;
-	for (size_t i = 0; i < std::size(flagBits); ++i)
+
+	uint64 const numBits = (uint64)std::size(bits);
+	VkPipelineStageFlags2 result = 0;
+
+	for (uint64 i = 0; i < numBits; ++i)
 	{
-		VkFlags64 const exist = (mask & (1ull << i));
-		auto const bit = flagBits[i];
-		result |= (exist & bit);
+		VkFlags64 const exist = (mask & (1ull << i)) != 0;
+
+		result |= (exist * bits[i]);
 	}
 	return result;
 }
 
 auto translate_memory_access_flags(MemoryAccessType accesses) -> VkAccessFlags2
 {
-	VkFlags64 mask = static_cast<VkFlags64>(accesses);
-	if (!mask)
-	{
-		return VK_ACCESS_2_NONE;
-	}
-	constexpr VkAccessFlagBits2 flagBits[] = {
-		VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT,
-		VK_ACCESS_2_INDEX_READ_BIT,
-		VK_ACCESS_2_VERTEX_ATTRIBUTE_READ_BIT,
-		VK_ACCESS_2_UNIFORM_READ_BIT,
-		VK_ACCESS_2_INPUT_ATTACHMENT_READ_BIT,
-		VK_ACCESS_2_SHADER_READ_BIT,
-		VK_ACCESS_2_SHADER_WRITE_BIT,
-		VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT,
-		VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
-		VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT,
-		VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
-		VK_ACCESS_2_TRANSFER_READ_BIT,
-		VK_ACCESS_2_TRANSFER_WRITE_BIT,
+	uint64 mask = (uint64)accesses;
+
+	constexpr VkAccessFlagBits2 bits[] = {
 		VK_ACCESS_2_HOST_READ_BIT,
 		VK_ACCESS_2_HOST_WRITE_BIT,
 		VK_ACCESS_2_MEMORY_READ_BIT,
-		VK_ACCESS_2_MEMORY_WRITE_BIT,
-		VK_ACCESS_2_SHADER_SAMPLED_READ_BIT,
-		VK_ACCESS_2_SHADER_STORAGE_READ_BIT,
-		VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT
+		VK_ACCESS_2_MEMORY_WRITE_BIT
 	};
-	VkAccessFlags2 result = 0ull;
-	for (size_t i = 0; i < std::size(flagBits); ++i)
+
+	uint64 const numBits = (uint64)std::size(bits);
+	VkAccessFlags2 result = 0;
+
+	for (uint64 i = 0; i < numBits; ++i)
 	{
-		VkFlags64 const exist = (mask & (1ull << i));
-		auto const bit = flagBits[i];
-		result |= (exist & bit);
+		VkFlags64 const exist = (mask & (1ull << i)) != 0;
+		result |= (exist * bits[i]);
 	}
 	return result;
 }
@@ -464,7 +443,7 @@ auto CommandBuffer::bind_vertex_buffer(Buffer const& buffer, BindVertexBufferInf
 		flush_barriers();
 
 		using buffer_usage_t = std::underlying_type_t<BufferUsage>;
-		buffer_usage_t const usage = static_cast<buffer_usage_t>(buffer.info().usage);
+		buffer_usage_t const usage = static_cast<buffer_usage_t>(buffer.info().bufferUsage);
 		if (usage & static_cast<buffer_usage_t>(BufferUsage::Vertex))
 		{
 			vulkan::CommandBuffer& cmdBuffer = as<vulkan::CommandBuffer>();
@@ -482,7 +461,7 @@ auto CommandBuffer::bind_index_buffer(Buffer const& buffer, BindIndexBufferInfo 
 		flush_barriers();
 
 		using buffer_usage_t = std::underlying_type_t<BufferUsage>;
-		buffer_usage_t const usage = static_cast<buffer_usage_t>(buffer.info().usage);
+		buffer_usage_t const usage = static_cast<buffer_usage_t>(buffer.info().bufferUsage);
 		if (usage & static_cast<buffer_usage_t>(BufferUsage::Index))
 		{
 			VkIndexType type = VK_INDEX_TYPE_UINT32;
@@ -772,7 +751,7 @@ auto CommandBuffer::begin_rendering(RenderingInfo const& info) -> void
 		.layerCount	= 1u,
 		.colorAttachmentCount = static_cast<uint32>(info.colorAttachments.size()),
 	};
-	std::array<VkRenderingAttachmentInfo, MAX_COMMAND_BUFFER_ATTACHMENT_COUNT> colorAttachments;
+	std::array<VkRenderingAttachmentInfo, MAX_COMMAND_BUFFER_ATTACHMENT> colorAttachments;
 	if (info.colorAttachments.size())
 	{
 		for (size_t i = 0; RenderAttachment const& attachment : info.colorAttachments)

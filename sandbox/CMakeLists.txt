@@ -1,20 +1,23 @@
 include(${CMAKE_SOURCE_DIR}/Util.cmake)
+include(FetchContent)
 
 set(
 	sandbox_header_files
 	"public/sandbox/sandbox.h"
 	"public/sandbox/sandbox_api.h"
+	"private/include/geometry.h"
+	"private/include/model_importer.h"
 	"private/include/sandbox_demo_application.h"
-	"private/include/triangle_demo_app.h"
-	#"public/sandbox/application_window.h"
+	"private/include/demo/model_demo_app.h"
+	"private/include/demo/triangle_demo_app.h"
 )
 
 set(
 	sandbox_source_files
-	#"module.cpp"
+	"private/src/model_importer.cpp"
 	"private/src/sandbox.cpp"
-	"private/src/triangle_demo_app.cpp"
-	#"private/src/application_window.cpp"
+	"private/src/demo/model_demo_app.cpp"
+	"private/src/demo/triangle_demo_app.cpp"
 )
 
 add_library(Sandbox SHARED ${sandbox_header_files} ${sandbox_source_files})
@@ -34,7 +37,7 @@ target_include_directories(
 	PRIVATE "public/sandbox"
 	PRIVATE "private/include"
 )
-target_link_libraries(Sandbox PRIVATE Core)
+target_link_libraries(Sandbox PRIVATE Core cgltf)
 target_link_libraries(Sandbox PUBLIC RHI)
 
 add_custom_command(

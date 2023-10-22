@@ -41,6 +41,16 @@ public:
 		index(uint16 page, uint16 offset) :
 			metadata{ page, offset }
 		{}
+
+		/**
+		* \brief Returns an integer value that represents the distance of the index from the 0th element in the 0th page.
+		*/
+		size_t flatten() const
+		{
+			size_t const stride = static_cast<size_t>(metadata.page) * static_cast<size_t>(PAGE_SIZE);
+			size_t const offset = static_cast<size_t>(metadata.offset);
+			return stride + offset;
+		}
 	};
 
 	paged_array() = default;

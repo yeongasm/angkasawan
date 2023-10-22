@@ -2,50 +2,47 @@
 
 namespace rhi
 {
-
 auto Version::stringify() const -> lib::string
 {
 	return lib::format("{}.{}.{}", major, minor, patch);
 }
 
-auto is_color_format(ImageFormat format) -> bool
+auto is_color_format(Format format) -> bool
 {
-	if (format == ImageFormat::D16_Unorm ||
-		format == ImageFormat::D16_Unorm_S8_Uint ||
-		format == ImageFormat::D24_Unorm_S8_Uint ||
-		format == ImageFormat::D32_Float ||
-		format == ImageFormat::D32_Float_S8_Uint ||
-		format == ImageFormat::S8_Uint ||
-		format == ImageFormat::X8_D24_Unorm_Pack32 ||
-		format == ImageFormat::Undefined)
+	if (format == Format::D16_Unorm ||
+		format == Format::D16_Unorm_S8_Uint ||
+		format == Format::D24_Unorm_S8_Uint ||
+		format == Format::D32_Float ||
+		format == Format::D32_Float_S8_Uint ||
+		format == Format::S8_Uint ||
+		format == Format::X8_D24_Unorm_Pack32 ||
+		format == Format::Undefined)
 	{
 		return false;
 	}
-
 	return true;
 }
 
-auto is_depth_format(ImageFormat format) -> bool
+auto is_depth_format(Format format) -> bool
 {
-	if (format == ImageFormat::D16_Unorm ||
-		format == ImageFormat::D16_Unorm_S8_Uint ||
-		format == ImageFormat::D24_Unorm_S8_Uint ||
-		format == ImageFormat::D32_Float ||
-		format == ImageFormat::D32_Float_S8_Uint ||
-		format == ImageFormat::X8_D24_Unorm_Pack32)
+	if (format == Format::D16_Unorm ||
+		format == Format::D16_Unorm_S8_Uint ||
+		format == Format::D24_Unorm_S8_Uint ||
+		format == Format::D32_Float ||
+		format == Format::D32_Float_S8_Uint ||
+		format == Format::X8_D24_Unorm_Pack32)
 	{
 		return true;
 	}
-
 	return false;
 }
 
-auto is_stencil_format(ImageFormat format) -> bool
+auto is_stencil_format(Format format) -> bool
 {
-	return format == ImageFormat::S8_Uint;
+	return format == Format::S8_Uint;
 }
 
-auto get_image_format_string(ImageFormat format) -> std::string_view
+auto get_image_format_string(Format format) -> std::string_view
 {
 	constexpr const char* imageFormatStr[] = {
 		"Undefined",
@@ -180,57 +177,6 @@ auto get_image_format_string(ImageFormat format) -> std::string_view
 		"D24_Unorm_S8_Uint",
 		"D32_Float_S8_Uint"
 	};
-	return std::string_view{ imageFormatStr[static_cast<std::underlying_type_t<ImageFormat>>(format)] };
+	return std::string_view{ imageFormatStr[static_cast<std::underlying_type_t<Format>>(format)] };
 }
-
-}
-
-auto operator| (rhi::ImageUsage a, rhi::ImageUsage b) -> rhi::ImageUsage
-{ 
-	return static_cast<rhi::ImageUsage>(static_cast<rhi::RhiFlag>(a) | static_cast<rhi::RhiFlag>(b)); 
-}
-
-auto operator& (rhi::ImageUsage a, rhi::ImageUsage b) -> rhi::ImageUsage
-{ 
-	return static_cast<rhi::ImageUsage>(static_cast<rhi::RhiFlag>(a) & static_cast<rhi::RhiFlag>(b)); 
-}
-
-auto operator| (rhi::BufferUsage a, rhi::BufferUsage b) -> rhi::BufferUsage
-{ 
-	return static_cast<rhi::BufferUsage>(static_cast<rhi::RhiFlag>(a) | static_cast<rhi::RhiFlag>(b)); 
-}
-
-auto operator& (rhi::BufferUsage a, rhi::BufferUsage b) -> rhi::BufferUsage
-{ 
-	return static_cast<rhi::BufferUsage>(static_cast<rhi::RhiFlag>(a) & static_cast<rhi::RhiFlag>(b)); 
-}
-
-auto operator| (rhi::ImageAspect a, rhi::ImageAspect b) -> rhi::ImageAspect
-{ 
-	return static_cast<rhi::ImageAspect>(static_cast<rhi::RhiFlag>(a) | static_cast<rhi::RhiFlag>(b)); 
-}
-
-auto operator& (rhi::ImageAspect a, rhi::ImageAspect b) -> rhi::ImageAspect
-{ 
-	return static_cast<rhi::ImageAspect>(static_cast<rhi::RhiFlag>(a) & static_cast<rhi::RhiFlag>(b)); 
-}
-
-auto operator| (rhi::PipelineStage a, rhi::PipelineStage b) -> rhi::PipelineStage
-{	
-	return static_cast<rhi::PipelineStage>(static_cast<rhi::RhiFlag>(a) | static_cast<rhi::RhiFlag>(b)); 
-}
-
-auto operator& (rhi::PipelineStage a, rhi::PipelineStage b) -> rhi::PipelineStage
-{ 
-	return static_cast<rhi::PipelineStage>(static_cast<rhi::RhiFlag>(a) & static_cast<rhi::RhiFlag>(b)); 
-}
-
-auto operator| (rhi::MemoryAccessType a, rhi::MemoryAccessType b) -> rhi::MemoryAccessType
-{ 
-	return static_cast<rhi::MemoryAccessType>(static_cast<rhi::RhiFlag>(a) | static_cast<rhi::RhiFlag>(b)); 
-}
-
-auto operator& (rhi::MemoryAccessType a, rhi::MemoryAccessType b) -> rhi::MemoryAccessType
-{ 
-	return static_cast<rhi::MemoryAccessType>(static_cast<rhi::RhiFlag>(a) & static_cast<rhi::RhiFlag>(b)); 
 }

@@ -6,6 +6,7 @@
 #include "pipeline.h"
 #include "buffer.h"
 #include "command_pool.h"
+#include "sampler.h"
 
 namespace rhi
 {
@@ -20,13 +21,15 @@ public:
 	RHI_API auto device_config() const -> DeviceConfig const&;
 	RHI_API auto create_swapchain(SwapchainInfo&& info, Swapchain* oldSwapchain = nullptr) -> Swapchain;
 	RHI_API auto destroy_swapchain(Swapchain& swapchain, bool destroySurface = false) -> void;
-	RHI_API auto create_shader(ShaderInfo&& info) -> Shader;
+	RHI_API auto create_shader(CompiledShaderInfo&& info) -> Shader;
 	RHI_API auto destroy_shader(Shader& shader) -> void;
 	RHI_API auto allocate_buffer(BufferInfo&& info) -> Buffer;
 	RHI_API auto release_buffer(Buffer& buffer) -> void;
 	RHI_API auto create_image(ImageInfo&& info) -> Image;
 	RHI_API auto destroy_image(Image& image) -> void;
-	RHI_API auto create_pipeline(RasterPipelineInfo&& info) -> RasterPipeline;
+	RHI_API auto create_sampler(SamplerInfo&& info) -> Sampler;
+	RHI_API auto destroy_sampler(Sampler& sampler) -> void;
+	RHI_API auto create_pipeline(RasterPipelineInfo&& info, PipelineShaderInfo const& pipelineShaders) -> RasterPipeline;
 	RHI_API auto destroy_pipeline(RasterPipeline& pipeline) -> void;
 	RHI_API auto clear_destroyed_resources() -> void;
 	RHI_API auto wait_idle() -> void;
@@ -41,9 +44,8 @@ public:
 private:
 	APIContext* m_context;
 	DeviceInfo m_info;
+	friend class _Instance_;
 
-	friend RHI_API auto create_device(class _Instance_*, DeviceInitInfo const&) -> Device&;
-	friend RHI_API auto destroy_device(Device& device) -> void;
 	auto initialize(DeviceInitInfo const&) -> bool;
 	auto terminate() -> void;
 };
