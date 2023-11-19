@@ -159,15 +159,20 @@ auto translate_memory_access_flags(MemoryAccessType accesses) -> VkAccessFlags2
 
 CommandBuffer::CommandBuffer(
 	CommandBufferInfo&& info,
+	DeviceQueueType executionQueue,
 	APIContext* context,
 	void* data,
 	resource_type typeId
 ) :
 	Resource{ context, data, typeId },
 	m_info{ std::move(info) },
+	m_completion_timeline{},
+	m_recording_timeline{},
+	m_execution_queue{ executionQueue },
 	m_state{ State::Initial }
 {
 	m_context->setup_debug_name(*this);
+	m_completion_timeline = m_context->create_timeline_semaphore({ .name = m_info.name, .initialValue = 0 });
 }
 
 CommandBuffer::CommandBuffer(CommandBuffer&& rhs) noexcept
@@ -180,6 +185,9 @@ auto CommandBuffer::operator=(CommandBuffer&& rhs) noexcept -> CommandBuffer&
 	if (this != &rhs)
 	{
 		m_info = std::move(rhs.m_info);
+		m_completion_timeline = std::move(rhs.m_completion_timeline);
+		m_recording_timeline = std::move(rhs.m_recording_timeline);
+		m_execution_queue = std::move(rhs.m_execution_queue);
 		m_state = rhs.m_state;
 		Resource::operator=(std::move(rhs));
 		new (&rhs) CommandBuffer{};
@@ -212,12 +220,24 @@ auto CommandBuffer::is_pending_complete() const -> bool
 	return m_state == State::Pending;
 }
 
+auto CommandBuffer::is_completed() -> bool
+{
+	uint64 const val = m_completion_timeline.value();
+
+	if (m_recording_timeline && val >= m_recording_timeline)
+	{
+		m_state = State::Executable;
+	}
+
+	return m_recording_timeline && val >= m_recording_timeline;
+}
+
 auto CommandBuffer::is_invalid() const -> bool
 {
 	return m_state == State::Invalid;
 }
 
-auto CommandBuffer::state() const -> CommandBuffer::State
+auto CommandBuffer::current_state() const -> CommandBuffer::State
 {
 	return m_state;
 }
@@ -225,7 +245,8 @@ auto CommandBuffer::state() const -> CommandBuffer::State
 auto CommandBuffer::reset() -> void
 {
 	if (valid() &&
-		m_state == State::Pending)
+		is_completed() &&
+		m_state == State::Executable)
 	{
 		vulkan::CommandBuffer& cmdBuffer = as<vulkan::CommandBuffer>();
 		vkResetCommandBuffer(cmdBuffer.handle, VK_COMMAND_BUFFER_RESET_RELEASE_RESOURCES_BIT);
@@ -247,6 +268,7 @@ auto CommandBuffer::begin() -> bool
 		if (vkBeginCommandBuffer(cmdBuffer.handle, &beginInfo) == VK_SUCCESS)
 		{
 			m_state = State::Recording;
+			++m_recording_timeline;
 		}
 	}
 	return m_state == State::Recording;
@@ -435,9 +457,33 @@ auto CommandBuffer::draw_indirect_count(Buffer const& drawInfoBuffer, Buffer con
 	}
 }
 
+auto CommandBuffer::bind_vertex_buffer(BufferView const& bufferView, uint32 firstBinding) -> void
+{
+	if (valid() &&
+		bufferView.valid() &&
+		m_state == State::Recording)
+	{
+		flush_barriers();
+
+		Buffer& buffer = bufferView.buffer();
+
+		using buffer_usage_t = std::underlying_type_t<BufferUsage>;
+		buffer_usage_t const usage = static_cast<buffer_usage_t>(buffer.info().bufferUsage);
+		if (usage & static_cast<buffer_usage_t>(BufferUsage::Vertex))
+		{
+			vulkan::CommandBuffer& cmdBuffer = as<vulkan::CommandBuffer>();
+			vulkan::Buffer& buf = buffer.as<vulkan::Buffer>();
+			size_t offset = bufferView.offset();
+
+			vkCmdBindVertexBuffers(cmdBuffer.handle, firstBinding, 1, &buf.handle, &offset);
+		}
+	}
+}
+
 auto CommandBuffer::bind_vertex_buffer(Buffer const& buffer, BindVertexBufferInfo const& info) -> void
 {
 	if (valid() &&
+		buffer.valid() &&
 		m_state == State::Recording)
 	{
 		flush_barriers();
@@ -448,7 +494,37 @@ auto CommandBuffer::bind_vertex_buffer(Buffer const& buffer, BindVertexBufferInf
 		{
 			vulkan::CommandBuffer& cmdBuffer = as<vulkan::CommandBuffer>();
 			vulkan::Buffer& buf = buffer.as<vulkan::Buffer>();
-			vkCmdBindVertexBuffers(cmdBuffer.handle, info.firstBinding, info.bindingCount, &buf.handle, &info.offset);
+			vkCmdBindVertexBuffers(cmdBuffer.handle, info.firstBinding, 1, &buf.handle, &info.offset);
+		}
+	}
+}
+
+auto CommandBuffer::bind_index_buffer(BufferView const& bufferView, IndexType indexType) -> void
+{
+	if (valid() &&
+		bufferView.valid() &&
+		m_state == State::Recording)
+	{
+		flush_barriers();
+
+		Buffer& buffer = bufferView.buffer();
+
+		using buffer_usage_t = std::underlying_type_t<BufferUsage>;
+		buffer_usage_t const usage = static_cast<buffer_usage_t>(buffer.info().bufferUsage);
+		if (usage & static_cast<buffer_usage_t>(BufferUsage::Index))
+		{
+			VkIndexType type = VK_INDEX_TYPE_UINT32;
+			if (indexType == IndexType::Uint_16)
+			{
+				type = VK_INDEX_TYPE_UINT16;
+			}
+			else if (indexType == IndexType::Uint_8)
+			{
+				type = VK_INDEX_TYPE_UINT8_EXT;
+			}
+			vulkan::CommandBuffer& cmdBuffer = as<vulkan::CommandBuffer>();
+			vulkan::Buffer& buf = buffer.as<vulkan::Buffer>();
+			vkCmdBindIndexBuffer(cmdBuffer.handle, buf.handle, bufferView.offset_from_buffer(), type);
 		}
 	}
 }
@@ -456,6 +532,7 @@ auto CommandBuffer::bind_vertex_buffer(Buffer const& buffer, BindVertexBufferInf
 auto CommandBuffer::bind_index_buffer(Buffer const& buffer, BindIndexBufferInfo const& info) -> void
 {
 	if (valid() &&
+		buffer.valid() &&
 		m_state == State::Recording)
 	{
 		flush_barriers();
@@ -498,7 +575,7 @@ auto CommandBuffer::bind_push_constant(void const* data, size_t size, size_t off
 
 		vulkan::CommandBuffer& cmdBuffer = as<vulkan::CommandBuffer>();
 		VkPipelineLayout layout = m_context->descriptorCache.pipelineLayouts[(sz + 3u) & (~0x03u)];
-		vkCmdPushConstants(cmdBuffer.handle, layout, VK_SHADER_STAGE_ALL, sz, off, data);
+		vkCmdPushConstants(cmdBuffer.handle, layout, VK_SHADER_STAGE_ALL, off, sz, data);
 	}
 }
 
@@ -569,6 +646,9 @@ auto CommandBuffer::pipeline_barrier(Buffer const& buffer, BufferBarrierInfo con
 
 	switch (barrier.srcQueue)
 	{
+	case DeviceQueueType::Main:
+		srcQueueIndex = m_context->mainQueue.familyIndex;
+		break;
 	case DeviceQueueType::Transfer:
 		srcQueueIndex = m_context->transferQueue.familyIndex;
 		break;
@@ -576,12 +656,14 @@ auto CommandBuffer::pipeline_barrier(Buffer const& buffer, BufferBarrierInfo con
 		srcQueueIndex = m_context->computeQueue.familyIndex;
 		break;
 	default:
-		srcQueueIndex = m_context->mainQueue.familyIndex;
 		break;
 	}
 
 	switch (barrier.dstQueue)
 	{
+	case DeviceQueueType::Main:
+		srcQueueIndex = m_context->mainQueue.familyIndex;
+		break;
 	case DeviceQueueType::Transfer:
 		dstQueueIndex = m_context->transferQueue.familyIndex;
 		break;
@@ -589,7 +671,6 @@ auto CommandBuffer::pipeline_barrier(Buffer const& buffer, BufferBarrierInfo con
 		dstQueueIndex = m_context->computeQueue.familyIndex;
 		break;
 	default:
-		dstQueueIndex = m_context->mainQueue.familyIndex;
 		break;
 	}
 
@@ -603,10 +684,96 @@ auto CommandBuffer::pipeline_barrier(Buffer const& buffer, BufferBarrierInfo con
 		.dstQueueFamilyIndex = dstQueueIndex,
 		.buffer	= bufferResource.handle,
 		.offset	= barrier.offset,
-		.size = (barrier.size == std::numeric_limits<uint32>::max()) ? buffer.info().size : barrier.size,
+		.size = (barrier.size == std::numeric_limits<size_t>::max()) ? buffer.info().size : barrier.size,
 	};
 
-	(*const_cast<Buffer*>(&buffer)).m_owning_queue = barrier.dstQueue;
+	Buffer& alias = *const_cast<Buffer*>(&buffer);
+
+	if (barrier.srcQueue == barrier.dstQueue ||
+		m_execution_queue == barrier.dstQueue)
+	{
+		alias.m_owning_queue = barrier.dstQueue;
+	}
+	else if (alias.m_owning_queue == rhi::DeviceQueueType::None)
+	{
+		alias.m_owning_queue = barrier.srcQueue;
+	}
+}
+
+auto CommandBuffer::pipeline_barrier(BufferView const& bufferView, BufferViewBarrierInfo const& barrier) -> void
+{
+	if (!valid() ||
+		!bufferView.valid() ||
+		m_state != State::Recording)
+	{
+		return;
+	}
+
+	vulkan::Buffer& bufferResource = bufferView.buffer().as<vulkan::Buffer>();
+	vulkan::CommandBuffer& cmdBuffer = as<vulkan::CommandBuffer>();
+
+	if (cmdBuffer.numBufferBarrier >= vulkan::CommandBuffer::MAX_COMMAND_BUFFER_BARRIER_COUNT)
+	{
+		flush_barriers();
+	}
+
+	uint32 srcQueueIndex = VK_QUEUE_FAMILY_IGNORED;
+	uint32 dstQueueIndex = VK_QUEUE_FAMILY_IGNORED;
+
+	switch (barrier.srcQueue)
+	{
+	case DeviceQueueType::Main:
+		srcQueueIndex = m_context->mainQueue.familyIndex;
+		break;
+	case DeviceQueueType::Transfer:
+		srcQueueIndex = m_context->transferQueue.familyIndex;
+		break;
+	case DeviceQueueType::Compute:
+		srcQueueIndex = m_context->computeQueue.familyIndex;
+		break;
+	default:
+		break;
+	}
+
+	switch (barrier.dstQueue)
+	{
+	case DeviceQueueType::Main:
+		dstQueueIndex = m_context->mainQueue.familyIndex;
+		break;
+	case DeviceQueueType::Transfer:
+		dstQueueIndex = m_context->transferQueue.familyIndex;
+		break;
+	case DeviceQueueType::Compute:
+		dstQueueIndex = m_context->computeQueue.familyIndex;
+		break;
+	default:
+		break;
+	}
+
+	cmdBuffer.bufferBarriers[cmdBuffer.numBufferBarrier++] = {
+		.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2,
+		.srcStageMask = translate_pipeline_stage_flags(barrier.srcAccess.stages),
+		.srcAccessMask = translate_memory_access_flags(barrier.srcAccess.type),
+		.dstStageMask = translate_pipeline_stage_flags(barrier.dstAccess.stages),
+		.dstAccessMask = translate_memory_access_flags(barrier.dstAccess.type),
+		.srcQueueFamilyIndex = srcQueueIndex,
+		.dstQueueFamilyIndex = dstQueueIndex,
+		.buffer = bufferResource.handle,
+		.offset = bufferView.offset_from_buffer(),
+		.size = bufferView.size()
+	};
+
+	BufferView& alias = *const_cast<BufferView*>(&bufferView);
+
+	if (barrier.srcQueue == barrier.dstQueue ||
+		m_execution_queue == barrier.dstQueue)
+	{
+		alias.m_owning_queue = barrier.dstQueue;
+	}
+	else if (alias.m_owning_queue == rhi::DeviceQueueType::None)
+	{
+		alias.m_owning_queue = barrier.srcQueue;
+	}
 }
 
 auto CommandBuffer::pipeline_barrier(Image const& image, ImageBarrierInfo const& barrier) -> void

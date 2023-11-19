@@ -13,9 +13,9 @@ public:
 	Application() = default;
 	virtual ~Application() {};
 
-	virtual bool initialize()	= 0;
-	virtual void run()			= 0;
-	virtual void terminate()	= 0;
+	virtual auto initialize() -> bool	= 0;
+	virtual auto run() -> void			= 0;
+	virtual auto terminate() -> void	= 0;
 };
 
 }

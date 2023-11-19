@@ -24,10 +24,22 @@ bool SandboxApp::initialize()
 {
 	core::Engine& engine = core::engine();
 	
+	// TODO(afiq):
+	// This is ugly, change it.
+	core::io::update_configuration(core::IOConfiguration::Key_Double_Tap_Time, 1.f);
+	core::io::update_configuration(core::IOConfiguration::Key_Min_Duration_For_Hold, 0.05f);
+	core::io::update_configuration(core::IOConfiguration::Mouse_Double_Click_Distance, 5.f);
+	core::io::update_configuration(core::IOConfiguration::Mouse_Double_Click_Time, 1.f);
+	core::io::update_configuration(core::IOConfiguration::Mouse_Min_Duration_For_Hold, 0.05f);
+
 	m_root_app_window = engine.create_window({
 		.title = L"Sandbox",
 		.position = { 0, 0 },
-		.dimension = { 800, 600 }
+		.dimension = { 800, 600 },
+		.config = {
+			.catchInput = true,
+			.borderless = true
+		}
 	});
 
 	if (!m_root_app_window.valid())
@@ -89,7 +101,7 @@ bool SandboxApp::initialize()
 	m_shader_compiler.add_macro_definition("BUFFER_DEVICE_ADDRESS_BINDING", rhi::BUFFER_DEVICE_ADDRESS_BINDING);
 
 	//m_demo_applications.push_back(std::make_unique<TriangleDemoApp>(m_root_app_window, m_shader_compiler, *m_device, m_swapchain, m_frame_index));
-	m_demo_applications.push_back(std::make_unique<CubeDemoApp>(m_root_app_window, m_shader_compiler, *m_device, m_swapchain, m_frame_index));
+	m_demo_applications.push_back(std::make_unique<ModelDemoApp>(m_root_app_window, m_shader_compiler, *m_device, m_swapchain, m_frame_index));
 
 	for (auto&& demo : m_demo_applications)
 	{

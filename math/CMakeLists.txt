@@ -2,7 +2,7 @@ include(${CMAKE_SOURCE_DIR}/Util.cmake)
 
 set(
 	source_list
-	"math/math.h"
+	"math/common.h"
 	"math/vector.h"
 	"math/matrix.h"
 	"math/quaternion.h"

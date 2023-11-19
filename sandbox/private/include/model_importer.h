@@ -24,12 +24,21 @@ enum class CgltfAlphaMode
 	Blend
 };
 
+enum class CgltfVertexInput
+{
+	Position,
+	Normal,
+	Tangent,
+	Color,
+	TexCoord
+};
+
 class GltfImporter
 {
 public:
 	struct ImageInfo
 	{
-		std::string_view path;
+		std::wstring_view path;
 		GltfImageType type;
 		size_t size;
 	};
@@ -64,13 +73,35 @@ public:
 			Triangle_Strip,
 			Triangle_Fan
 		};
-		std::span<float32> data[5] = {};
+
+		struct VertexData
+		{
+			enum class Type
+			{
+				Invalid,
+				Scalar,
+				Vec2,
+				Vec3,
+				Vec4,
+				Mat2,
+				Mat3,
+				Mat4
+			};
+			std::span<float32> data;
+			Type data_type;
+		};
+		VertexData vertex_data[5];
+		uint32 num_vertices;
 		std::span<uint32> indices;
 		MaterialInfo* material;
 		Topology topology;
+
+		auto get_data(CgltfVertexInput type) const -> VertexData const&;
 	};
 
 	using value_type		= MeshInfo;
+	using reference			= MeshInfo&;
+	using const_reference	= MeshInfo const&;
 	using difference_type	= size_t;
 	using pointer			= MeshInfo*;
 	using const_pointer		= MeshInfo const*;
@@ -86,13 +117,14 @@ public:
 	GltfImporter(GltfImporter&&) noexcept;
 	GltfImporter& operator=(GltfImporter&&) noexcept;
 
-	auto open(std::filesystem::path path) -> bool;
+	auto open(std::filesystem::path const& path) -> bool;
 	auto is_open() const -> bool;
 	auto close() -> void;
 	auto num_meshes() const -> size_t;
+	auto size() const -> size_t;
 	auto vertex_data_size_bytes() const -> size_t;
 	auto index_data_size_bytes() const -> size_t;
-	auto materials() const -> std::span<const MaterialInfo> const;
+	auto materials() const -> std::span<MaterialInfo const> const;
 	auto ok() const -> bool;
 	auto begin() -> iterator;
 	auto end() -> iterator;
@@ -100,7 +132,10 @@ public:
 	auto end() const -> const_iterator;
 	auto cbegin() const -> const_iterator;
 	auto cend() const -> const_iterator;
+	auto data() const -> MeshInfo*;
 private:
+	friend class GeometryCache;
+
 	std::filesystem::path m_path;
 	lib::array<std::byte> m_data;
 	std::span<MeshInfo> m_meshes;
@@ -115,7 +150,9 @@ private:
 			return {};
 		}
 
-		auto data = reinterpret_cast<T*>(&(*m_data.end()));
+		auto it = m_data.end();
+		std::byte* ptr = it.data();
+		auto data = reinterpret_cast<T*>(ptr);
 		m_data.insert(m_data.end(), sizeof(T) * numElements, std::byte{});
 		for (size_t i = 0; i < numElements; ++i)
 		{

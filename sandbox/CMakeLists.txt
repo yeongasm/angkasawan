@@ -1,23 +1,46 @@
 include(${CMAKE_SOURCE_DIR}/Util.cmake)
-include(FetchContent)
+include(${CMAKE_SOURCE_DIR}/CPM.cmake)
 
 set(
 	sandbox_header_files
 	"public/sandbox/sandbox.h"
 	"public/sandbox/sandbox_api.h"
-	"private/include/geometry.h"
+	"private/include/bindable_structure.h"
+	"private/include/camera.h"
+	"private/include/command_queue.h"
+	"private/include/geometry_cache.h"
+	"private/include/image_cache.h"
+	"private/include/image_importer.h"
+	"private/include/input_assembler.h"
+	"private/include/material_cache.h"
 	"private/include/model_importer.h"
 	"private/include/sandbox_demo_application.h"
+	"private/include/submission_queue.h"
 	"private/include/demo/model_demo_app.h"
 	"private/include/demo/triangle_demo_app.h"
 )
 
 set(
 	sandbox_source_files
+	"private/src/bindable_structure.cpp"
+	"private/src/camera.cpp"
+	"private/src/command_queue.cpp"
+	"private/src/geometry_cache.cpp"
+	"private/src/image_cache.cpp"
+	"private/src/image_importer.cpp"
+	"private/src/input_assembler.cpp"
+	"private/src/material_cache.cpp"
 	"private/src/model_importer.cpp"
 	"private/src/sandbox.cpp"
+	"private/src/submission_queue.cpp"
 	"private/src/demo/model_demo_app.cpp"
 	"private/src/demo/triangle_demo_app.cpp"
+)
+
+CPMAddPackage(
+	NAME glm
+	GIT_TAG 0.9.9.8
+	GIT_REPOSITORY https://github.com/g-truc/glm
 )
 
 add_library(Sandbox SHARED ${sandbox_header_files} ${sandbox_source_files})
@@ -37,8 +60,9 @@ target_include_directories(
 	PRIVATE "public/sandbox"
 	PRIVATE "private/include"
 )
-target_link_libraries(Sandbox PRIVATE Core cgltf)
+target_link_libraries(Sandbox PRIVATE Core Math cgltf glm stb)
 target_link_libraries(Sandbox PUBLIC RHI)
+target_compile_definitions(Sandbox PUBLIC GLM_FORCE_DEPTH_ZERO_TO_ONE)
 
 add_custom_command(
     TARGET 

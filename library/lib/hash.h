@@ -35,6 +35,7 @@ protected:
 	using key_type				= typename traits::key_type;
 	using value_type			= typename traits::value_type;
 	using type					= typename traits::type;
+	using mutable_type			= typename traits::mutable_type;
 	using const_type			= type const;
 	using pointer				= type*;
 	using const_pointer			= type const*;
@@ -231,7 +232,7 @@ public:
 					continue;
 				}
 				this_bucket_info[i] = rhs_bucket_info[i];
-				reinterpret_cast<typename traits::mutable_type&>(m_data[i]) = rhs.m_data[i];
+				reinterpret_cast<mutable_type&>(m_data[i]) = rhs.m_data[i];
 
 				--count;
 			}
@@ -505,14 +506,31 @@ protected:
 private:
 
 	// Helper function to swap contents.
-	constexpr void swap_element_at(bucket_value_type bucket, type& element, bucket_info& info)
+	constexpr void swap_element_at(bucket_value_type bucket, mutable_type& element, bucket_info& info)
 	{
 		// Swap actual data.
 		// We do a memcopy to avoid weird funny logic that users might implement for their move assignment operator
-		type tmp{};
-		memcopy(&tmp, &m_data[bucket], sizeof(type));
-		new (m_data + bucket) type{ std::move(element) };
-		memcopy(&element, &tmp, sizeof(type));
+		if constexpr (std::is_trivial_v<type>)
+		{
+			mutable_type tmp{};
+			mutable_type& data = *reinterpret_cast<mutable_type*>(&m_data[bucket]);
+
+			memcopy(&tmp, &data, sizeof(mutable_type));
+			new (&data) mutable_type{ std::move(element.first), std::move(element.second) };
+			memcopy(&element, &tmp, sizeof(mutable_type));
+		}
+		else
+		{
+			key_type& key = *const_cast<key_type*>(&m_data[bucket].first);
+			value_type& value = m_data[bucket].second;
+
+			mutable_type tmp{ std::move(key), std::move(value) };
+
+			key = std::move(element.first);
+			value = std::move(element.second);
+
+			new (&element) type{ std::move(tmp.first), std::move(tmp.second) };
+		}
 
 		bucket_info& dst = m_metadata->p_bucket_info[bucket];
 
@@ -530,7 +548,7 @@ private:
 	constexpr bucket_value_type emplace_impl(Args&&... args)
 	{
 		// Construct the to-be-inserted element once.
-		type element{ std::forward<Args>(args)... };
+		mutable_type element{ std::forward<Args>(args)... };
 
 		hash_value_type const hash = hashify(traits::extract_key(element));
 		bucket_info* p_info = info();
@@ -553,7 +571,7 @@ private:
 			++inserting_info.psl;
 		}
 		// Store the element.
-		new (m_data + bucket) type{ std::move(element) };
+		new (m_data + bucket) type{ std::move(element.first), std::move(element.second) };
 
 		p_info[bucket].hash = inserting_info.hash;
 		p_info[bucket].psl	= inserting_info.psl;

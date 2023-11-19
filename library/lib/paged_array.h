@@ -42,6 +42,8 @@ public:
 			metadata{ page, offset }
 		{}
 
+		//static index const invalid_v = index{ std::numeric_limits<uint32>::max() };
+
 		/**
 		* \brief Returns an integer value that represents the distance of the index from the 0th element in the 0th page.
 		*/

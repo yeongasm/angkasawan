@@ -200,7 +200,18 @@ bool Engine::is_window_minimized(wnd::window_handle hnd) const
 	{
 		return false;
 	}
-	return IsIconic(static_cast<HWND>(pWindow->nativeHandle)) == 0;
+	BOOL const iconic = IsIconic(static_cast<HWND>(pWindow->nativeHandle));
+	return iconic > 0;
+}
+
+auto Engine::is_window_focused(wnd::window_handle hnd) const -> bool
+{
+	wnd::Window* pWindow = mWindowContext.window_from_handle(hnd);
+	if (!pWindow)
+	{
+		return false;
+	}
+	return pWindow->focused;
 }
 
 }

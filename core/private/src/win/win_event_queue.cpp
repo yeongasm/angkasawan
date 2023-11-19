@@ -296,13 +296,26 @@ OSEvent handle_mouse_input(HWND hWnd, LPARAM lParam)
 
 	const RAWMOUSE& mouseData = raw->data.mouse;
 	const USHORT flags = mouseData.usButtonFlags;
-	const uint16 wheel_delta = static_cast<uint16>(mouseData.usButtonData);
 	const LONG x = mouseData.lLastX, y = mouseData.lLastY;
 
-	if (wheel_delta)
+	const float32 wheel_delta = static_cast<float32>(static_cast<uint16>(mouseData.usButtonData));
+	float32 scroll_delta = wheel_delta / WHEEL_DELTA;
+
+	if (flags & RI_MOUSE_WHEEL)
+	{
+		if (scroll_delta > 1.f)
+		{
+			scroll_delta = -1.f;
+		}
+		ev.event = OSEvent::Type::Mouse_Wheel;
+		ev.mouseWheelDelta.v = scroll_delta;
+		return ev;
+	}
+
+	if (flags & RI_MOUSE_HWHEEL)
 	{
 		ev.event = OSEvent::Type::Mouse_Wheel;
-		ev.mouseWheel.offset = static_cast<float32>(wheel_delta / WHEEL_DELTA);
+		ev.mouseWheelDelta.h = scroll_delta;
 		return ev;
 	}
 

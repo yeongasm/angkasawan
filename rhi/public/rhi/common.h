@@ -420,6 +420,14 @@ struct FrameInfo
 	uint32 index;
 };
 
+template <typename T>
+struct BindingSlot
+{
+	static constexpr uint32 INVALID = std::numeric_limits<uint32>::max();
+
+	uint32 slot = INVALID;
+};
+
 /**
 * Pipeline barrier access information.
 */
@@ -524,6 +532,9 @@ inline static constexpr Access RAY_TRACING_SHADER_READ_WRITE			= { PipelineStage
 inline static constexpr Access TASK_SHADER_READ_WRITE					= { PipelineStage::Task_Shader,						MemoryAccessType::Memory_Read_Write };
 inline static constexpr Access MESH_SHADER_READ_WRITE					= { PipelineStage::Mesh_Shader,						MemoryAccessType::Memory_Read_Write };
 inline static constexpr Access ACCELERATION_STRUCTURE_COPY_READ_WRITE	= { PipelineStage::Acceleration_Structure_Copy,		MemoryAccessType::Memory_Read_Write };
+// ownership transfers.
+inline static constexpr Access TOP_OF_PIPE_NONE							= { PipelineStage::Top_Of_Pipe,						MemoryAccessType::None };
+inline static constexpr Access BOTTOM_OF_PIPE_NONE						= { PipelineStage::Bottom_Of_Pipe,					MemoryAccessType::None };
 }
 
 RHI_API auto is_color_format(Format format) -> bool;

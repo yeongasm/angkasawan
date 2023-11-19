@@ -129,7 +129,6 @@ struct Semaphore
 {
 	VkSemaphore handle;
 	VkSemaphoreType type;
-	uint64 value;
 };
 
 }
@@ -161,6 +160,14 @@ struct ResourcePool
 
 struct DescriptorCache
 {
+	// Pipeline layouts.
+	lib::map<uint32, VkPipelineLayout> pipelineLayouts;
+
+	lib::array<uint32> bdaFreeSlots;
+	lib::array<uint32> imageFreeSlots;
+	lib::array<uint32> combinedImageFreeSlots;
+	lib::array<uint32> samplerFreeSlots;
+
 	// Descriptors.
 	VkDescriptorPool descriptorPool;
 	VkDescriptorSetLayout descriptorSetLayout;
@@ -169,11 +176,12 @@ struct DescriptorCache
 	// Buffer device address.
 	VkBuffer bdaBuffer;
 	VmaAllocation bdaAllocation;
-	std::uintptr_t* bdaHostAddress;
-	lib::array<VkDeviceAddress> bufferAddresses; // This dynamic array stores a list of buffer device addresses that gets memcopied into the bda buffer.
+	VkDeviceAddress* bdaHostAddress;
 
-	// Pipeline layouts.
-	lib::map<uint32, VkPipelineLayout> pipelineLayouts;
+	uint32 bdaBindingSlot;
+	uint32 imageBindingSlot;
+	uint32 combinedImageBindingSlot;
+	uint32 samplerBindingSlot;
 };
 
 struct APIContext

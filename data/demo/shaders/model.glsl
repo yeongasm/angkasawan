@@ -2,23 +2,33 @@
 
 #include <forge.glsl>
 
-layout (buffer_reference, std140) readonly buffer ProjectionViewTransform
+layout (buffer_reference, scalar) readonly buffer buffer_ProjectionTransform
 {
-	mat4 projection;
-	mat4 view;
+	mat4 data;
 };
 
-layout (buffer_reference, std140) readonly buffer WorldTransform
+layout (buffer_reference, scalar) readonly buffer buffer_ViewTransform
 {
-	mat4 transform;
+	mat4 data;
 };
 
-layout (push_constant) uniform PushConstant
+layout (buffer_reference, scalar) readonly buffer buffer_WorldTransform
 {
-	uint proj_view_i;
-	uint model_transform_i;
-	uint texture_i;
-	uint sampler_i;
+	mat4 data;
+};
+
+// layout (buffer_reference, scalar) readonly buffer buffer_DrawData
+// {
+// 	buffer_ProjectionTransform projection;
+// 	buffer_ViewTransform view;
+// 	buffer_WorldTransform transform;
+// }
+
+layout (push_constant, scalar) uniform PushConstant
+{
+	buffer_ProjectionTransform projection;
+	buffer_ViewTransform view;
+	buffer_WorldTransform transform;
 } _constants;
 
 #if defined(VERTEX_SHADER)
@@ -30,10 +40,14 @@ layout (location = 0) out vec2 out_uv;
 
 void main()
 {
-	ProjectionViewTransform projView = deref(ProjectionViewTransform, _constants.proj_view_i);
-	WorldTransform world = deref(WorldTransform, _constants.model_transform_i);
+	//ProjectionViewTransform projView = deref(ProjectionViewTransform, _constants.proj_view_i);
+	//WorldTransform world = deref(WorldTransform, _constants.model_transform_i);
+	mat4 projection = _constants.projection.data;
+	mat4 view = _constants.view.data;
+	mat4 model = _constants.transform.data;
 	out_uv = in_uv;
-	gl_Position = projView.projection * projView.view * world.transform * vec4(in_pos, 1.0);
+	//gl_Position = projection * view * model * vec4(positions[gl_VertexIndex], 0.0, 1.0);
+	gl_Position = projection * view * model * vec4(in_pos, 1.0);
 }
 
 #elif defined(FRAGMENT_SHADER)
@@ -47,7 +61,8 @@ layout (location = 0) out vec4 frag_color;
 
 void main()
 {
-	frag_color = vec4(texture(sampler2D(_tex_store[_constants.texture_i], _sampler_store[_constants.sampler_i]), in_uv).xyz, 1.0);
+	//frag_color = vec4(texture(sampler2D(_tex_store[_constants.texture_i], _sampler_store[_constants.sampler_i]), in_uv).xyz, 1.0);
+	frag_color = vec4(1.0, 1.0, 1.0, 1.0);
 }
 
 #endif

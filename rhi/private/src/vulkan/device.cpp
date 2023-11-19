@@ -680,6 +680,7 @@ auto translate_memory_usage(MemoryUsage usage) -> VmaAllocationCreateFlags
 		VMA_ALLOCATION_CREATE_CAN_ALIAS_BIT,
 		VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT,
 		VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT,
+		VMA_ALLOCATION_CREATE_HOST_ACCESS_ALLOW_TRANSFER_INSTEAD_BIT,
 		VMA_ALLOCATION_CREATE_STRATEGY_MIN_MEMORY_BIT,
 		VMA_ALLOCATION_CREATE_STRATEGY_MIN_TIME_BIT
 	};
@@ -1507,6 +1508,23 @@ auto APIContext::initialize_descriptor_cache() -> bool
 		if (vmaCreateBuffer(allocator, &bufferInfo, &allocInfo, &descriptorCache.bdaBuffer, &descriptorCache.bdaAllocation, nullptr) == VK_SUCCESS)
 		{
 			vmaMapMemory(allocator, descriptorCache.bdaAllocation, reinterpret_cast<void**>(&descriptorCache.bdaHostAddress));
+
+			VkDescriptorBufferInfo descriptorBufferInfo{
+				.buffer = descriptorCache.bdaBuffer,
+				.offset = 0,
+				.range = VK_WHOLE_SIZE,
+			};
+
+			VkWriteDescriptorSet bdaWriteInfo{
+				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+				.dstSet = descriptorCache.descriptorSet,
+				.dstBinding = BUFFER_DEVICE_ADDRESS_BINDING,
+				.descriptorCount = 1,
+				.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+				.pBufferInfo = &descriptorBufferInfo
+			};
+
+			vkUpdateDescriptorSets(device, 1, &bdaWriteInfo, 0, nullptr);
 		}
 	}
 
@@ -2421,7 +2439,7 @@ auto APIContext::create_timeline_semaphore(FenceInfo&& info) -> Fence
 	{
 		return Fence{};
 	}
-	auto [index, semaphoreResource] = gpuResourcePool.semaphores.emplace(semaphoreHandle, VK_SEMAPHORE_TYPE_TIMELINE, info.initialValue);
+	auto [index, semaphoreResource] = gpuResourcePool.semaphores.emplace(semaphoreHandle, VK_SEMAPHORE_TYPE_TIMELINE);
 
 	info.name.format("<timeline_semaphore>:{}", info.name.c_str());
 
@@ -2458,8 +2476,13 @@ auto APIContext::submit(SubmitInfo const& info) -> bool
 	{
 		if (submittedCmdBuffer.m_state == CommandBuffer::State::Executable)
 		{
+			vulkan::Semaphore& semaphore = submittedCmdBuffer.m_completion_timeline.as<vulkan::Semaphore>();
 			vulkan::CommandBuffer& cmdBuffer = submittedCmdBuffer.as<vulkan::CommandBuffer>();
 			submit_command_buffers.push_back(cmdBuffer.handle);
+			
+			signal_semaphores.push_back(semaphore.handle);
+			signal_timeline_semaphore_values.push_back(submittedCmdBuffer.m_recording_timeline);
+
 			submittedCmdBuffer.m_state = CommandBuffer::State::Pending;
 		}
 	}

@@ -17,8 +17,14 @@ struct map_traits
 	using reference			= type&;
 	using const_reference	= type const&;
 	using mutable_type		= std::pair<key_type, value_type>;
+	using mut_const_ref		= mutable_type const&;
 
 	static constexpr key_type const& extract_key(const_reference object)
+	{
+		return object.first;
+	}
+
+	static constexpr key_type const& extract_key(mut_const_ref object)
 	{
 		return object.first;
 	}

@@ -1,5 +1,5 @@
 include(${CMAKE_SOURCE_DIR}/Util.cmake)
-include(FetchContent)
+include(${CMAKE_SOURCE_DIR}/CPM.cmake)
 
 set(
 	rhi_header_files
@@ -74,20 +74,18 @@ if (USE_VULKAN)
 		${vulkan_source_files}
 	)
 
-	FetchContent_Declare(
-		volk
-		GIT_REPOSITORY https://github.com/zeux/volk.git
+	CPMAddPackage(
+		NAME volk
 		GIT_TAG sdk-1.3.224.1
+		GIT_REPOSITORY https://github.com/zeux/volk.git
 	)
-	FetchContent_MakeAvailable(volk)
 	set_target_properties(volk PROPERTIES FOLDER thirdparty)
 
-	FetchContent_Declare(
-		vma
-		GIT_REPOSITORY https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
+	CPMAddPackage(
+		NAME vma
 		GIT_TAG v3.0.1
+		GIT_REPOSITORY https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
 	)
-	FetchContent_MakeAvailable(vma)
 	set_target_properties(VulkanMemoryAllocator PROPERTIES FOLDER thirdparty)
 
 	# import shaderc from the VulkanSDK.
@@ -103,12 +101,11 @@ if (USE_VULKAN)
 	set(SPIRV_REFLECT_EXAMPLES OFF CACHE BOOL "" FORCE)
 	set(SPIRV_REFLECT_STATIC_LIB ON CACHE BOOL "" FORCE)
 
-	FetchContent_Declare(
-		spirv-reflect-static
-		GIT_REPOSITORY https://github.com/KhronosGroup/SPIRV-Reflect.git
+	CPMAddPackage(
+		NAME spirv-reflect-static
 		GIT_TAG sdk-1.3.224.1
+		GIT_REPOSITORY https://github.com/KhronosGroup/SPIRV-Reflect.git
 	)
-	FetchContent_MakeAvailable(spirv-reflect-static)
 	set_target_properties(spirv-reflect-static PROPERTIES FOLDER thirdparty)
 	
 	target_link_libraries(RHI PRIVATE volk_headers VulkanMemoryAllocator shaderc spirv-reflect-static)

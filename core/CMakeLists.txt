@@ -1,19 +1,14 @@
 include(${CMAKE_SOURCE_DIR}/Util.cmake)
-include(FetchContent)
+include(${CMAKE_SOURCE_DIR}/CPM.cmake)
 
-FetchContent_Declare(
-	simdjson
+CPMAddPackage(
+	NAME simdjson
+	GIT_TAG v2.2.2
 	GIT_REPOSITORY https://github.com/simdjson/simdjson.git
-	GIT_TAG  v2.2.2
 	GIT_SHALLOW TRUE
 )
-FetchContent_MakeAvailable(simdjson)
-set_target_properties(
-	simdjson
-	PROPERTIES 
-		FOLDER thirdparty
-		CXX_STANDARD 20
-)
+target_compile_features(simdjson PUBLIC cxx_std_20)
+set_target_properties(simdjson PROPERTIES FOLDER thirdparty)
 
 if (MSVC)
 	target_compile_options(simdjson PUBLIC /wd4245 /wd4100 /wd4459 /wd4530 /wd4706)
@@ -22,18 +17,23 @@ else()
 endif()
 
 set(
-	source_list
+	header_list
 	"public/core/application.h"
+	"public/core/core_minimal.h"
+	"public/core/cursor.h"
 	"public/core/engine.h"
+	"public/core/engine_api.h"
 	"public/core/engine_common.h"
+	"public/core/event_queue.h"
 	"public/core/io.h"
 	"public/core/io_enums.h"
 	"public/core/stat.h"
 	"public/core/windowing.h"
-	"public/core/core_minimal.h"
-	"public/core/engine_api.h"
-	"public/core/event_queue.h"
 	"private/include/platform_header.h"
+)
+
+set(
+	source_list
 	"private/src/engine.cpp"
 	"private/src/io.cpp"
 	"private/src/windowing.cpp"
@@ -41,13 +41,14 @@ set(
 
 set(
 	win_source_list
+	"private/src/win/win_cursor.cpp"
 	"private/src/win/win_engine.cpp"
 	"private/src/win/win_event_queue.cpp"
 	"private/src/win/win_stat.cpp"
 	"private/src/win/win_windowing.cpp"
 )
 
-add_library(Core SHARED ${source_list})
+add_library(Core SHARED ${header_list} ${source_list})
 target_compile_features(Core PUBLIC cxx_std_20)
 target_compile_definitions(Core PRIVATE "CORE_EXPORT")
 target_compile_definitions(Core PRIVATE SIMDJSON_EXCEPTIONS=OFF $<$<CONFIG:Debug>:SIMDJSON_DEVELOPMENT_CHECKS=1>)

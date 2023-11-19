@@ -13,8 +13,8 @@ inline constexpr uint32 MAX_COMMAND_BUFFER_ATTACHMENT = 16;
 inline constexpr uint32 MAX_COMMAND_BUFFER_PER_POOL = 16;
 inline constexpr uint32 MAX_FRAMES_IN_FLIGHT = 4;
 // resource limits.
-inline constexpr uint32 MAX_BUFFERS = 1'000;
-inline constexpr uint32 MAX_IMAGES = 1'000;
+inline constexpr uint32 MAX_BUFFERS = 10'000;
+inline constexpr uint32 MAX_IMAGES = 10'000;
 inline constexpr uint32 MAX_SAMPLERS = 100;
 // shader bindings.
 inline constexpr uint32 STORAGE_IMAGE_BINDING = 0;
@@ -518,13 +518,17 @@ enum class MemoryUsage : uint32
 	*/
 	Host_Accessible = 1 << 3,
 	/**
+	* \brief When used with Host_Writable or Host_Accessible, a non host visible may be selected if it improves performance (unified memory, BAR, ReBAR).
+	*/
+	Host_Transferable = 1 << 4,
+	/**
 	* \brief Chooses the smallest possible free range that minimizes fragmentation in the allocator.
 	*/
-	Best_Fit = 1 << 4,
+	Best_Fit = 1 << 5,
 	/**
 	* \brief Chooses the first suitable free memory range in the allocator. Fastest allocation time.
 	*/
-	First_Fit = 1 << 5
+	First_Fit = 1 << 6
 };
 
 enum class PipelineType

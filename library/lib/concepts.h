@@ -26,6 +26,9 @@ concept is_bit_compatible = std::is_enum_v<T> || std::is_integral_v<T>;
 template <typename T>
 concept bit_mask = is_enum<T> || std::signed_integral<T> || std::unsigned_integral<T>;
 
+template <typename T>
+concept is_trivial = std::is_trivial_v<T>;
+
 }
 
 #endif // !LIB_CONCEPTS_H

@@ -56,8 +56,12 @@ struct IOContext
 
 	void listen_to_event(OSEvent const& ev);
 	void update_state();
+	void reset_mouse_wheel_state();
 };
 
+/**
+* \brief val - seconds for time based values. pixels for distance based values.
+*/
 CORE_API void update_configuration(IOConfiguration config, float32 val);
 CORE_API IOConfigurationInfo get_configuration();
 CORE_API bool key_pressed(IOKey key);
@@ -70,9 +74,14 @@ CORE_API bool mouse_held(IOMouseButton button);
 CORE_API bool mouse_released(IOMouseButton button);
 CORE_API bool mouse_dragging(IOMouseButton button);
 CORE_API Point mouse_drag_delta(IOMouseButton button);
+CORE_API auto mouse_position() -> Point;
+CORE_API auto mouse_click_position(IOMouseButton button) -> Point;
+CORE_API auto mouse_wheel_v() -> float32;
+CORE_API auto mouse_wheel_h() -> float32;
 CORE_API bool ctrl();
 CORE_API bool alt();
 CORE_API bool shift();
+CORE_API auto set_mouse_position(Point point) -> void;
 
 }
 

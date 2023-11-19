@@ -1,0 +1,64 @@
+﻿include(FindVulkan)
+
+set(
+	ktx_source_files
+	"include/ktx.h"
+	"include/KHR/khr_df.h"
+	"lib/astc-encoder/Source/astcenc.h"
+	"lib/basisu/transcoder/basisu.h"
+	"lib/basisu/transcoder/basisu_containers.h"
+	"lib/basisu/transcoder/basisu_containers_impl.h"
+	"lib/basisu/transcoder/basisu_file_headers.h"
+	"lib/basisu/transcoder/basisu_transcoder.cpp"
+	"lib/basisu/transcoder/basisu_transcoder.h"
+	"lib/basisu/transcoder/basisu_transcoder_internal.h"
+	"lib/basisu/transcoder/basisu_transcoder_uastc.h"
+	"lib/basisu/zstd/zstd.c"
+	"lib/basisu/zstd/zstd.h"
+	"lib/dfdutils/createdfd.c"
+	"lib/dfdutils/dfd.h"
+	"lib/dfdutils/printdfd.c"
+	"lib/dfdutils/queries.c"
+	"lib/dfdutils/vk2dfd.c"
+	"lib/dfdutils/vk2dfd.inl"
+	"lib/astc_encode.cpp"
+	"lib/basis_encode.cpp"
+	"lib/basis_sgd.h"
+	"lib/filestream.c"
+	"lib/filestream.h"
+	"lib/formatsize.h"
+	"lib/gl_format.h"
+	"lib/hashlist.c"
+	"lib/info.c"
+	"lib/ktxint.h"
+	"lib/memstream.c"
+	"lib/memstream.h"
+	"lib/strings.c"
+	"lib/texture.c"
+	"lib/texture.h"
+	"lib/texture_funcs.inl"
+	"lib/texture1.c"
+	"lib/texture1.h"
+	"lib/texture2.c"
+	"lib/texture2.h"
+	"lib/uthash.h"
+	"lib/vkformat_enum.h"
+	"lib/vk_format.h"
+	"lib/writer1.c"
+	"lib/writer2.c"
+	"utils/unused.h"
+)
+
+add_library(ktx STATIC ${ktx_source_files})
+target_include_directories(
+	ktx
+	PUBLIC 
+		"include"
+	PRIVATE 
+		"include/KHR"
+		"lib/basisu/zstd"
+		"lib"
+		"utils"
+)
+set_target_properties(ktx PROPERTIES FOLDER thirdparty)
+target_compile_definitions(ktx PUBLIC KHRONOS_STATIC LIBKTX PRIVATE BASISU_SUPPORT_OPENCL=0 KTX_FEATURE_WRITE=1)

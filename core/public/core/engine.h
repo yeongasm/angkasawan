@@ -5,6 +5,7 @@
 #include "io.h"
 #include "event_queue.h"
 #include "windowing.h"
+#include "cursor.h"
 #include "stat.h"
 #include "application.h"
 
@@ -36,7 +37,10 @@ public:
 	CORE_API void				set_window_as_fullscreen	(wnd::window_handle hnd);
 	CORE_API void				register_window_listener	(wnd::window_handle hnd, wnd::WindowEvent ev, std::function<void()>&& callback, lib::wstring_128 identifier = {});
 	CORE_API bool				is_window_minimized			(wnd::window_handle hnd) const;
+	CORE_API auto				is_window_focused			(wnd::window_handle hnd) const -> bool;
 	CORE_API uint32				num_windows					() const;
+	CORE_API auto				show_cursor					(bool show = true) -> void;
+	CORE_API auto				set_cursor_position			(wnd::window_handle hnd, Point point) -> void;
 
 	template <std::derived_from<Application> T>
 	bool register_application()
@@ -55,6 +59,7 @@ public:
 private:
 	os::EventQueue mEventQueue;
 	wnd::WindowingContext mWindowContext;
+	cursor::CursorContext mCursorContext;
 	EngineState	mState;
 	Application* mApp;
 

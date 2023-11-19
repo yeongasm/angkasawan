@@ -72,15 +72,6 @@ std::pair<window_handle, Window*> WindowingContext::window_from_native_handle(vo
 
 }
 
-//WindowInterface::WindowInterface(WindowingContext& context) :
-//	pWindowingContext{ &context }
-//{}
-//
-//WindowInterface::~WindowInterface()
-//{
-//	pWindowingContext = nullptr;
-//}
-
 bool Engine::destroy_window(wnd::window_handle& hnd)
 {
 	bool destroyed = false;

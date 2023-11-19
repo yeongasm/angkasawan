@@ -52,7 +52,7 @@ struct OSEvent
 	{
 		struct { uint32 utf8; }					textInput;
 		struct { int32 x, y; }					mouseMove;
-		struct { float32 offset; }				mouseWheel;
+		struct { float32 v, h; }				mouseWheelDelta;
 		struct { bool down; uint32 button; }	mouseButton;
 		struct { int32 x, y; }					winMove;
 		struct { int32 width, height; }			winSize;

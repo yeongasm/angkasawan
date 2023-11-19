@@ -74,8 +74,16 @@ struct MemoryBarrierInfo
 
 struct BufferBarrierInfo
 {
-	uint32 size = std::numeric_limits<uint32>::max();
-	uint32 offset = 0;
+	size_t size = std::numeric_limits<size_t>::max();
+	size_t offset = 0;
+	Access srcAccess = {};
+	Access dstAccess = {};
+	DeviceQueueType	srcQueue = DeviceQueueType::Main;
+	DeviceQueueType	dstQueue = DeviceQueueType::Main;
+};
+
+struct BufferViewBarrierInfo
+{
 	Access srcAccess = {};
 	Access dstAccess = {};
 	DeviceQueueType	srcQueue = DeviceQueueType::Main;
@@ -130,7 +138,6 @@ struct DrawIndirectCountInfo
 struct BindVertexBufferInfo
 {
 	uint32 firstBinding;
-	uint32 bindingCount;
 	size_t offset;
 };
 
@@ -209,8 +216,9 @@ public:
 	RHI_API auto is_recording() const -> bool;
 	RHI_API auto is_executable() const -> bool;
 	RHI_API auto is_pending_complete() const -> bool;
+	RHI_API auto is_completed() -> bool;
 	RHI_API auto is_invalid() const -> bool;
-	RHI_API auto state() const -> State;
+	RHI_API auto current_state() const -> State;
 
 	RHI_API auto reset() -> void;
 
@@ -227,12 +235,14 @@ public:
 	RHI_API auto draw_indirect(Buffer const& drawInfoBuffer, DrawIndirectInfo const& info) const -> void;
 	RHI_API auto draw_indirect_count(Buffer const& drawInfoBuffer, Buffer const& drawCountBuffer, DrawIndirectCountInfo const& info) const -> void;
 
+	RHI_API auto bind_vertex_buffer(BufferView const& bufferView, uint32 firstBinding = 0) -> void;
 	RHI_API auto bind_vertex_buffer(Buffer const& buffer, BindVertexBufferInfo const& info) -> void;
+	RHI_API auto bind_index_buffer(BufferView const& bufferView, IndexType indexType = IndexType::Uint_32) -> void;
 	RHI_API auto bind_index_buffer(Buffer const& buffer, BindIndexBufferInfo const& info) -> void;
 	RHI_API auto bind_push_constant(void const* data, size_t size, size_t offset) -> void;
 
 	template <typename T>
-	auto bind_push_constant(T const& data, size_t offset = 0) const -> void
+	auto bind_push_constant(T const& data, size_t offset = 0) -> void
 	{
 		bind_push_constant(&data, sizeof(T), offset);
 	}
@@ -241,6 +251,7 @@ public:
 
 	RHI_API auto pipeline_barrier(MemoryBarrierInfo const& barrier) -> void;
 	RHI_API auto pipeline_barrier(Buffer const& buffer, BufferBarrierInfo const& barrier) -> void;
+	RHI_API auto pipeline_barrier(BufferView const& bufferView, BufferViewBarrierInfo const& barrier) -> void;
 	RHI_API auto pipeline_barrier(Image const& image, ImageBarrierInfo const& barrier) -> void;
 	RHI_API auto flush_barriers() -> void;
 
@@ -265,10 +276,14 @@ private:
 	friend class CommandPool;
 
 	CommandBufferInfo m_info;
+	Fence m_completion_timeline;
+	uint64 m_recording_timeline;
+	DeviceQueueType m_execution_queue;
 	State m_state = State::Invalid;
 
 	CommandBuffer(
 		CommandBufferInfo&& info,
+		DeviceQueueType executionQueue,
 		APIContext* context,
 		void* data,
 		resource_type typeId

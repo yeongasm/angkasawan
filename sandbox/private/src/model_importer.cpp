@@ -56,6 +56,30 @@ auto translate_topology(cgltf_primitive_type topology) -> GltfImporter::MeshInfo
 	}
 }
 
+auto translate_type(cgltf_type type) -> GltfImporter::MeshInfo::VertexData::Type
+{
+	switch (type)
+	{
+	case cgltf_type_scalar:
+		return GltfImporter::MeshInfo::VertexData::Type::Scalar;
+	case cgltf_type_vec2:
+		return GltfImporter::MeshInfo::VertexData::Type::Vec2;
+	case cgltf_type_vec3:
+		return GltfImporter::MeshInfo::VertexData::Type::Vec3;
+	case cgltf_type_vec4:
+		return GltfImporter::MeshInfo::VertexData::Type::Vec4;
+	case cgltf_type_mat2:
+		return GltfImporter::MeshInfo::VertexData::Type::Mat2;
+	case cgltf_type_mat3:
+		return GltfImporter::MeshInfo::VertexData::Type::Mat3;
+	case cgltf_type_mat4:
+		return GltfImporter::MeshInfo::VertexData::Type::Mat4;
+	case cgltf_type_invalid:
+	default:
+		return GltfImporter::MeshInfo::VertexData::Type::Invalid;
+	}
+}
+
 auto translate_alpha_mode(cgltf_alpha_mode mode) -> CgltfAlphaMode
 {
 	switch (mode)
@@ -80,6 +104,10 @@ auto load_gltf_node(cgltf_node* node, lib::array<std::byte>& buffer, std::span<C
 
 		for (size_t i = 0; i < mesh->primitives_count; ++i)
 		{
+			if (offset >= primitiveInfos.size())
+			{
+				break;
+			}
 			cgltf_primitive& primitive = mesh->primitives[i];
 			
 			CgltfPrimitiveInfo& info = primitiveInfos[offset];
@@ -148,7 +176,7 @@ auto create_cgltf_data(std::filesystem::path const& path) -> cgltf_data*
 
 auto decode_cgltf_data(cgltf_data* data) -> CgltfDecodedData
 {
-	CgltfDecodedData decoded = {};
+	CgltfDecodedData decoded{};
 	// Get total primitives.
 	for (size_t i = 0; i < data->meshes_count; ++i)
 	{
@@ -173,7 +201,7 @@ auto decode_cgltf_data(cgltf_data* data) -> CgltfDecodedData
 			cgltf_primitive& primitive = mesh.primitives[j];
 			if (primitive.indices)
 			{
-				decoded.numUintData += primitive.indices->count * sizeof(uint32);
+				decoded.numUintData += primitive.indices->count;
 			}
 		}
 	}
@@ -183,7 +211,10 @@ auto decode_cgltf_data(cgltf_data* data) -> CgltfDecodedData
 	for (size_t i = 0; i < data->images_count; ++i)
 	{
 		cgltf_image& image = data->images[i];
-		decoded.numImageUriChars += lib::string_length(image.uri);
+		if (image.uri)
+		{
+			decoded.numImageUriChars += lib::string_length(image.uri);
+		}
 	}
 	// Get total materials.
 	decoded.numMaterials = data->materials_count;
@@ -219,18 +250,28 @@ auto store_float_data(std::span<GltfImporter::MeshInfo> meshSpan, std::span<floa
 		}
 	);
 
-	for (auto attribute_type : sorted)
+	for (size_t total = 0; auto attribute_type : sorted)
 	{
 		size_t const order = load_order[attribute_type];
-		for (size_t currentMeshIndex = 0, total = 0; CgltfPrimitiveInfo& info : primitiveInfoSpan)
+		for (size_t currentMeshIndex = 0; CgltfPrimitiveInfo& info : primitiveInfoSpan)
 		{
 			cgltf_attribute* attribute = info.attributes[order];
+			GltfImporter::MeshInfo& meshInfo = meshSpan[currentMeshIndex];
 
 			if (attribute)
 			{
+				meshInfo.num_vertices = static_cast<uint32>(attribute->data->count);
+
+				GltfImporter::MeshInfo::VertexData& meshVertex = meshInfo.vertex_data[order];
+
+				float32* dst = &floatSpan[total];
+
 				auto count = cgltf_accessor_unpack_floats(attribute->data, nullptr, 0);
-				cgltf_accessor_unpack_floats(attribute->data, &floatSpan[total], count);
-				meshSpan[currentMeshIndex].data[order] = std::span{ &floatSpan[total], count };
+				cgltf_accessor_unpack_floats(attribute->data, dst, count);
+
+				meshVertex.data			= std::span{ dst, count };
+				meshVertex.data_type	= translate_type(attribute->data->type);
+
 				total += count;
 			}
 			++currentMeshIndex;
@@ -244,32 +285,33 @@ auto store_uint_data(std::span<GltfImporter::MeshInfo> meshSpan, std::span<uint3
 	{
 		if (info.indices && info.indices->count)
 		{
+			uint32* dst = uintSpan.data() + total;
 			cgltf_accessor* index = info.indices;
-			for (size_t j = total; j < total + index->count; ++j)
+			for (size_t j = 0; j < index->count; ++j)
 			{
 				uint32 meshIndex = 0;
 				cgltf_accessor_read_uint(index, j, &meshIndex, 1);
-				uintSpan[j] = meshIndex;
+				dst[j] = meshIndex;
 			}
-			meshSpan[currentMeshIndex].indices = std::span{ &uintSpan[total], index->count};
+			meshSpan[currentMeshIndex].indices = std::span{ dst, index->count };
 			total += index->count;
 		}
 		++currentMeshIndex;
 	}
 }
 
-auto store_image_uri_paths_length_data(std::span<size_t> imageUriLengthSpan, cgltf_data* data) -> void
+auto store_image_uri_paths_length_data(std::span<size_t> imageUriLengthSpan, size_t parentPathLength, cgltf_data* data) -> void
 {
 	for (size_t i = 0; i < data->images_count; ++i)
 	{
 		size_t const len = lib::string_length(data->images[i].uri);
-		imageUriLengthSpan[i] = len;
+		imageUriLengthSpan[i] = parentPathLength + len;
 	}
 }
 
 auto store_image_uri_paths_and_image_data(
 	std::span<size_t> imageUriLengthSpan, 
-	std::span<char> imageUriSpan, 
+	std::span<wchar_t> imageUriSpan, 
 	std::span<GltfImporter::ImageInfo> imageInfo,
 	std::filesystem::path const& dirAbsolutePath,
 	cgltf_data* data) -> void
@@ -279,9 +321,11 @@ auto store_image_uri_paths_and_image_data(
 	for (size_t i = 0; i < data->images_count; ++i)
 	{
 		size_t const len = imageUriLengthSpan[i];
-		lib::memcopy(&imageUriSpan[offset], data->images[i].uri, len * sizeof(char));
-		imageInfo[i].path = std::string_view{ &imageUriSpan[offset], len };
-		imageInfo[i].size = std::filesystem::file_size(dirAbsolutePath / imageInfo[i].path);
+		auto imageURI = dirAbsolutePath / data->images[i].uri;
+
+		lib::memcopy(&imageUriSpan[offset], imageURI.c_str(), len * sizeof(wchar_t));
+		imageInfo[i].path = std::wstring_view{ &imageUriSpan[offset], len };
+		imageInfo[i].size = std::filesystem::file_size(imageURI);
 		offset += len;
 	}
 }
@@ -408,6 +452,12 @@ auto store_material_data(
 	}
 }
 
+auto GltfImporter::MeshInfo::get_data(CgltfVertexInput type) const -> VertexData const&
+{
+	auto pos = static_cast<std::underlying_type_t<CgltfVertexInput>>(type);
+	return vertex_data[pos];
+}
+
 GltfImporter::GltfImporter() :
 	m_path{},
 	m_data{},
@@ -482,7 +532,7 @@ GltfImporter& GltfImporter::operator=(GltfImporter&& rhs) noexcept
 // `--- MaterialInfos * num materials in a single GLTF 2.0 file.
 //
 
-auto GltfImporter::open(std::filesystem::path path) -> bool
+auto GltfImporter::open(std::filesystem::path const& path) -> bool
 {	
 	if (is_open())
 	{
@@ -492,6 +542,9 @@ auto GltfImporter::open(std::filesystem::path path) -> bool
 
 	m_path = std::filesystem::absolute(path);
 
+	auto absolutePath = std::filesystem::absolute(m_path).remove_filename();
+	size_t const parentPathLength = lib::string_length(absolutePath.c_str());
+
 	cgltf_data* data = create_cgltf_data(m_path);
 
 	if (!data)
@@ -499,13 +552,15 @@ auto GltfImporter::open(std::filesystem::path path) -> bool
 		return false;
 	}
 
-	CgltfDecodedData const decodedData = decode_cgltf_data(data);
+	CgltfDecodedData decodedData = decode_cgltf_data(data);
+
+	decodedData.numImageUriChars += parentPathLength * decodedData.numImages;
 
 	size_t capacity = decodedData.numMeshes			* sizeof(MeshInfo);
 	capacity += decodedData.numFloatData			* sizeof(float32);
 	capacity += decodedData.numUintData				* sizeof(uint32);
 	capacity += decodedData.numImages				* sizeof(size_t);
-	capacity += decodedData.numImageUriChars		* sizeof(char);
+	capacity += decodedData.numImageUriChars		* sizeof(wchar_t);
 	capacity += decodedData.numMaterialsWithName	* sizeof(size_t);
 	capacity += decodedData.numMaterialNameChars	* sizeof(char);
 	capacity += decodedData.numImages				* sizeof(ImageInfo);
@@ -518,7 +573,7 @@ auto GltfImporter::open(std::filesystem::path path) -> bool
 	auto floatDataSpan			= store_in_buffer<float32>(decodedData.numFloatData);
 	auto uintDataSpan			= store_in_buffer<uint32>(decodedData.numUintData);
 	auto imageUriLengthSpan		= store_in_buffer<size_t>(decodedData.numImages);
-	auto imageUriSpan			= store_in_buffer<char>(decodedData.numImageUriChars);
+	auto imageUriSpan			= store_in_buffer<wchar_t>(decodedData.numImageUriChars);
 	auto materialNameLengthSpan = store_in_buffer<size_t>(decodedData.numMaterialsWithName);
 	auto materialNameSpan		= store_in_buffer<char>(decodedData.numMaterialNameChars);
 	auto imageSpan				= store_in_buffer<ImageInfo>(decodedData.numImages);
@@ -549,10 +604,10 @@ auto GltfImporter::open(std::filesystem::path path) -> bool
 	store_uint_data(meshSpan, uintDataSpan, primitiveInfoSpan);
 
 	// Store image uri path lengths.
-	store_image_uri_paths_length_data(imageUriLengthSpan, data);
+	store_image_uri_paths_length_data(imageUriLengthSpan, parentPathLength, data);
 
 	// Store image uri paths.
-	store_image_uri_paths_and_image_data(imageUriLengthSpan, imageUriSpan, imageSpan, std::filesystem::absolute(m_path).remove_filename(), data);
+	store_image_uri_paths_and_image_data(imageUriLengthSpan, imageUriSpan, imageSpan, absolutePath, data);
 
 	// Store material name length.
 	store_material_name_length_data(materialNameLengthSpan, data);
@@ -590,20 +645,25 @@ auto GltfImporter::num_meshes() const -> size_t
 	return m_meshes.size();
 }
 
-auto GltfImporter::vertex_data_size_bytes() const->size_t
+auto GltfImporter::size() const -> size_t
+{
+	return m_meshes.size();
+}
+
+auto GltfImporter::vertex_data_size_bytes() const -> size_t
 {
 	size_t total = 0;
 	for (MeshInfo const& mesh : m_meshes)
 	{
-		for (auto it = std::begin(mesh.data); it != std::end(mesh.data); ++it)
+		for (auto it = std::begin(mesh.vertex_data); it != std::end(mesh.vertex_data); ++it)
 		{
-			total += it->size_bytes();
+			total += it->data.size_bytes();
 		}
 	}
 	return total;
 }
 
-auto GltfImporter::index_data_size_bytes() const->size_t
+auto GltfImporter::index_data_size_bytes() const -> size_t
 {
 	size_t total = 0;
 	for (MeshInfo const& mesh : m_meshes)
@@ -651,6 +711,11 @@ auto GltfImporter::cbegin() const -> const_iterator
 auto GltfImporter::cend() const -> const_iterator
 {
 	return const_iterator{ m_meshes.data() + m_meshes.size(), *this };
+}
+
+auto GltfImporter::data() const -> MeshInfo*
+{
+	return m_meshes.data();
 }
 
 }

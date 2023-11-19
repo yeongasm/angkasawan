@@ -7,90 +7,90 @@ namespace core
 namespace stat
 {
 
-// Mspf - milliseconds per frame.
+// nspf - nanoseconds per frame.
 
 struct Win64StatContext
 {
-	uint64 start;
-	uint64 lastFrameTime;
+	LARGE_INTEGER hz;	// This is the frequency of the performance counter, in counts per second.
+	LARGE_INTEGER count;
+	LARGE_INTEGER lastFrameCount;
+
 	float64	dt;
 	float64	elapsed;
 	float64	totalMspf;
-	float64	mspf[120];
+	float64	nspf[120];
 	size_t	i;
-} gStatCtx;
-
-uint64 get_elapsed_time_ms()
-{
-	LARGE_INTEGER hz;
-	LARGE_INTEGER counter;
-
-	QueryPerformanceFrequency(&hz);
-	QueryPerformanceCounter(&counter);
-
-	return static_cast<uint64>((counter.QuadPart * 1000) / hz.QuadPart);
-}
+} g_stat_context;
 
 struct Win64StatContextInitializer
 {
 	Win64StatContextInitializer()
 	{
-		gStatCtx.start = get_elapsed_time_ms();
-		gStatCtx.lastFrameTime = gStatCtx.start;
+		QueryPerformanceFrequency(&g_stat_context.hz);
+
+		QueryPerformanceCounter(&g_stat_context.count);
+		g_stat_context.lastFrameCount = g_stat_context.count;
 	}
 } static init{};
 
 void update_stat_timings()
 {
-	uint64 now = get_elapsed_time_ms();
-	uint64 timestep = now - gStatCtx.lastFrameTime;
+	QueryPerformanceCounter(&g_stat_context.count);
 
-	gStatCtx.dt = static_cast<float64>(timestep);
-	gStatCtx.elapsed += gStatCtx.dt;
-	gStatCtx.lastFrameTime = now;
-	gStatCtx.totalMspf += gStatCtx.dt - gStatCtx.mspf[gStatCtx.i];
-	gStatCtx.mspf[gStatCtx.i++] = gStatCtx.dt;
-	gStatCtx.i %= 120;
+	uint64 delta = static_cast<uint64>(g_stat_context.count.QuadPart - g_stat_context.lastFrameCount.QuadPart);
+
+	// Promote to nanoseconds.
+	delta *= 1000000000;
+	delta /= g_stat_context.hz.QuadPart;
+
+	// Store data as milliseconds.
+	g_stat_context.dt = static_cast<float64>(delta);
+	g_stat_context.elapsed += g_stat_context.dt;
+	g_stat_context.totalMspf += g_stat_context.dt - g_stat_context.nspf[g_stat_context.i];
+	g_stat_context.nspf[g_stat_context.i++] = g_stat_context.dt;
+	g_stat_context.i %= 120;
+
+	g_stat_context.lastFrameCount = g_stat_context.count;
 }
 
 float64 delta_time()
 {
-	return gStatCtx.dt;
+	return g_stat_context.dt / 1000000000.0;
 }
 
 float64 elapsed_time()
 {
-	return gStatCtx.elapsed;
+	return g_stat_context.elapsed / 1000000000.0;
 }
 
 float64 frame_time()
 {
-	return 1000.0 / frame_rate();
+	return 1.0 / frame_rate();
 }
 
 float64 frame_rate()
 {
-	return 1.0 / (gStatCtx.totalMspf / 120.0);
+	return 1000000000.0 / (g_stat_context.totalMspf / 120.0);
 }
 
 float32 delta_time_f()
 {
-	return static_cast<float32>(gStatCtx.dt);
+	return static_cast<float32>(g_stat_context.dt) / 1000000000.f;
 }
 
 float32 elapsed_time_f()
 {
-	return static_cast<float32>(gStatCtx.elapsed);
+	return static_cast<float32>(g_stat_context.elapsed) / 1000000000.f;
 }
 
 float32 frame_time_f()
 {
-	return 1000.0f / frame_rate_f();
+	return 1.0f / frame_rate_f();
 }
 
 float32 frame_rate_f()
 {
-	return 1.0f / (static_cast<float32>(gStatCtx.totalMspf) / 120.0f);
+	return 1000000000.0f / (static_cast<float32>(g_stat_context.totalMspf) / 120.0f);
 }
 
 }

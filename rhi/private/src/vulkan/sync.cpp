@@ -70,8 +70,8 @@ auto Fence::value() const -> uint64
 	vulkan::Semaphore& semaphore = as<vulkan::Semaphore>();
 	uint64 value = 0;
 	vkGetSemaphoreCounterValue(m_context->device, semaphore.handle, &value);
-	semaphore.value = value;
-	return semaphore.value;
+	//semaphore.value = value;
+	return value;
 }
 
 auto Fence::signal(uint64 val) -> void
@@ -79,12 +79,12 @@ auto Fence::signal(uint64 val) -> void
 	if (valid())
 	{
 		vulkan::Semaphore& semaphore = as<vulkan::Semaphore>();
-		uint64 currentValue = value();
-		semaphore.value = std::max(std::max(currentValue, val), currentValue + 1);
+		uint64 signalValue = value();
+		signalValue = std::max(std::max(signalValue, val), signalValue + 1);
 		VkSemaphoreSignalInfo semaphoreSignalInfo{
 			.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SIGNAL_INFO,
 			.semaphore = semaphore.handle,
-			.value = semaphore.value,
+			.value = signalValue,
 		};
 		vkSignalSemaphore(m_context->device, &semaphoreSignalInfo);
 	}
@@ -95,12 +95,11 @@ auto Fence::signal() -> void
 	if (valid())
 	{
 		vulkan::Semaphore& semaphore = as<vulkan::Semaphore>();
-		uint64 currentValue = value();
-		semaphore.value = currentValue + 1ull;
+		uint64 signalValue = value() + 1ull;
 		VkSemaphoreSignalInfo semaphoreSignalInfo{
 			.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SIGNAL_INFO,
 			.semaphore = semaphore.handle,
-			.value = semaphore.value,
+			.value = signalValue,
 		};
 		vkSignalSemaphore(m_context->device, &semaphoreSignalInfo);
 	}

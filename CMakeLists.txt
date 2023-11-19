@@ -8,10 +8,19 @@ message("CMake version: ${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION}.${CMAKE_PA
 enable_testing()
 
 project(AngkasaOne)
+include(CPM.cmake)
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
-
 set(EXECUTABLE_DIR "${PROJECT_BINARY_DIR}/exe/")
+
+get_filename_component(
+    DEP_PATH
+    "../deps"
+    REALPATH 
+    BASE_DIR "${CMAKE_BINARY_DIR}"
+)
+set(CPM_SOURCE_CACHE "${DEP_PATH}")
+message("CPM_SOURCE_CACHE: ${CPM_SOURCE_CACHE}")
 
 # Include sub-projects.
 add_subdirectory(exe)

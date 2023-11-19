@@ -392,8 +392,18 @@ public:
     * Copy constructor.
     * Performs a deep copy.
     */
-    constexpr basic_string(basic_string const& rhs) { *this = rhs; }
+    constexpr basic_string(basic_string const& rhs) requires std::same_as<allocator_type, default_allocator> :
+        basic_string{}
+    { 
+        *this = rhs; 
+    }
 
+
+    constexpr basic_string(basic_string const& rhs) requires !std::same_as<allocator_type, default_allocator> :
+        basic_string{ *rhs.allocator() }
+    {
+        *this = rhs;
+    }
 
     /**
     * Copy assignment operator.
@@ -406,15 +416,15 @@ public:
             pointer ptr = m_buffer;
             const_pointer rhsPointer = rhs.pointer_to_string();
 
-            m_capacity = rhs.m_capacity;
-            m_len = rhs.m_len;
-
             // Perform a deep copy if the copied string is not a small string.
             if (!rhs.is_small_string())
             {
                 alloc(rhs.m_capacity);
                 ptr = m_data;
             }
+
+            m_len = rhs.m_len;
+            m_capacity = rhs.m_capacity;
 
             for (size_type i = 0; i < m_len; i++)
             {
@@ -426,7 +436,8 @@ public:
         return *this;
     }
 
-    constexpr basic_string(basic_string&& rhs)
+    constexpr basic_string(basic_string&& rhs) :
+        basic_string{}
     {
         *this = std::move(rhs);
     }

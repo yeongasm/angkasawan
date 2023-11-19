@@ -131,7 +131,7 @@ auto Swapchain::acquire_next_image() -> Image const&
 	}
 	[[maybe_unused]] int64 const maxFramesInFlight = static_cast<int64>(m_context->config.maxFramesInFlight);
 	// We wait until the gpu elapsed frame count is behind our swapchain's elapsed frame count.
-	[[maybe_unused]] uint64 currentValue = m_gpu_elapsed_frames.value();
+	//[[maybe_unused]] uint64 currentValue = m_gpu_elapsed_frames.value();
 	m_gpu_elapsed_frames.wait_for_value(static_cast<uint64>(std::max(0ll, static_cast<int64>(m_cpu_elapsed_frames))));
 
 	// Update swapchain's frame index for the next call to this function.

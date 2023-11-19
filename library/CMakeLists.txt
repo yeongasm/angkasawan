@@ -1,14 +1,20 @@
 include(${CMAKE_SOURCE_DIR}/Util.cmake)
-include(FetchContent)
+include(${CMAKE_SOURCE_DIR}/CPM.cmake)
 
-FetchContent_Declare(
-	fmt
+CPMAddPackage(
+	NAME fmt
+	GIT_TAG 10.1.1
 	GIT_REPOSITORY https://github.com/fmtlib/fmt.git
-	GIT_TAG 9.0.0
 )
-FetchContent_MakeAvailable(fmt)
 set_target_properties(fmt PROPERTIES FOLDER thirdparty)
 target_compile_features(fmt PUBLIC cxx_std_20)
+
+if (MSVC)
+	target_compile_options(fmt PUBLIC /wd4541)
+else()
+	target_compile_options(fmt PUBLIC -Wno-rtti)
+endif()
+
 
 set(
 	source_list

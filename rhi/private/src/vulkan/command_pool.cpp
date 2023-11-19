@@ -83,10 +83,11 @@ auto CommandPool::allocate_command_buffer(CommandBufferInfo&& info) -> CommandBu
 	}
 	new (&cmdBufferPool.commandBuffers[index]) vulkan::CommandBuffer{ .handle = cmdBufferHandle };
 
-	info.name.format("<command_buffer>:{}", m_info.name.c_str(), info.name.c_str());
+	info.name.format("<command_buffer>:{}:{}", info.name.c_str(), m_info.name.c_str());
 
 	CommandBuffer cmdBuffer{
 		std::move(info),
+		m_info.queue,
 		m_context,
 		&cmdBufferPool.commandBuffers[index],
 		resource_type_id_v<vulkan::CommandBuffer>

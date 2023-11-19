@@ -75,7 +75,7 @@ struct Window
 	void invoke_callbacks_for_event(WindowEvent ev);
 };
 
-using window_handle = lib::opaque_handle<Window, uint32, std::numeric_limits<uint32>::max(), struct WindowingContext, class WindowInterface>;
+using window_handle = lib::opaque_handle<Window, uint32, std::numeric_limits<uint32>::max(), struct WindowingContext>;
 
 struct WindowCreateInfo
 {

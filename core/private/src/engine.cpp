@@ -5,7 +5,7 @@ namespace core
 
 namespace io
 {
-extern IOContext gIOCtx;
+extern IOContext g_io_context;
 }
 
 namespace stat
@@ -20,6 +20,7 @@ static Engine* gpEngineInst = nullptr;
 Engine::Engine() :
 	mEventQueue{},
 	mWindowContext{},
+	mCursorContext{},
 	mState{},
 	mApp{ nullptr }
 {}
@@ -29,7 +30,7 @@ Engine::~Engine() {};
 bool Engine::initialize([[maybe_unused]] int argc, [[maybe_unused]] char** argv)
 {
 	mState = EngineState::Starting;
-	io::IOContext& io = io::gIOCtx;
+	io::IOContext& io = io::g_io_context;
 	mEventQueue.register_event_listener_callback(
 		[this, &io](OSEvent const& ev) -> void
 		{
@@ -42,9 +43,12 @@ bool Engine::initialize([[maybe_unused]] int argc, [[maybe_unused]] char** argv)
 			mWindowContext.listen_to_event(ev);
 
 			auto [whnd, pWindow] = mWindowContext.window_from_native_handle(ev.window);
+
 			io.enableStateUpdate = (pWindow && pWindow->focused && !is_window_minimized(whnd));
 		}
 	);
+	mCursorContext.initialize_default_cursor();
+
 	return true;
 }
 
@@ -60,7 +64,7 @@ void Engine::run()
 		// Look into the OS's message loop and trigger the callback for all registered listeners.
 		mEventQueue.peek_events();
 		// Update I/O state of the application.
-		io::gIOCtx.update_state();
+		io::g_io_context.update_state();
 		// Update state of windows that are created by the application. Destroy if need be.
 		mWindowContext.on_tick();
 		//check_if_engine_should_terminate();
@@ -68,6 +72,8 @@ void Engine::run()
 		{
 			mApp->run();
 		}
+		// Reset the mouse wheel's state because some OS cache it's delta value.
+		io::g_io_context.reset_mouse_wheel_state();
 	}
 }
 
