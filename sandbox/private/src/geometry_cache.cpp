@@ -49,8 +49,8 @@ auto GeometryCache::store_geometries(GltfImporter const& importer, GeometryInput
 		indicesSizeBytes  += mesh.indices.size_bytes();
 	}
 
-	if (verticesSizeBytes > m_input_assembler.vertexBufferView.size() ||
-		indicesSizeBytes  > m_input_assembler.indexBufferView.size())
+	if (verticesSizeBytes > m_input_assembler.vertexBuffer.second->size ||
+		indicesSizeBytes  > m_input_assembler.indexBuffer.second->size)
 	{
 		ASSERTION(false && "One of the two data exceeded capacity of the their buffers.");
 		return geometry_handle::invalid_handle();
@@ -125,26 +125,46 @@ auto GeometryCache::store_geometries(GltfImporter const& importer, GeometryInput
 	return handle;
 }
 
-auto GeometryCache::stage_geometries_for_upload(rhi::Buffer& stagingBuffer) -> UploadInfo
+auto GeometryCache::stage_geometries_for_upload(UploadHeap& uploadHeap) -> upload_id
 {
-	auto verticesStagingWrite = stagingBuffer.write(m_vertices.data(), m_vertices.size_bytes());
-	auto indicesStagingWrite  = stagingBuffer.write(m_indices.data(), m_indices.size_bytes());
+	buffer_handle vbh = m_input_assembler.vertexBuffer.first;
+	buffer_handle ibh = m_input_assembler.indexBuffer.first;
+
+	if (resource_index const vbidx = vbh.get(); vbidx._metadata.parent)
+	{
+		resource_index idx{ 0, vbidx._metadata.parent };
+		vbh = buffer_handle{ idx._alias };
+	}
+
+	if (resource_index const ibidx = ibh.get(); ibidx._metadata.parent)
+	{
+		resource_index idx{ 0, ibidx._metadata.parent };
+		ibh = buffer_handle{ idx._alias };
+	}
+
+	uploadHeap.upload_data_to_buffer({
+		.buffer = vbh,
+		.offset = m_input_assembler.vertexBuffer.second->bufferOffset,
+		.data = m_vertices.data(),
+		.size = m_vertices.size_bytes(),
+		.dstQueue = rhi::DeviceQueueType::Main
+	});
+
+	auto id = uploadHeap.upload_data_to_buffer({
+		.buffer = ibh,
+		.offset = m_input_assembler.indexBuffer.second->bufferOffset,
+		.data = m_indices.data(),
+		.size = m_indices.size_bytes(),
+		.dstQueue = rhi::DeviceQueueType::Main
+	});
+
+	//auto verticesStagingWrite = stagingBuffer.write(m_vertices.data(), m_vertices.size_bytes());
+	//auto indicesStagingWrite  = stagingBuffer.write(m_indices.data(), m_indices.size_bytes());
 
 	m_vertices.clear();
 	m_indices.clear();
 
-	return UploadInfo{ verticesStagingWrite, indicesStagingWrite };
-}
-
-auto GeometryCache::stage_geometries_for_upload(rhi::BufferView& viewRange) -> UploadInfo
-{
-	auto verticesStagingWrite = viewRange.write(m_vertices.data(), m_vertices.size_bytes());
-	auto indicesStagingWrite  = viewRange.write(m_indices.data(), m_indices.size_bytes());
-
-	m_vertices.clear();
-	m_indices.clear();
-
-	return UploadInfo{ verticesStagingWrite, indicesStagingWrite };
+	return id;
 }
 
 auto GeometryCache::get_geometry(geometry_handle handle) -> Geometry const&

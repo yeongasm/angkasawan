@@ -245,8 +245,8 @@ struct APIContext
 	auto setup_debug_name(Semaphore const& semaphore) -> void;
 	auto setup_debug_name(Fence const& fence) -> void;
 	//auto update_descriptor_set_buffer(VkBuffer buffer, size_t offset, size_t size, uint32 index) -> void;
-	//auto update_descriptor_set_image(VkImageView imageView, ImageUsage usage, uint32 index) -> void;
-	//auto update_descriptor_set_sampler(VkSampler sampler, uint32 index) -> void;
+	auto update_descriptor_set_image(VkImageView imageView, ImageUsage usage, uint32 index) -> void;
+	auto update_descriptor_set_sampler(VkSampler sampler, uint32 index) -> void;
 private:
 	auto create_vulkan_instance(DeviceInitInfo const& info) -> bool;
 	auto create_debug_messenger(DeviceInitInfo const& info) -> bool;

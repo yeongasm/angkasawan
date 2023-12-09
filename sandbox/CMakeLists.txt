@@ -6,16 +6,18 @@ set(
 	"public/sandbox/sandbox.h"
 	"public/sandbox/sandbox_api.h"
 	"private/include/bindable_structure.h"
+	"private/include/buffer_view_registry.h"
 	"private/include/camera.h"
 	"private/include/command_queue.h"
 	"private/include/geometry_cache.h"
-	"private/include/image_cache.h"
 	"private/include/image_importer.h"
 	"private/include/input_assembler.h"
 	"private/include/material_cache.h"
 	"private/include/model_importer.h"
+	"private/include/resource_cache.h"
 	"private/include/sandbox_demo_application.h"
 	"private/include/submission_queue.h"
+	"private/include/upload_heap.h"
 	"private/include/demo/model_demo_app.h"
 	"private/include/demo/triangle_demo_app.h"
 )
@@ -23,16 +25,18 @@ set(
 set(
 	sandbox_source_files
 	"private/src/bindable_structure.cpp"
+	"private/src/buffer_view_registry.cpp"
 	"private/src/camera.cpp"
 	"private/src/command_queue.cpp"
 	"private/src/geometry_cache.cpp"
-	"private/src/image_cache.cpp"
 	"private/src/image_importer.cpp"
 	"private/src/input_assembler.cpp"
 	"private/src/material_cache.cpp"
 	"private/src/model_importer.cpp"
+	"private/src/resource_cache.cpp"
 	"private/src/sandbox.cpp"
 	"private/src/submission_queue.cpp"
+	"private/src/upload_heap.cpp"
 	"private/src/demo/model_demo_app.cpp"
 	"private/src/demo/triangle_demo_app.cpp"
 )
@@ -60,7 +64,7 @@ target_include_directories(
 	PRIVATE "public/sandbox"
 	PRIVATE "private/include"
 )
-target_link_libraries(Sandbox PRIVATE Core Math cgltf glm stb)
+target_link_libraries(Sandbox PRIVATE Core Math cgltf glm stb ktx)
 target_link_libraries(Sandbox PUBLIC RHI)
 target_compile_definitions(Sandbox PUBLIC GLM_FORCE_DEPTH_ZERO_TO_ONE)
 

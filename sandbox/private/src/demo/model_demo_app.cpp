@@ -16,9 +16,12 @@ ModelDemoApp::ModelDemoApp(
 	m_buffer_partitions{},
 	m_input_assembler{},
 	m_geometry_cache{ m_input_assembler },
+	m_resource_cache{ m_device },
+	m_buffer_view_registry{ m_resource_cache },
 	m_submission_queue{ m_device },
-	m_transfer_command_queue{ m_device, m_submission_queue, rhi::DeviceQueueType::Transfer },
-	m_main_command_queue{ m_device, m_submission_queue, rhi::DeviceQueueType::Main },
+	m_transfer_command_queue{ m_submission_queue, rhi::DeviceQueueType::Transfer },
+	m_main_command_queue{ m_submission_queue, rhi::DeviceQueueType::Main },
+	m_upload_heap{ m_transfer_command_queue, m_resource_cache },
 	m_zelda_geometry_handle{},
 	m_zelda_transforms{},
 	m_camera{},
@@ -30,7 +33,7 @@ ModelDemoApp::ModelDemoApp(
 	m_pipeline{},
 	m_fences{},
 	m_fence_values{},
-	m_staging_buffer{},
+	//m_staging_buffer{},
 	m_buffer{}
 {}
 
@@ -39,6 +42,7 @@ ModelDemoApp::~ModelDemoApp() {}
 auto ModelDemoApp::initialize() -> bool
 {
 	configure_buffer_partitions();
+	m_upload_heap.initialize();
 
 	auto&& swapchain_info = m_swapchain.info();
 
@@ -135,14 +139,20 @@ auto ModelDemoApp::initialize() -> bool
 	}
 
 	// Create staging buffer.
-	m_staging_buffer = m_device.allocate_buffer({
-		.name = "staging_buffer",
-		.size = 64_MiB,
-		.bufferUsage = rhi::BufferUsage::Transfer_Src,
-		.memoryUsage = rhi::MemoryUsage::Can_Alias | rhi::MemoryUsage::Host_Writable,
-	});
+	//m_staging_buffer = m_device.allocate_buffer({
+	//	.name = "staging_buffer",
+	//	.size = 64_MiB,
+	//	.bufferUsage = rhi::BufferUsage::Transfer_Src,
+	//	.memoryUsage = rhi::MemoryUsage::Can_Alias | rhi::MemoryUsage::Host_Writable,
+	//});
 
-	m_buffer = m_device.allocate_buffer({
+	//m_buffer = m_device.allocate_buffer({
+	//	.name = "giant_buffer",
+	//	.size = 256_MiB,
+	//	.bufferUsage = rhi::BufferUsage::Transfer_Dst | rhi::BufferUsage::Vertex | rhi::BufferUsage::Index | rhi::BufferUsage::Storage
+	//});
+
+	m_buffer = m_resource_cache.create_buffer({
 		.name = "giant_buffer",
 		.size = 256_MiB,
 		.bufferUsage = rhi::BufferUsage::Transfer_Dst | rhi::BufferUsage::Vertex | rhi::BufferUsage::Index | rhi::BufferUsage::Storage
@@ -151,12 +161,12 @@ auto ModelDemoApp::initialize() -> bool
 	// Initialize input assembler.
 	{
 		InputAssemblerInitInfo info{
-			.buffer = (rhi::BufferView)m_buffer,
-			.vertexBufferViewInfo = m_buffer_partitions.get_partition_buffer_view_info("vertex_buffer"),
-			.indexBufferViewInfo  = m_buffer_partitions.get_partition_buffer_view_info("index_buffer")
+			.buffer = m_buffer,
+			.vertexBufferInfo = m_buffer_partitions.get_partition_buffer_view_info("vertex_buffer"),
+			.indexBufferInfo  = m_buffer_partitions.get_partition_buffer_view_info("index_buffer")
 		};
 
-		if (!m_input_assembler.initialize(info))
+		if (!m_input_assembler.initialize(info, m_buffer_view_registry))
 		{
 			return false;
 		}
@@ -169,22 +179,37 @@ auto ModelDemoApp::initialize() -> bool
 	//GltfImporter sponzaImporter{ "data/demo/models/sponza/sponza.glb" };
 
 	// Load materials
-	for (GltfImporter::MeshInfo& meshInfo : zeldaImporter)
-	{
-		if (!meshInfo.material)
-		{
-			continue;
-		}
-		GltfImporter::MaterialInfo& material = *meshInfo.material;
-		GltfImporter::ImageInfo const* baseColorImage = material.imageInfos[(uint32)GltfImageType::BaseColor];
-		if (!baseColorImage)
-		{
-			continue;
-		}
-		ImageImporter importer{ baseColorImage->path };
-	}
+	//for (GltfImporter::MeshInfo& meshInfo : zeldaImporter)
+	//{
+	//	if (!meshInfo.material)
+	//	{
+	//		continue;
+	//	}
 
-	auto initialOffsets = m_input_assembler.offsets;
+	//	GltfImporter::MaterialInfo& material = *meshInfo.material;
+	//	
+	//	using gltf_img_type_t = std::underlying_type_t<GltfImageType>;
+
+	//	for (gltf_img_type_t i = 0; i < static_cast<gltf_img_type_t>(GltfImageType::Max); ++i)
+	//	{
+	//		GltfImporter::ImageInfo const* textureMapInfo = material.imageInfos[i];
+	//		if (!textureMapInfo)
+	//		{
+	//			continue;
+	//		}
+	//		ImageImporter importer{ textureMapInfo->path };
+	//		auto imageResource = m_resource_cache.create_image(importer.image_info());
+	//		// Upload image with staging manager.
+	//		m_upload_heap.upload_data_to_image({ 
+	//			.image = imageResource.id(), 
+	//			.data = importer.data(0).data(), 
+	//			.size = importer.data(0).size_bytes(), 
+	//			.mipLevel = 0
+	//		});
+	//	}
+	//}
+
+	auto const initialOffsets = m_input_assembler.offsets;
 
 	//m_zelda_geometry_handle = m_geometry_cache.store_geometries(cubeImporter);
 	GeometryInputLayout layout = {
@@ -192,94 +217,106 @@ auto ModelDemoApp::initialize() -> bool
 		.count = 2
 	};
 	m_zelda_geometry_handle = m_geometry_cache.store_geometries(zeldaImporter, layout);
-	std::array<rhi::BufferWriteInfo, 2> modelTransformWrites{};
+	//std::array<rhi::BufferWriteInfo, 2> modelTransformWrites{};
 
 	for (size_t i = 0; i < std::size(m_zelda_transforms); ++i)
 	{
 		auto modelTransformUBOViewInfo = m_buffer_partitions.get_partition_buffer_view_info("model_transform", i);
-		m_zelda_transforms[i] = m_buffer.make_view(modelTransformUBOViewInfo);
-		m_zelda_transforms[i].bind();
+		m_zelda_transforms[i] = m_buffer_view_registry.create_buffer_view(modelTransformUBOViewInfo);
+		//m_zelda_transforms[i].bind();
 
 		// Hardcode transform values for now.
 		glm::mat4 transform = glm::translate(glm::mat4{ 1.f }, glm::vec3{0.f, 0.f, 10.f});
 		transform = glm::scale(transform, glm::vec3{ 0.05f, 0.05f, 0.05f });
-		//transform = glm::scale(transform, glm::vec3{ 1.f, 1.f, 1.f });
-		//transform = glm::rotate(transform, 180.f, glm::vec3{ 0.f, 1.f, 0.f });
-		modelTransformWrites[i] = m_staging_buffer.write(&transform, sizeof(glm::mat4));
+
+		m_upload_heap.upload_data_to_buffer({
+			.buffer = m_buffer.id(),
+			.offset = m_zelda_transforms[i].second->bufferOffset,
+			.data = &transform,
+			.size = sizeof(glm::mat4),
+			.dstQueue = rhi::DeviceQueueType::Main
+		});
+		/*modelTransformWrites[i] = m_staging_buffer.write(&transform, sizeof(glm::mat4));*/
 	}
 
-	auto stagingUploads = m_geometry_cache.stage_geometries_for_upload(m_staging_buffer);
+	m_geometry_cache.stage_geometries_for_upload(m_upload_heap);
+	//auto stagingUploads = m_geometry_cache.stage_geometries_for_upload(m_staging_buffer);
 
-	rhi::BufferView& vertex_buffer = m_input_assembler.vertexBufferView;
-	rhi::BufferView& index_buffer = m_input_assembler.indexBufferView;
+	auto vbh = m_buffer_view_registry.get_source_handle(m_input_assembler.vertexBuffer.first);
+	auto ibh = m_buffer_view_registry.get_source_handle(m_input_assembler.indexBuffer.first);
 
-	rhi::Fence& fence = current_fence();
+	auto vertex_buffer = m_resource_cache.get_buffer(vbh);
+	auto index_buffer  = m_resource_cache.get_buffer(ibh);
+
+	//rhi::Fence& fence = current_fence();
+
+	FenceInfo fenceInfo = m_upload_heap.send_to_gpu();
 
 	{
-		auto cmd = m_transfer_command_queue.next_free_command_buffer(std::this_thread::get_id());
+		//auto cmd = m_transfer_command_queue.next_free_command_buffer(std::this_thread::get_id());
 
-		cmd->begin();
+		//cmd->begin();
 
-		for (size_t i = 0; i < std::size(modelTransformWrites); ++i)
-		{
-			rhi::BufferCopyInfo info{
-				.srcOffset = modelTransformWrites[i].offset,
-				.dstOffset = m_zelda_transforms[i].offset_from_buffer(),
-				.size = modelTransformWrites[i].size
-			};
-			cmd->copy_buffer_to_buffer(m_staging_buffer, m_buffer, info);
-		}
+		//for (size_t i = 0; i < std::size(modelTransformWrites); ++i)
+		//{
+		//	rhi::BufferCopyInfo info{
+		//		.srcOffset = modelTransformWrites[i].offset,
+		//		.dstOffset = m_zelda_transforms[i].offset_from_buffer(),
+		//		.size = modelTransformWrites[i].size
+		//	};
+		//	cmd->copy_buffer_to_buffer(m_staging_buffer, m_buffer, info);
+		//}
 
-		rhi::BufferCopyInfo copyInfo{
-			.srcOffset = stagingUploads.vertices.offset,
-			.dstOffset = initialOffsets.vertex,
-			.size = stagingUploads.vertices.size
-		};
-		cmd->copy_buffer_to_buffer(m_staging_buffer, m_buffer, copyInfo);
+		//rhi::BufferCopyInfo copyInfo{
+		//	.srcOffset = stagingUploads.vertices.offset,
+		//	.dstOffset = initialOffsets.vertex,
+		//	.size = stagingUploads.vertices.size
+		//};
+		//cmd->copy_buffer_to_buffer(m_staging_buffer, m_buffer, copyInfo);
 
-		copyInfo.srcOffset = stagingUploads.indices.offset;
-		copyInfo.dstOffset = initialOffsets.index;
-		copyInfo.size = stagingUploads.indices.size;
+		//copyInfo.srcOffset = stagingUploads.indices.offset;
+		//copyInfo.dstOffset = initialOffsets.index;
+		//copyInfo.size = stagingUploads.indices.size;
 
-		cmd->copy_buffer_to_buffer(m_staging_buffer, m_buffer, copyInfo);
+		//cmd->copy_buffer_to_buffer(m_staging_buffer, m_buffer, copyInfo);
 
-		// Release resources ...
+		//// Release resources ...
 
-		cmd->pipeline_barrier(
-			vertex_buffer,
-			{
-				.srcAccess = rhi::access::TRANSFER_WRITE,
-				.srcQueue = rhi::DeviceQueueType::Transfer,
-				.dstQueue = rhi::DeviceQueueType::Main
-			}
-		);
+		//cmd->pipeline_barrier(
+		//	vertex_buffer,
+		//	{
+		//		.srcAccess = rhi::access::TRANSFER_WRITE,
+		//		.srcQueue = rhi::DeviceQueueType::Transfer,
+		//		.dstQueue = rhi::DeviceQueueType::Main
+		//	}
+		//);
 
-		cmd->pipeline_barrier(
-			index_buffer,
-			{
-				.srcAccess = rhi::access::TRANSFER_WRITE,
-				.srcQueue = rhi::DeviceQueueType::Transfer,
-				.dstQueue = rhi::DeviceQueueType::Main
-			}
-		);
+		//cmd->pipeline_barrier(
+		//	index_buffer,
+		//	{
+		//		.srcAccess = rhi::access::TRANSFER_WRITE,
+		//		.srcQueue = rhi::DeviceQueueType::Transfer,
+		//		.dstQueue = rhi::DeviceQueueType::Main
+		//	}
+		//);
 
-		for (size_t i = 0; i < std::size(m_zelda_transforms); ++i)
-		{
-			cmd->pipeline_barrier(
-				m_zelda_transforms[i],
-				{
-					.srcAccess = rhi::access::TRANSFER_WRITE,
-					.srcQueue = rhi::DeviceQueueType::Transfer,
-					.dstQueue = rhi::DeviceQueueType::Main
-				}
-			);
-		}
+		//for (size_t i = 0; i < std::size(m_zelda_transforms); ++i)
+		//{
+		//	cmd->pipeline_barrier(
+		//		m_zelda_transforms[i],
+		//		{
+		//			.srcAccess = rhi::access::TRANSFER_WRITE,
+		//			.srcQueue = rhi::DeviceQueueType::Transfer,
+		//			.dstQueue = rhi::DeviceQueueType::Main
+		//		}
+		//	);
+		//}
 
-		cmd->end();
+		//cmd->end();
 
-		auto submissionGroup = m_submission_queue.new_submission_group(rhi::DeviceQueueType::Transfer);
-		submissionGroup.submit_command_buffer(*cmd);
-		submissionGroup.signal_fence(fence, ++m_fence_values[m_frame_index]);
+		//auto submissionGroup = m_submission_queue.new_submission_group(rhi::DeviceQueueType::Transfer);
+		//submissionGroup.submit_command_buffer(*cmd);
+		//submissionGroup.signal_fence(fence, ++m_fence_values[m_frame_index]);
 	}
 
 	{
@@ -289,7 +326,7 @@ auto ModelDemoApp::initialize() -> bool
 		cmd->begin();
 
 		cmd->pipeline_barrier(
-			vertex_buffer,
+			*m_buffer,
 			{
 				.dstAccess = rhi::access::TRANSFER_WRITE,
 				.srcQueue = rhi::DeviceQueueType::Transfer,
@@ -297,26 +334,28 @@ auto ModelDemoApp::initialize() -> bool
 			}
 		);
 
-		cmd->pipeline_barrier(
-			index_buffer,
-			{
-				.dstAccess = rhi::access::TRANSFER_WRITE,
-				.srcQueue = rhi::DeviceQueueType::Transfer,
-				.dstQueue = rhi::DeviceQueueType::Main
-			}
-		);
+		//cmd->pipeline_barrier(
+		//	*index_buffer,
+		//	{
+		//		.size = m_input_assembler.indexBuffer.second->size,
+		//		.offset = m_input_assembler.indexBuffer.second->bufferOffset,
+		//		.dstAccess = rhi::access::TRANSFER_WRITE,
+		//		.srcQueue = rhi::DeviceQueueType::Transfer,
+		//		.dstQueue = rhi::DeviceQueueType::Main
+		//	}
+		//);
 
-		for (size_t i = 0; i < std::size(m_zelda_transforms); ++i)
-		{
-			cmd->pipeline_barrier(
-				m_zelda_transforms[i],
-				{
-					.dstAccess = rhi::access::TRANSFER_WRITE,
-					.srcQueue = rhi::DeviceQueueType::Transfer,
-					.dstQueue = rhi::DeviceQueueType::Main
-				}
-			);
-		}
+		//for (size_t i = 0; i < std::size(m_zelda_transforms); ++i)
+		//{
+		//	cmd->pipeline_barrier(
+		//		,
+		//		{
+		//			.dstAccess = rhi::access::TRANSFER_WRITE,
+		//			.srcQueue = rhi::DeviceQueueType::Transfer,
+		//			.dstQueue = rhi::DeviceQueueType::Main
+		//		}
+		//	);
+		//}
 
 		cmd->pipeline_barrier({
 			.srcAccess = rhi::access::TRANSFER_WRITE,
@@ -325,12 +364,12 @@ auto ModelDemoApp::initialize() -> bool
 
 		cmd->end();
 
-		auto submissionGroup = m_submission_queue.new_submission_group();
+		auto submissionGroup = m_main_command_queue.new_submission_group();
 		submissionGroup.submit_command_buffer(*cmd);
-		submissionGroup.wait_on_fence(fence, m_fence_values[m_frame_index]);
+		submissionGroup.wait_on_fence(*fenceInfo.fence, fenceInfo.value);
 	}
 
-	m_submission_queue.send_to_gpu();
+	m_submission_queue.send_to_gpu_main_submissions();
 
 	return true;
 }
@@ -351,14 +390,14 @@ auto ModelDemoApp::run() -> void
 	auto cmd = m_main_command_queue.next_free_command_buffer(std::this_thread::get_id());
 	auto&& swapchainImage = m_swapchain.acquire_next_image();
 
-	rhi::BufferView& projUBO = m_camera_projection_buffer[m_frame_index];
-	rhi::BufferView& viewUBO = m_camera_view_buffer[m_frame_index];
-	rhi::BufferView& modelTransformUBO = m_zelda_transforms[m_frame_index];
+	auto& [_, projUBO] = m_camera_projection_buffer[m_frame_index];
+	auto& [_, viewUBO] = m_camera_view_buffer[m_frame_index];
+	auto& [_, modelTransformUBO] = m_zelda_transforms[m_frame_index];
 
 	PushConstant pc{
-		.projection_address = projUBO.gpu_address(),
-		.view_address = viewUBO.gpu_address(),
-		.transform_address = modelTransformUBO.gpu_address(),
+		.projection_address = projUBO->gpuAddress,
+		.view_address = viewUBO->gpuAddress,
+		.transform_address = modelTransformUBO->gpuAddress,
 	};
 
 	cmd->reset();
@@ -476,13 +515,15 @@ auto ModelDemoApp::run() -> void
 
 	cmd->end();
 
-	rhi::Fence& fence = current_fence();
+	/*rhi::Fence& fence = current_fence();*/
+	auto uploadFenceInfo = m_upload_heap.send_to_gpu();
 
 	auto submitGroup = m_submission_queue.new_submission_group();
 	submitGroup.submit_command_buffer(*cmd);
 	submitGroup.wait_on_semaphore(m_swapchain.current_acquire_semaphore());
 	submitGroup.signal_semaphore(m_swapchain.current_present_semaphore());
-	submitGroup.wait_on_fence(fence, m_fence_values[m_frame_index]);
+	submitGroup.wait_on_fence(*uploadFenceInfo.fence, uploadFenceInfo.value);
+	/*submitGroup.wait_on_fence(fence, m_fence_values[m_frame_index]);*/
 	submitGroup.signal_fence(m_swapchain.get_gpu_fence(), m_swapchain.cpu_frame_count());
 
 	m_submission_queue.send_to_gpu();
@@ -490,16 +531,17 @@ auto ModelDemoApp::run() -> void
 	m_device.present({ .swapchains = std::span{ &m_swapchain, 1 } });
 
 	m_submission_queue.clear();
-	m_staging_buffer.flush();
+	//m_staging_buffer.flush();
 }
 
 auto ModelDemoApp::terminate() -> void
 {
+	m_upload_heap.terminate();
 	m_transfer_command_queue.terminate();
 	m_main_command_queue.terminate();
 
-	m_device.release_buffer(m_staging_buffer);
-	m_device.release_buffer(m_buffer);
+	/*m_device.release_buffer(m_staging_buffer);*/
+	m_device.release_buffer(*m_buffer);
 	
 	for (rhi::Fence& fence : m_fences)
 	{
@@ -526,19 +568,19 @@ auto ModelDemoApp::BufferPartitions::add_partition(lib::string&& name, size_t st
 	return true;
 }
 
-auto ModelDemoApp::BufferPartitions::get_partition_buffer_view_info(lib::string const& name, size_t offset) -> rhi::BufferViewInfo
+auto ModelDemoApp::BufferPartitions::get_partition_buffer_view_info(lib::string const& name, size_t offset) -> BufferViewInfo
 {
 	if (!partitions.contains(name))
 	{
 		ASSERTION(false && "Requested buffer view info does not exist!");
-		return rhi::BufferViewInfo{};
+		return BufferViewInfo{};
 	}
 	auto&& partition = partitions[name];
 	if (offset > partition.count)
 	{
 		offset = 0;
 	}
-	return rhi::BufferViewInfo{ .offset = partition.offset + (partition.stride * offset), .size = partition.stride };
+	return BufferViewInfo{ .offset = partition.offset + (partition.stride * offset), .size = partition.stride };
 }
 
 auto ModelDemoApp::configure_buffer_partitions() -> void
@@ -557,16 +599,17 @@ auto ModelDemoApp::initialize_camera() -> void
 	for (size_t i = 0; i < std::size(m_camera_projection_buffer); ++i)
 	{
 		auto info = m_buffer_partitions.get_partition_buffer_view_info("camera_projection", i);
-		m_camera_projection_buffer[i] = m_buffer.make_view(info);
+		m_camera_projection_buffer[i] = m_buffer_view_registry.create_buffer_view(info);
+		//m_camera_projection_buffer[i] = m_buffer.make_view(info);
 		// We bind the buffer view to make them accessible within shaders.
-		m_camera_projection_buffer[i].bind();
+		//m_camera_projection_buffer[i].bind();
 	}
 
 	for (size_t i = 0; i < std::size(m_camera_view_buffer); ++i)
 	{
 		auto info = m_buffer_partitions.get_partition_buffer_view_info("camera_view", i);
-		m_camera_view_buffer[i] = m_buffer.make_view(info);
-		m_camera_view_buffer[i].bind();
+		m_camera_view_buffer[i] = m_buffer_view_registry.create_buffer_view(info);
+		//m_camera_view_buffer[i].bind();
 	}
 }
 
@@ -585,88 +628,106 @@ auto ModelDemoApp::update_camera_state(float32 dt) -> void
 	m_camera.update_projection();
 	m_camera.update_view();
 
-	auto const projWriteInfo = m_staging_buffer.write(&m_camera.projection, sizeof(glm::mat4));
-	auto const viewWriteInfo = m_staging_buffer.write(&m_camera.view, sizeof(glm::mat4));
+	auto& [_, projUBO] = m_camera_projection_buffer[m_frame_index];
+	auto& [_, viewUBO] = m_camera_view_buffer[m_frame_index];
 
-	rhi::Fence& fence = current_fence();
-	rhi::BufferView& projUBO = m_camera_projection_buffer[m_frame_index];
-	rhi::BufferView& viewUBO = m_camera_view_buffer[m_frame_index];
+	m_upload_heap.upload_data_to_buffer({
+		.buffer = m_buffer.id(),
+		.offset = projUBO->bufferOffset,
+		.data = &m_camera.projection,
+		.size = sizeof(glm::mat4),
+		.dstQueue = rhi::DeviceQueueType::Main
+	});
 
-	auto cmd = m_transfer_command_queue.next_free_command_buffer(std::this_thread::get_id());
+	m_upload_heap.upload_data_to_buffer({
+		.buffer = m_buffer.id(),
+		.offset = viewUBO->bufferOffset,
+		.data = &m_camera.view,
+		.size = sizeof(glm::mat4),
+		.dstQueue = rhi::DeviceQueueType::Main
+	});
 
-	cmd->reset();
-	cmd->begin();
+	//auto const projWriteInfo = m_staging_buffer.write(&m_camera.projection, sizeof(glm::mat4));
+	//auto const viewWriteInfo = m_staging_buffer.write(&m_camera.view, sizeof(glm::mat4));
+
+	//rhi::Fence& fence = current_fence();
+
+
+	//auto cmd = m_transfer_command_queue.next_free_command_buffer(std::this_thread::get_id());
+
+	//cmd->reset();
+	//cmd->begin();
 
 	// Acquire the resource.
-	if (viewUBO.owner() != rhi::DeviceQueueType::Transfer &&
-		viewUBO.owner() != rhi::DeviceQueueType::None)
+	//if (viewUBO.owner() != rhi::DeviceQueueType::Transfer &&
+	//	viewUBO.owner() != rhi::DeviceQueueType::None)
+	//{
+	//	cmd->pipeline_barrier(
+	//		viewUBO,
+	//		{
+	//			.dstAccess = rhi::access::TOP_OF_PIPE_NONE,
+	//			.srcQueue = viewUBO.owner(),
+	//			.dstQueue = rhi::DeviceQueueType::Transfer
+	//		}
+	//	);
+
+	//	cmd->pipeline_barrier(
+	//		projUBO,
+	//		{
+	//			.dstAccess = rhi::access::TOP_OF_PIPE_NONE,
+	//			.srcQueue = viewUBO.owner(),
+	//			.dstQueue = rhi::DeviceQueueType::Transfer
+	//		}
+	//	);
+
+	//	cmd->pipeline_barrier({
+	//		.srcAccess = rhi::access::TOP_OF_PIPE_NONE,
+	//		.dstAccess = rhi::access::TRANSFER_WRITE
+	//	});
+	//}
+
 	{
-		cmd->pipeline_barrier(
-			viewUBO,
-			{
-				.dstAccess = rhi::access::TOP_OF_PIPE_NONE,
-				.srcQueue = viewUBO.owner(),
-				.dstQueue = rhi::DeviceQueueType::Transfer
-			}
-		);
-
-		cmd->pipeline_barrier(
-			projUBO,
-			{
-				.dstAccess = rhi::access::TOP_OF_PIPE_NONE,
-				.srcQueue = viewUBO.owner(),
-				.dstQueue = rhi::DeviceQueueType::Transfer
-			}
-		);
-
-		cmd->pipeline_barrier({
-			.srcAccess = rhi::access::TOP_OF_PIPE_NONE,
-			.dstAccess = rhi::access::TRANSFER_WRITE
-		});
+		//rhi::BufferCopyInfo copyInfo{
+		//	.srcOffset = viewWriteInfo.offset,
+		//	.dstOffset = viewUBO.offset_from_buffer(),
+		//	.size = viewWriteInfo.size
+		//};
+		//cmd->copy_buffer_to_buffer(m_staging_buffer, viewUBO.buffer(), copyInfo);
 	}
 
 	{
-		rhi::BufferCopyInfo copyInfo{
-			.srcOffset = viewWriteInfo.offset,
-			.dstOffset = viewUBO.offset_from_buffer(),
-			.size = viewWriteInfo.size
-		};
-		cmd->copy_buffer_to_buffer(m_staging_buffer, viewUBO.buffer(), copyInfo);
+		//rhi::BufferCopyInfo copyInfo{
+		//	.srcOffset = projWriteInfo.offset,
+		//	.dstOffset = projUBO.offset_from_buffer(),
+		//	.size = projWriteInfo.size
+		//};
+		//cmd->copy_buffer_to_buffer(m_staging_buffer, projUBO.buffer(), copyInfo);
 	}
 
-	{
-		rhi::BufferCopyInfo copyInfo{
-			.srcOffset = projWriteInfo.offset,
-			.dstOffset = projUBO.offset_from_buffer(),
-			.size = projWriteInfo.size
-		};
-		cmd->copy_buffer_to_buffer(m_staging_buffer, projUBO.buffer(), copyInfo);
-	}
+	//cmd->pipeline_barrier(
+	//	viewUBO,
+	//	{
+	//		.srcAccess = rhi::access::TRANSFER_WRITE,
+	//		.srcQueue = rhi::DeviceQueueType::Transfer,
+	//		.dstQueue = rhi::DeviceQueueType::Main
+	//	}
+	//);
 
-	cmd->pipeline_barrier(
-		viewUBO,
-		{
-			.srcAccess = rhi::access::TRANSFER_WRITE,
-			.srcQueue = rhi::DeviceQueueType::Transfer,
-			.dstQueue = rhi::DeviceQueueType::Main
-		}
-	);
+	//cmd->pipeline_barrier(
+	//	projUBO,
+	//	{
+	//		.srcAccess = rhi::access::TRANSFER_WRITE,
+	//		.srcQueue = rhi::DeviceQueueType::Transfer,
+	//		.dstQueue = rhi::DeviceQueueType::Main
+	//	}
+	//);
 
-	cmd->pipeline_barrier(
-		projUBO,
-		{
-			.srcAccess = rhi::access::TRANSFER_WRITE,
-			.srcQueue = rhi::DeviceQueueType::Transfer,
-			.dstQueue = rhi::DeviceQueueType::Main
-		}
-	);
+	//cmd->end();
 
-	cmd->end();
-
-	auto submitGroup = m_submission_queue.new_submission_group(rhi::DeviceQueueType::Transfer);
-	submitGroup.submit_command_buffer(*cmd);
-	submitGroup.wait_on_fence(fence, m_fence_values[m_frame_index]);
-	submitGroup.signal_fence(fence, ++m_fence_values[m_frame_index]);
+	//auto submitGroup = m_submission_queue.new_submission_group(rhi::DeviceQueueType::Transfer);
+	//submitGroup.submit_command_buffer(*cmd);
+	//submitGroup.wait_on_fence(fence, m_fence_values[m_frame_index]);
+	//submitGroup.signal_fence(fence, ++m_fence_values[m_frame_index]);
 }
 
 auto ModelDemoApp::update_camera_on_mouse_events(float32 dt) -> void

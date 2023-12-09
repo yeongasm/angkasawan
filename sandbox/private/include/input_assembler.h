@@ -3,16 +3,21 @@
 #define SANDBOX_INPUT_ASSEMBLER_H
 
 #include "rhi/buffer.h"
+#include "buffer_view_registry.h"
 
 namespace sandbox
 {
 struct InputAssemblerInitInfo
 {
-	rhi::BufferView buffer;
-	rhi::BufferViewInfo vertexBufferViewInfo;
-	rhi::BufferViewInfo indexBufferViewInfo;
+	Resource<rhi::Buffer> buffer;
+	BufferViewInfo vertexBufferInfo;
+	BufferViewInfo indexBufferInfo;
 };
 
+/**
+* TODO(afiq):
+* Make this class more robust.
+*/
 struct InputAssembler
 {
 	struct BufferOffsets
@@ -21,11 +26,12 @@ struct InputAssembler
 		size_t index;
 	};
 
-	rhi::BufferView vertexBufferView;
-	rhi::BufferView indexBufferView;
+	std::pair<buffer_handle, lib::ref<BufferView>> vertexBuffer;
+	std::pair<buffer_handle, lib::ref<BufferView>> indexBuffer;
 	BufferOffsets offsets;
 
-	auto initialize(InputAssemblerInitInfo const& info) -> bool;
+	auto initialize(InputAssemblerInitInfo const& info, BufferViewRegistry& bufferViewRegistry) -> bool;
+	auto terminate(BufferViewRegistry& bufferViewRegistry) -> void;
 	auto flush() -> void;
 };
 }

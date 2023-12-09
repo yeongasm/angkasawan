@@ -3,8 +3,7 @@
 
 namespace sandbox
 {
-CommandQueue::CommandQueue(rhi::Device& device, SubmissionQueue& submissionQueue, rhi::DeviceQueueType type) :
-	m_device{ device },
+CommandQueue::CommandQueue(SubmissionQueue& submissionQueue, rhi::DeviceQueueType type) :
 	m_submissionQueue{ submissionQueue },
 	m_type{ type },
 	m_commandPool{},
@@ -13,6 +12,8 @@ CommandQueue::CommandQueue(rhi::Device& device, SubmissionQueue& submissionQueue
 
 auto CommandQueue::next_free_command_buffer(std::thread::id tid) -> lib::ref<rhi::CommandBuffer>
 {
+	rhi::Device& device = m_submissionQueue.device();
+
 	auto queue_type_name = [](rhi::DeviceQueueType type) -> const char*
 	{
 		switch (type)
@@ -33,7 +34,7 @@ auto CommandQueue::next_free_command_buffer(std::thread::id tid) -> lib::ref<rhi
 	if (!m_commandPool.contains(tid))
 	{
 		lib::string name = lib::format("<tid:{}>:{}_cmd_pool", tid, queueID);
-		auto pool = m_device.create_command_pool({ .name = std::move(name), .queue = m_type });
+		auto pool = device.create_command_pool({.name = std::move(name), .queue = m_type});
 		m_commandPool.emplace(tid, std::move(pool));
 		m_commandStore.emplace(tid, CommandBufferStore{});
 	}
@@ -84,8 +85,7 @@ auto CommandQueue::next_free_command_buffer(std::thread::id tid) -> lib::ref<rhi
 
 auto CommandQueue::terminate() -> void
 {
-	// Ideally, m_device.wait_idle() should be called here but because the device queues resources into the zombie pool, there's no need.
-
+	rhi::Device& device = m_submissionQueue.device();
 	for (auto&& [tid, pool] : m_commandPool)
 	{
 		CommandBufferStore& cmdStore = m_commandStore[tid];
@@ -94,10 +94,19 @@ auto CommandQueue::terminate() -> void
 			rhi::CommandBuffer& cmdBuffer = *cmdStore.commandBuffers[i];
 			pool.free_command_buffer(cmdBuffer);
 		}
-		m_device.destroy_command_pool(pool);
+		device.destroy_command_pool(pool);
 	}
-
 	m_commandStore.clear();
 	m_commandPool.clear();
+}
+
+auto CommandQueue::new_submission_group() -> SubmissionQueue::SubmissionGroup
+{
+	return m_submissionQueue.new_submission_group(m_type);
+}
+
+auto CommandQueue::submission_queue() -> SubmissionQueue&
+{
+	return m_submissionQueue;
 }
 }

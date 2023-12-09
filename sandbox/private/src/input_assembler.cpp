@@ -3,37 +3,43 @@
 namespace sandbox
 {
 
-auto InputAssembler::initialize(InputAssemblerInitInfo const& info) -> bool
+auto InputAssembler::initialize(InputAssemblerInitInfo const& info, BufferViewRegistry& bufferViewRegistry) -> bool
 {
-	size_t const inputBufferSize = info.buffer.size();
-	size_t const requiredSize = info.vertexBufferViewInfo.size + info.indexBufferViewInfo.size;
+	size_t const inputBufferSize = info.buffer->size();
+	size_t const requiredSize = info.vertexBufferInfo.size + info.indexBufferInfo.size;
 
 		// 2 sizes combined exceeded the capacity of the buffer.
-	if (info.buffer.offset_from_buffer() + requiredSize > inputBufferSize ||
+	if (info.buffer->offset() + requiredSize > inputBufferSize ||
 		// Space for vertex buffer exceeded the capacity of the input buffer at the requested offset.
-		info.vertexBufferViewInfo.offset + info.vertexBufferViewInfo.size > inputBufferSize ||
+		info.vertexBufferInfo.offset + info.vertexBufferInfo.size > inputBufferSize ||
 		// Space for index buffer exceeded the capacity of the input buffer at the requested offset.
-		info.indexBufferViewInfo.offset + info.indexBufferViewInfo.size > inputBufferSize ||
+		info.indexBufferInfo.offset + info.indexBufferInfo.size > inputBufferSize ||
 		// Offset requested for vertex buffer view exceeded capacity of the input buffer.
-		info.vertexBufferViewInfo.offset > inputBufferSize ||
+		info.vertexBufferInfo.offset > inputBufferSize ||
 		// Offset requested for index buffer view exceeded capacity of the input buffer.
-		info.indexBufferViewInfo.offset > inputBufferSize)
+		info.indexBufferInfo.offset > inputBufferSize)
 	{
 		return false;
 	}
 
-	vertexBufferView = info.buffer.make_view(info.vertexBufferViewInfo);
-	indexBufferView	 = info.buffer.make_view(info.indexBufferViewInfo);
+	vertexBuffer = bufferViewRegistry.create_buffer_view(info.vertexBufferInfo);
+	indexBuffer	 = bufferViewRegistry.create_buffer_view(info.indexBufferInfo);
 
 	flush();
 
 	return true;
 }
 
+auto InputAssembler::terminate(BufferViewRegistry& bufferViewRegistry) -> void
+{
+	bufferViewRegistry.destroy_buffer_view(vertexBuffer.first);
+	bufferViewRegistry.destroy_buffer_view(indexBuffer.first);
+}
+
 auto InputAssembler::flush() -> void
 {
-	offsets.vertex	= vertexBufferView.offset_from_buffer();
-	offsets.index	= indexBufferView.offset_from_buffer();
+	offsets.vertex	= vertexBuffer.second->bufferOffset;
+	offsets.index	= indexBuffer.second->bufferOffset;
 }
 
 }

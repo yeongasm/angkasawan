@@ -2,12 +2,12 @@
 #ifndef SANDBOX_GEOMETRY_H
 #define SANDBOX_GEOMETRY_H
 
-#include "math/vector.h"
 #include "rhi/buffer.h"
 #include "lib/paged_array.h"
 #include "lib/handle.h"
 #include "model_importer.h"
 #include "input_assembler.h"
+#include "upload_heap.h"
 
 namespace sandbox
 {
@@ -78,8 +78,8 @@ public:
 	GeometryCache(InputAssembler& inputAssembler);
 
 	auto store_geometries(GltfImporter const& importer, GeometryInputLayout const& layout) -> geometry_handle;
-	auto stage_geometries_for_upload(rhi::Buffer& stagingBuffer) -> UploadInfo;
-	auto stage_geometries_for_upload(rhi::BufferView& viewRange) -> UploadInfo;
+	auto stage_geometries_for_upload(UploadHeap& uploadHeap) -> upload_id;
+	/*auto stage_geometries_for_upload(rhi::BufferView& viewRange) -> UploadInfo;*/
 	auto get_geometry(geometry_handle handle) -> Geometry const&;
 
 private:

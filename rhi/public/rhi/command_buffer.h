@@ -82,13 +82,13 @@ struct BufferBarrierInfo
 	DeviceQueueType	dstQueue = DeviceQueueType::Main;
 };
 
-struct BufferViewBarrierInfo
-{
-	Access srcAccess = {};
-	Access dstAccess = {};
-	DeviceQueueType	srcQueue = DeviceQueueType::Main;
-	DeviceQueueType	dstQueue = DeviceQueueType::Main;
-};
+//struct BufferViewBarrierInfo
+//{
+//	Access srcAccess = {};
+//	Access dstAccess = {};
+//	DeviceQueueType	srcQueue = DeviceQueueType::Main;
+//	DeviceQueueType	dstQueue = DeviceQueueType::Main;
+//};
 
 struct ImageBarrierInfo
 {
@@ -235,9 +235,9 @@ public:
 	RHI_API auto draw_indirect(Buffer const& drawInfoBuffer, DrawIndirectInfo const& info) const -> void;
 	RHI_API auto draw_indirect_count(Buffer const& drawInfoBuffer, Buffer const& drawCountBuffer, DrawIndirectCountInfo const& info) const -> void;
 
-	RHI_API auto bind_vertex_buffer(BufferView const& bufferView, uint32 firstBinding = 0) -> void;
+	/*RHI_API auto bind_vertex_buffer(BufferView const& bufferView, uint32 firstBinding = 0) -> void;*/
 	RHI_API auto bind_vertex_buffer(Buffer const& buffer, BindVertexBufferInfo const& info) -> void;
-	RHI_API auto bind_index_buffer(BufferView const& bufferView, IndexType indexType = IndexType::Uint_32) -> void;
+	/*RHI_API auto bind_index_buffer(BufferView const& bufferView, IndexType indexType = IndexType::Uint_32) -> void;*/
 	RHI_API auto bind_index_buffer(Buffer const& buffer, BindIndexBufferInfo const& info) -> void;
 	RHI_API auto bind_push_constant(void const* data, size_t size, size_t offset) -> void;
 
@@ -251,7 +251,7 @@ public:
 
 	RHI_API auto pipeline_barrier(MemoryBarrierInfo const& barrier) -> void;
 	RHI_API auto pipeline_barrier(Buffer const& buffer, BufferBarrierInfo const& barrier) -> void;
-	RHI_API auto pipeline_barrier(BufferView const& bufferView, BufferViewBarrierInfo const& barrier) -> void;
+	/*RHI_API auto pipeline_barrier(BufferView const& bufferView, BufferViewBarrierInfo const& barrier) -> void;*/
 	RHI_API auto pipeline_barrier(Image const& image, ImageBarrierInfo const& barrier) -> void;
 	RHI_API auto flush_barriers() -> void;
 

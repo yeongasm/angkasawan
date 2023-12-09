@@ -4,7 +4,7 @@
 
 #include <filesystem>
 #include "lib/array.h"
-#include "rhi/constants.h"
+#include "rhi/common.h"
 
 namespace sandbox
 {
@@ -12,7 +12,7 @@ class ImageImporter
 {
 public:
 	ImageImporter() = default;
-	ImageImporter(std::filesystem::path path);
+	ImageImporter(std::filesystem::path const& path);
 
 	~ImageImporter();
 
@@ -20,17 +20,19 @@ public:
 	auto is_open() const -> bool;
 	auto close(bool release = true) -> void;
 	auto size_bytes() const -> size_t;
-	auto width() const -> uint32;
-	auto height() const -> uint32;
-	auto channels() const -> uint32;
-	auto format() const -> rhi::Format;
+	auto image_info() const -> rhi::ImageInfo;
+	auto data(uint32 mipLevel = -1u) -> std::span<uint8>;
 private:
+	struct MipInfo
+	{
+		size_t offset;
+		size_t size;
+	};
 	std::filesystem::path m_path;
-	lib::array<uint8> m_data;
-	rhi::Format m_format;
-	uint32 m_width;
-	uint32 m_height;
-	uint32 m_channels;
+	lib::array<uint8> m_storage;
+	std::span<uint8> m_img_data;
+	std::span<MipInfo> m_mip_infos;
+	rhi::ImageInfo m_image_info;
 };
 }
 

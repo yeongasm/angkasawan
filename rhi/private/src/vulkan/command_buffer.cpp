@@ -457,28 +457,28 @@ auto CommandBuffer::draw_indirect_count(Buffer const& drawInfoBuffer, Buffer con
 	}
 }
 
-auto CommandBuffer::bind_vertex_buffer(BufferView const& bufferView, uint32 firstBinding) -> void
-{
-	if (valid() &&
-		bufferView.valid() &&
-		m_state == State::Recording)
-	{
-		flush_barriers();
-
-		Buffer& buffer = bufferView.buffer();
-
-		using buffer_usage_t = std::underlying_type_t<BufferUsage>;
-		buffer_usage_t const usage = static_cast<buffer_usage_t>(buffer.info().bufferUsage);
-		if (usage & static_cast<buffer_usage_t>(BufferUsage::Vertex))
-		{
-			vulkan::CommandBuffer& cmdBuffer = as<vulkan::CommandBuffer>();
-			vulkan::Buffer& buf = buffer.as<vulkan::Buffer>();
-			size_t offset = bufferView.offset();
-
-			vkCmdBindVertexBuffers(cmdBuffer.handle, firstBinding, 1, &buf.handle, &offset);
-		}
-	}
-}
+//auto CommandBuffer::bind_vertex_buffer(BufferView const& bufferView, uint32 firstBinding) -> void
+//{
+//	if (valid() &&
+//		bufferView.valid() &&
+//		m_state == State::Recording)
+//	{
+//		flush_barriers();
+//
+//		Buffer& buffer = bufferView.buffer();
+//
+//		using buffer_usage_t = std::underlying_type_t<BufferUsage>;
+//		buffer_usage_t const usage = static_cast<buffer_usage_t>(buffer.info().bufferUsage);
+//		if (usage & static_cast<buffer_usage_t>(BufferUsage::Vertex))
+//		{
+//			vulkan::CommandBuffer& cmdBuffer = as<vulkan::CommandBuffer>();
+//			vulkan::Buffer& buf = buffer.as<vulkan::Buffer>();
+//			size_t offset = bufferView.offset();
+//
+//			vkCmdBindVertexBuffers(cmdBuffer.handle, firstBinding, 1, &buf.handle, &offset);
+//		}
+//	}
+//}
 
 auto CommandBuffer::bind_vertex_buffer(Buffer const& buffer, BindVertexBufferInfo const& info) -> void
 {
@@ -499,35 +499,35 @@ auto CommandBuffer::bind_vertex_buffer(Buffer const& buffer, BindVertexBufferInf
 	}
 }
 
-auto CommandBuffer::bind_index_buffer(BufferView const& bufferView, IndexType indexType) -> void
-{
-	if (valid() &&
-		bufferView.valid() &&
-		m_state == State::Recording)
-	{
-		flush_barriers();
-
-		Buffer& buffer = bufferView.buffer();
-
-		using buffer_usage_t = std::underlying_type_t<BufferUsage>;
-		buffer_usage_t const usage = static_cast<buffer_usage_t>(buffer.info().bufferUsage);
-		if (usage & static_cast<buffer_usage_t>(BufferUsage::Index))
-		{
-			VkIndexType type = VK_INDEX_TYPE_UINT32;
-			if (indexType == IndexType::Uint_16)
-			{
-				type = VK_INDEX_TYPE_UINT16;
-			}
-			else if (indexType == IndexType::Uint_8)
-			{
-				type = VK_INDEX_TYPE_UINT8_EXT;
-			}
-			vulkan::CommandBuffer& cmdBuffer = as<vulkan::CommandBuffer>();
-			vulkan::Buffer& buf = buffer.as<vulkan::Buffer>();
-			vkCmdBindIndexBuffer(cmdBuffer.handle, buf.handle, bufferView.offset_from_buffer(), type);
-		}
-	}
-}
+//auto CommandBuffer::bind_index_buffer(BufferView const& bufferView, IndexType indexType) -> void
+//{
+//	if (valid() &&
+//		bufferView.valid() &&
+//		m_state == State::Recording)
+//	{
+//		flush_barriers();
+//
+//		Buffer& buffer = bufferView.buffer();
+//
+//		using buffer_usage_t = std::underlying_type_t<BufferUsage>;
+//		buffer_usage_t const usage = static_cast<buffer_usage_t>(buffer.info().bufferUsage);
+//		if (usage & static_cast<buffer_usage_t>(BufferUsage::Index))
+//		{
+//			VkIndexType type = VK_INDEX_TYPE_UINT32;
+//			if (indexType == IndexType::Uint_16)
+//			{
+//				type = VK_INDEX_TYPE_UINT16;
+//			}
+//			else if (indexType == IndexType::Uint_8)
+//			{
+//				type = VK_INDEX_TYPE_UINT8_EXT;
+//			}
+//			vulkan::CommandBuffer& cmdBuffer = as<vulkan::CommandBuffer>();
+//			vulkan::Buffer& buf = buffer.as<vulkan::Buffer>();
+//			vkCmdBindIndexBuffer(cmdBuffer.handle, buf.handle, bufferView.offset_from_buffer(), type);
+//		}
+//	}
+//}
 
 auto CommandBuffer::bind_index_buffer(Buffer const& buffer, BindIndexBufferInfo const& info) -> void
 {
@@ -687,94 +687,94 @@ auto CommandBuffer::pipeline_barrier(Buffer const& buffer, BufferBarrierInfo con
 		.size = (barrier.size == std::numeric_limits<size_t>::max()) ? buffer.info().size : barrier.size,
 	};
 
-	Buffer& alias = *const_cast<Buffer*>(&buffer);
+	//Buffer& alias = *const_cast<Buffer*>(&buffer);
 
-	if (barrier.srcQueue == barrier.dstQueue ||
-		m_execution_queue == barrier.dstQueue)
-	{
-		alias.m_owning_queue = barrier.dstQueue;
-	}
-	else if (alias.m_owning_queue == rhi::DeviceQueueType::None)
-	{
-		alias.m_owning_queue = barrier.srcQueue;
-	}
+	//if (barrier.srcQueue == barrier.dstQueue ||
+	//	m_execution_queue == barrier.dstQueue)
+	//{
+	//	alias.m_owning_queue = barrier.dstQueue;
+	//}
+	//else if (alias.m_owning_queue == rhi::DeviceQueueType::None)
+	//{
+	//	alias.m_owning_queue = barrier.srcQueue;
+	//}
 }
 
-auto CommandBuffer::pipeline_barrier(BufferView const& bufferView, BufferViewBarrierInfo const& barrier) -> void
-{
-	if (!valid() ||
-		!bufferView.valid() ||
-		m_state != State::Recording)
-	{
-		return;
-	}
-
-	vulkan::Buffer& bufferResource = bufferView.buffer().as<vulkan::Buffer>();
-	vulkan::CommandBuffer& cmdBuffer = as<vulkan::CommandBuffer>();
-
-	if (cmdBuffer.numBufferBarrier >= vulkan::CommandBuffer::MAX_COMMAND_BUFFER_BARRIER_COUNT)
-	{
-		flush_barriers();
-	}
-
-	uint32 srcQueueIndex = VK_QUEUE_FAMILY_IGNORED;
-	uint32 dstQueueIndex = VK_QUEUE_FAMILY_IGNORED;
-
-	switch (barrier.srcQueue)
-	{
-	case DeviceQueueType::Main:
-		srcQueueIndex = m_context->mainQueue.familyIndex;
-		break;
-	case DeviceQueueType::Transfer:
-		srcQueueIndex = m_context->transferQueue.familyIndex;
-		break;
-	case DeviceQueueType::Compute:
-		srcQueueIndex = m_context->computeQueue.familyIndex;
-		break;
-	default:
-		break;
-	}
-
-	switch (barrier.dstQueue)
-	{
-	case DeviceQueueType::Main:
-		dstQueueIndex = m_context->mainQueue.familyIndex;
-		break;
-	case DeviceQueueType::Transfer:
-		dstQueueIndex = m_context->transferQueue.familyIndex;
-		break;
-	case DeviceQueueType::Compute:
-		dstQueueIndex = m_context->computeQueue.familyIndex;
-		break;
-	default:
-		break;
-	}
-
-	cmdBuffer.bufferBarriers[cmdBuffer.numBufferBarrier++] = {
-		.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2,
-		.srcStageMask = translate_pipeline_stage_flags(barrier.srcAccess.stages),
-		.srcAccessMask = translate_memory_access_flags(barrier.srcAccess.type),
-		.dstStageMask = translate_pipeline_stage_flags(barrier.dstAccess.stages),
-		.dstAccessMask = translate_memory_access_flags(barrier.dstAccess.type),
-		.srcQueueFamilyIndex = srcQueueIndex,
-		.dstQueueFamilyIndex = dstQueueIndex,
-		.buffer = bufferResource.handle,
-		.offset = bufferView.offset_from_buffer(),
-		.size = bufferView.size()
-	};
-
-	BufferView& alias = *const_cast<BufferView*>(&bufferView);
-
-	if (barrier.srcQueue == barrier.dstQueue ||
-		m_execution_queue == barrier.dstQueue)
-	{
-		alias.m_owning_queue = barrier.dstQueue;
-	}
-	else if (alias.m_owning_queue == rhi::DeviceQueueType::None)
-	{
-		alias.m_owning_queue = barrier.srcQueue;
-	}
-}
+//auto CommandBuffer::pipeline_barrier(BufferView const& bufferView, BufferViewBarrierInfo const& barrier) -> void
+//{
+//	if (!valid() ||
+//		!bufferView.valid() ||
+//		m_state != State::Recording)
+//	{
+//		return;
+//	}
+//
+//	vulkan::Buffer& bufferResource = bufferView.buffer().as<vulkan::Buffer>();
+//	vulkan::CommandBuffer& cmdBuffer = as<vulkan::CommandBuffer>();
+//
+//	if (cmdBuffer.numBufferBarrier >= vulkan::CommandBuffer::MAX_COMMAND_BUFFER_BARRIER_COUNT)
+//	{
+//		flush_barriers();
+//	}
+//
+//	uint32 srcQueueIndex = VK_QUEUE_FAMILY_IGNORED;
+//	uint32 dstQueueIndex = VK_QUEUE_FAMILY_IGNORED;
+//
+//	switch (barrier.srcQueue)
+//	{
+//	case DeviceQueueType::Main:
+//		srcQueueIndex = m_context->mainQueue.familyIndex;
+//		break;
+//	case DeviceQueueType::Transfer:
+//		srcQueueIndex = m_context->transferQueue.familyIndex;
+//		break;
+//	case DeviceQueueType::Compute:
+//		srcQueueIndex = m_context->computeQueue.familyIndex;
+//		break;
+//	default:
+//		break;
+//	}
+//
+//	switch (barrier.dstQueue)
+//	{
+//	case DeviceQueueType::Main:
+//		dstQueueIndex = m_context->mainQueue.familyIndex;
+//		break;
+//	case DeviceQueueType::Transfer:
+//		dstQueueIndex = m_context->transferQueue.familyIndex;
+//		break;
+//	case DeviceQueueType::Compute:
+//		dstQueueIndex = m_context->computeQueue.familyIndex;
+//		break;
+//	default:
+//		break;
+//	}
+//
+//	cmdBuffer.bufferBarriers[cmdBuffer.numBufferBarrier++] = {
+//		.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2,
+//		.srcStageMask = translate_pipeline_stage_flags(barrier.srcAccess.stages),
+//		.srcAccessMask = translate_memory_access_flags(barrier.srcAccess.type),
+//		.dstStageMask = translate_pipeline_stage_flags(barrier.dstAccess.stages),
+//		.dstAccessMask = translate_memory_access_flags(barrier.dstAccess.type),
+//		.srcQueueFamilyIndex = srcQueueIndex,
+//		.dstQueueFamilyIndex = dstQueueIndex,
+//		.buffer = bufferResource.handle,
+//		.offset = bufferView.offset_from_buffer(),
+//		.size = bufferView.size()
+//	};
+//
+//	BufferView& alias = *const_cast<BufferView*>(&bufferView);
+//
+//	if (barrier.srcQueue == barrier.dstQueue ||
+//		m_execution_queue == barrier.dstQueue)
+//	{
+//		alias.m_owning_queue = barrier.dstQueue;
+//	}
+//	else if (alias.m_owning_queue == rhi::DeviceQueueType::None)
+//	{
+//		alias.m_owning_queue = barrier.srcQueue;
+//	}
+//}
 
 auto CommandBuffer::pipeline_barrier(Image const& image, ImageBarrierInfo const& barrier) -> void
 {
@@ -798,6 +798,9 @@ auto CommandBuffer::pipeline_barrier(Image const& image, ImageBarrierInfo const&
 
 	switch (barrier.srcQueue)
 	{
+	case DeviceQueueType::Main:
+		srcQueueIndex = m_context->mainQueue.familyIndex;
+		break;
 	case DeviceQueueType::Transfer:
 		srcQueueIndex = m_context->transferQueue.familyIndex;
 		break;
@@ -805,12 +808,14 @@ auto CommandBuffer::pipeline_barrier(Image const& image, ImageBarrierInfo const&
 		srcQueueIndex = m_context->computeQueue.familyIndex;
 		break;
 	default:
-		srcQueueIndex = m_context->mainQueue.familyIndex;
 		break;
 	}
 
 	switch (barrier.dstQueue)
 	{
+	case DeviceQueueType::Main:
+		dstQueueIndex = m_context->mainQueue.familyIndex;
+		break;
 	case DeviceQueueType::Transfer:
 		dstQueueIndex = m_context->transferQueue.familyIndex;
 		break;
@@ -818,7 +823,6 @@ auto CommandBuffer::pipeline_barrier(Image const& image, ImageBarrierInfo const&
 		dstQueueIndex = m_context->computeQueue.familyIndex;
 		break;
 	default:
-		dstQueueIndex = m_context->mainQueue.familyIndex;
 		break;
 	}
 

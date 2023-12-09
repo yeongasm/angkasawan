@@ -126,14 +126,39 @@ auto SubmissionQueue::new_submission_group(rhi::DeviceQueueType queueType) -> Su
 
 auto SubmissionQueue::clear() -> void
 {
-	clear(*m_mainQueueSubmissions);
+	clear_main_submissions();
+	clear_transfer_submissions();
+}
+
+auto SubmissionQueue::clear_transfer_submissions() -> void
+{
 	clear(*m_transferQueueSubmissions);
+}
+
+auto SubmissionQueue::clear_main_submissions() -> void
+{
+	clear(*m_mainQueueSubmissions);
 }
 
 auto SubmissionQueue::send_to_gpu() -> void
 {
+	send_to_gpu_transfer_submissions();
+	send_to_gpu_main_submissions();
+}
+
+auto SubmissionQueue::send_to_gpu_transfer_submissions() -> void
+{
 	send_to_gpu(*m_transferQueueSubmissions);
+}
+
+auto SubmissionQueue::send_to_gpu_main_submissions() -> void
+{
 	send_to_gpu(*m_mainQueueSubmissions);
+}
+
+auto SubmissionQueue::device() -> rhi::Device&
+{
+	return m_device;
 }
 
 auto SubmissionQueue::get_queue(rhi::DeviceQueueType type) -> Queue&

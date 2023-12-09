@@ -189,7 +189,7 @@ public:
 		return *this;
 	}
 
-	constexpr element_type& operator*()
+	constexpr element_type& operator*() const
 	{
 		ASSERTION(m_data != nullptr);
 		return *m_data;

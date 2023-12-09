@@ -56,7 +56,12 @@ public:
 
 	auto new_submission_group(rhi::DeviceQueueType queueType = rhi::DeviceQueueType::Main) -> SubmissionGroup;
 	auto clear() -> void;
+	auto clear_transfer_submissions() -> void;
+	auto clear_main_submissions() -> void;
 	auto send_to_gpu() -> void;
+	auto send_to_gpu_transfer_submissions() -> void;
+	auto send_to_gpu_main_submissions() -> void;
+	auto device() -> rhi::Device&;
 private:
 	struct Queue
 	{

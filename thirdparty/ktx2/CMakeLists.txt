@@ -17,6 +17,7 @@ set(
 	"lib/basisu/zstd/zstd.h"
 	"lib/dfdutils/createdfd.c"
 	"lib/dfdutils/dfd.h"
+	"lib/dfdutils/interpretdfd.c"
 	"lib/dfdutils/printdfd.c"
 	"lib/dfdutils/queries.c"
 	"lib/dfdutils/vk2dfd.c"
@@ -24,6 +25,7 @@ set(
 	"lib/astc_encode.cpp"
 	"lib/basis_encode.cpp"
 	"lib/basis_sgd.h"
+	"lib/checkheader.c"
 	"lib/filestream.c"
 	"lib/filestream.h"
 	"lib/formatsize.h"
@@ -34,6 +36,7 @@ set(
 	"lib/memstream.c"
 	"lib/memstream.h"
 	"lib/strings.c"
+	"lib/swap.c"
 	"lib/texture.c"
 	"lib/texture.h"
 	"lib/texture_funcs.inl"
@@ -55,6 +58,7 @@ target_include_directories(
 	PUBLIC 
 		"include"
 	PRIVATE 
+		"other_include"
 		"include/KHR"
 		"lib/basisu/zstd"
 		"lib"

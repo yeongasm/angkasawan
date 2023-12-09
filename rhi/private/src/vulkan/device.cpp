@@ -322,7 +322,123 @@ auto translate_format(Format format) -> VkFormat
 		VK_FORMAT_S8_UINT,
 		VK_FORMAT_D16_UNORM_S8_UINT,
 		VK_FORMAT_D24_UNORM_S8_UINT,
-		VK_FORMAT_D32_SFLOAT_S8_UINT
+		VK_FORMAT_D32_SFLOAT_S8_UINT,
+		VK_FORMAT_BC1_RGB_UNORM_BLOCK,
+		VK_FORMAT_BC1_RGB_SRGB_BLOCK,
+		VK_FORMAT_BC1_RGBA_UNORM_BLOCK,
+		VK_FORMAT_BC1_RGBA_SRGB_BLOCK,
+		VK_FORMAT_BC2_UNORM_BLOCK,
+		VK_FORMAT_BC2_SRGB_BLOCK,
+		VK_FORMAT_BC3_UNORM_BLOCK,
+		VK_FORMAT_BC3_SRGB_BLOCK,
+		VK_FORMAT_BC4_UNORM_BLOCK,
+		VK_FORMAT_BC4_SNORM_BLOCK,
+		VK_FORMAT_BC5_UNORM_BLOCK,
+		VK_FORMAT_BC5_SNORM_BLOCK,
+		VK_FORMAT_BC6H_UFLOAT_BLOCK,
+		VK_FORMAT_BC6H_SFLOAT_BLOCK,
+		VK_FORMAT_BC7_UNORM_BLOCK,
+		VK_FORMAT_BC7_SRGB_BLOCK,
+		VK_FORMAT_ETC2_R8G8B8_UNORM_BLOCK,
+		VK_FORMAT_ETC2_R8G8B8_SRGB_BLOCK,
+		VK_FORMAT_ETC2_R8G8B8A1_UNORM_BLOCK,
+		VK_FORMAT_ETC2_R8G8B8A1_SRGB_BLOCK,
+		VK_FORMAT_ETC2_R8G8B8A8_UNORM_BLOCK,
+		VK_FORMAT_ETC2_R8G8B8A8_SRGB_BLOCK,
+		VK_FORMAT_EAC_R11_UNORM_BLOCK,
+		VK_FORMAT_EAC_R11_SNORM_BLOCK,
+		VK_FORMAT_EAC_R11G11_UNORM_BLOCK,
+		VK_FORMAT_EAC_R11G11_SNORM_BLOCK,
+		VK_FORMAT_ASTC_4x4_UNORM_BLOCK,
+		VK_FORMAT_ASTC_4x4_SRGB_BLOCK,
+		VK_FORMAT_ASTC_5x4_UNORM_BLOCK,
+		VK_FORMAT_ASTC_5x4_SRGB_BLOCK,
+		VK_FORMAT_ASTC_5x5_UNORM_BLOCK,
+		VK_FORMAT_ASTC_5x5_SRGB_BLOCK,
+		VK_FORMAT_ASTC_6x5_UNORM_BLOCK,
+		VK_FORMAT_ASTC_6x5_SRGB_BLOCK,
+		VK_FORMAT_ASTC_6x6_UNORM_BLOCK,
+		VK_FORMAT_ASTC_6x6_SRGB_BLOCK,
+		VK_FORMAT_ASTC_8x5_UNORM_BLOCK,
+		VK_FORMAT_ASTC_8x5_SRGB_BLOCK,
+		VK_FORMAT_ASTC_8x6_UNORM_BLOCK,
+		VK_FORMAT_ASTC_8x6_SRGB_BLOCK,
+		VK_FORMAT_ASTC_8x8_UNORM_BLOCK,
+		VK_FORMAT_ASTC_8x8_SRGB_BLOCK,
+		VK_FORMAT_ASTC_10x5_UNORM_BLOCK,
+		VK_FORMAT_ASTC_10x5_SRGB_BLOCK,
+		VK_FORMAT_ASTC_10x6_UNORM_BLOCK,
+		VK_FORMAT_ASTC_10x6_SRGB_BLOCK,
+		VK_FORMAT_ASTC_10x8_UNORM_BLOCK,
+		VK_FORMAT_ASTC_10x8_SRGB_BLOCK,
+		VK_FORMAT_ASTC_10x10_UNORM_BLOCK,
+		VK_FORMAT_ASTC_10x10_SRGB_BLOCK,
+		VK_FORMAT_ASTC_12x10_UNORM_BLOCK,
+		VK_FORMAT_ASTC_12x10_SRGB_BLOCK,
+		VK_FORMAT_ASTC_12x12_UNORM_BLOCK,
+		VK_FORMAT_ASTC_12x12_SRGB_BLOCK,
+		VK_FORMAT_G8B8G8R8_422_UNORM,
+		VK_FORMAT_B8G8R8G8_422_UNORM,
+		VK_FORMAT_G8_B8_R8_3PLANE_420_UNORM,
+		VK_FORMAT_G8_B8R8_2PLANE_420_UNORM,
+		VK_FORMAT_G8_B8_R8_3PLANE_422_UNORM,
+		VK_FORMAT_G8_B8R8_2PLANE_422_UNORM,
+		VK_FORMAT_G8_B8_R8_3PLANE_444_UNORM,
+		VK_FORMAT_R10X6_UNORM_PACK16,
+		VK_FORMAT_R10X6G10X6_UNORM_2PACK16,
+		VK_FORMAT_R10X6G10X6B10X6A10X6_UNORM_4PACK16,
+		VK_FORMAT_G10X6B10X6G10X6R10X6_422_UNORM_4PACK16,
+		VK_FORMAT_B10X6G10X6R10X6G10X6_422_UNORM_4PACK16,
+		VK_FORMAT_G10X6_B10X6_R10X6_3PLANE_420_UNORM_3PACK16,
+		VK_FORMAT_G10X6_B10X6R10X6_2PLANE_420_UNORM_3PACK16,
+		VK_FORMAT_G10X6_B10X6_R10X6_3PLANE_422_UNORM_3PACK16,
+		VK_FORMAT_G10X6_B10X6R10X6_2PLANE_422_UNORM_3PACK16,
+		VK_FORMAT_G10X6_B10X6_R10X6_3PLANE_444_UNORM_3PACK16,
+		VK_FORMAT_R12X4_UNORM_PACK16,
+		VK_FORMAT_R12X4G12X4_UNORM_2PACK16,
+		VK_FORMAT_R12X4G12X4B12X4A12X4_UNORM_4PACK16,
+		VK_FORMAT_G12X4B12X4G12X4R12X4_422_UNORM_4PACK16,
+		VK_FORMAT_B12X4G12X4R12X4G12X4_422_UNORM_4PACK16,
+		VK_FORMAT_G12X4_B12X4_R12X4_3PLANE_420_UNORM_3PACK16,
+		VK_FORMAT_G12X4_B12X4R12X4_2PLANE_420_UNORM_3PACK16,
+		VK_FORMAT_G12X4_B12X4_R12X4_3PLANE_422_UNORM_3PACK16,
+		VK_FORMAT_G12X4_B12X4R12X4_2PLANE_422_UNORM_3PACK16,
+		VK_FORMAT_G12X4_B12X4_R12X4_3PLANE_444_UNORM_3PACK16,
+		VK_FORMAT_G16B16G16R16_422_UNORM,
+		VK_FORMAT_B16G16R16G16_422_UNORM,
+		VK_FORMAT_G16_B16_R16_3PLANE_420_UNORM,
+		VK_FORMAT_G16_B16R16_2PLANE_420_UNORM,
+		VK_FORMAT_G16_B16_R16_3PLANE_422_UNORM,
+		VK_FORMAT_G16_B16R16_2PLANE_422_UNORM,
+		VK_FORMAT_G16_B16_R16_3PLANE_444_UNORM,
+		VK_FORMAT_G8_B8R8_2PLANE_444_UNORM,
+		VK_FORMAT_G10X6_B10X6R10X6_2PLANE_444_UNORM_3PACK16,
+		VK_FORMAT_G12X4_B12X4R12X4_2PLANE_444_UNORM_3PACK16,
+		VK_FORMAT_G16_B16R16_2PLANE_444_UNORM,
+		VK_FORMAT_A4R4G4B4_UNORM_PACK16,
+		VK_FORMAT_A4B4G4R4_UNORM_PACK16,
+		VK_FORMAT_ASTC_4x4_SFLOAT_BLOCK,
+		VK_FORMAT_ASTC_5x4_SFLOAT_BLOCK,
+		VK_FORMAT_ASTC_5x5_SFLOAT_BLOCK,
+		VK_FORMAT_ASTC_6x5_SFLOAT_BLOCK,
+		VK_FORMAT_ASTC_6x6_SFLOAT_BLOCK,
+		VK_FORMAT_ASTC_8x5_SFLOAT_BLOCK,
+		VK_FORMAT_ASTC_8x6_SFLOAT_BLOCK,
+		VK_FORMAT_ASTC_8x8_SFLOAT_BLOCK,
+		VK_FORMAT_ASTC_10x5_SFLOAT_BLOCK,
+		VK_FORMAT_ASTC_10x6_SFLOAT_BLOCK,
+		VK_FORMAT_ASTC_10x8_SFLOAT_BLOCK,
+		VK_FORMAT_ASTC_10x10_SFLOAT_BLOCK,
+		VK_FORMAT_ASTC_12x10_SFLOAT_BLOCK,
+		VK_FORMAT_ASTC_12x12_SFLOAT_BLOCK,
+		VK_FORMAT_PVRTC1_2BPP_UNORM_BLOCK_IMG,
+		VK_FORMAT_PVRTC1_4BPP_UNORM_BLOCK_IMG,
+		VK_FORMAT_PVRTC2_2BPP_UNORM_BLOCK_IMG,
+		VK_FORMAT_PVRTC2_4BPP_UNORM_BLOCK_IMG,
+		VK_FORMAT_PVRTC1_2BPP_SRGB_BLOCK_IMG,
+		VK_FORMAT_PVRTC1_4BPP_SRGB_BLOCK_IMG,
+		VK_FORMAT_PVRTC2_2BPP_SRGB_BLOCK_IMG,
+		VK_FORMAT_PVRTC2_4BPP_SRGB_BLOCK_IMG
 	};
 	return formats[static_cast<std::underlying_type_t<Format>>(format)];
 }
@@ -2776,71 +2892,71 @@ auto APIContext::setup_debug_name(Fence const& fence) -> void
 //	vkUpdateDescriptorSets(device, 1, &writeDescriptorSetBuffer, 0, nullptr);
 //}
 
-//auto APIContext::update_descriptor_set_image(VkImageView imageView, ImageUsage usage, uint32 index) -> void
-//{
-//	uint32 count = 0;
-//	std::array<VkWriteDescriptorSet, 2> descriptorSetWrites{};
-//
-//	VkDescriptorImageInfo imageInfo{
-//		.sampler = VK_NULL_HANDLE,
-//		.imageView = imageView,
-//		.imageLayout = VK_IMAGE_LAYOUT_READ_ONLY_OPTIMAL
-//	};
-//
-//	VkDescriptorImageInfo storageImageInfo{
-//		.sampler = VK_NULL_HANDLE,
-//		.imageView = imageView,
-//		.imageLayout = VK_IMAGE_LAYOUT_GENERAL
-//	};
-//
-//	if ((usage & ImageUsage::Sampled) != ImageUsage::None)
-//	{
-//		descriptorSetWrites[count++] = {
-//			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-//			.dstSet = descriptorCache.descriptorSet,
-//			.dstBinding = SAMPLED_IMAGE_BINDING,
-//			.dstArrayElement = index,
-//			.descriptorCount = 1,
-//			.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-//			.pImageInfo = &imageInfo
-//		};
-//	}
-//
-//	if ((usage & ImageUsage::Storage) != ImageUsage::None)
-//	{
-//		descriptorSetWrites[count++] = {
-//			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-//			.dstSet = descriptorCache.descriptorSet,
-//			.dstBinding = STORAGE_IMAGE_BINDING,
-//			.dstArrayElement = index,
-//			.descriptorCount = 1,
-//			.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-//			.pImageInfo = &storageImageInfo
-//		};
-//	}
-//
-//	vkUpdateDescriptorSets(device, count, descriptorSetWrites.data(), 0, nullptr);
-//}
+auto APIContext::update_descriptor_set_image(VkImageView imageView, ImageUsage usage, uint32 index) -> void
+{
+	uint32 count = 0;
+	std::array<VkWriteDescriptorSet, 2> descriptorSetWrites{};
 
-//auto APIContext::update_descriptor_set_sampler(VkSampler sampler, uint32 index) -> void
-//{
-//	VkDescriptorImageInfo samplerInfo{
-//		.sampler = sampler,
-//		.imageView = VK_NULL_HANDLE,
-//		.imageLayout = VK_IMAGE_LAYOUT_UNDEFINED
-//	};
-//
-//	VkWriteDescriptorSet writeDescriptorSetImage{
-//		.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-//		.dstSet = descriptorCache.descriptorSet,
-//		.dstBinding = SAMPLER_BINDING,
-//		.dstArrayElement = index,
-//		.descriptorCount = 1,
-//		.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
-//		.pImageInfo = &samplerInfo
-//	};
-//	vkUpdateDescriptorSets(device, 1, &writeDescriptorSetImage, 0, nullptr);
-//}
+	VkDescriptorImageInfo sampledImageInfo{
+		.sampler = VK_NULL_HANDLE,
+		.imageView = imageView,
+		.imageLayout = VK_IMAGE_LAYOUT_READ_ONLY_OPTIMAL
+	};
+
+	VkDescriptorImageInfo storageImageInfo{
+		.sampler = VK_NULL_HANDLE,
+		.imageView = imageView,
+		.imageLayout = VK_IMAGE_LAYOUT_GENERAL
+	};
+
+	if ((usage & ImageUsage::Sampled) != ImageUsage::None)
+	{
+		descriptorSetWrites[count++] = {
+			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+			.dstSet = descriptorCache.descriptorSet,
+			.dstBinding = SAMPLED_IMAGE_BINDING,
+			.dstArrayElement = index,
+			.descriptorCount = 1,
+			.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+			.pImageInfo = &sampledImageInfo
+		};
+	}
+
+	if ((usage & ImageUsage::Storage) != ImageUsage::None)
+	{
+		descriptorSetWrites[count++] = {
+			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+			.dstSet = descriptorCache.descriptorSet,
+			.dstBinding = STORAGE_IMAGE_BINDING,
+			.dstArrayElement = index,
+			.descriptorCount = 1,
+			.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+			.pImageInfo = &storageImageInfo
+		};
+	}
+
+	vkUpdateDescriptorSets(device, count, descriptorSetWrites.data(), 0, nullptr);
+}
+
+auto APIContext::update_descriptor_set_sampler(VkSampler sampler, uint32 index) -> void
+{
+	VkDescriptorImageInfo samplerInfo{
+		.sampler = sampler,
+		.imageView = VK_NULL_HANDLE,
+		.imageLayout = VK_IMAGE_LAYOUT_UNDEFINED
+	};
+
+	VkWriteDescriptorSet writeDescriptorSetImage{
+		.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+		.dstSet = descriptorCache.descriptorSet,
+		.dstBinding = SAMPLER_BINDING,
+		.dstArrayElement = index,
+		.descriptorCount = 1,
+		.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
+		.pImageInfo = &samplerInfo
+	};
+	vkUpdateDescriptorSets(device, 1, &writeDescriptorSetImage, 0, nullptr);
+}
 
 auto Device::device_info() const -> DeviceInfo const&
 {

@@ -118,7 +118,6 @@ bool SandboxApp::initialize()
 
 void SandboxApp::run()
 {
-
 	rhi::DeviceConfig const& config = m_device->device_config();
 
 	if (!m_showcased_demo.is_null())

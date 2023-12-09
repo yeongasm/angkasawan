@@ -14,7 +14,8 @@ enum class GltfImageType
 	Metallic_Roughness,
 	Normal,
 	Occlusion,
-	Emissive
+	Emissive,
+	Max
 };
 
 enum class CgltfAlphaMode
