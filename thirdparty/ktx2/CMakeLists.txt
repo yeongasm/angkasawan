@@ -25,6 +25,7 @@ set(
 	"lib/astc_encode.cpp"
 	"lib/basis_encode.cpp"
 	"lib/basis_sgd.h"
+	"lib/basis_transcode.cpp"
 	"lib/checkheader.c"
 	"lib/filestream.c"
 	"lib/filestream.h"

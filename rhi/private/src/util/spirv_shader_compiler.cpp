@@ -298,7 +298,8 @@ auto ShaderCompiler::compile_shader(ShaderCompileInfo const& info) -> Compilatio
 	options.SetIncluder(std::make_unique<ShadercDefaultIncluder>(std::span{ m_include_dirs.data(), m_include_dirs.size() }));
 	options.SetTargetEnvironment(shaderc_target_env_vulkan, shaderc_env_version_vulkan_1_3);
 	options.SetSourceLanguage(shaderc_source_language_glsl);
-
+	//auto foo = compiler.PreprocessGlsl(info.sourceCode.c_str(), type, info.path.data(), options);
+	//fmt::print("\n{}", foo.cbegin());
 	// Unoptimized compilation to enable robust reflection.
 	auto unoptimized = compiler.CompileGlslToSpv(info.sourceCode.c_str(), type, info.path.data(), options);
 

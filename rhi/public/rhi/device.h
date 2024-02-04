@@ -39,6 +39,9 @@ public:
 	RHI_API [[nodiscard]] auto destroy_semaphore(Semaphore& semaphore) -> void;
 	RHI_API [[nodiscard]] auto create_fence(FenceInfo&& info) -> Fence;
 	RHI_API [[nodiscard]] auto destroy_fence(Fence& fence) -> void;
+	RHI_API [[nodiscard]] auto update_buffer_descriptor(DescriptorBufferInfo const& info) -> void;
+	RHI_API [[nodiscard]] auto update_image_descriptor(DescriptorImageInfo const& info) -> void;
+	RHI_API [[nodiscard]] auto update_sampler_descriptor(DescriptorSamplerInfo const& info) -> void;
 
 	RHI_API auto submit(SubmitInfo const& info) -> bool;
 	RHI_API auto present(PresentInfo const& info) -> bool;

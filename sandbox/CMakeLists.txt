@@ -5,13 +5,10 @@ set(
 	sandbox_header_files
 	"public/sandbox/sandbox.h"
 	"public/sandbox/sandbox_api.h"
-	"private/include/bindable_structure.h"
-	"private/include/buffer_view_registry.h"
 	"private/include/camera.h"
 	"private/include/command_queue.h"
 	"private/include/geometry_cache.h"
 	"private/include/image_importer.h"
-	"private/include/input_assembler.h"
 	"private/include/material_cache.h"
 	"private/include/model_importer.h"
 	"private/include/resource_cache.h"
@@ -24,14 +21,10 @@ set(
 
 set(
 	sandbox_source_files
-	"private/src/bindable_structure.cpp"
-	"private/src/buffer_view_registry.cpp"
 	"private/src/camera.cpp"
 	"private/src/command_queue.cpp"
 	"private/src/geometry_cache.cpp"
 	"private/src/image_importer.cpp"
-	"private/src/input_assembler.cpp"
-	"private/src/material_cache.cpp"
 	"private/src/model_importer.cpp"
 	"private/src/resource_cache.cpp"
 	"private/src/sandbox.cpp"

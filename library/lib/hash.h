@@ -555,6 +555,7 @@ private:
 		bucket_value_type bucket = bucket_for_hash(hash);
 
 		bucket_info inserting_info{ .hash = hash };
+		bucket_value_type first_swapped_bucket = std::numeric_limits<bucket_value_type>::max();
 
 		while (!p_info[bucket].is_empty())
 		{
@@ -564,6 +565,10 @@ private:
 				if (inserting_info.psl > probe_distance_limit::value)
 				{
 					toggle_grow_on_next_insert();
+				}
+				if (first_swapped_bucket == std::numeric_limits<bucket_value_type>::max())
+				{
+					first_swapped_bucket = bucket;
 				}
 				swap_element_at(bucket, element, inserting_info);
 			}
@@ -576,7 +581,7 @@ private:
 		p_info[bucket].hash = inserting_info.hash;
 		p_info[bucket].psl	= inserting_info.psl;
 
-		return bucket;
+		return (first_swapped_bucket != std::numeric_limits<bucket_value_type>::max()) ? first_swapped_bucket : bucket;
 	}
 
 	constexpr void rehash(type* sourceData, bucket_info* sourceInfo, size_t count)

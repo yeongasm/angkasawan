@@ -769,21 +769,21 @@ auto get_sampler_info_packed_uint64(SamplerInfo const& info) -> uint64
 	uint64 const minl = static_cast<uint64>(info.minLod);
 	uint64 const maxl = static_cast<uint64>(info.maxLod);
 
-	packed |= 0x000000000000000FULL & minf;
-	packed |= 0x00000000000000F0ULL & magf;
-	packed |= 0x0000000000000F00ULL & mipm;
-	packed |= 0x000000000000F000ULL & bcol;
-	packed |= 0x00000000000F0000ULL & admu;
-	packed |= 0x0000000000F00000ULL & admv;
-	packed |= 0x000000000F000000ULL & admw;
-	packed |= 0x00000000F0000000ULL & cmpo;
-	packed |= 0x0000000F00000000ULL & mplb;
-	packed |= 0x000000F000000000ULL & maxa;
-	packed |= 0x00000F0000000000ULL & minl;
-	packed |= 0x0000F00000000000ULL & maxl;
-	packed |= 0x2000000000000000ULL & anie;
-	packed |= 0x4000000000000000ULL & cmpe;
-	packed |= 0x8000000000000000ULL & cord;
+	packed |= (0x000000000000000FULL & minf);
+	packed |= (0x00000000000000F0ULL & magf);
+	packed |= (0x0000000000000F00ULL & mipm);
+	packed |= (0x000000000000F000ULL & bcol);
+	packed |= (0x00000000000F0000ULL & admu);
+	packed |= (0x0000000000F00000ULL & admv);
+	packed |= (0x000000000F000000ULL & admw);
+	packed |= (0x00000000F0000000ULL & cmpo);
+	packed |= (0x0000000F00000000ULL & mplb);
+	packed |= (0x000000F000000000ULL & maxa);
+	packed |= (0x00000F0000000000ULL & minl);
+	packed |= (0x0000F00000000000ULL & maxl);
+	packed |= (0x2000000000000000ULL & anie);
+	packed |= (0x4000000000000000ULL & cmpe);
+	packed |= (0x8000000000000000ULL & cord);
 
 	return packed;
 }
@@ -1135,16 +1135,11 @@ auto APIContext::create_logical_device() -> bool
 		.dynamicRendering = VK_TRUE
 	};
 
-	//VkPhysicalDeviceBufferDeviceAddressFeatures bufferDeviceAddressFeature{
-	//	.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES,
-	//	.pNext = &deviceFeatures13,
-	//	.bufferDeviceAddress = VK_TRUE
-	//};
-
 	VkPhysicalDeviceVulkan12Features deviceFeatures12{
 		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
 		.pNext = &deviceFeatures13,
 		.drawIndirectCount = VK_TRUE,
+		.shaderFloat16 = VK_TRUE,
 		.shaderInt8 = VK_TRUE,
 		.descriptorIndexing = VK_TRUE,
 		.shaderUniformBufferArrayNonUniformIndexing = VK_TRUE,
@@ -1163,14 +1158,24 @@ auto APIContext::create_logical_device() -> bool
 		.vulkanMemoryModel = VK_TRUE
 	};
 
+	VkPhysicalDeviceVulkan11Features deviceFeatures11{
+		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES,
+		.pNext = &deviceFeatures12,
+		.shaderDrawParameters = VK_TRUE
+	};
+
 	VkPhysicalDeviceFeatures2 deviceFeatures{
 		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
-		.pNext = &deviceFeatures12,
+		.pNext = &deviceFeatures11,
 		.features = {
 			.fullDrawIndexUint32 = VK_TRUE,
+			.geometryShader = VK_TRUE,
+			.tessellationShader = VK_TRUE,
+			.logicOp = VK_TRUE,
 			.multiDrawIndirect = VK_TRUE,
 			.multiViewport = VK_TRUE,
 			.samplerAnisotropy = VK_TRUE,
+			.textureCompressionBC = VK_TRUE,
 			.shaderUniformBufferArrayDynamicIndexing = VK_TRUE,
 			.shaderSampledImageArrayDynamicIndexing = VK_TRUE,
 			.shaderStorageBufferArrayDynamicIndexing = VK_TRUE,
@@ -1180,12 +1185,6 @@ auto APIContext::create_logical_device() -> bool
 			.shaderInt16 = VK_TRUE
 		}
 	};
-
-	//VkPhysicalDeviceBufferDeviceAddressFeatures bdaFeature{
-	//	.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES,
-	//	.pNext = &deviceFeatures,
-	//	.bufferDeviceAddress = VK_TRUE
-	//};
 
 	VkDeviceCreateInfo info{
 		.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
@@ -1611,7 +1610,7 @@ auto APIContext::initialize_descriptor_cache() -> bool
 		// Set up buffer device address.
 		VkBufferCreateInfo bufferInfo{
 			.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-			.size = config.maxBuffers * sizeof(uint64),
+			.size = config.maxBuffers * sizeof(VkDeviceAddress),
 			.usage = VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 			.sharingMode = VK_SHARING_MODE_EXCLUSIVE
 		};
@@ -2054,7 +2053,23 @@ auto APIContext::create_image(ImageInfo&& info) -> Image
 	VkImageAspectFlags aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT;
 	if ((usage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT) != 0)
 	{
-		aspectFlags = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+		switch (format)
+		{
+		case VK_FORMAT_S8_UINT:
+			aspectFlags = VK_IMAGE_ASPECT_STENCIL_BIT;
+			break;
+		case VK_FORMAT_D16_UNORM_S8_UINT:
+		case VK_FORMAT_D32_SFLOAT_S8_UINT:
+		case VK_FORMAT_D24_UNORM_S8_UINT:
+			aspectFlags = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+			break;
+		case VK_FORMAT_D16_UNORM:
+		case VK_FORMAT_D32_SFLOAT:
+		default:
+			aspectFlags = VK_IMAGE_ASPECT_DEPTH_BIT;
+			break;
+		}
+
 	}
 
 	uint32 depth{ 1 };
@@ -2075,11 +2090,16 @@ auto APIContext::create_image(ImageInfo&& info) -> Image
 		mipLevels = std::min(mipLevels, MAX_IMAGE_MIP_LEVEL);
 	}
 
+
 	VkImageCreateInfo imgInfo{
 		.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
 		.imageType = translate_image_type(info.type),
 		.format	= format,
-		.extent	= VkExtent3D{ info.dimension.width, info.dimension.width, depth },
+		.extent = {
+			.width = info.dimension.width,
+			.height = info.dimension.height,
+			.depth = depth
+		},
 		.mipLevels	= mipLevels,
 		.arrayLayers = 1,
 		.samples = translate_sample_count(info.samples),
@@ -2088,6 +2108,13 @@ auto APIContext::create_image(ImageInfo&& info) -> Image
 		.sharingMode = VK_SHARING_MODE_EXCLUSIVE,
 		.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
 	};
+
+	info.name.format("<image>:{}", info.name.c_str());
+
+	//VkFormatProperties formatProperties = {};
+	//VkImageFormatProperties imageFormatProperties = {};
+	//vkGetPhysicalDeviceFormatProperties(gpu, format, &formatProperties);
+	//[[maybe_unused]] auto supported = vkGetPhysicalDeviceImageFormatProperties(gpu, format, imgInfo.imageType, imgInfo.tiling, imgInfo.usage, imgInfo.flags, &imageFormatProperties);
 
 	auto allocationFlags = translate_memory_usage(info.memoryUsage);
 	
@@ -2332,7 +2359,7 @@ auto APIContext::create_pipeline(RasterPipelineInfo&& info, PipelineShaderInfo c
 	VkPipelineMultisampleStateCreateInfo pipelineMultisampleSate{
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
 		.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
-		.minSampleShading = 1.f
+		.minSampleShading = 0.f
 	};
 
 	size_t attachmentCount = info.colorAttachments.size();
@@ -2382,8 +2409,8 @@ auto APIContext::create_pipeline(RasterPipelineInfo&& info, PipelineShaderInfo c
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR,
 		.colorAttachmentCount = static_cast<uint32>(attachmentCount),
 		.pColorAttachmentFormats = colorAttachmentFormats.data(),
-		.depthAttachmentFormat = VK_FORMAT_UNDEFINED,
-		.stencilAttachmentFormat = VK_FORMAT_UNDEFINED
+		.depthAttachmentFormat = translate_format(info.depthAttachmentFormat),
+		.stencilAttachmentFormat = translate_format(info.stencilAttachmentFormat)
 	};
 
 	VkPipelineLayout layoutHandle = get_appropriate_pipeline_layout(info.pushConstantSize, properties.limits.maxPushConstantsSize);
@@ -2748,13 +2775,23 @@ auto APIContext::setup_debug_name(Image const& image) -> void
 		if (name.size())
 		{
 			vulkan::Image& img = image.as<vulkan::Image>();
-			VkDebugUtilsObjectNameInfoEXT debugResourceNameInfo{
+
+			VkDebugUtilsObjectNameInfoEXT imageDebugNameInfo{
 				.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
 				.objectType = VK_OBJECT_TYPE_IMAGE,
 				.objectHandle = reinterpret_cast<uint64_t>(img.handle),
 				.pObjectName = name.c_str(),
 			};
-			vkSetDebugUtilsObjectNameEXT(device, &debugResourceNameInfo);
+			vkSetDebugUtilsObjectNameEXT(device, &imageDebugNameInfo);
+
+			lib::string imageViewDebugName = lib::format("<image_view>:{}", image.info().name.c_str());
+			VkDebugUtilsObjectNameInfoEXT imageViewDebugNameInfo{
+				.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+				.objectType = VK_OBJECT_TYPE_IMAGE_VIEW,
+				.objectHandle = reinterpret_cast<uint64_t>(img.imageView),
+				.pObjectName = imageViewDebugName.c_str(),
+			};
+			vkSetDebugUtilsObjectNameEXT(device, &imageViewDebugNameInfo);
 		}
 	}
 }
@@ -2873,43 +2910,81 @@ auto APIContext::setup_debug_name(Fence const& fence) -> void
 	}
 }
 
-//auto APIContext::update_descriptor_set_buffer(VkBuffer buffer, size_t offset, size_t size, uint32 index) -> void
-//{
-//	VkDescriptorBufferInfo bufferInfo{
-//		.buffer = buffer,
-//		.offset = offset,
-//		.range = size,
-//	};
-//	VkWriteDescriptorSet writeDescriptorSetBuffer{
-//		.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-//		.dstSet = descriptorCache.descriptorSet,
-//		.dstBinding = BUFFER_BINDING,
-//		.dstArrayElement = index,
-//		.descriptorCount = 1,
-//		.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-//		.pBufferInfo = &bufferInfo
-//	};
-//	vkUpdateDescriptorSets(device, 1, &writeDescriptorSetBuffer, 0, nullptr);
-//}
+auto APIContext::update_buffer_device_address(Buffer const& buffer, size_t offset, size_t size, uint32 index) -> void
+{
+	BufferInfo const& info = buffer.info();
+	
+	if (offset < info.size && size <= info.size)
+	{
+		index = index % config.maxBuffers;
 
-auto APIContext::update_descriptor_set_image(VkImageView imageView, ImageUsage usage, uint32 index) -> void
+		VkDeviceAddress const address = buffer.as<vulkan::Buffer>().address + offset;
+
+		descriptorCache.bdaHostAddress[index] = address;
+	}
+
+#if 0
+	vulkan::Buffer const& buf = buffer.as<vulkan::Buffer>();
+	uint32 const idx = index % MAX_BUFFERS;
+
+	size = (size == std::numeric_limits<size_t>::max()) ? VK_WHOLE_SIZE : size;
+
+	VkDescriptorBufferInfo descriptorBufferInfo{
+		.buffer = buf.handle,
+		.offset = offset,
+		.range = size
+	};
+
+	uint32 binding = STORAGE_BUFFER_BINDING;
+
+	if ((info.bufferUsage & BufferUsage::Uniform) == BufferUsage::Uniform)
+	{
+		binding = UNIFORM_BUFFER_BINDING;
+	}
+
+	VkWriteDescriptorSet writeDescriptorSetBuffer{
+		.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+		.dstSet = descriptorCache.descriptorSet,
+		.dstBinding = binding,
+		.dstArrayElement = idx,
+		.descriptorCount = 1,
+		.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+		.pBufferInfo = &descriptorBufferInfo
+	};
+
+	vkUpdateDescriptorSets(device, 1, &writeDescriptorSetBuffer, 0, nullptr);
+#endif
+}
+
+auto APIContext::update_descriptor_set(Image const& image, Sampler const* sampler, uint32 index) -> void
 {
 	uint32 count = 0;
 	std::array<VkWriteDescriptorSet, 2> descriptorSetWrites{};
 
-	VkDescriptorImageInfo sampledImageInfo{
+	ImageInfo const& info = image.info();
+	vulkan::Image const& img = image.as<vulkan::Image>();
+
+	index = index % config.maxImages;
+
+	VkDescriptorImageInfo descriptorSampledImageInfo{
 		.sampler = VK_NULL_HANDLE,
-		.imageView = imageView,
+		.imageView = img.imageView,
 		.imageLayout = VK_IMAGE_LAYOUT_READ_ONLY_OPTIMAL
 	};
 
-	VkDescriptorImageInfo storageImageInfo{
+	if (sampler)
+	{
+		vulkan::Sampler const& smp = sampler->as<vulkan::Sampler>();
+		descriptorSampledImageInfo.sampler = smp.handle;
+	}
+
+	VkDescriptorImageInfo descriptorStorageImageInfo{
 		.sampler = VK_NULL_HANDLE,
-		.imageView = imageView,
+		.imageView = img.imageView,
 		.imageLayout = VK_IMAGE_LAYOUT_GENERAL
 	};
 
-	if ((usage & ImageUsage::Sampled) != ImageUsage::None)
+	if ((info.imageUsage & ImageUsage::Sampled) != ImageUsage::None)
 	{
 		descriptorSetWrites[count++] = {
 			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
@@ -2918,11 +2993,11 @@ auto APIContext::update_descriptor_set_image(VkImageView imageView, ImageUsage u
 			.dstArrayElement = index,
 			.descriptorCount = 1,
 			.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-			.pImageInfo = &sampledImageInfo
+			.pImageInfo = &descriptorSampledImageInfo
 		};
 	}
 
-	if ((usage & ImageUsage::Storage) != ImageUsage::None)
+	if ((info.imageUsage & ImageUsage::Storage) != ImageUsage::None)
 	{
 		descriptorSetWrites[count++] = {
 			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
@@ -2931,17 +3006,21 @@ auto APIContext::update_descriptor_set_image(VkImageView imageView, ImageUsage u
 			.dstArrayElement = index,
 			.descriptorCount = 1,
 			.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-			.pImageInfo = &storageImageInfo
+			.pImageInfo = &descriptorStorageImageInfo
 		};
 	}
 
 	vkUpdateDescriptorSets(device, count, descriptorSetWrites.data(), 0, nullptr);
 }
 
-auto APIContext::update_descriptor_set_sampler(VkSampler sampler, uint32 index) -> void
+auto APIContext::update_descriptor_set(Sampler const& sampler, uint32 index) -> void
 {
-	VkDescriptorImageInfo samplerInfo{
-		.sampler = sampler,
+	vulkan::Sampler const& smp = sampler.as<vulkan::Sampler>();
+
+	index = index % config.maxSamplers;
+
+	VkDescriptorImageInfo descriptorSamplerInfo{
+		.sampler = smp.handle,
 		.imageView = VK_NULL_HANDLE,
 		.imageLayout = VK_IMAGE_LAYOUT_UNDEFINED
 	};
@@ -2953,8 +3032,9 @@ auto APIContext::update_descriptor_set_sampler(VkSampler sampler, uint32 index) 
 		.dstArrayElement = index,
 		.descriptorCount = 1,
 		.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
-		.pImageInfo = &samplerInfo
+		.pImageInfo = &descriptorSamplerInfo
 	};
+
 	vkUpdateDescriptorSets(device, 1, &writeDescriptorSetImage, 0, nullptr);
 }
 
@@ -3066,6 +3146,21 @@ auto Device::create_fence(FenceInfo&& info) -> Fence
 auto Device::destroy_fence(Fence& fence) -> void
 {
 	m_context->destroy_timeline_semaphore(fence);
+}
+
+auto Device::update_buffer_descriptor(DescriptorBufferInfo const& info) -> void
+{
+	return m_context->update_buffer_device_address(info.buffer, info.offset, info.size, info.index);
+}
+
+auto Device::update_image_descriptor(DescriptorImageInfo const& info) -> void
+{
+	return m_context->update_descriptor_set(info.image, info.pSampler, info.index);
+}
+
+auto Device::update_sampler_descriptor(DescriptorSamplerInfo const& info) -> void
+{
+	return m_context->update_descriptor_set(info.sampler, info.index);
 }
 
 auto Device::submit(SubmitInfo const& info) -> bool

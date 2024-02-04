@@ -13,9 +13,7 @@ Buffer::Buffer(
 	Resource{ context, data, typeId },
 	m_info{ std::move(info) },
 	m_mapped_address{ mappedAddress },
-	m_offset{},
-	m_owning_queue{ DeviceQueueType::None },
-	m_binding{}
+	m_offset{}
 {
 	m_context->setup_debug_name(*this);
 }
@@ -32,8 +30,6 @@ Buffer& Buffer::operator=(Buffer&& rhs) noexcept
 		m_info = std::move(rhs.m_info);
 		m_mapped_address = std::move(rhs.m_mapped_address);
 		m_offset = rhs.m_offset;
-		m_owning_queue = rhs.m_owning_queue;
-		m_binding = std::move(rhs.m_binding);
 		Resource::operator=(std::move(rhs));
 		new (&rhs) Buffer{};
 	}
@@ -96,11 +92,6 @@ auto Buffer::is_host_visible() const -> bool
 	uint32 const hostAccessible = static_cast<uint32>(MemoryUsage::Host_Accessible);
 
 	return (usageMask & hostWritable) || (usageMask & hostAccessible);
-}
-
-auto Buffer::owner() const -> DeviceQueueType
-{
-	return m_owning_queue;
 }
 
 auto Buffer::gpu_address() const -> uint64

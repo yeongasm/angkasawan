@@ -2,126 +2,89 @@
 
 namespace sandbox
 {
-resource_index::resource_index(uint32 parent, uint32 id) :
-	_metadata{ parent, id }
-{}
-
-resource_index::resource_index(uint64 alias) :
-	_alias{ alias }
-{}
-
 ResourceCache::ResourceCache(rhi::Device& device) :
 	m_device{ device },
 	m_images{}
 {}
 
-auto ResourceCache::create_image(rhi::ImageInfo&& info) -> Resource<rhi::Image>
+auto ResourceCache::device() const -> rhi::Device&
 {
-	resource_index idx = std::numeric_limits<uint64>::max();
-	rhi::Image* out = nullptr;
-
-	auto&& [index, img] = m_images.emplace(m_device.create_image(std::move(info)));
-
-	if (img.valid())
-	{
-		idx._metadata.id = index.id;
-		out = &img;
-	}
-	else
-	{
-		m_images.erase(index);
-	}
-
-	return Resource<rhi::Image>{ idx._alias, out };
-}
-
-auto ResourceCache::get_image(image_handle handle) -> lib::ref<rhi::Image>
-{
-	return lib::ref<rhi::Image>{ m_images.at(handle.get()) };
-}
-
-auto ResourceCache::destroy_image(image_handle handle) -> void
-{
-	rhi::Image* img = m_images.at(handle.get());
-	if (img && 
-		img->valid())
-	{
-		img->unbind();
-		m_device.destroy_image(*img);
-		m_images.erase(handle.get());
-	}
+	return m_device;
 }
 
 auto ResourceCache::create_buffer(rhi::BufferInfo&& info) -> Resource<rhi::Buffer>
 {
-	resource_index idx = std::numeric_limits<uint64>::max();
+	uint32 index = std::numeric_limits<uint32>::max();
 	rhi::Buffer* out = nullptr;
 
-	auto&& [index, buf] = m_buffers.emplace(m_device.allocate_buffer(std::move(info)));
+	auto&& [location, buf] = m_buffers.emplace(m_device.allocate_buffer(std::move(info)));
 
 	if (buf.valid())
 	{
-		idx._metadata.id = index.id;
+		index = location.id;
 		out = &buf;
 	}
 	else
 	{
-		m_buffers.erase(index);
+		m_buffers.erase(location);
 	}
 
-	return Resource<rhi::Buffer>{ idx._alias, out };
+	return Resource<rhi::Buffer>{ index, out };
 }
 
 auto ResourceCache::get_buffer(buffer_handle handle) -> lib::ref<rhi::Buffer>
 {
-	return lib::ref<rhi::Buffer>{ m_buffers.at(handle.get()) };
+	return lib::ref<rhi::Buffer>{ m_buffers.at(static_cast<uint32>(handle.get())) };
 }
 
 auto ResourceCache::destroy_buffer(buffer_handle handle) -> void
 {
-	rhi::Buffer* buffer = m_buffers.at(handle.get());
+	uint32 const location = handle.get();
+
+	rhi::Buffer* buffer = m_buffers.at(location);
 	if (buffer &&
 		buffer->valid())
 	{
-		buffer->unbind();
 		m_device.release_buffer(*buffer);
-		m_buffers.erase(handle.get());
+		m_buffers.erase(location);
 	}
 }
 
-auto ResourceCache::create_fence(rhi::FenceInfo&& info) -> Resource<rhi::Fence>
+auto ResourceCache::create_image(rhi::ImageInfo&& info) -> Resource<rhi::Image>
 {
-	resource_index idx = std::numeric_limits<uint64>::max();
-	rhi::Fence* out = nullptr;
+	uint32 index = std::numeric_limits<uint32>::max();
+	rhi::Image* out = nullptr;
 
-	auto&& [index, buf] = m_fences.emplace(m_device.create_fence(std::move(info)));
+	auto&& [location, img] = m_images.emplace(m_device.create_image(std::move(info)));
 
-	if (buf.valid())
+	if (img.valid())
 	{
-		idx._metadata.id = index.id;
-		out = &buf;
+		index = location.id;
+		out = &img;
 	}
 	else
 	{
-		m_fences.erase(index);
+		m_images.erase(location);
 	}
 
-	return Resource<rhi::Fence>{ idx._alias, out };
+	return Resource<rhi::Image>{ index, out };
 }
 
-auto ResourceCache::get_fence(fence_handle handle) -> lib::ref<rhi::Fence>
+auto ResourceCache::get_image(image_handle handle) -> lib::ref<rhi::Image>
 {
-	return lib::ref<rhi::Fence>{ m_fences.at(handle.get()) };
+	return lib::ref<rhi::Image>{ m_images.at(static_cast<uint32>(handle.get())) };
 }
 
-auto ResourceCache::destroy_fence(fence_handle handle) -> void
+auto ResourceCache::destroy_image(image_handle handle) -> void
 {
-	rhi::Fence* fence = m_fences.at(handle.get());
-	if (fence &&
-		fence->valid())
+	uint32 const location = handle.get();
+
+	rhi::Image* img = m_images.at(location);
+	if (img && 
+		img->valid())
 	{
-		m_device.destroy_fence(*fence);
-		m_fences.erase(handle.get());
+		m_device.destroy_image(*img);
+		m_images.erase(location);
 	}
 }
 }

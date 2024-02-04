@@ -14,15 +14,18 @@ namespace rhi
 // Each Graphics API would have their own definition of what an APIContext is.
 struct APIContext;
 class Shader;
+class Buffer;
+class Image;
+class Sampler;
 
 struct Viewport
 {
-	float32 x;
-	float32 y;
+	float32 x = 0.f;
+	float32 y = 0.f;
 	float32 width;
 	float32 height;
-	float32 minDepth;
-	float32 maxDepth;
+	float32 minDepth = 0.f;
+	float32 maxDepth = 1.f;
 };
 
 struct Depth
@@ -173,11 +176,11 @@ struct VertexInputBinding
 struct ColorBlendInfo
 {
 	bool enable = true;
-	BlendFactor	srcColorBlendFactor = BlendFactor::Src_Color;
-	BlendFactor	dstColorBlendFactor = BlendFactor::Dst_Color;
+	BlendFactor	srcColorBlendFactor = BlendFactor::One;
+	BlendFactor	dstColorBlendFactor = BlendFactor::Zero;
 	BlendOp	colorBlendOp = BlendOp::Add;
-	BlendFactor	srcAlphaBlendFactor = BlendFactor::Src_Alpha;
-	BlendFactor	dstAlphaBlendFactor = BlendFactor::Dst_Alpha;
+	BlendFactor	srcAlphaBlendFactor = BlendFactor::One;
+	BlendFactor	dstAlphaBlendFactor = BlendFactor::Zero;
 	BlendOp	alphaBlendOp = BlendOp::Add;
 };
 
@@ -301,7 +304,7 @@ struct ImageInfo
 	ImageType type;
 	Format	format;
 	SampleCount	samples;
-	ImageTiling	tiling;
+	ImageTiling	tiling = ImageTiling::Optimal;
 	ImageUsage imageUsage;
 	MemoryUsage memoryUsage = MemoryUsage::Dedicated;
 	Extent3D dimension;
@@ -368,6 +371,8 @@ struct RasterPipelineInfo
 {
 	lib::string name;
 	lib::array<ColorAttachment> colorAttachments;
+	Format depthAttachmentFormat = Format::Undefined;
+	Format stencilAttachmentFormat = Format::Undefined;
 	lib::array<VertexInputBinding> vertexInputBindings;
 	RasterizationStateInfo rasterization = {};
 	DepthTestInfo depthTest = {};
@@ -420,12 +425,25 @@ struct FrameInfo
 	uint32 index;
 };
 
-template <typename T>
-struct BindingSlot
+struct DescriptorBufferInfo
 {
-	static constexpr uint32 INVALID = std::numeric_limits<uint32>::max();
+	Buffer& buffer;
+	size_t offset;
+	size_t size;
+	uint32 index;
+};
 
-	uint32 slot = INVALID;
+struct DescriptorImageInfo
+{
+	Image& image;
+	Sampler* pSampler;
+	uint32 index;
+};
+
+struct DescriptorSamplerInfo
+{
+	Sampler& sampler;
+	uint32 index;
 };
 
 /**

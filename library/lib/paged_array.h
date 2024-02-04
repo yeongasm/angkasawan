@@ -161,7 +161,7 @@ public:
 private:
 	array<element_page, allocator, growth_policy> m_pages;
 	array<index, allocator, growth_policy> m_indices;
-	size_t m_current;
+	size_t m_current = 0;
 
 	std::pair<index, element_type&> get_slot()
 	{

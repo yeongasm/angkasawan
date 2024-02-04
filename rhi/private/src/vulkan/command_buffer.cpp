@@ -27,13 +27,16 @@ auto translate_image_aspect_flags(ImageAspect flags) -> VkImageAspectFlags
 		VK_IMAGE_ASPECT_PLANE_2_BIT
 	};
 
-	uint32 const numBits = (uint32)std::size(bits);
+	uint32 constexpr numBits = (uint32)std::size(bits);
+
 	VkImageUsageFlags result = 0;
+
 	for (uint32 i = 0; i < numBits; ++i)
 	{
 		uint32 const exist = (mask & (1 << i)) != 0;
 		result |= (exist * bits[i]);
 	}
+
 	return result;
 }
 
@@ -123,7 +126,8 @@ auto translate_pipeline_stage_flags(PipelineStage stages) -> VkPipelineStageFlag
 		VK_PIPELINE_STAGE_2_ACCELERATION_STRUCTURE_COPY_BIT_KHR
 	};
 
-	uint64 const numBits = (uint64)std::size(bits);
+	uint64 constexpr numBits = (uint64)std::size(bits);
+
 	VkPipelineStageFlags2 result = 0;
 
 	for (uint64 i = 0; i < numBits; ++i)
@@ -132,6 +136,7 @@ auto translate_pipeline_stage_flags(PipelineStage stages) -> VkPipelineStageFlag
 
 		result |= (exist * bits[i]);
 	}
+
 	return result;
 }
 
@@ -146,7 +151,8 @@ auto translate_memory_access_flags(MemoryAccessType accesses) -> VkAccessFlags2
 		VK_ACCESS_2_MEMORY_WRITE_BIT
 	};
 
-	uint64 const numBits = (uint64)std::size(bits);
+	uint64 constexpr numBits = (uint64)std::size(bits);
+
 	VkAccessFlags2 result = 0;
 
 	for (uint64 i = 0; i < numBits; ++i)
@@ -154,12 +160,40 @@ auto translate_memory_access_flags(MemoryAccessType accesses) -> VkAccessFlags2
 		VkFlags64 const exist = (mask & (1ull << i)) != 0;
 		result |= (exist * bits[i]);
 	}
+
+	return result;
+}
+
+auto translate_shader_stage_flags(ShaderStage shaderStage) -> VkShaderStageFlags
+{
+	uint64 mask = static_cast<uint64>(shaderStage);
+
+	constexpr VkShaderStageFlagBits bits[] = {
+		VK_SHADER_STAGE_VERTEX_BIT,
+		VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT,
+		VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT,
+		VK_SHADER_STAGE_GEOMETRY_BIT,
+		VK_SHADER_STAGE_FRAGMENT_BIT,
+		VK_SHADER_STAGE_COMPUTE_BIT,
+		VK_SHADER_STAGE_ALL_GRAPHICS,
+		VK_SHADER_STAGE_ALL
+	};
+
+	uint64 constexpr numBits = static_cast<uint64>(std::size(bits));
+
+	VkShaderStageFlags result = 0;
+
+	for (uint64 i = 0; i < numBits; ++i)
+	{
+		VkFlags64 const exist = (mask & (1ull << i)) != 0;
+		result |= (exist * bits[i]);
+	}
+
 	return result;
 }
 
 CommandBuffer::CommandBuffer(
 	CommandBufferInfo&& info,
-	DeviceQueueType executionQueue,
 	APIContext* context,
 	void* data,
 	resource_type typeId
@@ -168,7 +202,6 @@ CommandBuffer::CommandBuffer(
 	m_info{ std::move(info) },
 	m_completion_timeline{},
 	m_recording_timeline{},
-	m_execution_queue{ executionQueue },
 	m_state{ State::Initial }
 {
 	m_context->setup_debug_name(*this);
@@ -187,7 +220,6 @@ auto CommandBuffer::operator=(CommandBuffer&& rhs) noexcept -> CommandBuffer&
 		m_info = std::move(rhs.m_info);
 		m_completion_timeline = std::move(rhs.m_completion_timeline);
 		m_recording_timeline = std::move(rhs.m_recording_timeline);
-		m_execution_queue = std::move(rhs.m_execution_queue);
 		m_state = rhs.m_state;
 		Resource::operator=(std::move(rhs));
 		new (&rhs) CommandBuffer{};
@@ -457,29 +489,6 @@ auto CommandBuffer::draw_indirect_count(Buffer const& drawInfoBuffer, Buffer con
 	}
 }
 
-//auto CommandBuffer::bind_vertex_buffer(BufferView const& bufferView, uint32 firstBinding) -> void
-//{
-//	if (valid() &&
-//		bufferView.valid() &&
-//		m_state == State::Recording)
-//	{
-//		flush_barriers();
-//
-//		Buffer& buffer = bufferView.buffer();
-//
-//		using buffer_usage_t = std::underlying_type_t<BufferUsage>;
-//		buffer_usage_t const usage = static_cast<buffer_usage_t>(buffer.info().bufferUsage);
-//		if (usage & static_cast<buffer_usage_t>(BufferUsage::Vertex))
-//		{
-//			vulkan::CommandBuffer& cmdBuffer = as<vulkan::CommandBuffer>();
-//			vulkan::Buffer& buf = buffer.as<vulkan::Buffer>();
-//			size_t offset = bufferView.offset();
-//
-//			vkCmdBindVertexBuffers(cmdBuffer.handle, firstBinding, 1, &buf.handle, &offset);
-//		}
-//	}
-//}
-
 auto CommandBuffer::bind_vertex_buffer(Buffer const& buffer, BindVertexBufferInfo const& info) -> void
 {
 	if (valid() &&
@@ -498,36 +507,6 @@ auto CommandBuffer::bind_vertex_buffer(Buffer const& buffer, BindVertexBufferInf
 		}
 	}
 }
-
-//auto CommandBuffer::bind_index_buffer(BufferView const& bufferView, IndexType indexType) -> void
-//{
-//	if (valid() &&
-//		bufferView.valid() &&
-//		m_state == State::Recording)
-//	{
-//		flush_barriers();
-//
-//		Buffer& buffer = bufferView.buffer();
-//
-//		using buffer_usage_t = std::underlying_type_t<BufferUsage>;
-//		buffer_usage_t const usage = static_cast<buffer_usage_t>(buffer.info().bufferUsage);
-//		if (usage & static_cast<buffer_usage_t>(BufferUsage::Index))
-//		{
-//			VkIndexType type = VK_INDEX_TYPE_UINT32;
-//			if (indexType == IndexType::Uint_16)
-//			{
-//				type = VK_INDEX_TYPE_UINT16;
-//			}
-//			else if (indexType == IndexType::Uint_8)
-//			{
-//				type = VK_INDEX_TYPE_UINT8_EXT;
-//			}
-//			vulkan::CommandBuffer& cmdBuffer = as<vulkan::CommandBuffer>();
-//			vulkan::Buffer& buf = buffer.as<vulkan::Buffer>();
-//			vkCmdBindIndexBuffer(cmdBuffer.handle, buf.handle, bufferView.offset_from_buffer(), type);
-//		}
-//	}
-//}
 
 auto CommandBuffer::bind_index_buffer(Buffer const& buffer, BindIndexBufferInfo const& info) -> void
 {
@@ -557,15 +536,15 @@ auto CommandBuffer::bind_index_buffer(Buffer const& buffer, BindIndexBufferInfo 
 	}
 }
 
-auto CommandBuffer::bind_push_constant(void const* data, size_t size, size_t offset) -> void
+auto CommandBuffer::bind_push_constant(BindPushConstantInfo const& info) -> void
 {
 	if (valid() &&
 		m_state == State::Recording)
 	{
 		flush_barriers();
 
-		uint32 sz = static_cast<uint32>(size);
-		uint32 off = static_cast<uint32>(offset);
+		uint32 sz = static_cast<uint32>(info.size);
+		uint32 off = static_cast<uint32>(info.offset);
 		uint32 const MAX_PUSH_CONSTANT_SIZE = m_context->config.pushConstantMaxSize;
 
 		ASSERTION(sz <= MAX_PUSH_CONSTANT_SIZE && "Constant supplied exceeded maximum size allowed by the driver.");
@@ -575,7 +554,8 @@ auto CommandBuffer::bind_push_constant(void const* data, size_t size, size_t off
 
 		vulkan::CommandBuffer& cmdBuffer = as<vulkan::CommandBuffer>();
 		VkPipelineLayout layout = m_context->descriptorCache.pipelineLayouts[(sz + 3u) & (~0x03u)];
-		vkCmdPushConstants(cmdBuffer.handle, layout, VK_SHADER_STAGE_ALL, off, sz, data);
+		VkShaderStageFlags shaderStageFlags = translate_shader_stage_flags(info.shaderStage);
+		vkCmdPushConstants(cmdBuffer.handle, layout, shaderStageFlags, off, sz, info.data);
 	}
 }
 
@@ -662,7 +642,7 @@ auto CommandBuffer::pipeline_barrier(Buffer const& buffer, BufferBarrierInfo con
 	switch (barrier.dstQueue)
 	{
 	case DeviceQueueType::Main:
-		srcQueueIndex = m_context->mainQueue.familyIndex;
+		dstQueueIndex = m_context->mainQueue.familyIndex;
 		break;
 	case DeviceQueueType::Transfer:
 		dstQueueIndex = m_context->transferQueue.familyIndex;
@@ -686,18 +666,6 @@ auto CommandBuffer::pipeline_barrier(Buffer const& buffer, BufferBarrierInfo con
 		.offset	= barrier.offset,
 		.size = (barrier.size == std::numeric_limits<size_t>::max()) ? buffer.info().size : barrier.size,
 	};
-
-	//Buffer& alias = *const_cast<Buffer*>(&buffer);
-
-	//if (barrier.srcQueue == barrier.dstQueue ||
-	//	m_execution_queue == barrier.dstQueue)
-	//{
-	//	alias.m_owning_queue = barrier.dstQueue;
-	//}
-	//else if (alias.m_owning_queue == rhi::DeviceQueueType::None)
-	//{
-	//	alias.m_owning_queue = barrier.srcQueue;
-	//}
 }
 
 //auto CommandBuffer::pipeline_barrier(BufferView const& bufferView, BufferViewBarrierInfo const& barrier) -> void
@@ -845,8 +813,6 @@ auto CommandBuffer::pipeline_barrier(Image const& image, ImageBarrierInfo const&
 			.layerCount	= barrier.subresource.layerCount
 		}
 	};
-
-	(*const_cast<Image*>(&image)).m_owning_queue = barrier.dstQueue;
 }
 
 auto CommandBuffer::flush_barriers() -> void
@@ -1022,13 +988,14 @@ auto CommandBuffer::copy_buffer_to_buffer(Buffer const& src, Buffer const& dst, 
 			.dstOffset = info.dstOffset,
 			.size = info.size 
 		};
+		ASSERTION(info.size);
 		vkCmdCopyBuffer(cmdBuffer.handle, srcBuffer.handle, dstBuffer.handle, 1, &bufferCopy);
 	}
 }
 
 auto CommandBuffer::copy_buffer_to_image(Buffer const& src, Image const& dst, BufferImageCopyInfo const& info) -> void
 {
-	if (valid() ||
+	if (!valid() ||
 		m_state != State::Recording)
 	{
 		return;
@@ -1069,7 +1036,7 @@ auto CommandBuffer::copy_buffer_to_image(Buffer const& src, Image const& dst, Bu
 
 auto CommandBuffer::copy_image_to_buffer(Image const& src, Buffer const& dst, ImageBufferCopyInfo const& info) -> void
 {
-	if (valid() ||
+	if (!valid() ||
 		m_state != State::Recording)
 	{
 		return;
@@ -1110,7 +1077,7 @@ auto CommandBuffer::copy_image_to_buffer(Image const& src, Buffer const& dst, Im
 
 auto CommandBuffer::copy_image_to_image(Image const& src, Image const& dst, ImageCopyInfo const& info) -> void
 {
-	if (valid() ||
+	if (!valid() ||
 		m_state != State::Recording)
 	{
 		return;
@@ -1321,5 +1288,4 @@ auto CommandBuffer::end_debug_label() const -> void
 		vkCmdEndDebugUtilsLabelEXT(cmdBuffer.handle);
 	}
 }
-
 }

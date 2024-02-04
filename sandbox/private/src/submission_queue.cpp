@@ -188,7 +188,7 @@ auto SubmissionQueue::send_to_gpu(Queue& queue) -> void
 		}
 		rhi::SubmitInfo info{
 			.queue = queue.type,
-			.commandBuffers = std::span{ data.commandBuffers.front(), data.numCommandBuffers},
+			.commandBuffers = std::span{ data.commandBuffers.front(), data.numCommandBuffers },
 			.waitSemaphores = std::span{ data.waitSemaphores.front(), data.numWaitSemaphores },
 			.signalSemaphores = std::span{ data.signalSemaphores.front(), data.numSignalSemaphores },
 			.waitFences = std::span{ data.waitFences.data(), data.numWaitFences },

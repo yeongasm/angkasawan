@@ -22,6 +22,8 @@ inline constexpr uint32 COMBINED_IMAGE_SAMPLER_BINDING = 1;
 inline constexpr uint32 SAMPLED_IMAGE_BINDING = 2;
 inline constexpr uint32 SAMPLER_BINDING = 3;
 inline constexpr uint32 BUFFER_DEVICE_ADDRESS_BINDING = 4;
+inline constexpr uint32 STORAGE_BUFFER_BINDING = 5;
+inline constexpr uint32 UNIFORM_BUFFER_BINDING = 6;
 // debug utilities.
 inline constexpr uint32 ENABLE_DEBUG_RESOURCE_NAMES = 1;
 
@@ -65,35 +67,35 @@ enum class DeviceQueueType
 enum class PipelineStage : uint32
 {
 	Top_Of_Pipe	= 1,
-	Draw_Indirect = 1 << 2,
-	Vertex_Input = 1 << 3,
-	Vertex_Shader = 1 << 4,
-	Tesselation_Control = 1 << 5,
-	Tesselation_Evaluation = 1 << 6,
-	Geometry_Shader	= 1 << 7,
-	Fragment_Shader	= 1 << 8,
+	Draw_Indirect = 1 << 1,
+	Vertex_Input = 1 << 2,
+	Vertex_Shader = 1 << 3,
+	Tesselation_Control = 1 << 4,
+	Tesselation_Evaluation = 1 << 5,
+	Geometry_Shader	= 1 << 6,
+	Fragment_Shader	= 1 << 7,
 	Pixel_Shader = Fragment_Shader,
-	Early_Fragment_Test = 1 << 9,
-	Late_Fragment_Test = 1 << 10,
-	Color_Attachment_Output = 1 << 11,
-	Compute_Shader = 1 << 12,
-	Transfer = 1 << 13,
-	Bottom_Of_Pipe = 1 << 14,
-	Host = 1 << 15,
-	All_Graphics = 1 << 16,
-	All_Commands = 1 << 17,
-	Copy = 1 << 18,
-	Resolve = 1 << 19,
-	Blit = 1 << 20,
-	Clear = 1 << 21,
-	Index_Input = 1 << 22,
-	Vertex_Attribute_Input = 1 << 23,
-	Pre_Rasterization_Shaders = 1 << 24,
-	Acceleration_Structure_Build = 1 << 25,
-	Ray_Tracing_Shader = 1 << 26,
-	Task_Shader = 1 << 27,
-	Mesh_Shader = 1 << 28,
-	Acceleration_Structure_Copy = 1 << 29,
+	Early_Fragment_Test = 1 << 8,
+	Late_Fragment_Test = 1 << 9,
+	Color_Attachment_Output = 1 << 10,
+	Compute_Shader = 1 << 11,
+	Transfer = 1 << 12,
+	Bottom_Of_Pipe = 1 << 13,
+	Host = 1 << 14,
+	All_Graphics = 1 << 15,
+	All_Commands = 1 << 16,
+	Copy = 1 << 17,
+	Resolve = 1 << 18,
+	Blit = 1 << 19,
+	Clear = 1 << 20,
+	Index_Input = 1 << 21,
+	Vertex_Attribute_Input = 1 << 22,
+	Pre_Rasterization_Shaders = 1 << 23,
+	Acceleration_Structure_Build = 1 << 24,
+	Ray_Tracing_Shader = 1 << 25,
+	Task_Shader = 1 << 26,
+	Mesh_Shader = 1 << 27,
+	Acceleration_Structure_Copy = 1 << 28,
 	None = 0
 };
 
@@ -673,6 +675,19 @@ enum class ShaderType
 	Tesselation_Evaluation,
 	Compute,
 	None
+};
+
+enum class ShaderStage
+{
+	Vertex					= 1 << 0,
+	Tesselation_Control		= 1 << 1,
+	Tesselation_Evaluation	= 1 << 2,
+	Geometry				= 1 << 3,
+	Fragment				= 1 << 4,
+	Pixel					= Fragment,
+	Compute					= 1 << 5,
+	All_Graphics			= 1 << 6,
+	All						= 1 << 7
 };
 }
 

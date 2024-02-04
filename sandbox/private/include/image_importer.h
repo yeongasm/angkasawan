@@ -8,20 +8,28 @@
 
 namespace sandbox
 {
+struct ImageImportInfo
+{
+	lib::string name;
+	std::filesystem::path uri;
+	uint8 const* data = nullptr;
+	size_t size = 0;
+};
+
 class ImageImporter
 {
 public:
 	ImageImporter() = default;
-	ImageImporter(std::filesystem::path const& path);
+	ImageImporter(ImageImportInfo&& info);
 
 	~ImageImporter();
 
-	auto open(std::filesystem::path const& path) -> bool;
+	auto open(ImageImportInfo&& info) -> bool;
 	auto is_open() const -> bool;
 	auto close(bool release = true) -> void;
 	auto size_bytes() const -> size_t;
 	auto image_info() const -> rhi::ImageInfo;
-	auto data(uint32 mipLevel = -1u) -> std::span<uint8>;
+	auto data(uint32 mipLevel = std::numeric_limits<uint32>::max()) -> std::span<uint8>;
 private:
 	struct MipInfo
 	{

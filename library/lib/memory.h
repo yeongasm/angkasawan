@@ -194,24 +194,14 @@ public:
 		ASSERTION(m_data != nullptr);
 		return *m_data;
 	}
-	constexpr element_type* operator->()
-	{
-		ASSERTION(m_data != nullptr);
-		return m_data;
-	}
-	constexpr element_type const& operator*() const
-	{
-		ASSERTION(m_data != nullptr);
-		return *m_data;
-	}
-	constexpr element_type const* operator->() const
+
+	constexpr element_type* operator->() const
 	{
 		ASSERTION(m_data != nullptr);
 		return m_data;
 	}
 
 	constexpr element_type*			get() const	{ return m_data; }
-	//constexpr element_type const*	get() const { return m_data; }
 
 	constexpr bool	operator== (ref const& rhs) const { return m_data == rhs.m_data; }
 	constexpr bool	operator== (std::nullptr_t) const { return m_data == nullptr; }

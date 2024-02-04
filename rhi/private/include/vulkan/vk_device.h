@@ -163,10 +163,10 @@ struct DescriptorCache
 	// Pipeline layouts.
 	lib::map<uint32, VkPipelineLayout> pipelineLayouts;
 
-	lib::array<uint32> bdaFreeSlots;
-	lib::array<uint32> imageFreeSlots;
-	lib::array<uint32> combinedImageFreeSlots;
-	lib::array<uint32> samplerFreeSlots;
+	//lib::array<uint32> bdaFreeSlots;
+	//lib::array<uint32> imageFreeSlots;
+	//lib::array<uint32> combinedImageFreeSlots;
+	//lib::array<uint32> samplerFreeSlots;
 
 	// Descriptors.
 	VkDescriptorPool descriptorPool;
@@ -178,10 +178,10 @@ struct DescriptorCache
 	VmaAllocation bdaAllocation;
 	VkDeviceAddress* bdaHostAddress;
 
-	uint32 bdaBindingSlot;
-	uint32 imageBindingSlot;
-	uint32 combinedImageBindingSlot;
-	uint32 samplerBindingSlot;
+	//uint32 bdaBindingSlot;
+	//uint32 imageBindingSlot;
+	//uint32 combinedImageBindingSlot;
+	//uint32 samplerBindingSlot;
 };
 
 struct APIContext
@@ -244,9 +244,9 @@ struct APIContext
 	auto setup_debug_name(CommandBuffer const& commandBuffer) -> void;
 	auto setup_debug_name(Semaphore const& semaphore) -> void;
 	auto setup_debug_name(Fence const& fence) -> void;
-	//auto update_descriptor_set_buffer(VkBuffer buffer, size_t offset, size_t size, uint32 index) -> void;
-	auto update_descriptor_set_image(VkImageView imageView, ImageUsage usage, uint32 index) -> void;
-	auto update_descriptor_set_sampler(VkSampler sampler, uint32 index) -> void;
+	auto update_buffer_device_address(Buffer const& buffer, size_t offset, size_t size, uint32 index) -> void;
+	auto update_descriptor_set(Image const& image, Sampler const* sampler, uint32 index) -> void;
+	auto update_descriptor_set(Sampler const& sampler, uint32 index) -> void;
 private:
 	auto create_vulkan_instance(DeviceInitInfo const& info) -> bool;
 	auto create_debug_messenger(DeviceInitInfo const& info) -> bool;

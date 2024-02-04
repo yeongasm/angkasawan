@@ -26,46 +26,46 @@ public:
 	virtual auto terminate() -> void override;
 
 private:
-	struct BufferPartitions
-	{
-		struct Partition
-		{
-			size_t offset;
-			size_t stride;
-			size_t count;
-		};
-		lib::map<lib::string, Partition> partitions;
-		size_t currentOffset;
 
-		auto add_partition(lib::string&& name, size_t stride, size_t count = 1) -> bool;
-		auto get_partition_buffer_view_info(lib::string const& name, size_t offset = 0) -> BufferViewInfo;
+	struct CameraProjView
+	{
+		glm::mat4 projection;
+		glm::mat4 view;
 	};
 
 	struct PushConstant
 	{
-		uint64 projection_address;
-		uint64 view_address;
-		uint64 transform_address;
+		uint32 camera_proj_view_index;
+		uint32 transform_index;
+		uint32 base_color_map_index;
+		//uint64 camera_proj_view_address;
+		//uint64 transform_address;
 	};
 
-	BufferPartitions m_buffer_partitions;
-
-	InputAssembler m_input_assembler;
-	GeometryCache m_geometry_cache;
 	ResourceCache m_resource_cache;
-	BufferViewRegistry m_buffer_view_registry;
 	SubmissionQueue m_submission_queue;
 	CommandQueue m_transfer_command_queue;
 	CommandQueue m_main_command_queue;
 	UploadHeap m_upload_heap;
+	GeometryCache m_geometry_cache;
 
-	geometry_handle m_zelda_geometry_handle;
-	std::array<std::pair<buffer_handle, lib::ref<BufferView>>, 2> m_zelda_transforms;
+	Resource<rhi::Image> m_depth_buffer;
 
+	root_geometry_handle m_zelda_geometry_handle;
+	root_geometry_handle m_sponza_geometry_handle;
+	lib::array<Resource<rhi::Image>> m_image_store;
+	rhi::Sampler m_sampler;
+	
 	Camera m_camera;
 	CameraState m_camera_state;
-	std::array<std::pair<buffer_handle, lib::ref<BufferView>>, 2> m_camera_projection_buffer;
-	std::array<std::pair<buffer_handle, lib::ref<BufferView>>, 2> m_camera_view_buffer;
+
+	Resource<rhi::Buffer> m_zelda_vertex_buffer;
+	Resource<rhi::Buffer> m_zelda_index_buffer;
+	Resource<rhi::Buffer> m_sponza_vertex_buffer;
+	Resource<rhi::Buffer> m_sponza_index_buffer;
+	std::array<Resource<rhi::Buffer>, 2> m_zelda_transforms;
+	std::array<Resource<rhi::Buffer>, 2> m_sponza_transforms;
+	std::array<Resource<rhi::Buffer>, 2> m_camera_proj_view;
 
 	rhi::Shader m_vertex_shader;
 	rhi::Shader m_pixel_shader;
@@ -74,22 +74,17 @@ private:
 	std::array<rhi::Fence, 2> m_fences;
 	std::array<uint64, 2> m_fence_values;
 
-	/**
-	* \brief Staging buffer will be 64 MiB with 32 MiB reserved for each frame.
-	*/
-	//rhi::Buffer m_staging_buffer;
-	/**
-	* \brief One giant 256_MiB buffer
-	*/
-	Resource<rhi::Buffer> m_buffer;
-	/*rhi::Buffer m_buffer;*/
+	std::array<uint32, 2> m_camera_proj_view_binding_indices;
+	std::array<uint32, 2> m_zelda_transform_binding_indices;
+	std::array<uint32, 2> m_sponza_transform_binding_indices;
 
-	auto configure_buffer_partitions() -> void;
-	auto initialize_camera() -> void;
+	uint32 m_bda_binding_index;
+
+	auto allocate_camera_buffers() -> void;
+	auto release_camera_buffers() -> void;
 	auto update_camera_state(float32 dt) -> void;
 	auto update_camera_on_mouse_events(float32 dt) -> void;
 	auto update_camera_on_keyboard_events(float32 dt) -> void;
-	auto current_fence() -> rhi::Fence&;
 };
 }
 

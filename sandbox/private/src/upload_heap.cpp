@@ -20,7 +20,7 @@ auto UploadHeap::initialize() -> void
 {
 	for (size_t i = 0; i < m_fences.size(); ++i)
 	{
-		m_fences[i] = m_resource_cache.create_fence({ .name = lib::format("upload_heap_timeline_{}", i) });
+		m_fences[i] = m_transfer_command_queue.submission_queue().device().create_fence({ .name = lib::format("upload_heap_timeline_{}", i) });
 		m_fence_values[i] = 0ull;
 	}
 }
@@ -29,7 +29,7 @@ auto UploadHeap::terminate() -> void
 {
 	for (size_t i = 0; i < m_fences.size(); ++i)
 	{
-		m_resource_cache.destroy_fence(m_fences[i].id());
+		m_transfer_command_queue.submission_queue().device().destroy_fence(m_fences[i]);
 		m_fence_values[i] = 0ul;
 	}
 
@@ -47,26 +47,20 @@ auto UploadHeap::send_to_gpu() -> FenceInfo
 {
 	uint32 const poolIndex = next_pool_index();
 
-	Resource<rhi::Fence>& fenceResource = m_fences[poolIndex];
+	rhi::Fence& fence = m_fences[poolIndex];
 
-	if (do_upload())
+	if (do_upload(poolIndex))
 	{
-		upload_to_gpu();
+		upload_to_gpu(poolIndex);
 	}
-	increment_counter();
+	increment_counter(poolIndex);
 
-	return FenceInfo{ fenceResource, m_fence_values[poolIndex] };
+	return FenceInfo{ fence, m_fence_values[poolIndex] };
 }
 
 auto UploadHeap::upload_data_to_image(ImageDataUploadInfo&& info) -> upload_id
 {
-	lib::ref<rhi::Image> dstImage = m_resource_cache.get_image(info.image);
-	if (dstImage.is_null())
-	{
-		return upload_id{};
-	}
-
-	rhi::ImageInfo const& imageInfo = dstImage->info();
+	rhi::ImageInfo const& imageInfo = info.image.info();
 
 	if (info.mipLevel > imageInfo.mipLevel)
 	{
@@ -80,8 +74,8 @@ auto UploadHeap::upload_data_to_image(ImageDataUploadInfo&& info) -> upload_id
 	if (stagingBuffer.is_null() ||
 		uploadPool.count >= MAX_UPLOADS_PER_POOL)
 	{
-		upload_to_gpu();
-		reset_pools();
+		upload_to_gpu(poolIndex);
+		reset_pools(poolIndex);
 		stagingBuffer = next_available_buffer(info.size);
 	}
 
@@ -102,7 +96,8 @@ auto UploadHeap::upload_data_to_image(ImageDataUploadInfo&& info) -> upload_id
 			}
 		},
 		.src = stagingBuffer,
-		.dst = dstImage,
+		.dst = info.image,
+		.owningQueue = info.srcQueue,
 		.dstQueue = info.dstQueue
 	};
 
@@ -111,14 +106,6 @@ auto UploadHeap::upload_data_to_image(ImageDataUploadInfo&& info) -> upload_id
 
 auto UploadHeap::upload_data_to_buffer(BufferDataUploadInfo&& info) -> upload_id
 {
-	lib::ref<rhi::Buffer> dstBuffer = m_resource_cache.get_buffer(info.buffer);
-	if (dstBuffer.is_null())
-	{
-		return upload_id{};
-	}
-
-	rhi::BufferInfo const& bufferInfo = dstBuffer->info();
-
 	uint32 const poolIndex = next_pool_index();
 	InfoPool<BufferUploadInfo>& uploadPool = m_buffer_upload_queue[poolIndex];
 	Resource<rhi::Buffer> stagingBuffer = next_available_buffer(info.size);
@@ -126,8 +113,8 @@ auto UploadHeap::upload_data_to_buffer(BufferDataUploadInfo&& info) -> upload_id
 	if (stagingBuffer.is_null() ||
 		uploadPool.count >= MAX_UPLOADS_PER_POOL)
 	{
-		upload_to_gpu();
-		reset_pools();
+		upload_to_gpu(poolIndex);
+		reset_pools(poolIndex);
 		stagingBuffer = next_available_buffer(info.size);
 	}
 
@@ -140,7 +127,8 @@ auto UploadHeap::upload_data_to_buffer(BufferDataUploadInfo&& info) -> upload_id
 			.size = bufferWriteInfo.size,
 		},
 		.src = stagingBuffer,
-		.dst = dstBuffer,
+		.dst = info.buffer,
+		.owningQueue = info.srcQueue,
 		.dstQueue = info.dstQueue
 	};
 
@@ -152,12 +140,17 @@ auto UploadHeap::upload_completed(upload_id id) -> bool
 	return id.get() <= m_upload_counter;
 }
 
+auto UploadHeap::current_upload_id() const -> upload_id
+{
+	return upload_id{ m_upload_counter };
+}
+
 auto UploadHeap::next_available_buffer(size_t size) -> Resource<rhi::Buffer>
 {
 	uint32 const poolIndex = next_pool_index();
 	BufferPool& pool = m_staging_buffer_pool_queue[poolIndex];
 
-	Resource<rhi::Buffer> stagingBuffer;
+	Resource<rhi::Buffer> stagingBuffer = {};
 
 	if (!pool.numBuffers)
 	{
@@ -203,14 +196,12 @@ auto UploadHeap::create_buffer(uint32 const poolIndex) -> void
 	++pool.numBuffers;
 }
 
-auto UploadHeap::upload_to_gpu() -> void
+auto UploadHeap::upload_to_gpu(uint32 const poolIndex) -> void
 {
 	auto submitGroup = m_transfer_command_queue.new_submission_group();
 	auto cmd = m_transfer_command_queue.next_free_command_buffer(std::this_thread::get_id());
 
-	ASSERTION(cmd.is_null() && "Ran out of command buffers for recording!");
-
-	uint32 const poolIndex = next_pool_index();
+	ASSERTION(!cmd.is_null() && "Ran out of command buffers for recording!");
 
 	InfoPool<ImageUploadInfo>& imageUploadInfos		= m_image_upload_queue[poolIndex];
 	InfoPool<BufferUploadInfo>& bufferUploadInfos	= m_buffer_upload_queue[poolIndex];
@@ -240,24 +231,22 @@ auto UploadHeap::upload_to_gpu() -> void
 
 	submitGroup.submit_command_buffer(*cmd);
 
-	Resource<rhi::Fence>& fenceResource = m_fences[poolIndex];
-	lib::ref<rhi::Fence>& fence = fenceResource;
+	rhi::Fence& fence = m_fences[poolIndex];
 
-	submitGroup.wait_on_fence(*fence, m_fence_values[poolIndex]);
-	submitGroup.signal_fence(*fence, ++m_fence_values[poolIndex]);
+	submitGroup.wait_on_fence(fence, m_fence_values[poolIndex]);
+	submitGroup.signal_fence(fence, ++m_fence_values[poolIndex]);
 
 	m_transfer_command_queue.submission_queue().send_to_gpu_transfer_submissions();
 }
 
-auto UploadHeap::increment_counter() -> void
+auto UploadHeap::increment_counter(uint32 const poolIndex) -> void
 {
 	++m_upload_counter;
-	reset_pools();
+	reset_pools(poolIndex);
 }
 
-auto UploadHeap::reset_pools() -> void
+auto UploadHeap::reset_pools(uint32 const poolIndex) -> void
 {
-	auto poolIndex = next_pool_index();
 	BufferPool& pool = m_staging_buffer_pool_queue[poolIndex];
 	auto& imageUploadPool = m_image_upload_queue[poolIndex];
 	auto& bufferUploadPool = m_buffer_upload_queue[poolIndex];
@@ -276,8 +265,8 @@ auto UploadHeap::copy_to_images(rhi::CommandBuffer& cmd, std::span<ImageUploadIn
 {
 	for (ImageUploadInfo& uploadInfo : imageUploads)
 	{
-		rhi::Buffer& src = *uploadInfo.src;
-		rhi::Image& dst = *uploadInfo.dst;
+		rhi::Buffer const& src = *uploadInfo.src;
+		rhi::Image const& dst = *uploadInfo.dst;
 
 		cmd.copy_buffer_to_image(src, dst, uploadInfo.copyInfo);
 	}
@@ -287,8 +276,8 @@ auto UploadHeap::copy_to_buffers(rhi::CommandBuffer& cmd, std::span<BufferUpload
 {
 	for (BufferUploadInfo& uploadInfo : bufferUploads)
 	{
-		rhi::Buffer& src = *uploadInfo.src;
-		rhi::Buffer& dst = *uploadInfo.dst;
+		rhi::Buffer const& src = *uploadInfo.src;
+		rhi::Buffer const& dst = *uploadInfo.dst;
 
 		cmd.copy_buffer_to_buffer(src, dst, uploadInfo.copyInfo);
 	}
@@ -298,16 +287,36 @@ auto UploadHeap::acquire_image_resources(rhi::CommandBuffer& cmd, std::span<Imag
 {
 	for (ImageUploadInfo& info : imageUploads)
 	{
-		cmd.pipeline_barrier(
-			*info.dst,
-			{
-				.dstAccess = rhi::access::TRANSFER_WRITE,
-				.newLayout = rhi::ImageLayout::Transfer_Dst,
-				.subresource = info.copyInfo.imageSubresource,
-				.srcQueue = info.dst->owner(),
-				.dstQueue = rhi::DeviceQueueType::Transfer
-			}
-		);
+		rhi::Image const& image = *info.dst;
+
+		if (info.owningQueue != rhi::DeviceQueueType::Transfer &&
+			info.owningQueue != rhi::DeviceQueueType::None)
+		{
+			cmd.pipeline_barrier(
+				image,
+				{
+					.dstAccess = rhi::access::TRANSFER_WRITE,
+					.newLayout = rhi::ImageLayout::Transfer_Dst,
+					.subresource = info.copyInfo.imageSubresource,
+					.srcQueue = info.owningQueue,
+					.dstQueue = rhi::DeviceQueueType::Transfer
+				}
+			);
+		}
+		else
+		{
+			cmd.pipeline_barrier(
+				image,
+				{
+					.dstAccess = rhi::access::TRANSFER_WRITE,
+					.oldLayout = rhi::ImageLayout::Undefined,
+					.newLayout = rhi::ImageLayout::Transfer_Dst,
+					.subresource = info.copyInfo.imageSubresource,
+					.srcQueue = rhi::DeviceQueueType::None,
+					.dstQueue = rhi::DeviceQueueType::None
+				}
+			);
+		}
 	}
 }
 
@@ -315,16 +324,18 @@ auto UploadHeap::acquire_buffer_resources(rhi::CommandBuffer& cmd, std::span<Buf
 {
 	for (BufferUploadInfo& info : bufferUploads)
 	{
-		rhi::Buffer& buffer = *info.dst;
+		rhi::Buffer const& buffer = *info.dst;
 
-		if (buffer.owner() != rhi::DeviceQueueType::Transfer &&
-			buffer.owner() != rhi::DeviceQueueType::None)
+		if (info.owningQueue != rhi::DeviceQueueType::Transfer &&
+			info.owningQueue != rhi::DeviceQueueType::None)
 		{
 			cmd.pipeline_barrier(
-				*info.dst,
+				buffer,
 				{
+					.size = info.copyInfo.size,
+					.offset = info.copyInfo.dstOffset,
 					.dstAccess = rhi::access::TOP_OF_PIPE_NONE,
-					.srcQueue = info.dst->owner(),
+					.srcQueue = info.owningQueue,
 					.dstQueue = rhi::DeviceQueueType::Transfer
 				}
 			);
@@ -341,7 +352,7 @@ auto UploadHeap::release_image_resources(rhi::CommandBuffer& cmd, std::span<Imag
 			{
 				.srcAccess = rhi::access::TRANSFER_WRITE,
 				.oldLayout = rhi::ImageLayout::Transfer_Dst,
-				.newLayout = rhi::ImageLayout::Undefined,
+				.newLayout = rhi::ImageLayout::Transfer_Dst,
 				.subresource = info.copyInfo.imageSubresource,
 				.srcQueue = rhi::DeviceQueueType::Transfer,
 				.dstQueue = info.dstQueue
@@ -357,6 +368,8 @@ auto UploadHeap::release_buffer_resources(rhi::CommandBuffer& cmd, std::span<Buf
 		cmd.pipeline_barrier(
 			*info.dst,
 			{
+				.size = info.copyInfo.size,
+				.offset = info.copyInfo.dstOffset,
 				.srcAccess = rhi::access::TRANSFER_WRITE,
 				.srcQueue = rhi::DeviceQueueType::Transfer,
 				.dstQueue = info.dstQueue
@@ -365,10 +378,8 @@ auto UploadHeap::release_buffer_resources(rhi::CommandBuffer& cmd, std::span<Buf
 	}
 }
 
-auto UploadHeap::do_upload() const -> bool
+auto UploadHeap::do_upload(uint32 const poolIndex) const -> bool
 {
-	uint32 const poolIndex = next_pool_index();
-
 	auto const& imageUploadInfoPool  = m_image_upload_queue[poolIndex];
 	auto const& bufferUploadInfoPool = m_buffer_upload_queue[poolIndex];
 

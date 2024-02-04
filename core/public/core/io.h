@@ -12,6 +12,16 @@ namespace core
 namespace io
 {
 
+/**
+* NOTE(afiq):
+* 
+* This method of handling IO is pretty much outdated.
+* 
+* What we should do instead is to store the state of each key / mouse input as it's own struct.
+* We then introduce a get_[key | mouse]_state() function that returns the said key / mouse input's state.
+* This way, users can have more control over the handling logic for each input.
+*/
+
 constexpr auto MAX_IO_MOUSE_BUTTONS	= static_cast<std::underlying_type_t<IOMouseButton>>(IOMouseButton::Max);
 constexpr auto MAX_IO_STATES = static_cast<std::underlying_type_t<IOState>>(IOState::Max);
 constexpr auto MAX_IO_KEYS = static_cast<std::underlying_type_t<IOKey>>(IOKey::Max);

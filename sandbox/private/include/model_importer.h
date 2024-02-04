@@ -8,9 +8,11 @@
 
 namespace sandbox
 {
-enum class GltfImageType
+namespace gltf
 {
-	BaseColor,
+enum class ImageType
+{
+	Base_Color,
 	Metallic_Roughness,
 	Normal,
 	Occlusion,
@@ -18,126 +20,148 @@ enum class GltfImageType
 	Max
 };
 
-enum class CgltfAlphaMode
+enum class AlphaMode
 {
 	Opaque,
 	Mask,
 	Blend
 };
 
-enum class CgltfVertexInput
+struct ImageInfo
+{
+	std::wstring_view uri;
+	uint8 const* data;
+	size_t size;
+	ImageType type;
+};
+
+/**
+* \brief GTLF 2.0 stores metallic and roughness in the same texture.
+* \brief - Roughness is in the green channel.
+* \brief - Metalness is in the blue channel.
+*/
+struct MaterialInfo
+{
+	std::string_view name;
+	ImageInfo* imageInfos[5] = {};
+	float32 baseColorFactor[4] = { 1.f, 1.f, 1.f, 1.f };
+	float32 metallicFactor = 0.f;
+	float32 roughnessFactor = 0.f;
+	float32 emmissiveFactor[3] = {};
+	float32 emmissiveStrength = 0.f;
+	//AlphaMode alphaMode = {};
+	//float32 alphaCutoff = 0.f;
+	bool unlit = true;
+};
+
+enum class Topology
+{
+	Points,
+	Lines,
+	Line_Strip,
+	Triangles,
+	Triangle_Strip,
+	Triangle_Fan
+};
+
+enum class VertexAttribute
 {
 	Position,
 	Normal,
 	Tangent,
 	Color,
-	TexCoord
+	TexCoord,
+	Max
 };
 
-class GltfImporter
+enum class DataType
+{
+	Invalid,
+	Scalar,
+	Vec2,
+	Vec3,
+	Vec4,
+	Mat2,
+	Mat3,
+	Mat4
+};
+
+struct AttributeInfo
+{
+	DataType type = DataType::Invalid;
+	size_t numVertices = 0;
+	size_t componentCountForType = 0;
+	size_t totalSizeBytes = 0;
+};
+
+struct Attribute
+{
+	AttributeInfo info;
+	struct cgltf_accessor* accessor;
+};
+
+struct MeshInfo
+{
+	Attribute attributes[5];
+	uint32 numVertices;
+	struct cgltf_accessor* indices;
+	MaterialInfo* material;
+	Topology topology;
+};
+
+class Mesh
 {
 public:
-	struct ImageInfo
+	auto num_vertices() const -> uint32;
+	auto num_indices() const -> uint32;
+	auto vertices_size_bytes() const -> size_t;
+	auto indices_size_bytes(bool alwaysUint32 = true) const -> size_t;
+	auto topology() const -> Topology;
+	auto attribute_info(VertexAttribute attribute) const -> AttributeInfo;
+	auto has_attribute(VertexAttribute attribute) const -> bool;
+	auto read_uint_data(size_t index) const -> uint32;
+	auto read_float_data(VertexAttribute attribute, size_t index, float32* out, size_t elementSize) const -> void;
+	auto unpack_vertex_data(VertexAttribute attribute, std::span<float32> floatData) const -> void;
+
+	template <std::integral T>
+	auto unpack_index_data(std::span<T> data) const -> void
 	{
-		std::wstring_view path;
-		GltfImageType type;
-		size_t size;
-	};
+		unpack_index_data_internal(data.data(), data.size(), sizeof(T));
+	}
 
-	/**
-	* \brief GTLF 2.0 stores metallic and roughness in the same texture.
-	* \brief - Roughness is in the green channel. 
-	* \brief - Metalness is in the blue channel.
-	*/
-	struct MaterialInfo
-	{
-		std::string_view name;
-		ImageInfo* imageInfos[5] = {};
-		float32 baseColorFactor[4] = { 1.f, 1.f, 1.f, 1.f };
-		float32 metallicFactor = 0.f;
-		float32 roughnessFactor = 0.f;
-		float32 emmissiveFactor[3] = {};
-		float32 emmissiveStrength = 0.f;
-		CgltfAlphaMode alphaMode = {};
-		float32 alphaCutoff = 0.f;
-		bool unlit = true;
-	};
+	auto material_info() const -> MaterialInfo const&;
 
-	struct MeshInfo
-	{
-		enum class Topology
-		{
-			Points,
-			Lines,
-			Line_Strip,
-			Triangles,
-			Triangle_Strip,
-			Triangle_Fan
-		};
+private:
+	friend class Importer;
 
-		struct VertexData
-		{
-			enum class Type
-			{
-				Invalid,
-				Scalar,
-				Vec2,
-				Vec3,
-				Vec4,
-				Mat2,
-				Mat3,
-				Mat4
-			};
-			std::span<float32> data;
-			Type data_type;
-		};
-		VertexData vertex_data[5];
-		uint32 num_vertices;
-		std::span<uint32> indices;
-		MaterialInfo* material;
-		Topology topology;
+	MeshInfo& m_data;
 
-		auto get_data(CgltfVertexInput type) const -> VertexData const&;
-	};
+	Mesh(MeshInfo& meshInfo);
 
-	using value_type		= MeshInfo;
-	using reference			= MeshInfo&;
-	using const_reference	= MeshInfo const&;
-	using difference_type	= size_t;
-	using pointer			= MeshInfo*;
-	using const_pointer		= MeshInfo const*;
+	auto unpack_index_data_internal(void* data, size_t count, size_t size) const -> void;
+};
 
-	using iterator			= lib::array_iterator<GltfImporter>;
-	using const_iterator	= lib::array_const_iterator<GltfImporter>;
+class Importer
+{
+public:
+	Importer();
+	Importer(std::filesystem::path path);
 
-	GltfImporter();
-	GltfImporter(std::filesystem::path path);
+	~Importer();
 
-	~GltfImporter();
-
-	GltfImporter(GltfImporter&&) noexcept;
-	GltfImporter& operator=(GltfImporter&&) noexcept;
+	Importer(Importer&&) noexcept;
+	Importer& operator=(Importer&&) noexcept;
 
 	auto open(std::filesystem::path const& path) -> bool;
-	auto is_open() const -> bool;
 	auto close() -> void;
-	auto num_meshes() const -> size_t;
-	auto size() const -> size_t;
-	auto vertex_data_size_bytes() const -> size_t;
-	auto index_data_size_bytes() const -> size_t;
-	auto materials() const -> std::span<MaterialInfo const> const;
+	auto num_meshes() const -> uint32;
+	auto mesh_at(uint32 index) const -> std::optional<Mesh>;
 	auto ok() const -> bool;
-	auto begin() -> iterator;
-	auto end() -> iterator;
-	auto begin() const -> const_iterator;
-	auto end() const -> const_iterator;
-	auto cbegin() const -> const_iterator;
-	auto cend() const -> const_iterator;
-	auto data() const -> MeshInfo*;
 private:
 	friend class GeometryCache;
 
 	std::filesystem::path m_path;
+	struct cgltf_data* m_cgltf_ptr;
 	lib::array<std::byte> m_data;
 	std::span<MeshInfo> m_meshes;
 	std::span<ImageInfo> m_images;
@@ -162,6 +186,7 @@ private:
 		return std::span{ data, numElements };
 	}
 };
+}
 }
 
 #endif // !SANDBOX_MODEL_IMPORTER_H

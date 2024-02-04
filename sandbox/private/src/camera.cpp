@@ -18,7 +18,7 @@ glm::vec3 const Camera::WORLD_FORWARD	= { 0.f, 0.f, 1.f };
 
 auto Camera::update_projection() -> void
 {
-	projection = glm::mat4{};
+	projection = glm::mat4{ 1.f };
 
 	float32 const fovRad = glm::radians(fov);
 	float32 const aspectRatio = frameWidth / frameHeight;

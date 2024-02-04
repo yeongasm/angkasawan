@@ -34,7 +34,7 @@ auto CommandQueue::next_free_command_buffer(std::thread::id tid) -> lib::ref<rhi
 	if (!m_commandPool.contains(tid))
 	{
 		lib::string name = lib::format("<tid:{}>:{}_cmd_pool", tid, queueID);
-		auto pool = device.create_command_pool({.name = std::move(name), .queue = m_type});
+		auto pool = device.create_command_pool({ .name = std::move(name), .queue = m_type });
 		m_commandPool.emplace(tid, std::move(pool));
 		m_commandStore.emplace(tid, CommandBufferStore{});
 	}

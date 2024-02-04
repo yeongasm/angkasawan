@@ -72,6 +72,12 @@ void IOContext::update_state()
 			}
 		}
 
+		if (mouse.state[i] == IOState::Repeat &&
+			elapsedTime - mouse.clickTime[i] >= config.mouseMinDurationForHold)
+		{
+			mouse.state[i] = IOState::Held;
+		}
+
 		if (mouse.state[i] == IOState::Held)
 		{
 			mouse.holdDuration[i] = elapsedTime - mouse.clickTime[i];
@@ -97,15 +103,21 @@ void IOContext::update_state()
 
 		if (keyboard.state[i] == IOState::Pressed)
 		{
+			if (keyboard.pressTime[i] - keyboard.prevPressTime[i] < config.keyDoubleTapTime)
+			{
+				keyboard.state[i] = IOState::Repeat;
+			} 
+			
 			if (elapsedTime - keyboard.pressTime[i] >= config.keyMinDurationForHold)
 			{
 				keyboard.state[i] = IOState::Held;
 			}
+		}
 
-			if (keyboard.pressTime[i] - keyboard.prevPressTime[i] < config.keyDoubleTapTime)
-			{
-				keyboard.state[i] = IOState::Repeat;
-			}
+		if (keyboard.state[i] == IOState::Repeat &&
+			elapsedTime - keyboard.pressTime[i] >= config.keyMinDurationForHold)
+		{
+			keyboard.state[i] = IOState::Held;
 		}
 
 		if (keyboard.state[i] == IOState::Held)

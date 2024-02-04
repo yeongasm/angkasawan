@@ -87,7 +87,6 @@ auto CommandPool::allocate_command_buffer(CommandBufferInfo&& info) -> CommandBu
 
 	CommandBuffer cmdBuffer{
 		std::move(info),
-		m_info.queue,
 		m_context,
 		&cmdBufferPool.commandBuffers[index],
 		resource_type_id_v<vulkan::CommandBuffer>

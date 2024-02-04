@@ -26,8 +26,8 @@ bool SandboxApp::initialize()
 	
 	// TODO(afiq):
 	// This is ugly, change it.
-	core::io::update_configuration(core::IOConfiguration::Key_Double_Tap_Time, 1.f);
-	core::io::update_configuration(core::IOConfiguration::Key_Min_Duration_For_Hold, 0.05f);
+	core::io::update_configuration(core::IOConfiguration::Key_Double_Tap_Time, 0.25f);
+	core::io::update_configuration(core::IOConfiguration::Key_Min_Duration_For_Hold, 0.5f);
 	core::io::update_configuration(core::IOConfiguration::Mouse_Double_Click_Distance, 5.f);
 	core::io::update_configuration(core::IOConfiguration::Mouse_Double_Click_Time, 1.f);
 	core::io::update_configuration(core::IOConfiguration::Mouse_Min_Duration_For_Hold, 0.05f);
@@ -35,7 +35,7 @@ bool SandboxApp::initialize()
 	m_root_app_window = engine.create_window({
 		.title = L"Sandbox",
 		.position = { 0, 0 },
-		.dimension = { 800, 600 },
+		.dimension = { 1920, 1080 },
 		.config = {
 			.catchInput = true,
 			.borderless = true

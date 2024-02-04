@@ -4,14 +4,14 @@
 
 namespace sandbox
 {
-ImageImporter::ImageImporter(std::filesystem::path const& path) :
+ImageImporter::ImageImporter(ImageImportInfo&& info) :
 	m_path{},
 	m_storage{},
 	m_img_data{},
 	m_mip_infos{},
 	m_image_info{}
 {
-	open(path);
+	open(std::move(info));
 }
 
 ImageImporter::~ImageImporter()
@@ -19,7 +19,7 @@ ImageImporter::~ImageImporter()
 	close(true);
 }
 
-auto ImageImporter::open(std::filesystem::path const& path) -> bool
+auto ImageImporter::open(ImageImportInfo&& info) -> bool
 {
 	if (is_open())
 	{
@@ -27,16 +27,34 @@ auto ImageImporter::open(std::filesystem::path const& path) -> bool
 		return false;
 	}
 
-	m_path = std::filesystem::absolute(path);
-
-	auto narrowPath = m_path.string();
-
 	ktxTexture2* texture = nullptr;
-	KTX_error_code result = ktxTexture2_CreateFromNamedFile(narrowPath.c_str(), KTX_TEXTURE_CREATE_LOAD_IMAGE_DATA_BIT, &texture);
 
-	if (!texture || result != KTX_SUCCESS)
-	{ 
-		return false; 
+	if (!info.uri.empty())
+	{
+		m_path = std::filesystem::absolute(info.uri);
+
+		auto narrowPath = m_path.string();
+
+		KTX_error_code result = ktxTexture2_CreateFromNamedFile(narrowPath.c_str(), KTX_TEXTURE_CREATE_LOAD_IMAGE_DATA_BIT, &texture);
+
+		if (!texture || result != KTX_SUCCESS)
+		{ 
+			return false; 
+		}
+	}
+	else if (info.data != nullptr && info.size)
+	{
+		KTX_error_code result = ktxTexture2_CreateFromMemory(info.data, info.size, KTX_TEXTURE_CREATE_LOAD_IMAGE_DATA_BIT, &texture);
+
+		if (!texture || result != KTX_SUCCESS)
+		{
+			return false;
+		}
+	}
+
+	if (ktxTexture2_NeedsTranscoding(texture))
+	{
+		ktxTexture2_TranscodeBasis(texture, KTX_TTF_BC7_RGBA, 0);
 	}
 
 	switch (texture->numDimensions)
@@ -53,6 +71,7 @@ auto ImageImporter::open(std::filesystem::path const& path) -> bool
 		break;
 	}
 
+	m_image_info.name = std::move(info.name);
 	m_image_info.format = static_cast<rhi::Format>(texture->vkFormat);
 	m_image_info.imageUsage = rhi::ImageUsage::Transfer_Dst | rhi::ImageUsage::Sampled;
 	m_image_info.dimension.width = texture->baseWidth;
@@ -66,21 +85,21 @@ auto ImageImporter::open(std::filesystem::path const& path) -> bool
 
 	m_storage.resize(totalReservedSize);
 
-	MipInfo* pMipInfo = reinterpret_cast<MipInfo*>(m_storage.data());
+	size_t totalMipSize = 0;
+	m_mip_infos = std::span{ reinterpret_cast<MipInfo*>(m_storage.data()), numMipLevels };
 	uint8* data = m_storage.data() + mipOffsetInfoSize;
 
 	for (uint32 mipLevel = 0; mipLevel < m_image_info.mipLevel; ++mipLevel)
 	{
-		size_t offset = 0;
-		size_t size = 0;
-		ktxTexture_GetImageOffset(reinterpret_cast<ktxTexture*>(texture), mipLevel, 0, 0, &pMipInfo->offset);
-		pMipInfo->size = ktxTexture_GetImageSize(reinterpret_cast<ktxTexture*>(texture), mipLevel);
-		++pMipInfo;
+		ktxTexture_GetImageOffset(reinterpret_cast<ktxTexture*>(texture), mipLevel, 0, 0, &m_mip_infos[mipLevel].offset);
+		m_mip_infos[mipLevel].size = ktxTexture_GetImageSize(reinterpret_cast<ktxTexture*>(texture), mipLevel);
+		totalMipSize += m_mip_infos[mipLevel].size;
 	}
+
+	ASSERTION(totalMipSize == texture->dataSize && "You done messed up A.ARON");
 
 	lib::memcopy(data, texture->pData, texture->dataSize);
 
-	m_mip_infos = std::span{ pMipInfo, numMipLevels };
 	m_img_data = std::span{ data, texture->dataSize };
 
 	ktxTexture_Destroy(reinterpret_cast<ktxTexture*>(texture));
@@ -119,16 +138,17 @@ auto ImageImporter::image_info() const -> rhi::ImageInfo
 
 auto ImageImporter::data(uint32 mipLevel) -> std::span<uint8>
 {
-	uint8* imgData = m_img_data.data();
+	size_t offset = 0;
 	size_t size = m_img_data.size_bytes();
 
 	if (!std::cmp_equal(mipLevel, -1))
 	{
 		mipLevel = std::clamp(mipLevel, 0u, static_cast<uint32>(m_mip_infos.size()) - 1u);
 		MipInfo const& mipInfo = m_mip_infos[mipLevel];
-		imgData += mipInfo.offset;
+		offset = mipInfo.offset;
 		size = mipInfo.size;
 	}
-	return std::span{ imgData, size };
+
+	return std::span{ &m_img_data[offset], size};
 }
 }

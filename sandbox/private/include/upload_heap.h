@@ -4,36 +4,42 @@
 
 #include "lib/paged_array.h"
 #include "command_queue.h"
-#include "buffer_view_registry.h"
+#include "resource_cache.h"
 
 namespace sandbox
 {
+struct BufferDataUploadInfo
+{
+	rhi::Buffer& buffer;
+	void* data;
+	size_t offset;
+	size_t size;
+	rhi::DeviceQueueType srcQueue = rhi::DeviceQueueType::None;
+	rhi::DeviceQueueType dstQueue = rhi::DeviceQueueType::Main;
+	//lib::ref<rhi::Fence> waitFence;
+	//uint64 waitValue = 0;
+};
+
 struct ImageDataUploadInfo
 {
-	image_handle image;
+	rhi::Image& image;
 	void* data;
 	size_t size;
 	uint32 mipLevel = 0;
+	rhi::DeviceQueueType srcQueue = rhi::DeviceQueueType::None;
 	rhi::DeviceQueueType dstQueue = rhi::DeviceQueueType::Main;
 	rhi::ImageAspect aspectMask = rhi::ImageAspect::Color;
+	//lib::ref<rhi::Fence> waitFence;
+	//uint64 waitValue = 0;
 };
 
-struct BufferDataUploadInfo
-{
-	buffer_handle buffer;
-	size_t offset;
-	void* data;
-	size_t size;
-	rhi::DeviceQueueType dstQueue = rhi::DeviceQueueType::Main;
-};
-
-using upload_id = lib::named_type<uint64, struct _GPU_UPLOAD_ID_>;
+using upload_id = lib::handle<struct UPLOAD_HEAP_ID, uint64, std::numeric_limits<uint64>::max()>;
 
 struct FenceInfo
 {
-	lib::ref<rhi::Fence> fence;
+	rhi::Fence& fence;
 	uint64 value;
-};
+}; 
 
 class UploadHeap
 {
@@ -47,6 +53,7 @@ public:
 	auto upload_data_to_image(ImageDataUploadInfo&& info) -> upload_id;
 	auto upload_data_to_buffer(BufferDataUploadInfo&& info) -> upload_id;
 	auto upload_completed(upload_id id) -> bool;
+	auto current_upload_id() const -> upload_id;
 private:
 	static constexpr uint32 MAX_UPLOAD_HEAP_BUFFERS_PER_POOL = 8;
 	static constexpr uint32 MAX_UPLOADS_PER_POOL = 64;
@@ -67,6 +74,7 @@ private:
 		rhi::BufferImageCopyInfo copyInfo;
 		lib::ref<rhi::Buffer> src;
 		lib::ref<rhi::Image> dst;
+		rhi::DeviceQueueType owningQueue;
 		rhi::DeviceQueueType dstQueue;
 	};
 
@@ -74,7 +82,8 @@ private:
 	{
 		rhi::BufferCopyInfo copyInfo;
 		lib::ref<rhi::Buffer> src;
-		lib::ref<BufferView> dst;
+		lib::ref<rhi::Buffer> dst;
+		rhi::DeviceQueueType owningQueue;
 		rhi::DeviceQueueType dstQueue;
 	};
 
@@ -87,7 +96,7 @@ private:
 
 	using ImageUploadInfoQueue	= std::array<InfoPool<ImageUploadInfo>, MAX_POOL_IN_QUEUE>;
 	using BufferUploadInfoQueue = std::array<InfoPool<BufferUploadInfo>, MAX_POOL_IN_QUEUE>;
-	using Fences = std::array<Resource<rhi::Fence>, MAX_POOL_IN_QUEUE>;
+	using Fences = std::array<rhi::Fence, MAX_POOL_IN_QUEUE>;
 	using FenceValues = std::array<uint64, MAX_POOL_IN_QUEUE>;
 
 	CommandQueue& m_transfer_command_queue;
@@ -102,16 +111,16 @@ private:
 	auto next_available_buffer(size_t size) -> Resource<rhi::Buffer>;
 	auto next_pool_index() const -> uint32;
 	auto create_buffer(uint32 const poolIndex) -> void;
-	auto upload_to_gpu() -> void;
-	auto increment_counter() -> void;
-	auto reset_pools() -> void;
+	auto upload_to_gpu(uint32 const poolIndex) -> void;
+	auto increment_counter(uint32 const poolIndex) -> void;
+	auto reset_pools(uint32 const poolIndex) -> void;
 	auto copy_to_images(rhi::CommandBuffer& cmd, std::span<ImageUploadInfo>& imageUploads) -> void;
 	auto copy_to_buffers(rhi::CommandBuffer& cmd, std::span<BufferUploadInfo>& bufferUploads) -> void;
 	auto acquire_image_resources(rhi::CommandBuffer& cmd, std::span<ImageUploadInfo>& imageUploads) -> void;
 	auto acquire_buffer_resources(rhi::CommandBuffer& cmd, std::span<BufferUploadInfo>& bufferUploads) -> void;
 	auto release_image_resources(rhi::CommandBuffer& cmd, std::span<ImageUploadInfo>& imageUploads) -> void;
 	auto release_buffer_resources(rhi::CommandBuffer& cmd, std::span<BufferUploadInfo>& bufferUploads) -> void;
-	auto do_upload() const -> bool;
+	auto do_upload(uint32 const poolIndex) const -> bool;
 };
 }
 

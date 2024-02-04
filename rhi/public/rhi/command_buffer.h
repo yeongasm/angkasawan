@@ -189,6 +189,14 @@ struct DebugLabelInfo
 	float32 color[4] = { 1.f, 1.f, 1.f, 1.f };
 };
 
+struct BindPushConstantInfo
+{
+	void const* data;
+	size_t offset = 0;
+	size_t size;
+	ShaderStage shaderStage = ShaderStage::All;
+};
+
 /**
 * A thin abstraction wrapper around Vulkan command buffers and DX12's command list.
 * We use Vulkan terminologies because we're Vulkan-first.
@@ -235,23 +243,20 @@ public:
 	RHI_API auto draw_indirect(Buffer const& drawInfoBuffer, DrawIndirectInfo const& info) const -> void;
 	RHI_API auto draw_indirect_count(Buffer const& drawInfoBuffer, Buffer const& drawCountBuffer, DrawIndirectCountInfo const& info) const -> void;
 
-	/*RHI_API auto bind_vertex_buffer(BufferView const& bufferView, uint32 firstBinding = 0) -> void;*/
 	RHI_API auto bind_vertex_buffer(Buffer const& buffer, BindVertexBufferInfo const& info) -> void;
-	/*RHI_API auto bind_index_buffer(BufferView const& bufferView, IndexType indexType = IndexType::Uint_32) -> void;*/
 	RHI_API auto bind_index_buffer(Buffer const& buffer, BindIndexBufferInfo const& info) -> void;
-	RHI_API auto bind_push_constant(void const* data, size_t size, size_t offset) -> void;
+	RHI_API auto bind_push_constant(BindPushConstantInfo const& info) -> void;
 
-	template <typename T>
-	auto bind_push_constant(T const& data, size_t offset = 0) -> void
-	{
-		bind_push_constant(&data, sizeof(T), offset);
-	}
+	//template <typename T>
+	//auto bind_push_constant(T const& data, size_t offset = 0, ShaderStage shaderStage = ShaderStage::All) -> void
+	//{
+	//	bind_push_constant(&data, sizeof(T), offset, shaderStage);
+	//}
 
 	RHI_API auto bind_pipeline(RasterPipeline const& pipeline) -> void;
 
 	RHI_API auto pipeline_barrier(MemoryBarrierInfo const& barrier) -> void;
 	RHI_API auto pipeline_barrier(Buffer const& buffer, BufferBarrierInfo const& barrier) -> void;
-	/*RHI_API auto pipeline_barrier(BufferView const& bufferView, BufferViewBarrierInfo const& barrier) -> void;*/
 	RHI_API auto pipeline_barrier(Image const& image, ImageBarrierInfo const& barrier) -> void;
 	RHI_API auto flush_barriers() -> void;
 
@@ -278,12 +283,10 @@ private:
 	CommandBufferInfo m_info;
 	Fence m_completion_timeline;
 	uint64 m_recording_timeline;
-	DeviceQueueType m_execution_queue;
 	State m_state = State::Invalid;
 
 	CommandBuffer(
 		CommandBufferInfo&& info,
-		DeviceQueueType executionQueue,
 		APIContext* context,
 		void* data,
 		resource_type typeId

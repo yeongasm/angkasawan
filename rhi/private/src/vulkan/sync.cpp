@@ -11,7 +11,9 @@ Semaphore::Semaphore(
 ) :
 	Resource{ context, data, typeId },
 	m_info{ std::move(info) }
-{}
+{
+	m_context->setup_debug_name(*this);
+}
 
 Semaphore::Semaphore(Semaphore&& rhs) noexcept
 {
@@ -42,7 +44,9 @@ Fence::Fence(
 ) :
 	Resource{ context, data, typeId },
 	m_info{ std::move(info) }
-{}
+{
+	m_context->setup_debug_name(*this);
+}
 
 Fence::Fence(Fence&& rhs) noexcept
 {

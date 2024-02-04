@@ -2,14 +2,10 @@
 
 #include <forge.glsl>
 
-layout (buffer_reference, scalar) readonly buffer buffer_ProjectionTransform
+layout (buffer_reference, scalar) readonly buffer buffer_CameraProjView
 {
-	mat4 data;
-};
-
-layout (buffer_reference, scalar) readonly buffer buffer_ViewTransform
-{
-	mat4 data;
+	mat4 proj;
+	mat4 view;
 };
 
 layout (buffer_reference, scalar) readonly buffer buffer_WorldTransform
@@ -17,18 +13,13 @@ layout (buffer_reference, scalar) readonly buffer buffer_WorldTransform
 	mat4 data;
 };
 
-// layout (buffer_reference, scalar) readonly buffer buffer_DrawData
-// {
-// 	buffer_ProjectionTransform projection;
-// 	buffer_ViewTransform view;
-// 	buffer_WorldTransform transform;
-// }
-
 layout (push_constant, scalar) uniform PushConstant
 {
-	buffer_ProjectionTransform projection;
-	buffer_ViewTransform view;
-	buffer_WorldTransform transform;
+	uint i_camProjView;
+	uint i_transform;
+	uint i_baseColorMap;
+	// buffer_CameraPojView cameraViewProj;
+	// buffer_WorldTransform transform;
 } _constants;
 
 #if defined(VERTEX_SHADER)
@@ -42,9 +33,15 @@ void main()
 {
 	//ProjectionViewTransform projView = deref(ProjectionViewTransform, _constants.proj_view_i);
 	//WorldTransform world = deref(WorldTransform, _constants.model_transform_i);
-	mat4 projection = _constants.projection.data;
-	mat4 view = _constants.view.data;
-	mat4 model = _constants.transform.data;
+	buffer_CameraProjView camProjView = deref(buffer_CameraProjView, _constants.i_camProjView);
+	buffer_WorldTransform transform = deref(buffer_WorldTransform, _constants.i_transform);
+
+	mat4 projection = camProjView.proj;
+	mat4 view = camProjView.view;
+	mat4 model = transform.data;
+	// mat4 projection = _constants.cameraViewProj.proj;
+	// mat4 view = _constants.cameraViewProj.view;
+	//mat4 model = _constants.transform.data;
 	out_uv = in_uv;
 	//gl_Position = projection * view * model * vec4(positions[gl_VertexIndex], 0.0, 1.0);
 	gl_Position = projection * view * model * vec4(in_pos, 1.0);
@@ -61,8 +58,8 @@ layout (location = 0) out vec4 frag_color;
 
 void main()
 {
-	//frag_color = vec4(texture(sampler2D(_tex_store[_constants.texture_i], _sampler_store[_constants.sampler_i]), in_uv).xyz, 1.0);
-	frag_color = vec4(1.0, 1.0, 1.0, 1.0);
+	frag_color = vec4(texture(sampler2D(_tex_store[_constants.i_baseColorMap], _sampler_store[0]), in_uv).xyz, 1.0);
+	//frag_color = vec4(1.0, 1.0, 1.0, 1.0);
 }
 
 #endif
