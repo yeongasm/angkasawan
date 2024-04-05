@@ -55,7 +55,7 @@ enum class DeviceType
 	Cpu
 };
 
-enum class DeviceQueueType
+enum class DeviceQueue
 {
 	None,
 	Main,
@@ -657,13 +657,13 @@ enum class PipelineType
 	Ray_Tracing
 };
 
-enum class ResourceState
-{
-	None,
-	Ok,
-	In_Use,
-	Released
-};
+//enum class ResourceState
+//{
+//	None,
+//	Ok,
+//	In_Use,
+//	Released
+//};
 
 enum class ShaderType
 {

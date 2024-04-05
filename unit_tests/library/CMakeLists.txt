@@ -1,4 +1,4 @@
-include(${CMAKE_SOURCE_DIR}/Util.cmake)
+include(${CMAKE_SOURCE_DIR}/cmake/Util.cmake)
 
 set(
 	source_list
@@ -16,15 +16,15 @@ add_test(
 	COMMAND LibraryUnitTest
 )
 
-add_custom_command(
-	TARGET 
-		LibraryUnitTest POST_BUILD
-	COMMAND 
-		${CMAKE_COMMAND} -E copy 
-		$<TARGET_RUNTIME_DLLS:LibraryUnitTest> 
-		$<TARGET_FILE_DIR:LibraryUnitTest>
-	COMMAND_EXPAND_LISTS
-)
+# add_custom_command(
+# 	TARGET 
+# 		LibraryUnitTest POST_BUILD
+# 	COMMAND 
+# 		${CMAKE_COMMAND} -E copy 
+# 		$<TARGET_RUNTIME_DLLS:LibraryUnitTest> 
+# 		$<TARGET_FILE_DIR:LibraryUnitTest>
+# 	COMMAND_EXPAND_LISTS
+# )
 
-#assign_source_group(${source_list})
+assign_source_group(${source_list})
 warnings_as_errors(LibraryUnitTest)

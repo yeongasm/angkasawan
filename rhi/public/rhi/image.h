@@ -18,6 +18,7 @@ public:
 	RHI_API auto info() const -> ImageInfo const&;
 private:
 	friend struct APIContext;
+	friend struct ResourceDeleter<Image>;
 	friend class Swapchain;
 	friend class CommandBuffer;
 

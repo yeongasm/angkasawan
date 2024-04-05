@@ -14,11 +14,14 @@ inline RHI_API resource_type next_rhi_resource_type_id();
 template <typename T>
 inline RHI_API const resource_type resource_type_id_v{ next_rhi_resource_type_id() };
 
+template <typename T>
+struct ResourceDeleter {};
+
 // Managed move only resources that are returned by the Device.
 class Resource
 {
 public:
-	ResourceState state;
+	//ResourceState state;
 
 	RHI_API Resource()	= default;
 	RHI_API ~Resource() = default;
@@ -43,8 +46,8 @@ public:
 	}
 protected:
 	friend struct APIContext;
-	APIContext* m_context;
 	resource_type m_type;	// Type ID of the API specific object's type.
+	APIContext* m_context;
 	void* m_data;			// Stores the API specific implementation of the data.
 };
 }

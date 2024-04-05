@@ -19,6 +19,7 @@ public:
 	RHI_API auto attributes() const -> std::span<ShaderAttribute const>;
 private:
 	friend struct APIContext;
+	friend struct ResourceDeleter<Shader>;
 
 	ShaderInfo m_info;
 	lib::array<ShaderAttribute> m_attributes;

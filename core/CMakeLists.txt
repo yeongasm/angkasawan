@@ -1,5 +1,5 @@
-include(${CMAKE_SOURCE_DIR}/Util.cmake)
-include(${CMAKE_SOURCE_DIR}/CPM.cmake)
+include(${CMAKE_SOURCE_DIR}/cmake/Util.cmake)
+include(${CMAKE_SOURCE_DIR}/cmake/CPM.cmake)
 
 CPMAddPackage(
 	NAME simdjson
@@ -7,6 +7,7 @@ CPMAddPackage(
 	GIT_REPOSITORY https://github.com/simdjson/simdjson.git
 	GIT_SHALLOW TRUE
 )
+set(CMAKE_CXX_EXTENSIONS OFF)
 target_compile_features(simdjson PUBLIC cxx_std_20)
 set_target_properties(simdjson PROPERTIES FOLDER thirdparty)
 
@@ -18,18 +19,17 @@ endif()
 
 set(
 	header_list
-	"public/core/application.h"
-	"public/core/core_minimal.h"
-	"public/core/cursor.h"
-	"public/core/engine.h"
-	"public/core/engine_api.h"
-	"public/core/engine_common.h"
-	"public/core/event_queue.h"
-	"public/core/io.h"
-	"public/core/io_enums.h"
-	"public/core/stat.h"
-	"public/core/windowing.h"
-	"private/include/platform_header.h"
+	"public/inl/core/application.h"
+	"public/inl/core/core_minimal.h"
+	"public/inl/core/cursor.h"
+	"public/inl/core/engine.h"
+	"public/inl/core/engine_api.h"
+	"public/inl/core/event_queue.h"
+	"public/inl/core/io.h"
+	"public/inl/core/io_enums.h"
+	"public/inl/core/stat.h"
+	"public/inl/core/windowing.h"
+	"private/inl/platform_header.h"
 )
 
 set(
@@ -41,14 +41,29 @@ set(
 
 set(
 	win_source_list
-	"private/src/win/win_cursor.cpp"
-	"private/src/win/win_engine.cpp"
-	"private/src/win/win_event_queue.cpp"
-	"private/src/win/win_stat.cpp"
-	"private/src/win/win_windowing.cpp"
+	"private/src/win/cursor.cpp"
+	"private/src/win/event_queue.cpp"
+	"private/src/win/stat.cpp"
+	"private/src/win/windowing.cpp"
 )
 
-add_library(Core SHARED ${header_list} ${source_list})
+set(
+	module_interface_units
+	"public/inl/core/file_watcher.ixx"
+	# "public/modules/win/file_watcher.ixx"
+	# "public/modules/win/repro_ice.ixx"
+)
+
+set(
+	module_impl_units
+)
+
+set(
+	win_module_impl_units
+	"private/src/win/file_watcher.cxx"
+)
+
+add_library(Core SHARED ${header_list} ${source_list} ${module_impl_units})
 target_compile_features(Core PUBLIC cxx_std_20)
 target_compile_definitions(Core PRIVATE "CORE_EXPORT")
 target_compile_definitions(Core PRIVATE SIMDJSON_EXCEPTIONS=OFF $<$<CONFIG:Debug>:SIMDJSON_DEVELOPMENT_CHECKS=1>)
@@ -58,36 +73,33 @@ target_compile_definitions(Core PUBLIC "UNICODE" "_UNICODE")
 target_sources(
 	Core 
 	PRIVATE
-	$<$<PLATFORM_ID:Windows>:${win_source_list}>
+	$<$<PLATFORM_ID:Windows>:${win_source_list} ${win_module_impl_units}>
+)
+
+target_sources(
+	Core
+	PUBLIC
+		FILE_SET CXX_MODULES FILES
+		${module_interface_units}
 )
 
 # Disable RTTI and exceptions.
 # It's 2022 and CMake doesn't have built in properties for this, pathetic.
 if (MSVC)
-	string(REPLACE "/GR" "/GR-" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
-	string(REPLACE "/EHsc" "/EHs-c-" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
+	string(REPLACE "/GR" "/GR-" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+	string(REPLACE "/EHsc" "/EHs-c-" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+	target_compile_options(Core PRIVATE /permissive-)
 else()
 	set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} -fno-rtti -fno-exceptions)
 endif()
 
 target_include_directories(
-	Core 
-	PUBLIC "public"
-	PRIVATE "public/core"
-	PRIVATE "private/include"
+	Core
+	PUBLIC "public/inl"
+	PRIVATE "public/inl/core"
+	PRIVATE "private/inl"
 )
-#target_link_libraries(Core PUBLIC Library Math simdjson)
 target_link_libraries(Core PUBLIC Library simdjson)
 
-add_custom_command(
-	TARGET 
-		Core POST_BUILD
-	COMMAND 
-		${CMAKE_COMMAND} -E copy 
-		$<TARGET_FILE_NAME:Core> 
-		${EXECUTABLE_DIR}
-	COMMAND_EXPAND_LISTS
-)
-
-#assign_source_group(${source_list})
+assign_source_group(${header_list} ${source_list} ${module_interface_units} ${module_impl_units} $<$<PLATFORM_ID:Windows>:${win_source_list} ${win_module_impl_units}>)
 warnings_as_errors(Core)

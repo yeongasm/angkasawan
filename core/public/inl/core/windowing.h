@@ -101,6 +101,8 @@ struct WindowingContext
 	WindowLookUpTable windowHandleTable;
 	uint32 count;
 
+	using window_index = typename decltype(windows)::index;
+
 	void on_tick();
 	void destroy_windows();
 	void listen_to_event(OSEvent const& ev);

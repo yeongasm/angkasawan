@@ -39,8 +39,9 @@ struct CursorContext
 	lib::paged_array<Cursor, 4> cursors;
 	lib::array<cursor_handle> zombies;
 	cursor_handle defaultCursor;
-
 	uint32 count;
+
+	using cursor_index = typename lib::paged_array<Cursor, 4>::index;
 
 	auto initialize_default_cursor() -> void;
 	auto get_default_cursor() -> Cursor&;

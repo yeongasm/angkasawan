@@ -290,6 +290,11 @@ struct PipelineShaderInfo
 	std::span<ShaderAttribute> vertexInputAttributes = {};
 };
 
+struct AllocationInfo
+{
+
+};
+
 struct BufferInfo
 {
 	lib::string name;
@@ -333,7 +338,7 @@ struct SamplerInfo
 struct CommandPoolInfo
 {
 	lib::string name;
-	DeviceQueueType queue;
+	DeviceQueue queue;
 };
 
 struct CommandBufferInfo

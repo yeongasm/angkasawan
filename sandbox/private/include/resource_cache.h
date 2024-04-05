@@ -8,18 +8,41 @@
 
 namespace sandbox
 {
+//using rhi::ShaderInfo;
+//using rhi::BufferInfo;
+//using rhi::ImageInfo;
+//using rhi::SamplerInfo;
+//using rhi::SwapchainInfo;
+//using rhi::SemaphoreInfo;
+//using rhi::FenceInfo;
+//using rhi::RasterPipelineInfo;
+
+using rhi::Device;
+using rhi::Shader;	// Shaders should be a transient resource that's automatically deleted.
+using rhi::Buffer;
+using rhi::Image;
+using rhi::Sampler;
+using rhi::Swapchain;
+using rhi::Semaphore;
+using rhi::Fence;
+using rhi::RasterPipeline;
+
+using rhi::ResourceDeleter;
+
+template <typename T>
+using resource_handle = lib::opaque_handle<T, uint32, std::numeric_limits<uint32>::max(), class ResourceCache>;
+
 /**
 * A Resource<T> is just a compressed pair that contains a reference to the resource and it's handle.
+* Resource<T> are persistent.
 */
 template <typename T>
 class Resource : protected lib::ref<T>
 {
 public:
-	using super = lib::ref<T>;
-	using resource_type = std::decay_t<T>;
-	using pointer = resource_type*;
-	using const_pointer = resource_type const*;
-	using resource_handle = lib::handle<T, uint32, std::numeric_limits<uint32>::max()>;
+	using resource_type = T;
+	using super = lib::ref<resource_type>;
+	using resource_handle = resource_handle<resource_type>;
 
 	Resource() = default;
 	~Resource() = default;
@@ -57,13 +80,11 @@ public:
 
 	using super::operator->;
 	using super::operator*;
-	using super::is_null;
 
 	auto id() -> resource_handle { return m_hnd; }
 private:
 	friend class ResourceCache;
 	friend class UploadHeap;
-	friend class BufferViewRegistry;
 
 	resource_handle m_hnd;
 
@@ -73,28 +94,67 @@ private:
 	{}
 };
 
-using buffer_handle = Resource<rhi::Buffer>::resource_handle;
-using image_handle	= Resource<rhi::Image>::resource_handle;
+/**
+* Transient<T, Deleter> is a compressed pair that contains the resource and it's deleter.
+* Transient resources are move-only.
+*/
+template <typename T>
+class Transient
+{
+public:
+	using resource_type = T;
+	using deleter_type	= ResourceDeleter<resource_type>;
+
+	Transient() = default;
+	~Transient() { deleter_type{}(m_resource); }
+
+	Transient(Transient const&)						= delete;
+	auto operator=(Transient const&) -> Transient&	= delete;
+
+	Transient(Transient&& rhs) noexcept :
+		m_resource{ std::move(rhs.m_resource) }
+	{}
+
+	auto operator=(Transient&& rhs) noexcept -> Transient& 
+	{
+		if (this != &rhs)
+		{
+			m_resource = std::move(rhs.m_resource);
+			new (&rhs) Transient{};
+		}
+		return *this;
+	}
+
+	auto resource() const -> resource_type& { return m_resource; }
+private:
+	resource_type m_resource;
+};
 
 class ResourceCache
 {
 public:
-	ResourceCache(rhi::Device& device);
+	ResourceCache(Device& device);
 	~ResourceCache() = default;
 
-	auto device() const -> rhi::Device&;
+	auto device() const->rhi::Device&;
 
-	auto create_buffer(rhi::BufferInfo&& info) -> Resource<rhi::Buffer>;
-	auto get_buffer(buffer_handle handle) -> lib::ref<rhi::Buffer>;
-	auto destroy_buffer(buffer_handle handle) -> void;
+	auto create_buffer(rhi::BufferInfo&& info) -> Resource<Buffer>;
+	auto get_buffer(resource_handle<Buffer> handle) -> lib::ref<rhi::Buffer>;
+	auto destroy_buffer(resource_handle<Buffer> handle) -> void;
 
 	auto create_image(rhi::ImageInfo&& info) -> Resource<rhi::Image>;
-	auto get_image(image_handle handle) -> lib::ref<rhi::Image>;
-	auto destroy_image(image_handle handle) -> void;
+	auto get_image(resource_handle<Image> handle) -> lib::ref<rhi::Image>;
+	auto destroy_image(resource_handle<Image> handle) -> void;
 private:
-	rhi::Device& m_device;
-	lib::paged_array<rhi::Buffer, 64>	m_buffers;
-	lib::paged_array<rhi::Image, 64>	m_images;
+	template <typename T> using Container = lib::paged_array<T, 64>;
+	template <typename T> using resource_index = typename Container<T>::index;
+
+	Device& m_device;
+	Container<Buffer> m_buffers;
+	Container<Image> m_images;
+	Container<Sampler> m_samplers;
+	Container<Semaphore> m_semaphores;
+	Container<Fence> m_fences;
 };
 }
 

@@ -10,14 +10,14 @@ resource_type next_rhi_resource_type_id()
 }
 
 Resource::Resource(APIContext* context, void* data, resource_type type_id) :
-	state{ ResourceState::Ok },
+	/*state{ ResourceState::Ok },*/
 	m_context{ context },
 	m_type{ type_id },
 	m_data{ data }
 {}
 
 Resource::Resource(Resource&& rhs) noexcept :
-	state{ rhs.state },
+	/*state{ rhs.state },*/
 	m_context{ rhs.m_context },
 	m_type{ rhs.m_type },
 	m_data{ rhs.m_data }
@@ -29,7 +29,7 @@ Resource& Resource::operator=(Resource&& rhs) noexcept
 {
 	if (this != &rhs)
 	{
-		state = std::move(rhs.state);
+		/*state = std::move(rhs.state);*/
 		m_context = std::move(rhs.m_context);
 		m_type = std::move(rhs.m_type);
 		m_data = std::move(rhs.m_data);

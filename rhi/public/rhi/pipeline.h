@@ -47,6 +47,7 @@ public:
 	RHI_API auto info() const -> RasterPipelineInfo const&;
 private:
 	friend struct APIContext;
+	friend struct ResourceDeleter<RasterPipeline>;
 
 	RasterPipelineInfo m_info;
 

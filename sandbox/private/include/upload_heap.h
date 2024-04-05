@@ -14,8 +14,8 @@ struct BufferDataUploadInfo
 	void* data;
 	size_t offset;
 	size_t size;
-	rhi::DeviceQueueType srcQueue = rhi::DeviceQueueType::None;
-	rhi::DeviceQueueType dstQueue = rhi::DeviceQueueType::Main;
+	rhi::DeviceQueue srcQueue = rhi::DeviceQueue::None;
+	rhi::DeviceQueue dstQueue = rhi::DeviceQueue::Main;
 	//lib::ref<rhi::Fence> waitFence;
 	//uint64 waitValue = 0;
 };
@@ -26,8 +26,8 @@ struct ImageDataUploadInfo
 	void* data;
 	size_t size;
 	uint32 mipLevel = 0;
-	rhi::DeviceQueueType srcQueue = rhi::DeviceQueueType::None;
-	rhi::DeviceQueueType dstQueue = rhi::DeviceQueueType::Main;
+	rhi::DeviceQueue srcQueue = rhi::DeviceQueue::None;
+	rhi::DeviceQueue dstQueue = rhi::DeviceQueue::Main;
 	rhi::ImageAspect aspectMask = rhi::ImageAspect::Color;
 	//lib::ref<rhi::Fence> waitFence;
 	//uint64 waitValue = 0;
@@ -37,7 +37,7 @@ using upload_id = lib::handle<struct UPLOAD_HEAP_ID, uint64, std::numeric_limits
 
 struct FenceInfo
 {
-	rhi::Fence& fence;
+	Fence& fence;
 	uint64 value;
 }; 
 
@@ -74,8 +74,8 @@ private:
 		rhi::BufferImageCopyInfo copyInfo;
 		lib::ref<rhi::Buffer> src;
 		lib::ref<rhi::Image> dst;
-		rhi::DeviceQueueType owningQueue;
-		rhi::DeviceQueueType dstQueue;
+		rhi::DeviceQueue owningQueue;
+		rhi::DeviceQueue dstQueue;
 	};
 
 	struct BufferUploadInfo
@@ -83,8 +83,8 @@ private:
 		rhi::BufferCopyInfo copyInfo;
 		lib::ref<rhi::Buffer> src;
 		lib::ref<rhi::Buffer> dst;
-		rhi::DeviceQueueType owningQueue;
-		rhi::DeviceQueueType dstQueue;
+		rhi::DeviceQueue owningQueue;
+		rhi::DeviceQueue dstQueue;
 	};
 
 	template <typename T>

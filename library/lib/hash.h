@@ -81,13 +81,16 @@ public:
 		constexpr hash_container_const_iterator(bucket_info* data, hash_container_base const* hash_map) :
 			info{ data }, hash{ hash_map }
 		{
-			// This logic is here to just skip empty buckets.
-			bucket_info* end = hash->m_metadata->p_bucket_info + hash->m_capacity;
-
-			while (info->is_empty() &&
-				   info != end)
+			if (data && hash->m_metadata)
 			{
-				++info;
+				// This logic is here to just skip empty buckets.
+				bucket_info* end = hash->m_metadata->p_bucket_info + hash->m_capacity;
+
+				while (info->is_empty() &&
+					   info != end)
+				{
+					++info;
+				}
 			}
 		}
 
@@ -324,12 +327,12 @@ public:
 		}
 	}
 
-	iterator		begin	()		 { return iterator{ m_metadata->p_bucket_info, this }; }
-	iterator		end		()		 { return iterator{ m_metadata->p_bucket_info + m_capacity, this }; }
-	const_iterator	begin	() const { return const_iterator{ m_metadata->p_bucket_info, this }; }
-	const_iterator	end		() const { return const_iterator{ m_metadata->p_bucket_info + m_capacity, this }; }
-	const_iterator	cbegin	() const { return const_iterator{ m_metadata->p_bucket_info, this }; }
-	const_iterator	cend	() const { return const_iterator{ m_metadata->p_bucket_info + m_capacity, this }; }
+	iterator		begin	()		 { return iterator{ m_metadata ? m_metadata->p_bucket_info : nullptr, this }; }
+	iterator		end		()		 { return iterator{ m_metadata ? m_metadata->p_bucket_info + m_capacity : nullptr, this }; }
+	const_iterator	begin	() const { return const_iterator{ m_metadata ? m_metadata->p_bucket_info : nullptr, this }; }
+	const_iterator	end		() const { return const_iterator{ m_metadata ? m_metadata->p_bucket_info + m_capacity : nullptr, this }; }
+	const_iterator	cbegin	() const { return const_iterator{ m_metadata ? m_metadata->p_bucket_info : nullptr, this }; }
+	const_iterator	cend	() const { return const_iterator{ m_metadata ? m_metadata->p_bucket_info + m_capacity : nullptr, this }; }
 
 protected:
 
@@ -521,15 +524,26 @@ private:
 		}
 		else
 		{
-			key_type& key = *const_cast<key_type*>(&m_data[bucket].first);
-			value_type& value = m_data[bucket].second;
+			if constexpr (std::is_same_v<key_type, value_type>)
+			{
+				type& data = *const_cast<type*>(&m_data[bucket]);
+				mutable_type tmp{ std::move(data) };
 
-			mutable_type tmp{ std::move(key), std::move(value) };
+				new (&data) type{ std::move(element) };
+				new (&element) type{ std::move(tmp) };
+			}
+			else
+			{
+				key_type& key = *const_cast<key_type*>(&m_data[bucket].first);
+				value_type& value = m_data[bucket].second;
 
-			key = std::move(element.first);
-			value = std::move(element.second);
+				mutable_type tmp{ std::move(key), std::move(value) };
 
-			new (&element) type{ std::move(tmp.first), std::move(tmp.second) };
+				key = std::move(element.first);
+				value = std::move(element.second);
+
+				new (&element) type{ std::move(tmp.first), std::move(tmp.second) };
+			}
 		}
 
 		bucket_info& dst = m_metadata->p_bucket_info[bucket];
@@ -575,8 +589,16 @@ private:
 			bucket = next_bucket(bucket);
 			++inserting_info.psl;
 		}
+
 		// Store the element.
-		new (m_data + bucket) type{ std::move(element.first), std::move(element.second) };
+		if constexpr (std::is_same_v<key_type, value_type>)
+		{
+			new (m_data + bucket) type{ std::move(element) };
+		}
+		else
+		{
+			new (m_data + bucket) type{ std::move(element.first), std::move(element.second) };
+		}
 
 		p_info[bucket].hash = inserting_info.hash;
 		p_info[bucket].psl	= inserting_info.psl;

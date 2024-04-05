@@ -88,7 +88,7 @@ auto TriangleDemoApp::initialize() -> bool
 
 	if (m_pipeline.valid())
 	{
-		m_cmd_pool = m_device.create_command_pool({ .name = "main_thread", .queue = rhi::DeviceQueueType::Graphics });
+		m_cmd_pool = m_device.create_command_pool({ .name = "main_thread", .queue = rhi::DeviceQueue::Graphics });
 		if (m_cmd_pool.valid())
 		{
 			m_cmd_buffer_0 = &m_cmd_pool.allocate_command_buffer({ .name = "main_thread_frame_0" });
@@ -163,7 +163,7 @@ auto TriangleDemoApp::run() -> void
 	std::pair signalGpuTimeline{ &m_swapchain.get_gpu_fence(), m_swapchain.cpu_frame_count() };
 
 	m_device.submit({
-		.queue = rhi::DeviceQueueType::Main,
+		.queue = rhi::DeviceQueue::Main,
 		.commandBuffers = std::span{ &cmdBuffer, 1 },
 		.waitSemaphores = std::span{ &m_swapchain.current_acquire_semaphore(), 1 },
 		.signalSemaphores = std::span{ &m_swapchain.current_present_semaphore(), 1 },

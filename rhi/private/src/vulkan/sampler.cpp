@@ -43,4 +43,14 @@ auto Sampler::info_packed() const -> uint64
 {
 	return m_packed_info;
 }
+
+template <>
+struct ResourceDeleter<Sampler>
+{
+	auto operator()(Sampler& sampler) const -> void
+	{
+		APIContext* api = sampler.m_context;
+		api->destroy_sampler(sampler);
+	}
+};
 }

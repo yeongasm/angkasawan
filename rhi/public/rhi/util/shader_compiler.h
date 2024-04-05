@@ -93,7 +93,7 @@ private:
 		lib::array<uint32> binaries;
 		lib::array<ShaderAttribute> inputVar;
 	};
-	lib::string_pool<64_KiB> m_string_pool;;
+	lib::string_pool m_string_pool;;
 	lib::array<std::filesystem::path> m_include_dirs;
 	lib::map<lib::hash_string_view, CompiledUnit> m_shader_compilations;
 	lib::map<std::string_view, std::string_view> m_macro_definitions;

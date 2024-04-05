@@ -23,7 +23,7 @@ void WindowingContext::destroy_windows()
 	{
 		for (window_handle zombieHandle : zombies)
 		{
-			decltype(windows)::index idx{ zombieHandle.access(*this) };
+			window_index idx{ window_index::from(zombieHandle.access(*this)) };
 			Window* pWindow = windows.at(idx);
 			if (!pWindow)
 			{
@@ -118,10 +118,10 @@ wnd::window_handle Engine::create_window(wnd::WindowCreateInfo const& info)
 		true,
 		info.config.catchInput
 	);
-	mWindowContext.windowHandleTable.insert(reinterpret_cast<std::uintptr_t>(hwnd), wnd::window_handle{ res.first.id });
+	mWindowContext.windowHandleTable.insert(reinterpret_cast<std::uintptr_t>(hwnd), wnd::window_handle{ res.first.to_uint32() });
 	++mWindowContext.count;
 
-	return wnd::window_handle{ res.first.id };
+	return wnd::window_handle{ res.first.to_uint32() };
 }
 
 void* Engine::get_application_handle() const

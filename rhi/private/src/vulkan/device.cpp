@@ -811,42 +811,42 @@ auto translate_memory_usage(MemoryUsage usage) -> VmaAllocationCreateFlags
 
 auto ResourcePool::location_of(vulkan::Swapchain& swapchain) -> uint32
 {
-	return swapchains.index_of(swapchain).id;
+	return swapchains.index_of(swapchain).to_uint32();
 }
 
 auto ResourcePool::location_of(vulkan::Shader& shader) -> uint32
 {
-	return shaders.index_of(shader).id;
+	return shaders.index_of(shader).to_uint32();
 }
 
 auto ResourcePool::location_of(vulkan::Buffer& buffer) -> uint32
 {
-	return buffers.index_of(buffer).id;
+	return buffers.index_of(buffer).to_uint32();
 }
 
 auto ResourcePool::location_of(vulkan::Image& image) -> uint32
 {
-	return images.index_of(image).id;
+	return images.index_of(image).to_uint32();
 }
 
 auto ResourcePool::location_of(vulkan::Sampler& sampler) -> uint32
 {
-	return samplers.index_of(sampler).id;
+	return samplers.index_of(sampler).to_uint32();
 }
 
 auto ResourcePool::location_of(vulkan::Pipeline& pipeline) -> uint32
 {
-	return pipelines.index_of(pipeline).id;
+	return pipelines.index_of(pipeline).to_uint32();
 }
 
 auto ResourcePool::location_of(vulkan::CommandPool& commandPool) -> uint32
 {
-	return commandPools.index_of(commandPool).id;
+	return commandPools.index_of(commandPool).to_uint32();
 }
 
 auto ResourcePool::location_of(vulkan::Semaphore& semaphore) -> uint32
 {
-	return semaphores.index_of(semaphore).id;
+	return semaphores.index_of(semaphore).to_uint32();
 }
 
 auto APIContext::create_vulkan_instance(DeviceInitInfo const& info) -> bool
@@ -1232,6 +1232,10 @@ auto APIContext::clear_zombies() -> void
 	/**
 	* TODO(afiq):
 	* Figure out a way to not wait for the device to idle before releasing the used resource.
+	* 
+	* Solution(afiq):
+	* When deleting a resource, we include the frame's timeline value into the deletion queue.
+	* Only delete a resource when the current frame's timeline value exceed the one that is cached along the zombie.
 	*/
 	vkDeviceWaitIdle(device);
 
@@ -1301,56 +1305,68 @@ auto APIContext::destroy_surface_zombie(std::uintptr_t address) -> void
 
 auto APIContext::destroy_swapchain_zombie(uint32 location) -> void
 {
-	vulkan::Swapchain& swapchain = gpuResourcePool.swapchains[location];
+	using index = typename decltype(gpuResourcePool.swapchains)::index;
+
+	vulkan::Swapchain& swapchain = gpuResourcePool.swapchains[index::from(location)];
 	for (auto& imageView : swapchain.imageViews)
 	{
 		vkDestroyImageView(device, imageView, nullptr);
 	}
 	vkDestroySwapchainKHR(device, swapchain.handle, nullptr);
-	gpuResourcePool.swapchains.erase(location);
+	gpuResourcePool.swapchains.erase(index::from(location));
 }
 
 auto APIContext::destroy_shader_zombie(uint32 location) -> void
 {
-	vulkan::Shader& shader = gpuResourcePool.shaders[location];
+	using index = typename decltype(gpuResourcePool.shaders)::index;
+
+	vulkan::Shader& shader = gpuResourcePool.shaders[index::from(location)];
 	vkDestroyShaderModule(device, shader.handle, nullptr);
-	gpuResourcePool.shaders.erase(location);
+	gpuResourcePool.shaders.erase(index::from(location));
 }
 
 auto APIContext::destroy_buffer_zombie(uint32 location) -> void
 {
-	vulkan::Buffer& buffer = gpuResourcePool.buffers[location];
+	using index = typename decltype(gpuResourcePool.buffers)::index;
+
+	vulkan::Buffer& buffer = gpuResourcePool.buffers[index::from(location)];
 	vmaDestroyBuffer(allocator, buffer.handle, buffer.allocation);
-	gpuResourcePool.buffers.erase(location);
+	gpuResourcePool.buffers.erase(index::from(location));
 }
 
 auto APIContext::destroy_image_zombie(uint32 location) -> void
 {
-	vulkan::Image& image = gpuResourcePool.images[location];
+	using index = typename decltype(gpuResourcePool.images)::index;
+
+	vulkan::Image& image = gpuResourcePool.images[index::from(location)];
 	vmaDestroyImage(allocator, image.handle, image.allocation);
-	gpuResourcePool.images.erase(location);
+	gpuResourcePool.images.erase(index::from(location));
 }
 
 auto APIContext::destroy_sampler_zombie(uint32 location) -> void
 {
-	vulkan::Sampler& sampler = gpuResourcePool.samplers[location];
+	using index = typename decltype(gpuResourcePool.samplers)::index;
+
+	vulkan::Sampler& sampler = gpuResourcePool.samplers[index::from(location)];
 	vkDestroySampler(device, sampler.handle, nullptr);
-	gpuResourcePool.samplers.erase(location);
+	gpuResourcePool.samplers.erase(index::from(location));
 }
 
 auto APIContext::destroy_command_pool_zombie(uint32 location) -> void
 {
-	vulkan::CommandPool& cmdPool = gpuResourcePool.commandPools[location];
+	using index = typename decltype(gpuResourcePool.commandPools)::index;
+
+	vulkan::CommandPool& cmdPool = gpuResourcePool.commandPools[index::from(location)];
 	std::uintptr_t address = reinterpret_cast<std::uintptr_t>(&cmdPool);
 	vkDestroyCommandPool(device, cmdPool.handle, nullptr);
-	gpuResourcePool.commandPools.erase(location);
+	gpuResourcePool.commandPools.erase(index::from(location));
 	gpuResourcePool.commandBufferPools.erase(address);
 }
 
 auto APIContext::destroy_command_buffer_zombie(std::uintptr_t address, size_t location) -> void
 {
 	vulkan::CommandBufferPool& cmdBufferPool = gpuResourcePool.commandBufferPools[address];
-	
+
 	// The standard says uintptr_t is an unsigned integer capable of holding a pointer.
 	// But I'm not too sure if the line of code below would work.
 	// Worth experimenting.
@@ -1366,9 +1382,11 @@ auto APIContext::destroy_command_buffer_zombie(std::uintptr_t address, size_t lo
 
 auto APIContext::destroy_semaphore_zombie(uint32 location) -> void
 {
-	vulkan::Semaphore& semaphore = gpuResourcePool.semaphores[location];
+	using index = typename decltype(gpuResourcePool.semaphores)::index;
+
+	vulkan::Semaphore& semaphore = gpuResourcePool.semaphores[index::from(location)];
 	vkDestroySemaphore(device, semaphore.handle, nullptr);
-	gpuResourcePool.semaphores.erase(location);
+	gpuResourcePool.semaphores.erase(index::from(location));
 }
 
 auto APIContext::create_surface(SurfaceInfo const& info) -> vulkan::Surface*
@@ -2170,18 +2188,20 @@ auto APIContext::destroy_image(Image& image) -> void
 
 auto APIContext::create_sampler(SamplerInfo&& info) -> Sampler
 {
+	using index = typename decltype(gpuResourcePool.samplers)::index;
+
 	uint64 packed = get_sampler_info_packed_uint64(info);
 
 	if (gpuResourcePool.samplerCache.contains(packed))
 	{
 		uint32 location = gpuResourcePool.samplerCache[packed];
-		vulkan::Sampler& existingSampler = gpuResourcePool.samplers[location];
+		vulkan::Sampler& existingSampler = gpuResourcePool.samplers[index::from(location)];
 		++existingSampler.references;
 
 		return Sampler{ std::move(info), packed, this, &existingSampler, resource_type_id_v<vulkan::Sampler> };
 	}
 
-	auto [index, sampler] = gpuResourcePool.samplers.emplace();
+	auto [idx, sampler] = gpuResourcePool.samplers.emplace();
 
 	++sampler.references;
 
@@ -2207,11 +2227,11 @@ auto APIContext::create_sampler(SamplerInfo&& info) -> Sampler
 	VkResult result = vkCreateSampler(device, &createInfo, nullptr, &sampler.handle);
 	if (result != VK_SUCCESS)
 	{
-		gpuResourcePool.samplers.erase(index);
+		gpuResourcePool.samplers.erase(idx);
 		return Sampler{};
 	}
 	// Store the sampler info's hash.
-	gpuResourcePool.samplerCache[packed] = index.id;
+	gpuResourcePool.samplerCache[packed] = idx.to_uint32();
 
 	return Sampler{ std::move(info), packed, this, &sampler, resource_type_id_v<vulkan::Sampler> };
 }
@@ -2496,13 +2516,13 @@ auto APIContext::create_command_pool(CommandPoolInfo&& info) -> CommandPool
 	vulkan::Queue* pQueue = nullptr;
 	switch (info.queue)
 	{
-	case DeviceQueueType::Transfer:
+	case DeviceQueue::Transfer:
 		pQueue = &transferQueue;
 		break;
-	case DeviceQueueType::Compute:
+	case DeviceQueue::Compute:
 		pQueue = &computeQueue;
 		break;
-	case DeviceQueueType::Main:
+	case DeviceQueue::Main:
 	default:
 		pQueue = &mainQueue;
 		break;
@@ -2606,11 +2626,11 @@ auto APIContext::submit(SubmitInfo const& info) -> bool
 
 	VkQueue queue = mainQueue.queue;
 
-	if (info.queue == rhi::DeviceQueueType::Transfer)
+	if (info.queue == rhi::DeviceQueue::Transfer)
 	{
 		queue = transferQueue.queue;
 	}
-	else if (info.queue == rhi::DeviceQueueType::Compute)
+	else if (info.queue == rhi::DeviceQueue::Compute)
 	{
 		queue = computeQueue.queue;
 	}

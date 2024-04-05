@@ -1,4 +1,4 @@
-include(${CMAKE_SOURCE_DIR}/Util.cmake)
+include(${CMAKE_SOURCE_DIR}/cmake/Util.cmake)
 include(FetchContent)
 include(FindVulkan) 
 

@@ -104,4 +104,13 @@ auto Buffer::gpu_address() const -> uint64
 	return address;
 }
 
+template <>
+struct ResourceDeleter<Buffer>
+{
+	auto operator()(Buffer& buffer) const -> void
+	{
+		APIContext* api = buffer.m_context;
+		api->release_buffer(buffer);
+	}
+};
 }

@@ -78,16 +78,16 @@ struct BufferBarrierInfo
 	size_t offset = 0;
 	Access srcAccess = {};
 	Access dstAccess = {};
-	DeviceQueueType	srcQueue = DeviceQueueType::Main;
-	DeviceQueueType	dstQueue = DeviceQueueType::Main;
+	DeviceQueue	srcQueue = DeviceQueue::Main;
+	DeviceQueue	dstQueue = DeviceQueue::Main;
 };
 
 //struct BufferViewBarrierInfo
 //{
 //	Access srcAccess = {};
 //	Access dstAccess = {};
-//	DeviceQueueType	srcQueue = DeviceQueueType::Main;
-//	DeviceQueueType	dstQueue = DeviceQueueType::Main;
+//	DeviceQueue	srcQueue = DeviceQueue::Main;
+//	DeviceQueue	dstQueue = DeviceQueue::Main;
 //};
 
 struct ImageBarrierInfo
@@ -97,8 +97,8 @@ struct ImageBarrierInfo
 	ImageLayout	oldLayout = ImageLayout::Undefined;
 	ImageLayout	newLayout = ImageLayout::Undefined;
 	ImageSubresource subresource = {};
-	DeviceQueueType	srcQueue = DeviceQueueType::Main;
-	DeviceQueueType	dstQueue = DeviceQueueType::Main;
+	DeviceQueue	srcQueue = DeviceQueue::Main;
+	DeviceQueue	dstQueue = DeviceQueue::Main;
 };
 
 struct DrawInfo

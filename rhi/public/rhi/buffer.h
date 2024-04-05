@@ -50,6 +50,7 @@ public:
 	RHI_API auto gpu_address() const -> uint64;
 private:
 	friend struct APIContext;
+	friend struct ResourceDeleter<Buffer>;
 	friend class CommandBuffer;
 
 	BufferInfo m_info = {};

@@ -157,7 +157,7 @@ public:
 
 	constexpr type& element_at_bucket(bucket_value_type bucket)
 	{
-		ASSERTION(super::info()[bucket].value() != nullptr && "Bucket value supplied is invalid!");
+		ASSERTION(!super::info()[bucket].is_empty() && "Bucket value supplied is invalid!");
 		return super::data()[bucket];
 	}
 };

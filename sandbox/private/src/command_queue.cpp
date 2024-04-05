@@ -3,7 +3,7 @@
 
 namespace sandbox
 {
-CommandQueue::CommandQueue(SubmissionQueue& submissionQueue, rhi::DeviceQueueType type) :
+CommandQueue::CommandQueue(SubmissionQueue& submissionQueue, rhi::DeviceQueue type) :
 	m_submissionQueue{ submissionQueue },
 	m_type{ type },
 	m_commandPool{},
@@ -14,15 +14,15 @@ auto CommandQueue::next_free_command_buffer(std::thread::id tid) -> lib::ref<rhi
 {
 	rhi::Device& device = m_submissionQueue.device();
 
-	auto queue_type_name = [](rhi::DeviceQueueType type) -> const char*
+	auto queue_type_name = [](rhi::DeviceQueue type) -> const char*
 	{
 		switch (type)
 		{
-		case rhi::DeviceQueueType::Main:
+		case rhi::DeviceQueue::Main:
 			return "main";
-		case rhi::DeviceQueueType::Transfer:
+		case rhi::DeviceQueue::Transfer:
 			return "transfer";
-		case rhi::DeviceQueueType::Compute:
+		case rhi::DeviceQueue::Compute:
 			return "compute";
 		default:
 			return "none";

@@ -66,4 +66,14 @@ auto RasterPipeline::info() const -> RasterPipelineInfo const&
 {
 	return m_info;
 }
+
+template <>
+struct ResourceDeleter<RasterPipeline>
+{
+	auto operator()(RasterPipeline& pipeline) const -> void
+	{
+		APIContext* api = pipeline.m_context;
+		api->destroy_pipeline(pipeline);
+	}
+};
 }

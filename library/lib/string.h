@@ -1131,16 +1131,16 @@ public:
 
     constexpr basic_hash_string_view() : super{}, m_hash{} {};
     constexpr basic_hash_string_view(basic_hash_string_view const& rhs) = default;
-    constexpr basic_hash_string_view(const_pointer str, size_type count) :
-        super{ str, count }
-    {
-        m_hash = static_cast<T>((std::hash<super>{})(*this));
-    };
     constexpr basic_hash_string_view(const_pointer str) :
         super{ str }
     {
         m_hash = static_cast<T>((std::hash<super>{})(*this));
     }
+    constexpr basic_hash_string_view(const_pointer str, size_type count) :
+        super{ str, count }
+    {
+        m_hash = static_cast<T>((std::hash<super>{})(*this));
+    };
     template <typename start_iterator, typename end_iterator>
     constexpr basic_hash_string_view(start_iterator first, end_iterator last) :
         super{ first, last }
@@ -1229,23 +1229,33 @@ constexpr basic_string<char_type> format(char_type const* str, Args&&... argumen
 //    return basic_string<char_type>{ buffer.data(), buffer.size() };
 //}
 
-template <size_t POOL_SIZE = 32_KiB>
-class string_pool
+/**
+* TODO(afiq):
+* 
+* - Make this more robust by returning more information once a string has been appended into the pool i.e, which pool it's stored in and it's location in the pool.
+* - Introduce the ability to clear pools.
+* - Coalesce memory regions of released string data into a larger blocks to reduce fragmentation.
+*/
+template <is_char_type char_type, size_t POOL_SIZE = 32_KiB>
+class basic_string_pool
 {
-private:
-    std::list<string> m_pools = {};
-    string m_formatBuffer;
-    string* m_current = nullptr;
+protected:
+    using string_type       = basic_string<char_type>;
+    using string_view_type  = std::basic_string_view<char_type>;
+
+    std::list<string_type>  m_pools = {};
+    string_type             m_formatBuffer;
+    string_type*            m_current = nullptr;
 
     void new_pool()
     {
-        string _temp;
+        string_type _temp;
         _temp.reserve(POOL_SIZE);
         m_pools.push_back(std::move(_temp));
         m_current = &m_pools.back();
     }
 
-    void try_allocate_new_pool(std::string_view str)
+    void try_allocate_new_pool(string_view_type str)
     {
         if (!m_pools.size())
         {
@@ -1257,37 +1267,42 @@ private:
         }
     }
 public:
-    std::string_view append(std::string_view str)
+    string_view_type append(string_view_type str)
     {
         try_allocate_new_pool(str);
 
-        string& current = *m_current;
+        string_type& current = *m_current;
         auto it = current.end();
         current.append(str);
 
-        return std::string_view{ it.data(), str.size()};
+        return string_view_type{ it.data(), str.size() };
     }
 
     template <typename... Args>
-    std::string_view append(std::string_view str, Args&&... args)
+    string_view_type append(string_view_type str, Args&&... args)
     {
         m_formatBuffer.clear();
         m_formatBuffer.format(str, std::forward<Args>(args)...);
-        try_allocate_new_pool((std::string_view)m_formatBuffer);
 
-        string& current = *m_current;
+        try_allocate_new_pool((string_view_type)m_formatBuffer);
+
+        string_type& current = *m_current;
         auto it = current.end();
+
         current.append(m_formatBuffer);
 
-        return std::string_view{ it.data(), m_formatBuffer.size()};
+        return string_view_type{ it.data(), m_formatBuffer.size()};
     }
 
     template <typename T>
-    std::string_view append(T const& value)
+    string_view_type append(T const& value)
     {
         return append("{}", value);
     }
 };
+
+using string_pool   = basic_string_pool<char, 16_KiB>;
+using wstring_pool  = basic_string_pool<wchar_t, 32_KiB>;
 
 }
 

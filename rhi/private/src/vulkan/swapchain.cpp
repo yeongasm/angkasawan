@@ -13,6 +13,21 @@ Swapchain::~Swapchain()
 		vulkan::Image& image = swapchainImage.as<vulkan::Image>();
 		lib::release_memory(&image);
 	}
+
+	for (Semaphore& sem : m_acquire_semaphore)
+	{
+		m_context->destroy_binary_semaphore(sem);
+	}
+
+	for (Semaphore& sem : m_present_semaphore)
+	{
+		m_context->destroy_binary_semaphore(sem);
+	}
+
+	m_context->destroy_timeline_semaphore(m_gpu_elapsed_frames);
+
+	m_acquire_semaphore.release();
+	m_present_semaphore.release();
 	m_images.release();
 }
 
@@ -44,10 +59,8 @@ Swapchain::Swapchain(
 
 	for (uint32 i = 0; i < maxFramesInFlight; ++i)
 	{
-		auto acquireSemaphore = m_context->create_binary_semaphore({ .name = lib::format("acquire_{}", i) });
-		auto presentSemaphore = m_context->create_binary_semaphore({ .name = lib::format("present_{}", i) });
-		m_acquire_semaphore.push_back(std::move(acquireSemaphore));
-		m_present_semaphore.push_back(std::move(presentSemaphore));
+		m_acquire_semaphore.push_back(m_context->create_binary_semaphore({ .name = lib::format("acquire_{}", i) }));
+		m_present_semaphore.push_back(m_context->create_binary_semaphore({ .name = lib::format("present_{}", i) }));
 	}
 
 	for (uint32 i = 0; i < m_info.imageCount; ++i)
@@ -207,4 +220,13 @@ auto Swapchain::image_format() const -> Format
 	return format;
 }
 
+template <>
+struct ResourceDeleter<Swapchain>
+{
+	auto operator()(Swapchain& swapchain) const -> void
+	{
+		APIContext* api = swapchain.m_context;
+		api->destroy_swapchain(swapchain);
+	}
+};
 }

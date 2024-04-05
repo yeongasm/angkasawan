@@ -1,5 +1,5 @@
-include(${CMAKE_SOURCE_DIR}/Util.cmake)
-include(${CMAKE_SOURCE_DIR}/CPM.cmake)
+include(${CMAKE_SOURCE_DIR}/cmake/Util.cmake)
+include(${CMAKE_SOURCE_DIR}/cmake/CPM.cmake)
 
 set(
 	rhi_header_files
@@ -34,6 +34,7 @@ target_compile_definitions(RHI PRIVATE "RHI_EXPORT")
 target_compile_definitions(RHI PRIVATE $<$<PLATFORM_ID:Windows>:PLATFORM_OS_WINDOWS> $<$<PLATFORM_ID:Darwin>:PLATFORM_OS_APPLE> $<$<PLATFORM_ID:Linux>:PLATFORM_OS_LINUX>)
 
 target_link_libraries(RHI PUBLIC Library)
+assign_source_group(${rhi_header_files} ${rhi_source_files})
 
 target_include_directories(
 	RHI 
@@ -110,26 +111,27 @@ if (USE_VULKAN)
 	
 	target_link_libraries(RHI PRIVATE volk_headers VulkanMemoryAllocator shaderc spirv-reflect-static)
 	target_compile_definitions(RHI PRIVATE $<$<PLATFORM_ID:Windows>:VK_USE_PLATFORM_WIN32_KHR>)
+	assign_source_group(${vulkan_header_files} ${vulkan_source_files})
 endif()
 
 
 if (MSVC)
-	string(REPLACE "/GR" "/GR-" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
-	string(REPLACE "/EHsc" "/EHs-c-" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
+	string(REPLACE "/GR" "/GR-" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+	string(REPLACE "/EHsc" "/EHs-c-" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+	target_compile_options(RHI PRIVATE /permissive-)
 else()
 	set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} -fno-rtti -fno-exceptions)
 endif()
 
-add_custom_command(
-	TARGET 
-		RHI POST_BUILD
-	COMMAND 
-		${CMAKE_COMMAND} -E copy
-		$<TARGET_FILE:RHI>
-		${EXECUTABLE_DIR}
-	COMMAND_EXPAND_LISTS
-)
+# add_custom_command(
+# 	TARGET 
+# 		RHI POST_BUILD
+# 	COMMAND 
+# 		${CMAKE_COMMAND} -E copy
+# 		$<TARGET_FILE:RHI>
+# 		${EXECUTABLE_DIR}
+# 	COMMAND_EXPAND_LISTS
+# )
 
-assign_source_group(${source_list})
 warnings_as_errors(RHI)
 target_compile_options(RHI PRIVATE /wd4530)

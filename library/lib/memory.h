@@ -3,6 +3,7 @@
 #define LIB_MEMORY_H
 
 #include <source_location>
+#include <bit>
 #include "common.h"
 #include "concepts.h"
 #include "api.h"
@@ -38,7 +39,6 @@ struct allocate_info
 {
 	size_t size;
 	size_t alignment = __STDCPP_DEFAULT_NEW_ALIGNMENT__;
-	std::source_location location;
 };
 
 // Allocates memory using the system.
@@ -240,7 +240,7 @@ public:
 	template <typename T>
 	T* allocate_storage(allocate_info const& info)
 	{
-		return static_cast<T*>(allocate_storage({ .size = info.size * sizeof(T), .alignment = info.alignment, .location = info.location }));
+		return static_cast<T*>(allocate_storage({ .size = info.size * sizeof(T), .alignment = info.alignment }));
 	}
 
 	template <is_pointer pointer_type>
@@ -274,7 +274,7 @@ struct system_memory_interface
 	template <typename T>
 	T* allocate_storage(allocate_info const& info)
 	{
-		return static_cast<T*>(allocate_memory({ .size = info.size * sizeof(T), .alignment = info.alignment, .location = info.location }));
+		return static_cast<T*>(allocate_memory({ .size = info.size * sizeof(T), .alignment = info.alignment }));
 	}
 
 	template <is_pointer pointer_type>

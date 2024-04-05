@@ -626,13 +626,13 @@ auto CommandBuffer::pipeline_barrier(Buffer const& buffer, BufferBarrierInfo con
 
 	switch (barrier.srcQueue)
 	{
-	case DeviceQueueType::Main:
+	case DeviceQueue::Main:
 		srcQueueIndex = m_context->mainQueue.familyIndex;
 		break;
-	case DeviceQueueType::Transfer:
+	case DeviceQueue::Transfer:
 		srcQueueIndex = m_context->transferQueue.familyIndex;
 		break;
-	case DeviceQueueType::Compute:
+	case DeviceQueue::Compute:
 		srcQueueIndex = m_context->computeQueue.familyIndex;
 		break;
 	default:
@@ -641,13 +641,13 @@ auto CommandBuffer::pipeline_barrier(Buffer const& buffer, BufferBarrierInfo con
 
 	switch (barrier.dstQueue)
 	{
-	case DeviceQueueType::Main:
+	case DeviceQueue::Main:
 		dstQueueIndex = m_context->mainQueue.familyIndex;
 		break;
-	case DeviceQueueType::Transfer:
+	case DeviceQueue::Transfer:
 		dstQueueIndex = m_context->transferQueue.familyIndex;
 		break;
-	case DeviceQueueType::Compute:
+	case DeviceQueue::Compute:
 		dstQueueIndex = m_context->computeQueue.familyIndex;
 		break;
 	default:
@@ -690,13 +690,13 @@ auto CommandBuffer::pipeline_barrier(Buffer const& buffer, BufferBarrierInfo con
 //
 //	switch (barrier.srcQueue)
 //	{
-//	case DeviceQueueType::Main:
+//	case DeviceQueue::Main:
 //		srcQueueIndex = m_context->mainQueue.familyIndex;
 //		break;
-//	case DeviceQueueType::Transfer:
+//	case DeviceQueue::Transfer:
 //		srcQueueIndex = m_context->transferQueue.familyIndex;
 //		break;
-//	case DeviceQueueType::Compute:
+//	case DeviceQueue::Compute:
 //		srcQueueIndex = m_context->computeQueue.familyIndex;
 //		break;
 //	default:
@@ -705,13 +705,13 @@ auto CommandBuffer::pipeline_barrier(Buffer const& buffer, BufferBarrierInfo con
 //
 //	switch (barrier.dstQueue)
 //	{
-//	case DeviceQueueType::Main:
+//	case DeviceQueue::Main:
 //		dstQueueIndex = m_context->mainQueue.familyIndex;
 //		break;
-//	case DeviceQueueType::Transfer:
+//	case DeviceQueue::Transfer:
 //		dstQueueIndex = m_context->transferQueue.familyIndex;
 //		break;
-//	case DeviceQueueType::Compute:
+//	case DeviceQueue::Compute:
 //		dstQueueIndex = m_context->computeQueue.familyIndex;
 //		break;
 //	default:
@@ -738,7 +738,7 @@ auto CommandBuffer::pipeline_barrier(Buffer const& buffer, BufferBarrierInfo con
 //	{
 //		alias.m_owning_queue = barrier.dstQueue;
 //	}
-//	else if (alias.m_owning_queue == rhi::DeviceQueueType::None)
+//	else if (alias.m_owning_queue == rhi::DeviceQueue::None)
 //	{
 //		alias.m_owning_queue = barrier.srcQueue;
 //	}
@@ -766,13 +766,13 @@ auto CommandBuffer::pipeline_barrier(Image const& image, ImageBarrierInfo const&
 
 	switch (barrier.srcQueue)
 	{
-	case DeviceQueueType::Main:
+	case DeviceQueue::Main:
 		srcQueueIndex = m_context->mainQueue.familyIndex;
 		break;
-	case DeviceQueueType::Transfer:
+	case DeviceQueue::Transfer:
 		srcQueueIndex = m_context->transferQueue.familyIndex;
 		break;
-	case DeviceQueueType::Compute:
+	case DeviceQueue::Compute:
 		srcQueueIndex = m_context->computeQueue.familyIndex;
 		break;
 	default:
@@ -781,13 +781,13 @@ auto CommandBuffer::pipeline_barrier(Image const& image, ImageBarrierInfo const&
 
 	switch (barrier.dstQueue)
 	{
-	case DeviceQueueType::Main:
+	case DeviceQueue::Main:
 		dstQueueIndex = m_context->mainQueue.familyIndex;
 		break;
-	case DeviceQueueType::Transfer:
+	case DeviceQueue::Transfer:
 		dstQueueIndex = m_context->transferQueue.familyIndex;
 		break;
-	case DeviceQueueType::Compute:
+	case DeviceQueue::Compute:
 		dstQueueIndex = m_context->computeQueue.familyIndex;
 		break;
 	default:

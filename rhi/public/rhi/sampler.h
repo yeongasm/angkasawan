@@ -19,6 +19,8 @@ public:
 	RHI_API auto info_packed() const -> uint64;
 private:
 	friend struct APIContext;
+	friend struct ResourceDeleter<Sampler>;
+
 	SamplerInfo m_info;
 	uint64 m_packed_info;
 

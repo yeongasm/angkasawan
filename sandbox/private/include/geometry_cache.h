@@ -109,8 +109,8 @@ struct StageGeometryInfo
 	rhi::Buffer& ib;
 	size_t verticesWriteOffset;
 	size_t indicesWriteOffset;
-	rhi::DeviceQueueType verticesDstQueue = rhi::DeviceQueueType::Main;
-	rhi::DeviceQueueType indicesDstQueue = rhi::DeviceQueueType::Main;
+	rhi::DeviceQueue verticesDstQueue = rhi::DeviceQueue::Main;
+	rhi::DeviceQueue indicesDstQueue = rhi::DeviceQueue::Main;
 };
 
 struct RootGeometryInfo

@@ -35,4 +35,14 @@ auto Image::info() const -> ImageInfo const&
 {
 	return m_info;
 }
+
+template <>
+struct ResourceDeleter<Image>
+{
+	auto operator()(Image& image) const -> void
+	{
+		APIContext* api = image.m_context;
+		api->destroy_image(image);
+	}
+};
 }

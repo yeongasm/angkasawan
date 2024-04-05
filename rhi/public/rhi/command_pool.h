@@ -10,7 +10,7 @@ namespace rhi
 {
 struct SubmitInfo
 {
-	DeviceQueueType queue;
+	DeviceQueue queue;
 	std::span<CommandBuffer> commandBuffers;
 	std::span<Semaphore const> waitSemaphores;
 	std::span<Semaphore const> signalSemaphores;

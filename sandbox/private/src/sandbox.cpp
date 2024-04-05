@@ -23,7 +23,7 @@ SandboxApp::~SandboxApp() {}
 bool SandboxApp::initialize()
 {
 	core::Engine& engine = core::engine();
-	
+
 	// TODO(afiq):
 	// This is ugly, change it.
 	core::io::update_configuration(core::IOConfiguration::Key_Double_Tap_Time, 0.25f);

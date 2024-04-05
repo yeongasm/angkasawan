@@ -89,17 +89,17 @@ SubmissionQueue::SubmissionQueue(rhi::Device& device) :
 	m_transferQueueSubmissions{}
 {
 	m_mainQueueSubmissions = lib::make_unique<Queue>();
-	m_mainQueueSubmissions->type = rhi::DeviceQueueType::Main;
+	m_mainQueueSubmissions->type = rhi::DeviceQueue::Main;
 	setup_queue(*m_mainQueueSubmissions);
 
 	m_transferQueueSubmissions = lib::make_unique<Queue>();
-	m_transferQueueSubmissions->type = rhi::DeviceQueueType::Transfer;
+	m_transferQueueSubmissions->type = rhi::DeviceQueue::Transfer;
 	setup_queue(*m_transferQueueSubmissions);
 }
 
-auto SubmissionQueue::new_submission_group(rhi::DeviceQueueType queueType) -> SubmissionGroup
+auto SubmissionQueue::new_submission_group(rhi::DeviceQueue deviceQueue) -> SubmissionGroup
 {
-	Queue& queue = get_queue(queueType);
+	Queue& queue = get_queue(deviceQueue);
 	/**
 	* NOTE(afiq):
 	* Doing this will require us to sync resources between queues which ideally should be done as minimally as possible.
@@ -108,12 +108,12 @@ auto SubmissionQueue::new_submission_group(rhi::DeviceQueueType queueType) -> Su
 	*/
 	if (queue.numSubmissionGroups >= Queue::NUM_COMMAND_BUFFER_SUBMISSION_PER_GROUP)
 	{
-		if (queue.type == rhi::DeviceQueueType::Main)
+		if (queue.type == rhi::DeviceQueue::Main)
 		{
 			send_to_gpu(*m_mainQueueSubmissions);
 			clear(*m_mainQueueSubmissions);
 		}
-		else if (queue.type == rhi::DeviceQueueType::Transfer)
+		else if (queue.type == rhi::DeviceQueue::Transfer)
 		{
 			send_to_gpu(*m_transferQueueSubmissions);
 			clear(*m_transferQueueSubmissions);
@@ -161,15 +161,15 @@ auto SubmissionQueue::device() -> rhi::Device&
 	return m_device;
 }
 
-auto SubmissionQueue::get_queue(rhi::DeviceQueueType type) -> Queue&
+auto SubmissionQueue::get_queue(rhi::DeviceQueue type) -> Queue&
 {
 	Queue* pQueue = m_mainQueueSubmissions.get();
 
-	if (type == rhi::DeviceQueueType::Transfer)
+	if (type == rhi::DeviceQueue::Transfer)
 	{
 		pQueue = m_transferQueueSubmissions.get();
 	}
-	else if (type == rhi::DeviceQueueType::Compute)
+	else if (type == rhi::DeviceQueue::Compute)
 	{
 		// TODO(afiq): ...
 	}

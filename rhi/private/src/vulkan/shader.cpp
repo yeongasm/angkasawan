@@ -44,4 +44,13 @@ auto Shader::attributes() const -> std::span<ShaderAttribute const>
 	return std::span{ m_attributes.data(), m_attributes.size() };
 }
 
+template <>
+struct ResourceDeleter<Shader>
+{
+	auto operator()(Shader& shader) const -> void
+	{
+		APIContext* api = shader.m_context;
+		api->destroy_shader(shader);
+	}
+};
 }

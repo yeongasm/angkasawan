@@ -1,4 +1,4 @@
-include(${CMAKE_SOURCE_DIR}/CPM.cmake)
+include(${CMAKE_SOURCE_DIR}/cmake/CPM.cmake)
 
 CPMAddPackage(
 	NAME googletest

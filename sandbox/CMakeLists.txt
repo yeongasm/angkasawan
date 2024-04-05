@@ -1,5 +1,5 @@
-include(${CMAKE_SOURCE_DIR}/Util.cmake)
-include(${CMAKE_SOURCE_DIR}/CPM.cmake)
+include(${CMAKE_SOURCE_DIR}/cmake/Util.cmake)
+include(${CMAKE_SOURCE_DIR}/cmake/CPM.cmake)
 
 set(
 	sandbox_header_files
@@ -34,19 +34,37 @@ set(
 	"private/src/demo/triangle_demo_app.cpp"
 )
 
+set(
+	module_interface_units
+	#"private/include/work_graph.ixx"
+)
+
+set(
+	module_impl_units
+	#"private/src/work_graph.cxx"
+)
+
 CPMAddPackage(
 	NAME glm
 	GIT_TAG 0.9.9.8
 	GIT_REPOSITORY https://github.com/g-truc/glm
 )
 
-add_library(Sandbox SHARED ${sandbox_header_files} ${sandbox_source_files})
+add_library(Sandbox SHARED ${sandbox_header_files} ${sandbox_source_files} ${module_impl_units})
 target_compile_features(Sandbox PUBLIC cxx_std_20)
 target_compile_definitions(Sandbox PRIVATE "SANDBOX_EXPORT")
 
+target_sources(
+	Sandbox
+	PUBLIC
+		FILE_SET CXX_MODULES FILES
+		${module_interface_units}
+)
+
 if (MSVC)
-	string(REPLACE "/GR" "/GR-" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
-	string(REPLACE "/EHsc" "/EHs-c-" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
+	string(REPLACE "/GR" "/GR-" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+	string(REPLACE "/EHsc" "/EHs-c-" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+	target_compile_options(Sandbox PRIVATE /permissive-)
 else()
 	set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} -fno-rtti -fno-exceptions)
 endif()
@@ -57,23 +75,23 @@ target_include_directories(
 	PRIVATE "public/sandbox"
 	PRIVATE "private/include"
 )
-target_link_libraries(Sandbox PRIVATE Core Math cgltf glm stb ktx)
+target_link_libraries(Sandbox PRIVATE Core cgltf glm ktx)
 target_link_libraries(Sandbox PUBLIC RHI)
 target_compile_definitions(Sandbox PUBLIC GLM_FORCE_DEPTH_ZERO_TO_ONE)
 
-add_custom_command(
-    TARGET 
-		Sandbox POST_BUILD
-    COMMAND 
-		${CMAKE_COMMAND} -E copy
-        $<TARGET_FILE:Sandbox>
-        ${EXECUTABLE_DIR}
-	COMMAND_EXPAND_LISTS
-)
+# add_custom_command(
+#     TARGET 
+# 		Sandbox POST_BUILD
+#     COMMAND 
+# 		${CMAKE_COMMAND} -E copy
+#         $<TARGET_FILE:Sandbox>
+#         ${EXECUTABLE_DIR}
+# 	COMMAND_EXPAND_LISTS
+# )
 
 add_custom_target(
 	Data
-	${CMAKE_COMMAND} -E create_symlink ${CMAKE_SOURCE_DIR}/data ${EXECUTABLE_DIR}data
+	${CMAKE_COMMAND} -E create_symlink ${CMAKE_SOURCE_DIR}/data ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${CMAKE_BUILD_TYPE}/data
 )
 
 #target_compile_definitions(Sandbox PRIVATE $<$<CONFIG:Debug>:"DATA_DIR=${CMAKE_SOURCE_DIR}/data">)
@@ -89,5 +107,5 @@ add_custom_target(
 #		${CMAKE_SOURCE_DIR}/data
 #)
 
-assign_source_group(${source_list})
+assign_source_group(${sandbox_header_files} ${sandbox_source_files} ${module_interface_units} ${module_impl_units})
 warnings_as_errors(Sandbox)

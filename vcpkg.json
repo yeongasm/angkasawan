@@ -1,6 +1,5 @@
 {
   "dependencies": [
-    "cgltf",
-    "stb"
+    "cgltf"
   ]
 }

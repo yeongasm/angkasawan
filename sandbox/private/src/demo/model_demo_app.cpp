@@ -1,4 +1,5 @@
 #include <fstream>
+
 #include "demo/model_demo_app.h"
 #include "model_importer.h"
 #include "image_importer.h"
@@ -15,8 +16,8 @@ ModelDemoApp::ModelDemoApp(
 	DemoApplication{ rootWindowHandle, shaderCompiler, device, rootWindowSwapchain, frameIndex },
 	m_resource_cache{ m_device },
 	m_submission_queue{ m_device },
-	m_transfer_command_queue{ m_submission_queue, rhi::DeviceQueueType::Transfer },
-	m_main_command_queue{ m_submission_queue, rhi::DeviceQueueType::Main },
+	m_transfer_command_queue{ m_submission_queue, rhi::DeviceQueue::Transfer },
+	m_main_command_queue{ m_submission_queue, rhi::DeviceQueue::Main },
 	m_upload_heap{ m_transfer_command_queue, m_resource_cache },
 	m_geometry_cache{ m_upload_heap },
 	m_depth_buffer{},
@@ -46,6 +47,20 @@ ModelDemoApp::~ModelDemoApp() {}
 
 auto ModelDemoApp::initialize() -> bool
 {
+	//core::filewatcher::FileWatchCallbackFn callback = [](auto info) -> void
+	//{
+	//	constexpr std::wstring_view actionString[] = {
+	//		L"None",
+	//		L"Added",
+	//		L"Modified",
+	//		L"Deleted"
+	//	};
+	//	auto index = static_cast<std::underlying_type_t<core::filewatcher::FileAction>>(info.action);
+	//	std::wcout << L"File change notification received for -> " << info.path.c_str() << L", action: " << actionString[index].data() << L"\n";
+	//};
+
+	//auto fwatchId = core::filewatcher::watch({ .path = "data/*", .callback = std::move(callback) });
+
 	m_upload_heap.initialize();
 
 	auto&& swapchain_info = m_swapchain.info();
@@ -136,7 +151,7 @@ auto ModelDemoApp::initialize() -> bool
 			.enableDepthWrite = true
 		},
 		.pushConstantSize = sizeof(PushConstant)
-		},
+	},
 	{
 		.vertexShader = &m_vertex_shader,
 		.pixelShader = &m_pixel_shader,
@@ -399,38 +414,11 @@ auto ModelDemoApp::initialize() -> bool
 
 	{
 		//Geometry const* zeldaGeometry = &m_geometry_cache.get_geometry(m_zelda_geometry_handle);
-
+		// 
 		// Acquire resources ...
 		auto cmd = m_main_command_queue.next_free_command_buffer(std::this_thread::get_id());
 
 		cmd->begin();
-
-		//while (zeldaGeometry)
-		//{
-		//	cmd->pipeline_barrier(
-		//		*m_zelda_vertex_buffer,
-		//		{
-		//			.size = zeldaGeometry->vertices.size,
-		//			.offset = zeldaGeometry->vertices.offset * zeldaGeometryInfo.stride,
-		//			.dstAccess = rhi::access::TRANSFER_WRITE,
-		//			.srcQueue = rhi::DeviceQueueType::Transfer,
-		//			.dstQueue = rhi::DeviceQueueType::Main
-		//		}
-		//	);
-
-		//	cmd->pipeline_barrier(
-		//		*m_zelda_index_buffer,
-		//		{
-		//			.size = zeldaGeometry->indices.size,
-		//			.offset = zeldaGeometry->indices.offset * sizeof(uint32),
-		//			.dstAccess = rhi::access::TRANSFER_WRITE,
-		//			.srcQueue = rhi::DeviceQueueType::Transfer,
-		//			.dstQueue = rhi::DeviceQueueType::Main
-		//		}
-		//	);
-
-		//	zeldaGeometry = zeldaGeometry->next;
-		//}
 
 		Geometry const* sponzaGeometry = &m_geometry_cache.get_geometry(m_sponza_geometry_handle);
 
@@ -442,8 +430,8 @@ auto ModelDemoApp::initialize() -> bool
 					.size = sponzaGeometry->vertices.size,
 					.offset = sponzaGeometry->vertices.offset * sponzaGeometryInfo.stride,
 					.dstAccess = rhi::access::TRANSFER_WRITE,
-					.srcQueue = rhi::DeviceQueueType::Transfer,
-					.dstQueue = rhi::DeviceQueueType::Main
+					.srcQueue = rhi::DeviceQueue::Transfer,
+					.dstQueue = rhi::DeviceQueue::Main
 				}
 			);
 
@@ -453,25 +441,13 @@ auto ModelDemoApp::initialize() -> bool
 					.size = sponzaGeometry->indices.size,
 					.offset = sponzaGeometry->indices.offset * sizeof(uint32),
 					.dstAccess = rhi::access::TRANSFER_WRITE,
-					.srcQueue = rhi::DeviceQueueType::Transfer,
-					.dstQueue = rhi::DeviceQueueType::Main
+					.srcQueue = rhi::DeviceQueue::Transfer,
+					.dstQueue = rhi::DeviceQueue::Main
 				}
 			);
 
 			sponzaGeometry = sponzaGeometry->next;
 		}
-
-		//for (size_t i = 0; i < std::size(m_zelda_transforms); ++i)
-		//{
-		//	cmd->pipeline_barrier(
-		//		*m_zelda_transforms[i],
-		//		{
-		//			.dstAccess = rhi::access::TRANSFER_WRITE,
-		//			.srcQueue = rhi::DeviceQueueType::Transfer,
-		//			.dstQueue = rhi::DeviceQueueType::Main
-		//		}
-		//	);
-		//}
 
 		cmd->pipeline_barrier({
 			.srcAccess = rhi::access::TRANSFER_WRITE,
@@ -487,8 +463,8 @@ auto ModelDemoApp::initialize() -> bool
 					.dstAccess = rhi::access::TRANSFER_WRITE,
 					.oldLayout = rhi::ImageLayout::Transfer_Dst,
 					.newLayout = rhi::ImageLayout::Shader_Read_Only,
-					.srcQueue = rhi::DeviceQueueType::Transfer,
-					.dstQueue = rhi::DeviceQueueType::Main
+					.srcQueue = rhi::DeviceQueue::Transfer,
+					.dstQueue = rhi::DeviceQueue::Main
 				}
 			);
 		}
@@ -544,8 +520,8 @@ auto ModelDemoApp::run() -> void
 		*projViewBuffer,
 		{
 			.dstAccess = rhi::access::TRANSFER_WRITE,
-			.srcQueue = rhi::DeviceQueueType::Transfer,
-			.dstQueue = rhi::DeviceQueueType::Main
+			.srcQueue = rhi::DeviceQueue::Transfer,
+			.dstQueue = rhi::DeviceQueue::Main
 		}
 	);
 
@@ -689,8 +665,8 @@ auto ModelDemoApp::run() -> void
 		*projViewBuffer,
 		{
 			.srcAccess = rhi::access::TRANSFER_WRITE,
-			.srcQueue = rhi::DeviceQueueType::Main,
-			.dstQueue = rhi::DeviceQueueType::Transfer
+			.srcQueue = rhi::DeviceQueue::Main,
+			.dstQueue = rhi::DeviceQueue::Transfer
 		}
 	);
 
@@ -788,11 +764,11 @@ auto ModelDemoApp::update_camera_state(float32 dt) -> void
 {
 	static bool firstRun[2] = { true, true };
 
-	rhi::DeviceQueueType srcQueue = rhi::DeviceQueueType::Main;
+	rhi::DeviceQueue srcQueue = rhi::DeviceQueue::Main;
 
 	if (firstRun[m_frame_index])
 	{
-		srcQueue = rhi::DeviceQueueType::None;
+		srcQueue = rhi::DeviceQueue::None;
 		firstRun[m_frame_index] = false;
 	}
 
@@ -821,7 +797,7 @@ auto ModelDemoApp::update_camera_state(float32 dt) -> void
 		.data = &update,
 		.size = sizeof(CameraProjView),
 		.srcQueue = srcQueue
-		});
+	});
 }
 
 auto ModelDemoApp::update_camera_on_mouse_events(float32 dt) -> void
@@ -929,7 +905,7 @@ auto ModelDemoApp::update_camera_on_mouse_events(float32 dt) -> void
 	switch (m_camera_state.mode)
 	{
 	case CameraMouseMode::Pan_And_Tilt:
-		m_camera.rotate(glm::vec3{ delta.x, -delta.y, 0.f, }, dt);
+		m_camera.rotate(glm::vec3{ -delta.x, -delta.y, 0.f, }, dt);
 		m_camera_state.dirty = true;
 		break;
 	case CameraMouseMode::Pan_And_Dolly:
@@ -937,7 +913,7 @@ auto ModelDemoApp::update_camera_on_mouse_events(float32 dt) -> void
 		if (delta.y > Camera::DELTA_EPSILON.min.y) { m_camera.translate(-m_camera.get_forward_vector(), dt); }
 		// Mouse moves upwards.
 		if (delta.y < -Camera::DELTA_EPSILON.min.y) { m_camera.translate(m_camera.get_forward_vector(), dt); }
-		m_camera.rotate(glm::vec3{ delta.x, 0.f, 0.f }, dt);
+		m_camera.rotate(glm::vec3{ -delta.x, 0.f, 0.f }, dt);
 		m_camera_state.dirty = true;
 		break;
 	default:

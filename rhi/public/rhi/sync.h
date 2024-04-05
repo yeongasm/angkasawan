@@ -18,6 +18,7 @@ public:
 	RHI_API auto info() const->SemaphoreInfo const&;
 private:
 	friend struct APIContext;
+	friend struct ResourceDeleter<Semaphore>;
 	friend class Swapchain;
 
 	SemaphoreInfo m_info;
@@ -46,6 +47,7 @@ public:
 	RHI_API auto wait_for_value(uint64 val, uint64 timeout = UINT64_MAX) const -> bool;
 private:
 	friend struct APIContext;
+	friend struct ResourceDeleter<Fence>;
 	friend class Swapchain;
 
 	FenceInfo m_info;

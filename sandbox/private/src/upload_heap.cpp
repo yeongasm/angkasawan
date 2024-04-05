@@ -289,8 +289,8 @@ auto UploadHeap::acquire_image_resources(rhi::CommandBuffer& cmd, std::span<Imag
 	{
 		rhi::Image const& image = *info.dst;
 
-		if (info.owningQueue != rhi::DeviceQueueType::Transfer &&
-			info.owningQueue != rhi::DeviceQueueType::None)
+		if (info.owningQueue != rhi::DeviceQueue::Transfer &&
+			info.owningQueue != rhi::DeviceQueue::None)
 		{
 			cmd.pipeline_barrier(
 				image,
@@ -299,7 +299,7 @@ auto UploadHeap::acquire_image_resources(rhi::CommandBuffer& cmd, std::span<Imag
 					.newLayout = rhi::ImageLayout::Transfer_Dst,
 					.subresource = info.copyInfo.imageSubresource,
 					.srcQueue = info.owningQueue,
-					.dstQueue = rhi::DeviceQueueType::Transfer
+					.dstQueue = rhi::DeviceQueue::Transfer
 				}
 			);
 		}
@@ -312,8 +312,8 @@ auto UploadHeap::acquire_image_resources(rhi::CommandBuffer& cmd, std::span<Imag
 					.oldLayout = rhi::ImageLayout::Undefined,
 					.newLayout = rhi::ImageLayout::Transfer_Dst,
 					.subresource = info.copyInfo.imageSubresource,
-					.srcQueue = rhi::DeviceQueueType::None,
-					.dstQueue = rhi::DeviceQueueType::None
+					.srcQueue = rhi::DeviceQueue::None,
+					.dstQueue = rhi::DeviceQueue::None
 				}
 			);
 		}
@@ -326,8 +326,8 @@ auto UploadHeap::acquire_buffer_resources(rhi::CommandBuffer& cmd, std::span<Buf
 	{
 		rhi::Buffer const& buffer = *info.dst;
 
-		if (info.owningQueue != rhi::DeviceQueueType::Transfer &&
-			info.owningQueue != rhi::DeviceQueueType::None)
+		if (info.owningQueue != rhi::DeviceQueue::Transfer &&
+			info.owningQueue != rhi::DeviceQueue::None)
 		{
 			cmd.pipeline_barrier(
 				buffer,
@@ -336,7 +336,7 @@ auto UploadHeap::acquire_buffer_resources(rhi::CommandBuffer& cmd, std::span<Buf
 					.offset = info.copyInfo.dstOffset,
 					.dstAccess = rhi::access::TOP_OF_PIPE_NONE,
 					.srcQueue = info.owningQueue,
-					.dstQueue = rhi::DeviceQueueType::Transfer
+					.dstQueue = rhi::DeviceQueue::Transfer
 				}
 			);
 		}
@@ -354,7 +354,7 @@ auto UploadHeap::release_image_resources(rhi::CommandBuffer& cmd, std::span<Imag
 				.oldLayout = rhi::ImageLayout::Transfer_Dst,
 				.newLayout = rhi::ImageLayout::Transfer_Dst,
 				.subresource = info.copyInfo.imageSubresource,
-				.srcQueue = rhi::DeviceQueueType::Transfer,
+				.srcQueue = rhi::DeviceQueue::Transfer,
 				.dstQueue = info.dstQueue
 			}
 		);
@@ -371,7 +371,7 @@ auto UploadHeap::release_buffer_resources(rhi::CommandBuffer& cmd, std::span<Buf
 				.size = info.copyInfo.size,
 				.offset = info.copyInfo.dstOffset,
 				.srcAccess = rhi::access::TRANSFER_WRITE,
-				.srcQueue = rhi::DeviceQueueType::Transfer,
+				.srcQueue = rhi::DeviceQueue::Transfer,
 				.dstQueue = info.dstQueue
 			}
 		);

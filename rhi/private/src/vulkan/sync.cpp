@@ -127,4 +127,23 @@ auto Fence::wait_for_value(uint64 val, uint64 timeout) const -> bool
 	return result != VK_TIMEOUT;
 }
 
+template <>
+struct ResourceDeleter<Semaphore>
+{
+	auto operator()(Semaphore& sem) const -> void
+	{
+		APIContext* api = sem.m_context;
+		api->destroy_binary_semaphore(sem);
+	}
+};
+
+template <>
+struct ResourceDeleter<Fence>
+{
+	auto operator()(Fence& fence) const -> void
+	{
+		APIContext* api = fence.m_context;
+		api->destroy_timeline_semaphore(fence);
+	}
+};
 }

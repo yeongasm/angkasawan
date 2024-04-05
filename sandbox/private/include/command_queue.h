@@ -10,7 +10,7 @@ namespace sandbox
 class CommandQueue
 {
 public:
-	CommandQueue(SubmissionQueue& submissionQueue, rhi::DeviceQueueType type);
+	CommandQueue(SubmissionQueue& submissionQueue, rhi::DeviceQueue type);
 	~CommandQueue() = default;
 
 	auto next_free_command_buffer(std::thread::id tid) -> lib::ref<rhi::CommandBuffer>;
@@ -29,7 +29,7 @@ private:
 		uint32 index;
 	};
 	SubmissionQueue& m_submissionQueue;
-	rhi::DeviceQueueType m_type;
+	rhi::DeviceQueue m_type;
 	lib::map<std::thread::id, rhi::CommandPool> m_commandPool;
 	lib::map<std::thread::id, CommandBufferStore> m_commandStore;
 };

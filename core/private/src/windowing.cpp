@@ -54,7 +54,7 @@ void WindowingContext::listen_to_event(OSEvent const& ev)
 
 Window* WindowingContext::window_from_handle(window_handle hnd) const
 {
-	return windows.at(hnd.access(*this));
+	return windows.at(window_index::from(hnd.access(*this)));
 }
 
 std::pair<window_handle, Window*> WindowingContext::window_from_native_handle(void* native) const
@@ -63,8 +63,8 @@ std::pair<window_handle, Window*> WindowingContext::window_from_native_handle(vo
 	lib::ref ref = windowHandleTable.at(address);
 	if (!ref.is_null())
 	{
-		window_handle handle = ref->second;
-		decltype(windows)::index idx{ handle.access(*this) };
+		window_handle const handle = ref->second;
+		window_index const idx{ window_index::from(handle.access(*this)) };
 		return std::pair{ handle , &windows[idx] };
 	}
 	return std::pair{ window_handle::invalid_handle(), nullptr };

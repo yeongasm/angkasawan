@@ -54,7 +54,7 @@ public:
 	SubmissionQueue(rhi::Device& device);
 	~SubmissionQueue() = default;
 
-	auto new_submission_group(rhi::DeviceQueueType queueType = rhi::DeviceQueueType::Main) -> SubmissionGroup;
+	auto new_submission_group(rhi::DeviceQueue deviceQueue = rhi::DeviceQueue::Main) -> SubmissionGroup;
 	auto clear() -> void;
 	auto clear_transfer_submissions() -> void;
 	auto clear_main_submissions() -> void;
@@ -81,7 +81,7 @@ private:
 		using SemaphoreBuffer		= std::array<rhi::Semaphore const*, MAX_SEMAPHORE_SUBMISSION_COUNT>;
 		using CommandBufferBuffer	= std::array<rhi::CommandBuffer*, MAX_COMMAND_BUFFER_SUBMISSION_COUNT>;
 
-		rhi::DeviceQueueType type;
+		rhi::DeviceQueue type;
 
 		FenceBuffer submittedFences;
 		SemaphoreBuffer submittedSemaphores;
@@ -95,7 +95,7 @@ private:
 	lib::unique_ptr<Queue> m_mainQueueSubmissions;
 	lib::unique_ptr<Queue> m_transferQueueSubmissions;
 
-	auto get_queue(rhi::DeviceQueueType type) -> Queue&;
+	auto get_queue(rhi::DeviceQueue type) -> Queue&;
 	auto send_to_gpu(Queue& queue) -> void;
 	auto clear(Queue& queue) -> void;
 	auto setup_queue(Queue& queue) -> void;

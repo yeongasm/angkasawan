@@ -32,6 +32,7 @@ public:
 	RHI_API auto image_format() const -> Format;
 private:
 	friend struct APIContext;
+	friend struct ResourceDeleter<Swapchain>;
 
 	static Image const NULL_SWAPCHAIN_IMAGE;
 

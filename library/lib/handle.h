@@ -8,7 +8,6 @@
 
 namespace lib
 {
-
 /**
 * A handle object.
 * 
@@ -56,7 +55,6 @@ public:
 		return super::get();
 	}
 };
-
 }
 
 #endif // !LIB_HANDLE_H

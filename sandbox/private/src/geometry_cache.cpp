@@ -61,11 +61,11 @@ auto GeometryCache::store_geometries(gltf::Importer const& importer, GeometryInp
 
 		auto mesh = opt.value();
 
-		auto&& [index, geo] = m_geometries.insert(Geometry{});
+		auto&& [idx, geo] = m_geometries.insert(Geometry{});
 
 		if (handle == root_geometry_handle::invalid_handle())
 		{
-			new (&handle) root_geometry_handle{ index.id };
+			new (&handle) root_geometry_handle{ idx.to_uint32() };
 		}
 
 		if (!tailGeometry || !rootGeometry)
@@ -161,9 +161,11 @@ auto GeometryCache::store_geometries(gltf::Importer const& importer, GeometryInp
 
 auto GeometryCache::stage_geometries_for_upload(StageGeometryInfo&& info) -> GeometryCacheUploadResult
 {
+	using geometry_index = typename decltype(m_geometries)::index;
+
 	upload_id id = upload_id{ std::numeric_limits<uint64>::max() };
 
-	Geometry* pGeometry = m_geometries.at(info.geometry.get());
+	Geometry* pGeometry = m_geometries.at(geometry_index::from(info.geometry.get()));
 	RootGeometryInfo rootGeometryInfo = geometry_info(info.geometry);
 
 	if (!pGeometry ||
@@ -231,17 +233,21 @@ auto GeometryCache::stage_geometries_for_upload(StageGeometryInfo&& info) -> Geo
 
 auto GeometryCache::get_geometry(root_geometry_handle handle) -> Geometry const&
 {
+	using index = typename decltype(m_geometries)::index;
+
 	if (handle.valid())
 	{
-		return m_geometries[handle.get()];
+		return m_geometries[index::from(handle.get())];
 	}
 	return m_null_geometry;
 }
 
 auto GeometryCache::geometry_info(root_geometry_handle handle) -> RootGeometryInfo
 {
+	using index = typename decltype(m_geometries)::index;
+
 	RootGeometryInfo info = {};
-	Geometry* geometry = m_geometries.at(handle.get());
+	Geometry* geometry = m_geometries.at(index::from(handle.get()));
 
 	if (geometry)
 	{
