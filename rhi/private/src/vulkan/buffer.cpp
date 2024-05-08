@@ -59,7 +59,7 @@ auto Buffer::size() const -> size_t
 
 auto Buffer::write(void* data, size_t size) -> BufferWriteInfo
 {
-	bool const isWithinRange = (m_offset + size) <= this-> m_info.size;
+	bool const isWithinRange = (m_offset + size) <= this->m_info.size;
 
 	BufferWriteInfo info = { 
 		.offset = m_offset, 

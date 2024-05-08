@@ -202,60 +202,6 @@ struct SwapchainInfo
 	SwapchainPresentMode presentationMode;
 };
 
-/**
-* \brief
-* Shader's information after compilation and reflection.
-*/
-//struct ShaderCompileInfo
-//{
-//	ShaderType type;
-//	lib::string name = {};
-//	lib::string path = {};
-//	lib::string	entryPoint = "main";
-//	lib::string	sourceCode = {};
-//	lib::string	defines = {};			// Use add_preprocessor() instead of manually appending.
-//	lib::map<std::string_view, std::string_view> preprocessors = {};
-//
-//	void add_preprocessor(std::string_view key, size_t definesReserveSize = 1_KiB)
-//	{
-//		if (defines.capacity() == defines.sso_size())
-//		{
-//			defines.reserve(static_cast<uint32>(definesReserveSize));
-//		}
-//		auto start = defines.end();
-//		defines.append(key);
-//		preprocessors.emplace(std::string_view{ start.data(), static_cast<size_t>(defines.end() - start) }, std::string_view{});
-//	}
-//
-//	void add_preprocessor(std::string_view key, std::string_view value, size_t definesReserveSize = 1_KiB)
-//	{
-//		if (defines.capacity() == defines.sso_size())
-//		{
-//			defines.reserve(static_cast<uint32>(definesReserveSize));
-//		}
-//		auto kstart = defines.end();
-//		defines.append(key);
-//		std::string_view k{ kstart.data(), key.size() };
-//
-//		auto vstart = defines.end();
-//		defines.append(value);
-//		std::string_view v{ vstart.data(), value.size() };
-//
-//		preprocessors.emplace(std::move(k), std::move(v));
-//	}
-//
-//	void clear_preprocessors()
-//	{
-//		preprocessors.clear();
-//		defines.clear();
-//	}
-//
-//	void remove_preprocessor(std::string_view key)
-//	{
-//		preprocessors.erase(key);
-//	}
-//};
-
 struct ShaderAttribute
 {
 	std::string_view name;
@@ -288,11 +234,6 @@ struct PipelineShaderInfo
 	Shader* vertexShader;
 	Shader* pixelShader;
 	std::span<ShaderAttribute> vertexInputAttributes = {};
-};
-
-struct AllocationInfo
-{
-
 };
 
 struct BufferInfo

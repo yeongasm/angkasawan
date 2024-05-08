@@ -163,11 +163,6 @@ struct DescriptorCache
 	// Pipeline layouts.
 	lib::map<uint32, VkPipelineLayout> pipelineLayouts;
 
-	//lib::array<uint32> bdaFreeSlots;
-	//lib::array<uint32> imageFreeSlots;
-	//lib::array<uint32> combinedImageFreeSlots;
-	//lib::array<uint32> samplerFreeSlots;
-
 	// Descriptors.
 	VkDescriptorPool descriptorPool;
 	VkDescriptorSetLayout descriptorSetLayout;
@@ -177,11 +172,6 @@ struct DescriptorCache
 	VkBuffer bdaBuffer;
 	VmaAllocation bdaAllocation;
 	VkDeviceAddress* bdaHostAddress;
-
-	//uint32 bdaBindingSlot;
-	//uint32 imageBindingSlot;
-	//uint32 combinedImageBindingSlot;
-	//uint32 samplerBindingSlot;
 };
 
 struct APIContext

@@ -1,56 +1,79 @@
-﻿{
-		"version": 3,
-		"configurePresets": [
-				{
-						"name": "defaults",
-						"hidden": true,
-						"binaryDir": "${sourceDir}/build/${presetName}",
-						"installDir": "${sourceDir}/install/${presetName}",
-						"toolchainFile": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
-						"cacheVariables": {
-								"CMAKE_CXX_STANDARD": "20",
-								"CMAKE_CXX_STANDARD_REQUIRED": true,
-								"USE_VULKAN": true,
-								"VCPKG_APPLOCAL_DEPS": "OFF",
-								"CMAKE_ARCHIVE_OUTPUT_DIRECTORY": "${sourceDir}/build/${presetName}/build",
-								"CMAKE_LIBRARY_OUTPUT_DIRECTORY": "${sourceDir}/build/${presetName}/build",
-								"CMAKE_RUNTIME_OUTPUT_DIRECTORY": "${sourceDir}/build/${presetName}/bin"
-						}
-				},
-				{
-						"name": "windows-msvc-base",
-						"hidden": true,
-						"generator": "Ninja",
-						"inherits": "defaults",
-						"condition": {
-								"type": "equals",
-								"lhs": "${hostSystemName}",
-								"rhs": "Windows"
-						},
-						"cacheVariables": {
-								"CMAKE_SYSTEM_PROCESSOR": "x64",
-								"CMAKE_TOOLCHAIN_FILE": "cmake/Windows.MSVC.toolchain.cmake"
-					}
-				},
-				{
-						"name": "windows-msvc-x64-debug",
-						"displayName": "debug",
-						"inherits": "windows-msvc-base",
-						"architecture": {
-								"value": "x64",
-								"strategy": "external"
-						},
-						"cacheVariables": {
-								"CMAKE_BUILD_TYPE": "Debug"
-						}
-				},
-				{
-						"name": "windows-msvc-x64-release",
-						"displayName": "release",
-						"inherits": "windows-msvc-x64-debug",
-						"cacheVariables": {
-								"CMAKE_BUILD_TYPE": "Release"
-						}
-				}
-		]
+{
+    "version": 3,
+    "configurePresets": [
+        {
+            "name": "defaults",
+            "hidden": true,
+            "binaryDir": "${sourceDir}/build/${presetName}",
+            "installDir": "${sourceDir}/install/${presetName}",
+            "toolchainFile": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+            "cacheVariables": {
+                "CMAKE_CXX_STANDARD": "20",
+                "CMAKE_CXX_STANDARD_REQUIRED": true,
+                "USE_VULKAN": true,
+                "VCPKG_APPLOCAL_DEPS": "OFF",
+                "CMAKE_ARCHIVE_OUTPUT_DIRECTORY": "${sourceDir}/build/${presetName}/build",
+                "CMAKE_LIBRARY_OUTPUT_DIRECTORY": "${sourceDir}/build/${presetName}/build",
+                "CMAKE_RUNTIME_OUTPUT_DIRECTORY": "${sourceDir}/build/${presetName}/bin"
+            }
+        },
+        {
+            "name": "windows-msvc-base",
+            "hidden": true,
+            "inherits": "defaults",
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Windows"
+            },
+            "cacheVariables": {
+                "CMAKE_SYSTEM_PROCESSOR": "x64"
+            }
+        },
+        {
+            "name": "ninja-generator",
+            "hidden": true,
+            "generator": "Ninja",
+            "cacheVariables": {
+                "VCPKG_CHAINLOAD_TOOLCHAIN_FILE": "${sourceDir}/cmake/Windows.MSVC.toolchain.cmake"
+            }
+        },
+        {
+            "name": "visual-studio-generator",
+            "hidden": true,
+            "generator": "Visual Studio 17 2022"
+        },
+        {
+            "name": "windows-msvc-x64-ninja",
+            "displayName": "windows-msvc-x64-ninja",
+            "inherits": ["windows-msvc-base", "ninja-generator"],
+            "architecture": {
+                "value": "x64",
+                "strategy": "external"
+            }
+        },
+        {
+            "name": "windows-msvc-x64-vs",
+            "displayName": "windows-msvc-x64-vs",
+            "inherits": ["windows-msvc-base", "visual-studio-generator"],
+            "architecture": {
+                "value": "x64",
+                "strategy": "external"
+            }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "windows-msvc-x64-debug",
+            "displayName": "MSVC x64 Debug",
+            "configurePreset": "windows-msvc-x64-vs",
+            "configuration": "Debug"
+        },
+        {
+            "name": "windows-msvc-x64-release",
+            "displayName": "MSVC x64 Release",
+            "configurePreset": "windows-msvc-x64-vs",
+            "configuration": "Release"
+        }
+    ]
 }

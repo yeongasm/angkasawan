@@ -17,45 +17,46 @@ public:
 
 	struct page_buffer
 	{
-		std::array<element_type, PAGE_SIZE> buffer;
-		size_t tail; // This marks the current end index of the buffer above.
+		using data_buffer	 = std::array<element_type, PAGE_SIZE>;
+		using version_buffer = std::array<std::atomic_uint32_t, PAGE_SIZE>;
+
+		data_buffer		buffer;
+		version_buffer	version;
+		size_t			tail; // This marks the current end index of the buffer above.
 	};
 
 	using element_page = unique_ptr<page_buffer>;
 
+	/**
+	 * index can no longer be 4 bytes. The slot version count needs to be included with the index.
+	 */
 	struct index
 	{
 		uint16 page;
 		uint16 offset;
+		uint32 version;
 
-		explicit operator uint32() const
+		explicit operator uint64() const
 		{
-			return std::bit_cast<uint32>(*this);
+			return std::bit_cast<uint64>(*this);
 		}
 
-		auto to_uint32() const -> uint32
+		[[nodiscard]] auto to_uint64() const -> uint64
 		{
-			return static_cast<uint32>(*this);
+			return std::bit_cast<uint64>(*this);
 		}
 
-		static auto from(uint32 value) -> index
+		[[nodiscard]] static auto from(uint64 value) -> index
 		{
 			return std::bit_cast<index>(value);
 		}
-
-		//auto flatten() const -> size_t
-		//{
-		//	size_t const stride = static_cast<size_t>(page) * static_cast<size_t>(PAGE_SIZE);
-		//	size_t const offset = static_cast<size_t>(offset);
-		//	return stride + offset;
-		//}
 	};
 
 	paged_array() = default;
 
 	~paged_array() { release(); }
 
-	std::span<element_type> get_page(uint16 p)
+	/*std::span<element_type> get_page(uint16 p)
 	{
 		constexpr size_t pg = static_cast<size_t>(p);
 		ASSERTION(pg < m_pages.size() && "Page in index exceeded page count of the container.");
@@ -65,9 +66,9 @@ public:
 		}
 		ref page = m_pages[pg];
 		return std::span{ page->buffer.data(), page->buffer.size() };
-	}
+	}*/
 
-	constexpr element_type& operator[](index idx) const
+	constexpr auto operator[](index idx) const -> element_type&
 	{
 		size_t const page = static_cast<size_t>(idx.page);
 		size_t const offset = static_cast<size_t>(idx.offset);
@@ -75,16 +76,21 @@ public:
 		ASSERTION(page < m_pages.size() && "Page in index exceeded page count of the container.");
 		ASSERTION(offset < m_pages[page]->buffer.size() && "Offset in index exceeded buffer capacity of the page.");
 
+		uint32 const ver = m_pages[page]->version[offset].load(std::memory_order_relaxed);
+
+		ASSERTION(idx.version == ver && "Version do not match! Data retrieved is faulty.");
+
 		return m_pages[page]->buffer[offset];
 	}
 
-	constexpr element_type* at(index idx) const
+	constexpr auto at(index idx) const -> element_type*
 	{
 		size_t const page = static_cast<size_t>(idx.page);
 		size_t const offset = static_cast<size_t>(idx.offset);
 
 		if (page < m_pages.size() &&
-			offset < m_pages[page]->buffer.size())
+			offset < m_pages[page]->buffer.size() &&
+			idx.version == m_pages[page]->version[offset].load(std::memory_order_relaxed))
 		{
 			return &m_pages[page]->buffer[offset];
 		}
@@ -109,6 +115,11 @@ public:
 		return emplace(std::move(ele));
 	}
 
+	std::pair<index, element_type&> request()
+	{
+		return get_slot();
+	}
+
 	void erase(index idx)
 	{
 		size_t const page = static_cast<size_t>(idx.page);
@@ -120,11 +131,18 @@ public:
 			auto& buffer = m_pages[page]->buffer;
 
 			ASSERTION(offset < buffer.size() && "Offset in index exceeded buffer capacity of the page.");
+
 			if (offset < buffer.size())
 			{
-				buffer[offset].~element_type();
-				//memzero(&buffer[offset], sizeof(element_type));
-				m_indices.push_back(idx);
+				std::atomic_uint32_t& versionCounter = m_pages[page]->version[offset];
+
+				if (idx.version == versionCounter.load(std::memory_order_relaxed))
+				{
+					buffer[offset].~element_type();
+					m_indices.push_back(idx);
+
+					versionCounter.fetch_add(1, std::memory_order_relaxed);
+				}
 			}
 		}
 	}
@@ -134,26 +152,28 @@ public:
 		return m_current;
 	}
 
-	index index_of(element_type const* ele) const
-	{
-		size_t const num_pages = m_current + 1;
-		for (size_t i = 0; i < num_pages; ++i)
-		{
-			page_buffer const& currentPage = *m_pages[i].get();
-			if (ele >= currentPage.buffer.data() && 
-				ele < currentPage.buffer.data() + currentPage.buffer.size())
-			{
-				size_t offset = ele - currentPage.buffer.data();
-				return index{ .page = static_cast<uint16>(i), .offset = static_cast<uint16>(offset) };
-			}
-		}
-		return index::from(std::numeric_limits<uint32>::max());
-	}
+	//index index_of(element_type const* ele) const
+	//{
+	//	size_t const num_pages = m_current + 1;
+	//	for (size_t i = 0; i < num_pages; ++i)
+	//	{
+	//		page_buffer const& currentPage = *m_pages[i].get();
+	//		if (ele >= currentPage.buffer.data() && 
+	//			ele < currentPage.buffer.data() + currentPage.buffer.size())
+	//		{
+	//			size_t offset = ele - currentPage.buffer.data();
+	//			uint32 const ver = currentPage.version[offset].load(std::memory_order_relaxed);
 
-	index index_of(element_type const& ele) const
-	{
-		return index_of(&ele);
-	}
+	//			return index{ .page = static_cast<uint16>(i), .offset = static_cast<uint16>(offset), .version = ver };
+	//		}
+	//	}
+	//	return index::from(std::numeric_limits<uint32>::max());
+	//}
+
+	//index index_of(element_type const& ele) const
+	//{
+	//	return index_of(&ele);
+	//}
 
 	/**
 	* Clears the content of a page that conincides with the supplied index.
@@ -172,6 +192,11 @@ public:
 					break;
 				}
 				ele.~element_type();
+
+				uint32 const val = page->version[i].load(std::memory_order_relaxed);
+				page->version[i].compare_exchange_strong(val, 0, std::memory_order_relaxed);
+
+				++i;
 			}
 
 			page->tail = 0;
@@ -220,17 +245,17 @@ public:
 	}
 
 private:
-	array<element_page, allocator, growth_policy> m_pages;
-	array<index, allocator, growth_policy> m_indices;
-	size_t m_current = 0;
+	array<element_page, allocator, growth_policy> m_pages	= {};
+	array<index, allocator, growth_policy> m_indices		= {};
+	size_t m_current										= {};
 
 	std::pair<index, element_type&> get_slot()
 	{
 		if (m_current == m_pages.capacity() ||
 			m_pages[m_current]->tail == m_pages[m_current]->buffer.size())
 		{
-			auto it = m_pages.emplace(m_pages.end(), make_unique<page_buffer>());
-			m_current = std::distance(m_pages.begin(), it);
+			auto it		= m_pages.emplace(m_pages.end(), make_unique<page_buffer>());
+			m_current	= std::distance(m_pages.begin(), it);
 		}
 
 		element_type* element = nullptr;
@@ -239,18 +264,26 @@ private:
 		if (m_indices.size())
 		{
 			idx = m_indices.back();
+
+			size_t const page	= static_cast<size_t>(idx.page);
+			size_t const offset = static_cast<size_t>(idx.offset);
+
 			m_indices.pop();
-			element = &m_pages[(size_t)idx.page]->buffer[(size_t)idx.offset];
+
+			element		= &m_pages[page]->buffer[offset];
+			idx.version = m_pages[page]->version[offset].load(std::memory_order_relaxed);
 		}
 		else
 		{
 			ref pg = m_pages[m_current];
 
-			idx.page = static_cast<uint16>(m_current);
-			idx.offset = static_cast<uint16>(pg->tail);
+			idx.page	= static_cast<uint16>(m_current);
+			idx.offset	= static_cast<uint16>(pg->tail);
+			idx.version = pg->version[pg->tail].load(std::memory_order_relaxed);
 
 			element = &pg->buffer[pg->tail++];
 		}
+
 		return std::pair<index, element_type&>{ idx, *element };
 	}
 };

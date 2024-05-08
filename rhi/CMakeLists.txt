@@ -28,19 +28,37 @@ set(
 	"private/src/rhi.cpp"
 )
 
-add_library(RHI SHARED ${rhi_header_files} ${rhi_source_files})
+set(
+	module_interface_units
+	"public/rhi/common.ixx"
+	"public/rhi/rhi.ixx"
+)
+
+set(
+	module_impl_units
+	"private/src/common.cxx"
+)
+
+add_library(RHI SHARED ${rhi_header_files} ${rhi_source_files} ${module_impl_units})
 target_compile_features(RHI PUBLIC cxx_std_20)
 target_compile_definitions(RHI PRIVATE "RHI_EXPORT")
 target_compile_definitions(RHI PRIVATE $<$<PLATFORM_ID:Windows>:PLATFORM_OS_WINDOWS> $<$<PLATFORM_ID:Darwin>:PLATFORM_OS_APPLE> $<$<PLATFORM_ID:Linux>:PLATFORM_OS_LINUX>)
 
 target_link_libraries(RHI PUBLIC Library)
-assign_source_group(${rhi_header_files} ${rhi_source_files})
+assign_source_group(${rhi_header_files} ${rhi_source_files} ${module_interface_units} ${module_impl_units})
 
 target_include_directories(
 	RHI 
 	PUBLIC "public"
 	PRIVATE "public/rhi"
 	PRIVATE "private/include"
+)
+
+target_sources(
+	RHI
+	PUBLIC
+		FILE_SET CXX_MODULES FILES
+		${module_interface_units}	
 )
 
 if (USE_VULKAN)
@@ -68,11 +86,40 @@ if (USE_VULKAN)
 		"private/src/util/spirv_shader_compiler.cpp"
 	)
 
+	set(
+		vulkan_module_interface_units
+		"private/include/vulkan/api.ixx"
+	)
+
+	set(
+		vulkan_module_impl_units
+		"private/src/vulkan/api.cxx"
+		"private/src/vulkan/buffer.cxx"
+		"private/src/vulkan/command_buffer.cxx"
+		"private/src/vulkan/command_pool.cxx"
+		"private/src/vulkan/device.cxx"
+		"private/src/vulkan/image.cxx"
+		"private/src/vulkan/pipeline.cxx"
+		"private/src/vulkan/resource.cxx"
+		"private/src/vulkan/sampler.cxx"
+		"private/src/vulkan/shader.cxx"
+		"private/src/vulkan/swapchain.cxx"
+		"private/src/vulkan/sync.cxx"
+	)
+
 	target_sources(
 		RHI
 		PRIVATE
 		${vulkan_header_files}
 		${vulkan_source_files}
+		${vulkan_module_impl_units}
+	)
+
+	target_sources(
+		RHI
+		PUBLIC
+			FILE_SET CXX_MODULES FILES
+			${vulkan_module_interface_units}	
 	)
 
 	CPMAddPackage(
@@ -111,7 +158,7 @@ if (USE_VULKAN)
 	
 	target_link_libraries(RHI PRIVATE volk_headers VulkanMemoryAllocator shaderc spirv-reflect-static)
 	target_compile_definitions(RHI PRIVATE $<$<PLATFORM_ID:Windows>:VK_USE_PLATFORM_WIN32_KHR>)
-	assign_source_group(${vulkan_header_files} ${vulkan_source_files})
+	assign_source_group(${vulkan_header_files} ${vulkan_source_files} ${vulkan_module_interface_units} ${vulkan_module_impl_units})
 endif()
 
 
