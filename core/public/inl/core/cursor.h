@@ -32,7 +32,7 @@ struct Cursor
 	std::array<void*, CursorState::MAX> states;
 };
 
-using cursor_handle = lib::opaque_handle<Cursor, uint32, std::numeric_limits<uint32>::max(), struct CursorContext>;
+using cursor_handle = lib::opaque_handle<Cursor, uint64, std::numeric_limits<uint64>::max(), struct CursorContext>;
 
 struct CursorContext
 {

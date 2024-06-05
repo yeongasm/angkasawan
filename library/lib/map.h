@@ -55,8 +55,8 @@ public:
 	using super::operator=;
 	using super::invalid_bucket_v;
 
-	template <typename K = key_type>
-	constexpr value_type& operator[](K&& key)
+	template <typename K>
+	constexpr value_type& operator[](K&& key) requires std::same_as<std::decay_t<K>, key_type>
 	{
 		bucket_value_type bucket = super::get_impl(key);
 		if (bucket == super::invalid_bucket_v)

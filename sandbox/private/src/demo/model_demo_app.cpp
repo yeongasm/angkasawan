@@ -8,65 +8,27 @@ namespace sandbox
 {
 ModelDemoApp::ModelDemoApp(
 	core::wnd::window_handle rootWindowHandle,
-	rhi::util::ShaderCompiler& shaderCompiler,
-	rhi::Device& device,
-	rhi::Swapchain& rootWindowSwapchain,
+	gpu::util::ShaderCompiler& shaderCompiler,
+	gpu::Device& device,
+	gpu::swapchain rootWindowSwapchain,
 	size_t const& frameIndex
 ) :
 	DemoApplication{ rootWindowHandle, shaderCompiler, device, rootWindowSwapchain, frameIndex },
-	m_resource_cache{ m_device },
-	m_submission_queue{ m_device },
-	m_transfer_command_queue{ m_submission_queue, rhi::DeviceQueue::Transfer },
-	m_main_command_queue{ m_submission_queue, rhi::DeviceQueue::Main },
-	m_upload_heap{ m_transfer_command_queue, m_resource_cache },
-	m_geometry_cache{ m_upload_heap },
-	m_depth_buffer{},
-	m_zelda_geometry_handle{},
-	m_sponza_geometry_handle{},
-	m_camera{},
-	m_camera_state{},
-	m_zelda_vertex_buffer{},
-	m_zelda_index_buffer{},
-	m_sponza_vertex_buffer{},
-	m_sponza_index_buffer{},
-	m_zelda_transforms{},
-	m_sponza_transforms{},
-	m_camera_proj_view{},
-	m_vertex_shader{},
-	m_pixel_shader{},
-	m_pipeline{},
-	m_fences{},
-	m_fence_values{},
-	m_camera_proj_view_binding_indices{},
-	m_zelda_transform_binding_indices{},
-	m_sponza_transform_binding_indices{},
-	m_bda_binding_index{}
+	m_commandQueue{ m_device },
+	m_uploadHeap{ m_device, m_commandQueue },
+	m_geometryCache{ m_uploadHeap }
 {}
 
 ModelDemoApp::~ModelDemoApp() {}
 
 auto ModelDemoApp::initialize() -> bool
 {
-	//core::filewatcher::FileWatchCallbackFn callback = [](auto info) -> void
-	//{
-	//	constexpr std::wstring_view actionString[] = {
-	//		L"None",
-	//		L"Added",
-	//		L"Modified",
-	//		L"Deleted"
-	//	};
-	//	auto index = static_cast<std::underlying_type_t<core::filewatcher::FileAction>>(info.action);
-	//	std::wcout << L"File change notification received for -> " << info.path.c_str() << L", action: " << actionString[index].data() << L"\n";
-	//};
+	m_uploadHeap.initialize();
 
-	//auto fwatchId = core::filewatcher::watch({ .path = "data/*", .callback = std::move(callback) });
+	auto&& swapchainInfo = m_swapchain->info();
 
-	m_upload_heap.initialize();
-
-	auto&& swapchain_info = m_swapchain.info();
-
-	float32 const swapchainWidth = static_cast<float32>(swapchain_info.dimension.width);
-	float32 const swapchainHeight = static_cast<float32>(swapchain_info.dimension.height);
+	float32 const swapchainWidth = static_cast<float32>(swapchainInfo.dimension.width);
+	float32 const swapchainHeight = static_cast<float32>(swapchainInfo.dimension.height);
 
 	m_camera.far = 1000.f;
 	m_camera.near = 0.1f;
@@ -84,21 +46,22 @@ auto ModelDemoApp::initialize() -> bool
 		return false;
 	}
 
-	rhi::util::ShaderCompileInfo compileInfo = {
-		.name = "model_vertex_shader",
+	gpu::Resource<gpu::Shader> vertexShader;
+	gpu::Resource<gpu::Shader> pixelShader;
+
+	gpu::util::ShaderCompileInfo compileInfo{
+		.name = "sponza vertex shader",
 		.path = "data/demo/shaders/model.glsl",
-		.type = rhi::ShaderType::Vertex,
+		.type = gpu::ShaderType::Vertex,
 		.sourceCode = std::move(sourceCode)
 	};
 
 	{
 		compileInfo.add_macro_definition("VERTEX_SHADER");
 
-		auto result = m_shader_compiler.compile_shader(compileInfo);
-
-		if (result.ok())
+		if (auto result = m_shader_compiler.compile_shader(compileInfo); result.ok())
 		{
-			m_vertex_shader = m_device.create_shader(result.compiled_shader_info().value());
+			vertexShader = gpu::Shader::from(m_device, result.compiled_shader_info().value());
 		}
 		else
 		{
@@ -107,16 +70,14 @@ auto ModelDemoApp::initialize() -> bool
 	}
 
 	{
-		compileInfo.name = "model_pixel_shader",
-		compileInfo.type = rhi::ShaderType::Pixel;
+		compileInfo.name = "sponza pixel shader",
+		compileInfo.type = gpu::ShaderType::Pixel;
 		compileInfo.clear_macro_definitions();
 		compileInfo.add_macro_definition("FRAGMENT_SHADER");
 
-		auto result = m_shader_compiler.compile_shader(compileInfo);
-
-		if (result)
+		if (auto result = m_shader_compiler.compile_shader(compileInfo); result.ok())
 		{
-			m_pixel_shader = m_device.create_shader(result.compiled_shader_info().value());
+			pixelShader = gpu::Shader::from(m_device, result.compiled_shader_info().value());
 		}
 		else
 		{
@@ -124,75 +85,65 @@ auto ModelDemoApp::initialize() -> bool
 		}
 	}
 
-	if (!m_vertex_shader.valid() ||
-		!m_pixel_shader.valid())
+	if (!vertexShader.valid() || !pixelShader.valid())
 	{
 		return false;
 	}
 
-	auto compiledInfo = m_shader_compiler.get_compiled_shader_info(m_vertex_shader.info().name.c_str());
+	auto compiledInfo = m_shader_compiler.get_compiled_shader_info(vertexShader->info().name.c_str());
 
-	m_pipeline = m_device.create_pipeline({
-		.name = "model_render",
+	m_pipeline = gpu::Pipeline::from(
+		m_device,
+		{
+			.vertexShader = std::move(vertexShader),
+			.pixelShader = std::move(pixelShader),
+		},
+		{
+		.name = "sponza render",
 		.colorAttachments = {
-			{.format = m_swapchain.image_format(), .blendInfo = {.enable = true } }
+			{ .format = m_swapchain->image_format(), .blendInfo = { .enable = true } }
 		},
-		.depthAttachmentFormat = rhi::Format::D32_Float,
-		.vertexInputBindings = {
-			{.binding = 0, .from = 0, .to = 1, .stride = sizeof(glm::vec3) + sizeof(glm::vec2) }
-		},
+		.depthAttachmentFormat = gpu::Format::D32_Float,
 		.rasterization = {
-			.cullMode = rhi::CullingMode::Back,
-			.frontFace = rhi::FrontFace::Counter_Clockwise
+			.cullMode = gpu::CullingMode::Back,
+			.frontFace = gpu::FrontFace::Counter_Clockwise
 		},
 		.depthTest = {
-			.depthTestCompareOp = rhi::CompareOp::Less,
+			.depthTestCompareOp = gpu::CompareOp::Less,
 			.enableDepthTest = true,
 			.enableDepthWrite = true
 		},
 		.pushConstantSize = sizeof(PushConstant)
-	},
-	{
-		.vertexShader = &m_vertex_shader,
-		.pixelShader = &m_pixel_shader,
-		.vertexInputAttributes = compiledInfo->vertexInputAttributes
 	});
-
-	for (size_t i = 0; i < m_fences.size(); ++i)
-	{
-		m_fences[i] = m_device.create_fence({ .name = lib::format("cpu_timeline_{}", i) });
-	}
 
 	allocate_camera_buffers();
 
-	m_sampler = m_device.create_sampler({
-		.name = "normal_sampler",
-		.minFilter = rhi::TexelFilter::Linear,
-		.magFilter = rhi::TexelFilter::Linear,
-		.mipmapMode = rhi::MipmapMode::Linear,
-		.addressModeU = rhi::SamplerAddress::Repeat,
-		.addressModeV = rhi::SamplerAddress::Repeat,
-		.addressModeW = rhi::SamplerAddress::Repeat,
+	m_normalSampler = gpu::Sampler::from(m_device, {
+		.name = "normal sampler",
+		.minFilter = gpu::TexelFilter::Linear,
+		.magFilter = gpu::TexelFilter::Linear,
+		.mipmapMode = gpu::MipmapMode::Linear,
+		.addressModeU = gpu::SamplerAddress::Repeat,
+		.addressModeV = gpu::SamplerAddress::Repeat,
+		.addressModeW = gpu::SamplerAddress::Repeat,
 		.mipLodBias = 0.f,
 		.maxAnisotropy = 0.f,
-		.compareOp = rhi::CompareOp::Never,
+		.compareOp = gpu::CompareOp::Never,
 		.minLod = 0.f,
 		.maxLod = 0.f,
-		.borderColor = rhi::BorderColor::Float_Transparent_Black,
+		.borderColor = gpu::BorderColor::Float_Transparent_Black,
 	});
 
-	m_device.update_sampler_descriptor({ .sampler = m_sampler, .index = 0 });
-
-	m_depth_buffer = m_resource_cache.create_image({
-		.name = "depth_buffer",
-		.type = rhi::ImageType::Image_2D,
-		.format = rhi::Format::D32_Float,
-		.samples = rhi::SampleCount::Sample_Count_1,
-		.tiling = rhi::ImageTiling::Optimal,
-		.imageUsage = rhi::ImageUsage::Depth_Stencil_Attachment | rhi::ImageUsage::Sampled,
+	m_depthBuffer = gpu::Image::from(m_device, {
+		.name = "depth buffer",
+		.type = gpu::ImageType::Image_2D,
+		.format = gpu::Format::D32_Float,
+		.samples = gpu::SampleCount::Sample_Count_1,
+		.tiling = gpu::ImageTiling::Optimal,
+		.imageUsage = gpu::ImageUsage::Depth_Stencil_Attachment | gpu::ImageUsage::Sampled,
 		.dimension = {
-			.width = m_swapchain.info().dimension.width,
-			.height = m_swapchain.info().dimension.height,
+			.width = m_swapchain->info().dimension.width,
+			.height = m_swapchain->info().dimension.height,
 		},
 		.clearValue = {
 			.depthStencil = {
@@ -202,59 +153,7 @@ auto ModelDemoApp::initialize() -> bool
 		.mipLevel = 1
 	});
 
-	//gltf::Importer zeldaImporter{ "data/demo/models/zelda/compressed/zelda.gltf" };
 	gltf::Importer sponzaImporter{ "data/demo/models/sponza/compressed/sponza.gltf" };
-
-	// TODO(afiq):
-	// !!! Figure out how to map textures.
-	// Load materials
-	uint32 textureIndex = 0;
-
-	//uint32 const zeldaMeshCount = zeldaImporter.num_meshes();
-
-	//for (uint32 i = 0; i < zeldaMeshCount; ++i)
-	//{
-	//	auto result = zeldaImporter.mesh_at(i);
-
-	//	if (!result.has_value())
-	//	{
-	//		continue;
-	//	}
-
-	//	auto mesh = result.value();
-	//	gltf::MaterialInfo const& material = mesh.material_info();
-
-	//	using img_type_t = std::underlying_type_t<gltf::ImageType>;
-
-	//	auto const textureInfo = material.imageInfos[static_cast<img_type_t>(gltf::ImageType::Base_Color)];
-
-	//	if (textureInfo)
-	//	{
-	//		ImageImporter importer{ { .name = lib::format("{}_base_color", material.name), .uri = textureInfo->uri } };
-
-	//		auto&& baseColorMapInfo = importer.image_info();
-	//		baseColorMapInfo.mipLevel = 1;
-
-	//		m_image_store.emplace_back(m_resource_cache.create_image(std::move(baseColorMapInfo)));
-
-	//		Resource<rhi::Image>& imageResource = m_image_store.back();
-
-	//		m_upload_heap.upload_data_to_image({
-	//			.image = *imageResource,
-	//			.data = importer.data(0).data(),
-	//			.size = importer.data(0).size_bytes(),
-	//			.mipLevel = 0
-	//		});
-
-	//		m_device.update_image_descriptor({
-	//			.image = *imageResource,
-	//			.pSampler = nullptr,
-	//			.index = textureIndex
-	//		});
-	//	}
-
-	//	++textureIndex;
-	//}
 
 	uint32 const sponzaMeshCount = sponzaImporter.num_meshes();
 
@@ -276,219 +175,83 @@ auto ModelDemoApp::initialize() -> bool
 
 		if (textureInfo)
 		{
-			ImageImporter importer{ { .name = lib::format("{}_base_color", i), .uri = textureInfo->uri } };
+			ImageImporter importer{ { .name = lib::format("mesh:{}, base color", i), .uri = textureInfo->uri } };
 
 			auto&& baseColorMapInfo = importer.image_info();
 			baseColorMapInfo.mipLevel = 1;
 
-			m_image_store.emplace_back(m_resource_cache.create_image(std::move(baseColorMapInfo)));
+			auto& baseColorImage = m_sponzaTextures.emplace_back(gpu::Image::from(m_device, std::move(baseColorMapInfo)), i);
 
-			Resource<rhi::Image>& imageResource = m_image_store.back();
-
-			m_upload_heap.upload_data_to_image({
-				.image = *imageResource,
+			m_uploadHeap.upload_data_to_image({
+				.image = baseColorImage.first,
 				.data = importer.data(0).data(),
 				.size = importer.data(0).size_bytes(),
 				.mipLevel = 0
 			});
 
-			m_device.update_image_descriptor({
-				.image = *imageResource,
-				.pSampler = nullptr,
-				.index = textureIndex
-			});
+			baseColorImage.first->bind({ .sampler = m_normalSampler, .index = i });
 		}
-
-		++textureIndex;
 	}
 
 	GeometryInputLayout layout = { .inputs = GeometryInput::Position | GeometryInput::TexCoord, .interleaved = true };
 
-	//m_zelda_geometry_handle = m_geometry_cache.store_geometries(zeldaImporter, layout);
-	m_sponza_geometry_handle = m_geometry_cache.store_geometries(sponzaImporter, layout);
+	m_sponza = m_geometryCache.upload_gltf(sponzaImporter, layout);
 
-	//RootGeometryInfo const zeldaGeometryInfo = m_geometry_cache.geometry_info(m_zelda_geometry_handle);
-	RootGeometryInfo const sponzaGeometryInfo = m_geometry_cache.geometry_info(m_sponza_geometry_handle);
-
-	//m_zelda_vertex_buffer = m_resource_cache.create_buffer({
-	//	.name = "zelda_vertex_buffer",
-	//	.size = zeldaGeometryInfo.verticesSizeBytes,
-	//	.bufferUsage = rhi::BufferUsage::Transfer_Dst | rhi::BufferUsage::Vertex,
-	//	.memoryUsage = rhi::MemoryUsage::Can_Alias | rhi::MemoryUsage::Best_Fit
-	//});
-
-	//m_zelda_index_buffer = m_resource_cache.create_buffer({
-	//	.name = "zelda_index_buffer",
-	//	.size = zeldaGeometryInfo.indicesSizeBytes,
-	//	.bufferUsage = rhi::BufferUsage::Transfer_Dst | rhi::BufferUsage::Index,
-	//	.memoryUsage = rhi::MemoryUsage::Can_Alias | rhi::MemoryUsage::Best_Fit
-	//});
-
-	m_sponza_vertex_buffer = m_resource_cache.create_buffer({
-		.name = "sponza_vertex_buffer",
-		.size = sponzaGeometryInfo.verticesSizeBytes,
-		.bufferUsage = rhi::BufferUsage::Transfer_Dst | rhi::BufferUsage::Vertex,
-		.memoryUsage = rhi::MemoryUsage::Can_Alias | rhi::MemoryUsage::Best_Fit
-	});
-
-	m_sponza_index_buffer = m_resource_cache.create_buffer({
-		.name = "sponza_index_buffer",
-		.size = sponzaGeometryInfo.indicesSizeBytes,
-		.bufferUsage = rhi::BufferUsage::Transfer_Dst | rhi::BufferUsage::Index,
-		.memoryUsage = rhi::MemoryUsage::Can_Alias | rhi::MemoryUsage::Best_Fit
-	});
-
-	//for (size_t i = 0; i < std::size(m_zelda_transforms); ++i)
-	//{
-	//	uint32 bdaBindingIndex = m_bda_binding_index++;
-
-	//	m_zelda_transforms[i] = m_resource_cache.create_buffer({
-	//		.name = lib::format("zelda_transform_{}", i),
-	//		.size = sizeof(glm::mat4),
-	//		.bufferUsage = rhi::BufferUsage::Storage | rhi::BufferUsage::Transfer_Dst,
-	//		.memoryUsage = rhi::MemoryUsage::Can_Alias | rhi::MemoryUsage::Best_Fit
-	//	});
-
-	//	m_device.update_buffer_descriptor({
-	//		.buffer = *m_zelda_transforms[i],
-	//		.offset = 0,
-	//		.size = m_zelda_transforms[i]->size(),
-	//		.index = bdaBindingIndex
-	//	});
-
-	//	m_zelda_transform_binding_indices[i] = bdaBindingIndex;
-
-	//	// Hardcode transform values for now.
-	//	glm::mat4 transform = glm::rotate(glm::scale(glm::mat4{ 1.f }, glm::vec3{ 0.005f, 0.005f, 0.005f }), glm::radians(-90.f), glm::vec3{ 0.f, 1.f, 0.f });
-
-	//	m_upload_heap.upload_data_to_buffer({
-	//		.buffer = *m_zelda_transforms[i],
-	//		.data = &transform,
-	//		.size = sizeof(glm::mat4)
-	//	});
-	//}
-
-	for (size_t i = 0; i < std::size(m_sponza_transforms); ++i)
-	{
-		uint32 bdaBindingIndex = m_bda_binding_index++;
-
-		m_sponza_transforms[i] = m_resource_cache.create_buffer({
-			.name = lib::format("sponza_transform_{}", i),
+	m_sponzaTransform = gpu::Buffer::from(
+		m_device,
+		{
+			.name = "sponza transform",
 			.size = sizeof(glm::mat4),
-			.bufferUsage = rhi::BufferUsage::Storage | rhi::BufferUsage::Transfer_Dst,
-			.memoryUsage = rhi::MemoryUsage::Can_Alias | rhi::MemoryUsage::Best_Fit
-		});
+			.bufferUsage = gpu::BufferUsage::Storage | gpu::BufferUsage::Transfer_Dst,
+			.memoryUsage = gpu::MemoryUsage::Can_Alias | gpu::MemoryUsage::Best_Fit
+		}
+	);
 
-		m_device.update_buffer_descriptor({
-			.buffer = *m_sponza_transforms[i],
-			.offset = 0,
-			.size = m_sponza_transforms[i]->size(),
-			.index = bdaBindingIndex
-		});
+	glm::mat4 transform = glm::scale(glm::mat4{ 1.f }, glm::vec3{ 1.f, 1.f, 1.f });
+	m_uploadHeap.upload_data_to_buffer({ .dst = m_sponzaTransform, .data = &transform, .size = sizeof(glm::mat4) });
 
-		m_sponza_transform_binding_indices[i] = bdaBindingIndex;
-
-		// Hardcode transform values for now.
-		glm::mat4 transform = glm::scale(glm::mat4{ 1.f }, glm::vec3{1.f, 1.f, 1.f});
-
-		m_upload_heap.upload_data_to_buffer({
-			.buffer = *m_sponza_transforms[i],
-			.data = &transform,
-			.size = sizeof(glm::mat4)
-		});
-	}
-
-	//m_geometry_cache.stage_geometries_for_upload({
-	//	.geometry = m_zelda_geometry_handle,
-	//	.vb = *m_zelda_vertex_buffer,
-	//	.ib = *m_zelda_index_buffer
-	//});
-
-	m_geometry_cache.stage_geometries_for_upload({
-		.geometry = m_sponza_geometry_handle,
-		.vb = *m_sponza_vertex_buffer,
-		.ib = *m_sponza_index_buffer
-	});
-
-	FenceInfo fenceInfo = m_upload_heap.send_to_gpu();
+	FenceInfo fenceInfo = m_uploadHeap.send_to_gpu();
 
 	{
-		//Geometry const* zeldaGeometry = &m_geometry_cache.get_geometry(m_zelda_geometry_handle);
-		// 
 		// Acquire resources ...
-		auto cmd = m_main_command_queue.next_free_command_buffer(std::this_thread::get_id());
+		auto cmd = m_commandQueue.next_free_command_buffer();
 
 		cmd->begin();
 
-		Geometry const* sponzaGeometry = &m_geometry_cache.get_geometry(m_sponza_geometry_handle);
-
-		while (sponzaGeometry)
+		for (auto&& texture : m_sponzaTextures)
 		{
 			cmd->pipeline_barrier(
-				*m_sponza_vertex_buffer,
+				*texture.first,
 				{
-					.size = sponzaGeometry->vertices.size,
-					.offset = sponzaGeometry->vertices.offset * sponzaGeometryInfo.stride,
-					.dstAccess = rhi::access::TRANSFER_WRITE,
-					.srcQueue = rhi::DeviceQueue::Transfer,
-					.dstQueue = rhi::DeviceQueue::Main
-				}
-			);
-
-			cmd->pipeline_barrier(
-				*m_sponza_index_buffer,
-				{
-					.size = sponzaGeometry->indices.size,
-					.offset = sponzaGeometry->indices.offset * sizeof(uint32),
-					.dstAccess = rhi::access::TRANSFER_WRITE,
-					.srcQueue = rhi::DeviceQueue::Transfer,
-					.dstQueue = rhi::DeviceQueue::Main
-				}
-			);
-
-			sponzaGeometry = sponzaGeometry->next;
-		}
-
-		cmd->pipeline_barrier({
-			.srcAccess = rhi::access::TRANSFER_WRITE,
-			.dstAccess = rhi::access::HOST_READ
-		});
-
-		for (auto&& imageResource : m_image_store)
-		{
-			cmd->pipeline_barrier(
-				*imageResource,
-				{
-
-					.dstAccess = rhi::access::TRANSFER_WRITE,
-					.oldLayout = rhi::ImageLayout::Transfer_Dst,
-					.newLayout = rhi::ImageLayout::Shader_Read_Only,
-					.srcQueue = rhi::DeviceQueue::Transfer,
-					.dstQueue = rhi::DeviceQueue::Main
+					.dstAccess = gpu::access::TRANSFER_WRITE,
+					.oldLayout = gpu::ImageLayout::Transfer_Dst,
+					.newLayout = gpu::ImageLayout::Shader_Read_Only,
+					.srcQueue = gpu::DeviceQueue::Transfer,
+					.dstQueue = gpu::DeviceQueue::Main
 				}
 			);
 		}
 
 		cmd->pipeline_barrier(
-			*m_depth_buffer,
+			*m_depthBuffer,
 			{
-				.srcAccess = rhi::access::TOP_OF_PIPE_NONE,
-				.oldLayout = rhi::ImageLayout::Undefined,
-				.newLayout = rhi::ImageLayout::Depth_Attachment,
+				.srcAccess = gpu::access::TOP_OF_PIPE_NONE,
+				.oldLayout = gpu::ImageLayout::Undefined,
+				.newLayout = gpu::ImageLayout::Depth_Attachment,
 				.subresource = {
-					.aspectFlags = rhi::ImageAspect::Depth
+					.aspectFlags = gpu::ImageAspect::Depth
 				}
 			}
 		);
 
 		cmd->end();
 
-		auto submissionGroup = m_main_command_queue.new_submission_group();
-		submissionGroup.wait_on_fence(fenceInfo.fence, fenceInfo.value);
-		submissionGroup.submit_command_buffer(*cmd);
+		auto ownershipTransferSubmission = m_commandQueue.new_submission_group();
+		ownershipTransferSubmission.wait(fenceInfo.fence, fenceInfo.value);
+		ownershipTransferSubmission.submit(cmd);
 	}
 
-	m_submission_queue.send_to_gpu_main_submissions();
+	m_commandQueue.send_to_gpu();
 
 	return true;
 }
@@ -497,79 +260,70 @@ auto ModelDemoApp::run() -> void
 {
 	auto dt = core::stat::delta_time_f();
 
-	m_device.clear_destroyed_resources();
+	m_device.clear_garbage();
 	update_camera_state(dt);
 
-	//Geometry const* zeldaGeometry = &m_geometry_cache.get_geometry(m_zelda_geometry_handle);
-	Geometry const* sponzaGeometry = &m_geometry_cache.get_geometry(m_sponza_geometry_handle);
+	Geometry const* sponzaMesh = m_geometryCache.geometry_from(m_sponza);
+	auto const sponzaVb = m_geometryCache.vertex_buffer_of(m_sponza);
+	auto const sponzaIb = m_geometryCache.index_buffer_of(m_sponza);
 
-	auto cmd = m_main_command_queue.next_free_command_buffer(std::this_thread::get_id());
-	auto&& swapchainImage = m_swapchain.acquire_next_image();
+	auto cmd = m_commandQueue.next_free_command_buffer();
+	auto&& swapchainImage = m_swapchain->acquire_next_image();
 
-	auto& projViewBuffer = m_camera_proj_view[m_frame_index];
+	auto& projViewBuffer = m_cameraProjView[m_frame_index];
 
 	PushConstant pc{
-		.camera_proj_view_index = m_camera_proj_view_binding_indices[m_frame_index],
-		//.transform_index = m_zelda_transform_binding_indices[m_frame_index],
+		.vertexBufferPtr = sponzaVb->gpu_address(),
+		.modelTransformPtr = m_sponzaTransform->gpu_address(),
+		.cameraTransformPtr = projViewBuffer->gpu_address()
 	};
 
 	cmd->reset();
 	cmd->begin();
 
+	cmd->pipeline_barrier({
+		.srcAccess = gpu::access::TRANSFER_WRITE,
+		.dstAccess = gpu::access::HOST_READ
+	});
+
 	cmd->pipeline_barrier(
-		*projViewBuffer,
+		*swapchainImage,
 		{
-			.dstAccess = rhi::access::TRANSFER_WRITE,
-			.srcQueue = rhi::DeviceQueue::Transfer,
-			.dstQueue = rhi::DeviceQueue::Main
+			.dstAccess = gpu::access::FRAGMENT_SHADER_READ,
+			.oldLayout = gpu::ImageLayout::Undefined,
+			.newLayout = gpu::ImageLayout::Color_Attachment
 		}
 	);
 
-	cmd->pipeline_barrier(
-		{
-			.srcAccess = rhi::access::TRANSFER_WRITE,
-			.dstAccess = rhi::access::HOST_READ
-		}
-	);
-
-	cmd->pipeline_barrier(
-		swapchainImage,
-		{
-			.dstAccess = rhi::access::FRAGMENT_SHADER_READ,
-			.oldLayout = rhi::ImageLayout::Undefined,
-			.newLayout = rhi::ImageLayout::Color_Attachment
-		}
-	);
-
-	rhi::RenderAttachment swapchainImageAttachment{
-		.pImage = &swapchainImage,
-		.imageLayout = rhi::ImageLayout::Color_Attachment,
-		.loadOp = rhi::AttachmentLoadOp::Clear,
-		.storeOp = rhi::AttachmentStoreOp::Store
+	gpu::RenderAttachment swapchainImageAttachment{
+		.image = swapchainImage,
+		.imageLayout = gpu::ImageLayout::Color_Attachment,
+		.loadOp = gpu::AttachmentLoadOp::Clear,
+		.storeOp = gpu::AttachmentStoreOp::Store
 	};
 
-	rhi::RenderAttachment depthAttachment{
-		.pImage = &(*m_depth_buffer),
-		.imageLayout = rhi::ImageLayout::Depth_Attachment,
-		.loadOp = rhi::AttachmentLoadOp::Clear,
-		.storeOp = rhi::AttachmentStoreOp::Store,
+	gpu::RenderAttachment depthAttachment{
+		.image = m_depthBuffer,
+		.imageLayout = gpu::ImageLayout::Depth_Attachment,
+		.loadOp = gpu::AttachmentLoadOp::Clear,
+		.storeOp = gpu::AttachmentStoreOp::Store,
 	};
 
-	rhi::RenderingInfo renderingInfo{
+	gpu::RenderingInfo renderingInfo{
 		.colorAttachments = std::span{ &swapchainImageAttachment, 1 },
 		.depthAttachment = &depthAttachment,
 		.renderArea = {
 			.extent = {
-				.width = swapchainImage.info().dimension.width,
-				.height = swapchainImage.info().dimension.height
+				.width	= swapchainImage->info().dimension.width,
+				.height = swapchainImage->info().dimension.height
 			}
 		}
 	};
 
-	auto const& swapchain_info = swapchainImage.info();
+	auto const& swapchainInfo = swapchainImage->info();
 
-	float32 const width = static_cast<float32>(swapchain_info.dimension.width);
-	float32 const height = static_cast<float32>(swapchain_info.dimension.height);
+	float32 const width		= static_cast<float32>(swapchainInfo.dimension.width);
+	float32 const height	= static_cast<float32>(swapchainInfo.dimension.height);
 
 	cmd->begin_rendering(renderingInfo);
 	cmd->set_viewport({
@@ -580,201 +334,110 @@ auto ModelDemoApp::run() -> void
 	});
 	cmd->set_scissor({
 		.extent = {
-			.width = swapchainImage.info().dimension.width,
-			.height = swapchainImage.info().dimension.height
+			.width	= swapchainImage->info().dimension.width,
+			.height = swapchainImage->info().dimension.height
 		}
 	});
-	cmd->bind_pipeline(m_pipeline);
-	//cmd->bind_vertex_buffer(
-	//	*m_zelda_vertex_buffer,
-	//	{
-	//		.firstBinding = 0u
-	//	}
-	//);
-	//cmd->bind_index_buffer(
-	//	*m_zelda_index_buffer,
-	//	{
-	//		.indexType = rhi::IndexType::Uint_32
-	//	}
-	//);
+	cmd->bind_pipeline(*m_pipeline);
 
-	//while (zeldaGeometry)
-	//{
-	//	cmd->bind_push_constant({
-	//		.data = &pc,
-	//		.size = sizeof(PushConstant),
-	//		.shaderStage = rhi::ShaderStage::All
-	//	});
-
-	//	cmd->draw_indexed({
-	//		.indexCount = zeldaGeometry->indices.count,
-	//		.firstIndex = zeldaGeometry->indices.offset,
-	//		.vertexOffset = zeldaGeometry->vertices.offset
-	//	});
-	//	zeldaGeometry = zeldaGeometry->next;
-
-	//	++pc.base_color_map_index;
-	//}
-
-	cmd->bind_vertex_buffer(
-		*m_sponza_vertex_buffer,
-		{
-			.firstBinding = 0u
-		}
-	);
 	cmd->bind_index_buffer(
-		*m_sponza_index_buffer,
+		*sponzaIb,
 		{
-			.indexType = rhi::IndexType::Uint_32
+			.indexType = gpu::IndexType::Uint_32
 		}
 	);
 
-	pc.transform_index = m_sponza_transform_binding_indices[m_frame_index];
-
-	while (sponzaGeometry)
+	while (sponzaMesh)
 	{
 		cmd->bind_push_constant({
 			.data = &pc,
 			.size = sizeof(PushConstant),
-			.shaderStage = rhi::ShaderStage::All
+			.shaderStage = gpu::ShaderStage::All
 		});
 
 		cmd->draw_indexed({
-			.indexCount = sponzaGeometry->indices.count,
-			.firstIndex = sponzaGeometry->indices.offset,
-			.vertexOffset = sponzaGeometry->vertices.offset
+			.indexCount = sponzaMesh->indices.count,
+			.firstIndex = sponzaMesh->indices.offset,
+			.vertexOffset = sponzaMesh->vertices.offset
 		});
-		sponzaGeometry = sponzaGeometry->next;
 
-		++pc.base_color_map_index;
+		sponzaMesh = sponzaMesh->next;
+
+		++pc.baseColorMapIndex;
 	}
 
 	cmd->end_rendering();
 
 	cmd->pipeline_barrier(
-		swapchainImage,
+		*swapchainImage,
 		{
-			.srcAccess = rhi::access::FRAGMENT_SHADER_WRITE,
-			.dstAccess = rhi::access::TRANSFER_READ,
-			.oldLayout = rhi::ImageLayout::Color_Attachment,
-			.newLayout = rhi::ImageLayout::Present_Src
-		}
-	);
-
-	cmd->pipeline_barrier(
-		*projViewBuffer,
-		{
-			.srcAccess = rhi::access::TRANSFER_WRITE,
-			.srcQueue = rhi::DeviceQueue::Main,
-			.dstQueue = rhi::DeviceQueue::Transfer
+			.srcAccess = gpu::access::FRAGMENT_SHADER_WRITE,
+			.dstAccess = gpu::access::TRANSFER_READ,
+			.oldLayout = gpu::ImageLayout::Color_Attachment,
+			.newLayout = gpu::ImageLayout::Present_Src
 		}
 	);
 
 	cmd->end();
 
-	auto uploadFenceInfo = m_upload_heap.send_to_gpu();
+	auto uploadFenceInfo = m_uploadHeap.send_to_gpu();
 
-	auto submitGroup = m_submission_queue.new_submission_group();
-	submitGroup.submit_command_buffer(*cmd);
-	submitGroup.wait_on_semaphore(m_swapchain.current_acquire_semaphore());
-	submitGroup.signal_semaphore(m_swapchain.current_present_semaphore());
-	submitGroup.wait_on_fence(uploadFenceInfo.fence, uploadFenceInfo.value);
-	submitGroup.signal_fence(m_swapchain.get_gpu_fence(), m_swapchain.cpu_frame_count());
+	auto submitGroup = m_commandQueue.new_submission_group();
+	submitGroup.submit(cmd);
+	submitGroup.wait(m_swapchain->current_acquire_semaphore());
+	submitGroup.signal(m_swapchain->current_present_semaphore());
+	submitGroup.wait(uploadFenceInfo.fence, uploadFenceInfo.value);
+	submitGroup.signal(m_swapchain->get_gpu_fence(), m_swapchain->cpu_frame_count());
 
-	m_submission_queue.send_to_gpu();
+	m_commandQueue.send_to_gpu();
 
 	m_device.present({ .swapchains = std::span{ &m_swapchain, 1 } });
 
-	m_submission_queue.clear();
+	m_commandQueue.clear();
 }
 
 auto ModelDemoApp::terminate() -> void
 {
-	release_camera_buffers();
-
-	for (size_t i = 0; i < std::size(m_zelda_transforms); ++i)
-	{
-		m_resource_cache.destroy_buffer(m_zelda_transforms[i].id());
-	}
-
-	for (size_t i = 0; i < std::size(m_sponza_transforms); ++i)
-	{
-		m_resource_cache.destroy_buffer(m_sponza_transforms[i].id());
-	}
-
-	for (auto&& imageResource : m_image_store)
-	{
-		m_resource_cache.destroy_image(imageResource.id());
-	}
-
-	m_resource_cache.destroy_buffer(m_zelda_vertex_buffer.id());
-	m_resource_cache.destroy_buffer(m_zelda_index_buffer.id());
-	m_resource_cache.destroy_buffer(m_sponza_vertex_buffer.id());
-	m_resource_cache.destroy_buffer(m_sponza_index_buffer.id());
-	m_resource_cache.destroy_image(m_depth_buffer.id());
-	m_device.destroy_sampler(m_sampler);
-
-	m_upload_heap.terminate();
-	m_transfer_command_queue.terminate();
-	m_main_command_queue.terminate();
-
-	for (rhi::Fence& fence : m_fences)
-	{
-		m_device.destroy_fence(fence);
-	}
-
-	m_device.destroy_shader(m_vertex_shader);
-	m_device.destroy_shader(m_pixel_shader);
-	m_device.destroy_pipeline(m_pipeline);
+	m_uploadHeap.terminate();
 }
 
 auto ModelDemoApp::allocate_camera_buffers() -> void
 {
-	for (size_t i = 0; i < std::size(m_camera_proj_view); ++i)
+	for (size_t i = 0; i < std::size(m_cameraProjView); ++i)
 	{
-		uint32 bdaBindingIndex = m_bda_binding_index++;
-
-		m_camera_proj_view[i] = m_resource_cache.create_buffer({
-			.name = lib::format("camera_view_proj_{}", i),
-			.size = sizeof(glm::mat4) + sizeof(glm::mat4),
-			.bufferUsage = rhi::BufferUsage::Transfer_Dst | rhi::BufferUsage::Storage,
-			.memoryUsage = rhi::MemoryUsage::Can_Alias | rhi::MemoryUsage::Best_Fit
-			});
-
-		m_device.update_buffer_descriptor({
-			.buffer = *m_camera_proj_view[i],
-			.offset = 0,
-			.size = m_camera_proj_view[i]->size(),
-			.index = bdaBindingIndex
-			});
-
-		m_camera_proj_view_binding_indices[i] = bdaBindingIndex;
-	}
-}
-
-auto ModelDemoApp::release_camera_buffers() -> void
-{
-	for (size_t i = 0; i < std::size(m_camera_proj_view); ++i)
-	{
-		m_resource_cache.destroy_buffer(m_camera_proj_view[i].id());
+		m_cameraProjView[i] = gpu::Buffer::from(
+			m_device, 
+			{
+				.name = lib::format("camera view proj {}", i),
+				.size = sizeof(glm::mat4) + sizeof(glm::mat4),
+				.bufferUsage = gpu::BufferUsage::Transfer_Dst | gpu::BufferUsage::Storage,
+				.memoryUsage = gpu::MemoryUsage::Can_Alias | gpu::MemoryUsage::Best_Fit
+			}
+		);
 	}
 }
 
 auto ModelDemoApp::update_camera_state(float32 dt) -> void
 {
+	struct CameraProjectionView
+	{
+		glm::mat4 projection;
+		glm::mat4 view;
+	} updateValue;
+
 	static bool firstRun[2] = { true, true };
 
-	rhi::DeviceQueue srcQueue = rhi::DeviceQueue::Main;
+	gpu::DeviceQueue srcQueue = gpu::DeviceQueue::Main;
 
 	if (firstRun[m_frame_index])
 	{
-		srcQueue = rhi::DeviceQueue::None;
+		srcQueue = gpu::DeviceQueue::None;
 		firstRun[m_frame_index] = false;
 	}
 
 	core::Engine& engine = core::engine();
 
-	m_camera_state.dirty = false;
+	m_cameraState.dirty = false;
 
 	if (engine.is_window_focused(m_root_app_window))
 	{
@@ -785,17 +448,15 @@ auto ModelDemoApp::update_camera_state(float32 dt) -> void
 	m_camera.update_projection();
 	m_camera.update_view();
 
-	auto&& projViewBuffer = m_camera_proj_view[m_frame_index];
+	auto&& projViewBuffer = m_cameraProjView[m_frame_index];
 
-	CameraProjView update{
-		.projection = m_camera.projection,
-		.view = m_camera.view
-	};
+	updateValue.projection = m_camera.projection;
+	updateValue.view = m_camera.view;
 
-	m_upload_heap.upload_data_to_buffer({
-		.buffer = *projViewBuffer,
-		.data = &update,
-		.size = sizeof(CameraProjView),
+	m_uploadHeap.upload_data_to_buffer({
+		.dst = projViewBuffer,
+		.data = &updateValue,
+		.size = sizeof(CameraProjectionView),
 		.srcQueue = srcQueue
 	});
 }
@@ -829,7 +490,7 @@ auto ModelDemoApp::update_camera_on_mouse_events(float32 dt) -> void
 
 	bool const cursorInViewport = (mousePos.x >= 0.f && mousePos.x <= m_camera.frameWidth) && (mousePos.y >= 0.f && mousePos.y <= m_camera.frameHeight);
 
-	m_camera_state.mode = CameraMouseMode::None;
+	m_cameraState.mode = CameraMouseMode::None;
 
 	float32 const mouseWheelV = core::io::mouse_wheel_v();
 
@@ -839,30 +500,30 @@ auto ModelDemoApp::update_camera_on_mouse_events(float32 dt) -> void
 	if (cursorInViewport && mouseWheelV != 0.f)
 	{
 		m_camera.zoom(mouseWheelV);
-		m_camera_state.dirty = true;
+		m_cameraState.dirty = true;
 	}
 
 	if (core::io::mouse_held(core::IOMouseButton::Right))
 	{
-		m_camera_state.mode = CameraMouseMode::Pan_And_Tilt;
+		m_cameraState.mode = CameraMouseMode::Pan_And_Tilt;
 	}
 	else if (core::io::mouse_held(core::IOMouseButton::Left))
 	{
-		m_camera_state.mode = CameraMouseMode::Pan_And_Dolly;
+		m_cameraState.mode = CameraMouseMode::Pan_And_Dolly;
 	}
 
-	if (m_camera_state.mode == CameraMouseMode::None)
+	if (m_cameraState.mode == CameraMouseMode::None)
 	{
-		if (!m_camera_state.firstMove)
+		if (!m_cameraState.firstMove)
 		{
-			int32 x = static_cast<int32>(m_camera_state.capturedMousePos.x);
-			int32 y = static_cast<int32>(m_camera_state.capturedMousePos.y);
+			int32 x = static_cast<int32>(m_cameraState.capturedMousePos.x);
+			int32 y = static_cast<int32>(m_cameraState.capturedMousePos.y);
 
 			engine.show_cursor();
 			engine.set_cursor_position(m_root_app_window, core::Point{ x, y });
 
-			m_camera_state.capturedMousePos = glm::vec2{ 0.f };
-			m_camera_state.firstMove = true;
+			m_cameraState.capturedMousePos = glm::vec2{ 0.f };
+			m_cameraState.firstMove = true;
 		}
 		return;
 	}
@@ -874,10 +535,10 @@ auto ModelDemoApp::update_camera_on_mouse_events(float32 dt) -> void
 		}
 	}
 
-	if (m_camera_state.firstMove)
+	if (m_cameraState.firstMove)
 	{
-		m_camera_state.capturedMousePos = mousePos;
-		m_camera_state.firstMove = false;
+		m_cameraState.capturedMousePos = mousePos;
+		m_cameraState.firstMove = false;
 		mousePos = cameraCentre;
 	}
 
@@ -902,11 +563,11 @@ auto ModelDemoApp::update_camera_on_mouse_events(float32 dt) -> void
 
 	delta *= static_cast<float32>(dragging);
 
-	switch (m_camera_state.mode)
+	switch (m_cameraState.mode)
 	{
 	case CameraMouseMode::Pan_And_Tilt:
 		m_camera.rotate(glm::vec3{ -delta.x, -delta.y, 0.f, }, dt);
-		m_camera_state.dirty = true;
+		m_cameraState.dirty = true;
 		break;
 	case CameraMouseMode::Pan_And_Dolly:
 		// Mouse moves downwards.
@@ -914,7 +575,7 @@ auto ModelDemoApp::update_camera_on_mouse_events(float32 dt) -> void
 		// Mouse moves upwards.
 		if (delta.y < -Camera::DELTA_EPSILON.min.y) { m_camera.translate(m_camera.get_forward_vector(), dt); }
 		m_camera.rotate(glm::vec3{ -delta.x, 0.f, 0.f }, dt);
-		m_camera_state.dirty = true;
+		m_cameraState.dirty = true;
 		break;
 	default:
 		break;
@@ -927,46 +588,46 @@ auto ModelDemoApp::update_camera_on_keyboard_events(float32 dt) -> void
 	glm::vec3 const RIGHT = m_camera.get_right_vector();
 	glm::vec3 const FORWARD = m_camera.get_forward_vector();
 
-	if (core::io::key_pressed(core::IOKey::Q) || 
+	if (core::io::key_pressed(core::IOKey::Q) ||
 		core::io::key_held(core::IOKey::Q))
 	{
 		m_camera.translate(-UP, dt);
-		m_camera_state.dirty = true;
+		m_cameraState.dirty = true;
 	}
 
-	if (core::io::key_pressed(core::IOKey::W) || 
+	if (core::io::key_pressed(core::IOKey::W) ||
 		core::io::key_held(core::IOKey::W))
 	{
 		m_camera.translate(FORWARD, dt);
-		m_camera_state.dirty = true;
+		m_cameraState.dirty = true;
 	}
 
-	if (core::io::key_pressed(core::IOKey::E) || 
+	if (core::io::key_pressed(core::IOKey::E) ||
 		core::io::key_held(core::IOKey::E))
 	{
 		m_camera.translate(UP, dt);
-		m_camera_state.dirty = true;
+		m_cameraState.dirty = true;
 	}
 
-	if (core::io::key_pressed(core::IOKey::A) || 
+	if (core::io::key_pressed(core::IOKey::A) ||
 		core::io::key_held(core::IOKey::A))
 	{
 		m_camera.translate(-RIGHT, dt);
-		m_camera_state.dirty = true;
+		m_cameraState.dirty = true;
 	}
 
-	if (core::io::key_pressed(core::IOKey::S) || 
+	if (core::io::key_pressed(core::IOKey::S) ||
 		core::io::key_held(core::IOKey::S))
 	{
 		m_camera.translate(-FORWARD, dt);
-		m_camera_state.dirty = true;
+		m_cameraState.dirty = true;
 	}
 
-	if (core::io::key_pressed(core::IOKey::D) || 
+	if (core::io::key_pressed(core::IOKey::D) ||
 		core::io::key_held(core::IOKey::D))
 	{
 		m_camera.translate(RIGHT, dt);
-		m_camera_state.dirty = true;
+		m_cameraState.dirty = true;
 	}
 }
 }

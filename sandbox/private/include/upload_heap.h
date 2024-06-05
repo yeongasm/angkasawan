@@ -2,125 +2,182 @@
 #ifndef SANDBOX_UPLOAD_HEAP_H
 #define SANDBOX_UPLOAD_HEAP_H
 
+#include "lib/handle.h"
 #include "lib/paged_array.h"
+#include "gpu/gpu.h"
 #include "command_queue.h"
-#include "resource_cache.h"
 
 namespace sandbox
 {
+struct HeapBlock
+{
+	gpu::buffer buffer = {};
+	size_t byteOffset = {};
+
+	auto remaining_capacity() const -> size_t;
+	auto write(void const* data, size_t size, size_t offset = std::numeric_limits<size_t>::max()) -> void;
+
+	auto data() const -> void*;
+
+	template <typename T>
+	auto data_as() const -> T* { return static_cast<T*>(data()); }
+};
+
 struct BufferDataUploadInfo
 {
-	rhi::Buffer& buffer;
+	gpu::buffer dst;
+	size_t dstOffset;
 	void* data;
-	size_t offset;
 	size_t size;
-	rhi::DeviceQueue srcQueue = rhi::DeviceQueue::None;
-	rhi::DeviceQueue dstQueue = rhi::DeviceQueue::Main;
-	//lib::ref<rhi::Fence> waitFence;
-	//uint64 waitValue = 0;
+	gpu::DeviceQueue srcQueue = gpu::DeviceQueue::None;
+	gpu::DeviceQueue dstQueue = gpu::DeviceQueue::Main;
+};
+
+struct BufferHeapBlockUploadInfo
+{
+	HeapBlock& heapBlock;
+	size_t heapWriteOffset;
+	size_t heapWriteSize;
+	gpu::buffer dst;
+	size_t dstOffset;
+	gpu::DeviceQueue srcQueue = gpu::DeviceQueue::None;
+	gpu::DeviceQueue dstQueue = gpu::DeviceQueue::Main;
 };
 
 struct ImageDataUploadInfo
 {
-	rhi::Image& image;
+	gpu::image image;
 	void* data;
 	size_t size;
 	uint32 mipLevel = 0;
-	rhi::DeviceQueue srcQueue = rhi::DeviceQueue::None;
-	rhi::DeviceQueue dstQueue = rhi::DeviceQueue::Main;
-	rhi::ImageAspect aspectMask = rhi::ImageAspect::Color;
-	//lib::ref<rhi::Fence> waitFence;
-	//uint64 waitValue = 0;
+	gpu::DeviceQueue srcQueue = gpu::DeviceQueue::None;
+	gpu::DeviceQueue dstQueue = gpu::DeviceQueue::Main;
+	gpu::ImageAspect aspectMask = gpu::ImageAspect::Color;
 };
 
 using upload_id = lib::handle<struct UPLOAD_HEAP_ID, uint64, std::numeric_limits<uint64>::max()>;
 
 struct FenceInfo
 {
-	Fence& fence;
+	gpu::fence fence;
 	uint64 value;
-}; 
+};
 
+/**
+* Uploads data to the specified device local buffer and images on the GPU via a pool of upload heaps.
+* 
+* TODO(afiq):
+* 1. Take ReBAR into account. Buffers that are from the ReBAR shouldn't need to go through the staging process.
+* 2. Release heap blocks that are NMRU after a while (duration TBD).
+*/
 class UploadHeap
 {
 public:
-	UploadHeap(CommandQueue& transferQueue, ResourceCache& resourceCache);
+	static constexpr size_t HEAP_BLOCK_SIZE = 8_MiB;
+	static constexpr uint32 MAX_UPLOAD_HEAP_PER_POOL = 8;
+	static constexpr size_t HEAP_POOL_MAX_SIZE = 64_MiB;
+
+	UploadHeap(gpu::Device& device, CommandQueue& commandQueue);
 	~UploadHeap() = default;
 
 	auto initialize() -> void;
 	auto terminate() -> void;
-	auto send_to_gpu() -> FenceInfo;
+	[[nodiscard]] auto device() const -> gpu::Device&;
+	/**
+	* @brief Retrieves HeapBlocks with spaces from the current active heap pool.
+	* 
+	* If <size> is larger than 64 MiBs, an empty span is returned instead. Consider breaking the data into smaller chunks and upload in a separate frame.
+	* 
+	* @param size Size of data that will be added onto the heap block(s).
+	* 
+	* @return std::span<HeapBlock>
+	*/
+	[[nodiscard]] auto request_heaps(size_t size) -> std::span<HeapBlock>;
 	auto upload_data_to_image(ImageDataUploadInfo&& info) -> upload_id;
 	auto upload_data_to_buffer(BufferDataUploadInfo&& info) -> upload_id;
+	auto upload_heap_to_buffer(BufferHeapBlockUploadInfo&& info) -> upload_id;
+	auto send_to_gpu() -> FenceInfo;
 	auto upload_completed(upload_id id) -> bool;
 	auto current_upload_id() const -> upload_id;
 private:
-	static constexpr uint32 MAX_UPLOAD_HEAP_BUFFERS_PER_POOL = 8;
+	/**
+	* Default size of a motherboard's BAR (Base Address Register) is 256 MiBs.
+	* Each pool is allowed to have a maximum of 64 MiBs (256 / 4) with each staging buffer having a maximum of 8 MiBs (64 / 8).
+	* 
+	* With ReBAR, this is not necessary.
+	*/
+	static constexpr uint32 MAX_POOL_IN_QUEUE = 4;
+	
 	static constexpr uint32 MAX_UPLOADS_PER_POOL = 64;
-	static constexpr uint32 MAX_POOL_IN_QUEUE = 3;
 
-	struct BufferPool
+	struct HeapPool
 	{
-		using Pool = std::array<Resource<rhi::Buffer>, MAX_UPLOAD_HEAP_BUFFERS_PER_POOL>;
-		
-		Pool buffers = {};
-		uint32 index = 0;
-		uint32 numBuffers = 0;
+		lib::array<HeapBlock> heaps = {};
+		size_t current = {};
+		uint64 cpuTimelineValue = {};
+
+		auto current_heap() const -> HeapBlock&;
+		auto num_available_heaps() const -> size_t;
+		auto remaining_heaps_allocatable() const -> size_t;
+		auto remaining_capacity() const -> size_t;
 	};
-	using BufferPoolQueue = std::array<BufferPool, MAX_POOL_IN_QUEUE>;
+	using HeapPoolQueue = std::array<HeapPool, MAX_POOL_IN_QUEUE>;
 
 	struct ImageUploadInfo
 	{
-		rhi::BufferImageCopyInfo copyInfo;
-		lib::ref<rhi::Buffer> src;
-		lib::ref<rhi::Image> dst;
-		rhi::DeviceQueue owningQueue;
-		rhi::DeviceQueue dstQueue;
+		gpu::BufferImageCopyInfo copyInfo;
+		gpu::buffer src;
+		gpu::image dst;
+		gpu::DeviceQueue owningQueue;
+		gpu::DeviceQueue dstQueue;
 	};
 
 	struct BufferUploadInfo
 	{
-		rhi::BufferCopyInfo copyInfo;
-		lib::ref<rhi::Buffer> src;
-		lib::ref<rhi::Buffer> dst;
-		rhi::DeviceQueue owningQueue;
-		rhi::DeviceQueue dstQueue;
+		gpu::BufferCopyInfo copyInfo;
+		gpu::buffer src;
+		gpu::buffer dst;
+		gpu::DeviceQueue owningQueue;
+		gpu::DeviceQueue dstQueue;
 	};
 
 	template <typename T>
 	struct InfoPool
 	{
-		std::array<T, MAX_UPLOADS_PER_POOL> uploads;
-		uint32 count;
+		lib::array<T> uploads;
 	};
 
 	using ImageUploadInfoQueue	= std::array<InfoPool<ImageUploadInfo>, MAX_POOL_IN_QUEUE>;
 	using BufferUploadInfoQueue = std::array<InfoPool<BufferUploadInfo>, MAX_POOL_IN_QUEUE>;
-	using Fences = std::array<rhi::Fence, MAX_POOL_IN_QUEUE>;
-	using FenceValues = std::array<uint64, MAX_POOL_IN_QUEUE>;
+	//using Fences = std::array<gpu::fence, MAX_POOL_IN_QUEUE>;
+	//using FenceValues = std::array<uint64, MAX_POOL_IN_QUEUE>;
+	
+	mutable HeapPoolQueue m_heapPoolQueue;
+	mutable ImageUploadInfoQueue m_imageUploadInfo;
+	mutable BufferUploadInfoQueue m_bufferUploadInfo;
+	gpu::fence m_gpuUploadTimeline;
+	std::array<uint64, MAX_POOL_IN_QUEUE> m_gpuUploadWaitTimelineValue;
+	//FenceValues m_gpuUploadTimelineCounter;
+	uint64 m_cpuUploadTimeline;
+	gpu::Device& m_device;
+	CommandQueue& m_commandQueue;
+	uint32 m_nextPool;
 
-	CommandQueue& m_transfer_command_queue;
-	ResourceCache& m_resource_cache;
-	BufferPoolQueue m_staging_buffer_pool_queue;
-	ImageUploadInfoQueue m_image_upload_queue;
-	BufferUploadInfoQueue m_buffer_upload_queue;
-	Fences m_fences;
-	FenceValues m_fence_values;
-	uint64 m_upload_counter;
-
-	auto next_available_buffer(size_t size) -> Resource<rhi::Buffer>;
-	auto next_pool_index() const -> uint32;
-	auto create_buffer(uint32 const poolIndex) -> void;
-	auto upload_to_gpu(uint32 const poolIndex) -> void;
-	auto increment_counter(uint32 const poolIndex) -> void;
-	auto reset_pools(uint32 const poolIndex) -> void;
-	auto copy_to_images(rhi::CommandBuffer& cmd, std::span<ImageUploadInfo>& imageUploads) -> void;
-	auto copy_to_buffers(rhi::CommandBuffer& cmd, std::span<BufferUploadInfo>& bufferUploads) -> void;
-	auto acquire_image_resources(rhi::CommandBuffer& cmd, std::span<ImageUploadInfo>& imageUploads) -> void;
-	auto acquire_buffer_resources(rhi::CommandBuffer& cmd, std::span<BufferUploadInfo>& bufferUploads) -> void;
-	auto release_image_resources(rhi::CommandBuffer& cmd, std::span<ImageUploadInfo>& imageUploads) -> void;
-	auto release_buffer_resources(rhi::CommandBuffer& cmd, std::span<BufferUploadInfo>& bufferUploads) -> void;
-	auto do_upload(uint32 const poolIndex) const -> bool;
+	auto allocate_heap(size_t count) -> void;
+	auto upload_to_gpu(bool waitIdle = true) -> void;
+	auto increment_counter() -> void;
+	auto reset_next_pool() -> void;
+	auto copy_to_images(gpu::CommandBuffer& cmd, std::span<ImageUploadInfo>& imageUploads) -> void;
+	auto copy_to_buffers(gpu::CommandBuffer& cmd, std::span<BufferUploadInfo>& bufferUploads) -> void;
+	auto acquire_image_resources(gpu::CommandBuffer& cmd, std::span<ImageUploadInfo>& imageUploads) -> void;
+	auto acquire_buffer_resources(gpu::CommandBuffer& cmd, std::span<BufferUploadInfo>& bufferUploads) -> void;
+	auto release_image_resources(gpu::CommandBuffer& cmd, std::span<ImageUploadInfo>& imageUploads) -> void;
+	auto release_buffer_resources(gpu::CommandBuffer& cmd, std::span<BufferUploadInfo>& bufferUploads) -> void;
+	auto do_upload() const -> bool;
+	auto next_available_heap(size_t size) -> HeapBlock*;
+	auto next_heap_pool() const -> HeapPool&;
+	auto next_image_upload_info_pool() const -> InfoPool<ImageUploadInfo>&;
+	auto next_buffer_upload_info_pool() const -> InfoPool<BufferUploadInfo>&;
 };
 }
 

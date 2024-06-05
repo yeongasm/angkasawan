@@ -21,7 +21,7 @@ auto CursorContext::initialize_default_cursor() -> void
 	cursor.states[CursorState::POINTER]		= reinterpret_cast<void*>(LoadCursorW(nullptr, IDC_HAND));
 	cursor.states[CursorState::PROGRESS]	= reinterpret_cast<void*>(LoadCursorW(nullptr, IDC_APPSTARTING));
 
-	defaultCursor = cursor_handle{ index.to_uint32() };
+	defaultCursor = cursor_handle{ index.to_uint64() };
 }
 
 auto CursorContext::get_default_cursor() -> Cursor&

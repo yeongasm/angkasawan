@@ -1,89 +1,188 @@
+#include <numeric>
 #include "upload_heap.h"
 
 namespace sandbox
 {
-UploadHeap::UploadHeap(
-	CommandQueue& transferQueue,
-	ResourceCache& resourceCache
-) :
-	m_transfer_command_queue{ transferQueue },
-	m_resource_cache{ resourceCache },
-	m_staging_buffer_pool_queue{},
-	m_image_upload_queue{},
-	m_buffer_upload_queue{},
-	m_fences{},
-	m_fence_values{},
-	m_upload_counter{}
+auto HeapBlock::remaining_capacity() const -> size_t
+{
+	return buffer->size() - byteOffset;
+}
+
+auto HeapBlock::write(void const* data, size_t size, size_t offset) -> void
+{
+	size_t const writeOffset = std::clamp(offset, 0ull, byteOffset);
+
+	buffer->write(data, size, writeOffset);
+
+	byteOffset = writeOffset + size;
+}
+
+auto HeapBlock::data() const -> void*
+{
+	std::byte* ptr = static_cast<std::byte*>(buffer->data());
+
+	ptr += byteOffset;
+
+	return ptr;
+}
+
+auto UploadHeap::HeapPool::current_heap() const -> HeapBlock&
+{
+	return heaps[current];
+}
+
+auto UploadHeap::HeapPool::num_available_heaps() const -> size_t
+{
+	size_t count = 0;
+	for (size_t i = current; i < heaps.size(); ++i)
+	{
+		if (!std::cmp_equal(heaps[i].remaining_capacity(), 0))
+		{
+			++count;
+		}
+	}
+	return count;
+}
+
+auto UploadHeap::HeapPool::remaining_heaps_allocatable() const -> size_t
+{
+	return UploadHeap::MAX_UPLOAD_HEAP_PER_POOL - heaps.size();
+}
+
+auto UploadHeap::HeapPool::remaining_capacity() const -> size_t
+{
+	if (!heaps.size())
+	{
+		return 0;
+	}
+
+	size_t remainingCapacity = 0;
+
+	remainingCapacity = std::accumulate(heaps.begin(), heaps.end(), remainingCapacity, [](size_t capacity, HeapBlock const& heap) -> size_t {  return capacity + heap.remaining_capacity(); });
+
+	size_t const unallocatedHeapCount = MAX_UPLOAD_HEAP_PER_POOL - heaps.size();
+
+	return remainingCapacity + (unallocatedHeapCount * HEAP_BLOCK_SIZE);
+}
+
+UploadHeap::UploadHeap(gpu::Device& device, CommandQueue& commandQueue) :
+	m_heapPoolQueue{},
+	m_imageUploadInfo{},
+	m_bufferUploadInfo{},
+	m_gpuUploadTimeline{},
+	m_gpuUploadWaitTimelineValue{},
+	m_cpuUploadTimeline{},
+	m_device{ device },
+	m_commandQueue{ commandQueue },
+	m_nextPool{}
 {}
 
 auto UploadHeap::initialize() -> void
 {
-	for (size_t i = 0; i < m_fences.size(); ++i)
+	m_gpuUploadTimeline = gpu::Fence::from(m_device, { .name = "upload heap gpu timeline" });
+
+	for (auto& heapPool : m_heapPoolQueue)
 	{
-		m_fences[i] = m_transfer_command_queue.submission_queue().device().create_fence({ .name = lib::format("upload_heap_timeline_{}", i) });
-		m_fence_values[i] = 0ull;
+		heapPool.heaps.reserve(MAX_UPLOAD_HEAP_PER_POOL);
 	}
 }
 
 auto UploadHeap::terminate() -> void
 {
-	for (size_t i = 0; i < m_fences.size(); ++i)
+	m_gpuUploadTimeline.destroy();
+
+	for (auto&& heapPool : m_heapPoolQueue)
 	{
-		m_transfer_command_queue.submission_queue().device().destroy_fence(m_fences[i]);
-		m_fence_values[i] = 0ul;
+		heapPool.heaps.clear();
+		heapPool.current = 0;
+	}
+}
+
+auto UploadHeap::device() const -> gpu::Device&
+{
+	return m_device;
+}
+
+auto UploadHeap::request_heaps(size_t size) -> std::span<HeapBlock>
+{
+	HeapPool& heapPool = next_heap_pool();
+
+	if (heapPool.num_available_heaps() == MAX_UPLOAD_HEAP_PER_POOL && 
+		size > heapPool.remaining_capacity())
+	{
+		return std::span<HeapBlock>{};
 	}
 
-	for (auto&& stagingBufferPool : m_staging_buffer_pool_queue)
+	auto const numHeapsRequired = (size + HEAP_BLOCK_SIZE - 1) / HEAP_BLOCK_SIZE;
+
+	if (numHeapsRequired > heapPool.num_available_heaps())
 	{
-		std::span stagingBuffers = std::span{ stagingBufferPool.buffers.data(), stagingBufferPool.numBuffers };
-		for (auto&& buffer : stagingBuffers)
+		auto heapsToAllocate = numHeapsRequired - heapPool.num_available_heaps();
+
+		heapsToAllocate = std::clamp(heapsToAllocate, heapsToAllocate, heapPool.remaining_heaps_allocatable());
+
+		if (heapPool.num_available_heaps() < MAX_UPLOAD_HEAP_PER_POOL)
 		{
-			m_resource_cache.destroy_buffer(buffer.id());
+			allocate_heap(heapsToAllocate);
 		}
 	}
+	
+	HeapBlock* currentHeap = &heapPool.current_heap();
+
+	// We do not need to check if the pool's current index exceeds MAX_UPLOAD_HEAP_PER_POOL here.
+	// The check in the beggining guarantees that the current and remaining pool will have enough storage space for the specified size.
+	while (std::cmp_equal(currentHeap->remaining_capacity(), 0))
+	{
+		++heapPool.current;
+
+		currentHeap = &heapPool.current_heap();
+	}
+
+	return std::span{ currentHeap, numHeapsRequired };
 }
 
 auto UploadHeap::send_to_gpu() -> FenceInfo
 {
-	uint32 const poolIndex = next_pool_index();
-
-	rhi::Fence& fence = m_fences[poolIndex];
-
-	if (do_upload(poolIndex))
+	if (do_upload())
 	{
-		upload_to_gpu(poolIndex);
+		upload_to_gpu(false);
 	}
-	increment_counter(poolIndex);
+	increment_counter();
 
-	return FenceInfo{ fence, m_fence_values[poolIndex] };
+	return FenceInfo{ m_gpuUploadTimeline, m_cpuUploadTimeline };
 }
 
 auto UploadHeap::upload_data_to_image(ImageDataUploadInfo&& info) -> upload_id
 {
-	rhi::ImageInfo const& imageInfo = info.image.info();
+	auto const& imageInfo = info.image->info();
 
 	if (info.mipLevel > imageInfo.mipLevel)
 	{
 		return upload_id{};
 	}
 
-	uint32 const poolIndex = next_pool_index();
-	InfoPool<ImageUploadInfo>& uploadPool = m_image_upload_queue[poolIndex];
-	Resource<rhi::Buffer> stagingBuffer = next_available_buffer(info.size);
+	auto& imgUploadPool = next_image_upload_info_pool();
 
-	if (stagingBuffer.is_null() ||
-		uploadPool.count >= MAX_UPLOADS_PER_POOL)
+	auto heap = next_available_heap(info.size);
+	
+	if (!heap || std::cmp_greater_equal(imgUploadPool.uploads.size(), MAX_UPLOADS_PER_POOL))
 	{
-		upload_to_gpu(poolIndex);
-		reset_pools(poolIndex);
-		stagingBuffer = next_available_buffer(info.size);
+		upload_to_gpu(true);
+
+		reset_next_pool();
+
+		heap = next_available_heap(info.size);
 	}
 
-	rhi::BufferWriteInfo bufferWriteInfo = stagingBuffer->write(info.data, info.size);
+	auto const writtenByteOffset = heap->byteOffset;
 
-	uploadPool.uploads[uploadPool.count++] = {
+	heap->buffer->write(info.data, info.size, writtenByteOffset);
+
+	heap->byteOffset += info.size;
+
+	ImageUploadInfo uploadInfo{
 		.copyInfo = {
-			.bufferOffset = bufferWriteInfo.offset,
+			.bufferOffset = writtenByteOffset,
 			.imageSubresource = {
 				.aspectFlags = info.aspectMask,
 				.mipLevel = info.mipLevel,
@@ -95,119 +194,144 @@ auto UploadHeap::upload_data_to_image(ImageDataUploadInfo&& info) -> upload_id
 				.depth = 1u
 			}
 		},
-		.src = stagingBuffer,
+		.src = heap->buffer,
 		.dst = info.image,
 		.owningQueue = info.srcQueue,
 		.dstQueue = info.dstQueue
 	};
 
-	return upload_id{ m_upload_counter };
+	imgUploadPool.uploads.push_back(std::move(uploadInfo));
+
+	return upload_id{ m_cpuUploadTimeline + 1 };
 }
 
 auto UploadHeap::upload_data_to_buffer(BufferDataUploadInfo&& info) -> upload_id
 {
-	uint32 const poolIndex = next_pool_index();
-	InfoPool<BufferUploadInfo>& uploadPool = m_buffer_upload_queue[poolIndex];
-	Resource<rhi::Buffer> stagingBuffer = next_available_buffer(info.size);
+	auto& bufferUploadPool = next_buffer_upload_info_pool();
 
-	if (stagingBuffer.is_null() ||
-		uploadPool.count >= MAX_UPLOADS_PER_POOL)
+	auto heapBlocks = request_heaps(info.size);
+
+	if (heapBlocks.empty() ||
+		std::cmp_greater_equal(bufferUploadPool.uploads.size(), MAX_UPLOADS_PER_POOL))
 	{
-		upload_to_gpu(poolIndex);
-		reset_pools(poolIndex);
-		stagingBuffer = next_available_buffer(info.size);
+		upload_to_gpu(true);
+
+		reset_next_pool();
+
+		heapBlocks = request_heaps(info.size);
 	}
 
-	rhi::BufferWriteInfo bufferWriteInfo = stagingBuffer->write(info.data, info.size);
+	std::byte const* data = static_cast<std::byte*>(info.data);
+	size_t remainingSizeToUpload = info.size;
 
-	uploadPool.uploads[uploadPool.count++] = {
+	for (size_t i = 0; i < heapBlocks.size(); ++i)
+	{
+		auto& heapBlock = heapBlocks[i];
+
+		size_t writeSize = HEAP_BLOCK_SIZE;
+		
+		if (i + 1 == heapBlocks.size())
+		{
+			writeSize = remainingSizeToUpload;
+		}
+
+		auto const writtenByteOffset = heapBlock.byteOffset;
+
+		heapBlock.buffer->write(data, writeSize, writtenByteOffset);
+
+		heapBlock.byteOffset += writeSize;
+
+		BufferUploadInfo uploadInfo{
+			.copyInfo = {
+				.srcOffset = writtenByteOffset,
+				.dstOffset = info.dstOffset + (i * HEAP_BLOCK_SIZE),
+				.size = writeSize,
+			},
+			.src = heapBlock.buffer,
+			.dst = info.dst,
+			.owningQueue = info.srcQueue,
+			.dstQueue = info.dstQueue
+		};
+
+		bufferUploadPool.uploads.push_back(std::move(uploadInfo));
+
+		data += writeSize;
+		remainingSizeToUpload -= writeSize;
+	}
+
+	return upload_id{ m_cpuUploadTimeline + 1 };
+}
+
+auto UploadHeap::upload_heap_to_buffer(BufferHeapBlockUploadInfo&& info) -> upload_id
+{
+	auto& bufferUploadPool = next_buffer_upload_info_pool();
+
+	if (std::cmp_greater_equal(bufferUploadPool.uploads.size(), MAX_UPLOADS_PER_POOL))
+	{
+		upload_to_gpu(true);
+
+		reset_next_pool();
+	}
+
+	BufferUploadInfo uploadInfo{
 		.copyInfo = {
-			.srcOffset = bufferWriteInfo.offset,
-			.dstOffset = info.offset,
-			.size = bufferWriteInfo.size,
+			.srcOffset = info.heapWriteOffset,
+			.dstOffset = info.dstOffset,
+			.size = info.heapWriteSize,
 		},
-		.src = stagingBuffer,
-		.dst = info.buffer,
+		.src = info.heapBlock.buffer,
+		.dst = info.dst,
 		.owningQueue = info.srcQueue,
 		.dstQueue = info.dstQueue
 	};
 
-	return upload_id{ m_upload_counter };
+	bufferUploadPool.uploads.push_back(std::move(uploadInfo));
+
+	return upload_id{ m_cpuUploadTimeline + 1 };
 }
 
 auto UploadHeap::upload_completed(upload_id id) -> bool
 {
-	return id.get() <= m_upload_counter;
+	return m_gpuUploadTimeline->value() >= id.get();
 }
 
 auto UploadHeap::current_upload_id() const -> upload_id
 {
-	return upload_id{ m_upload_counter };
+	return upload_id{ m_cpuUploadTimeline + 1 };
 }
 
-auto UploadHeap::next_available_buffer(size_t size) -> Resource<rhi::Buffer>
+auto UploadHeap::allocate_heap(size_t count) -> void
 {
-	uint32 const poolIndex = next_pool_index();
-	BufferPool& pool = m_staging_buffer_pool_queue[poolIndex];
-
-	Resource<rhi::Buffer> stagingBuffer = {};
-
-	if (!pool.numBuffers)
+	auto& heapPool = next_heap_pool();
+	auto const maxAllocatableCount = MAX_UPLOAD_HEAP_PER_POOL - heapPool.heaps.size();
+	
+	for (size_t i = 0; i < maxAllocatableCount && i < count; ++i)
 	{
-		create_buffer(poolIndex);
+		gpu::BufferInfo heapBlockInfo{
+			.name = lib::format("upload heap {}:{}", m_nextPool, heapPool.heaps.size()),
+			.size = HEAP_BLOCK_SIZE,
+			.bufferUsage = gpu::BufferUsage::Transfer_Src,
+			.memoryUsage = gpu::MemoryUsage::Can_Alias | gpu::MemoryUsage::Host_Writable,
+			.sharingMode = gpu::SharingMode::Exclusive
+		};
+		heapPool.heaps.emplace_back(gpu::Buffer::from(m_device, std::move(heapBlockInfo)));
 	}
-	else
-	{
-		Resource<rhi::Buffer> const& current = pool.buffers[pool.index];
-
-		if (current->offset() + size >= current->size())
-		{
-			++pool.index;
-			if (pool.index >= pool.numBuffers &&
-				pool.numBuffers < MAX_UPLOAD_HEAP_BUFFERS_PER_POOL)
-			{
-				create_buffer(poolIndex);
-			}
-		}
-	}
-
-	if (pool.index < pool.numBuffers)
-	{
-		stagingBuffer = pool.buffers[pool.index];
-	}
-
-	return stagingBuffer;
 }
 
-auto UploadHeap::next_pool_index() const -> uint32
+auto UploadHeap::upload_to_gpu(bool waitIdle) -> void
 {
-	return m_upload_counter % MAX_POOL_IN_QUEUE;
-}
+	++m_cpuUploadTimeline;
 
-auto UploadHeap::create_buffer(uint32 const poolIndex) -> void
-{
-	BufferPool& pool = m_staging_buffer_pool_queue[poolIndex];
-	pool.buffers[pool.index] = m_resource_cache.create_buffer({
-		.name = lib::format("upload_heap_{}_{}", poolIndex, pool.index),
-		.size = 64_MiB,
-		.bufferUsage = rhi::BufferUsage::Transfer_Src,
-		.memoryUsage = rhi::MemoryUsage::Can_Alias | rhi::MemoryUsage::Host_Writable
-		});
-	++pool.numBuffers;
-}
+	auto submitGroup = m_commandQueue.new_submission_group(gpu::DeviceQueue::Transfer);
+	auto cmd = m_commandQueue.next_free_command_buffer({ .queue = gpu::DeviceQueue::Transfer });
 
-auto UploadHeap::upload_to_gpu(uint32 const poolIndex) -> void
-{
-	auto submitGroup = m_transfer_command_queue.new_submission_group();
-	auto cmd = m_transfer_command_queue.next_free_command_buffer(std::this_thread::get_id());
+	ASSERTION(cmd.valid() && "Ran out of command buffers for recording!");
 
-	ASSERTION(!cmd.is_null() && "Ran out of command buffers for recording!");
+	InfoPool<ImageUploadInfo>& imageUploadInfos		= next_image_upload_info_pool();
+	InfoPool<BufferUploadInfo>& bufferUploadInfos	= next_buffer_upload_info_pool();
 
-	InfoPool<ImageUploadInfo>& imageUploadInfos		= m_image_upload_queue[poolIndex];
-	InfoPool<BufferUploadInfo>& bufferUploadInfos	= m_buffer_upload_queue[poolIndex];
-
-	std::span imageUploads  = std::span{ imageUploadInfos.uploads.data(), imageUploadInfos.count };
-	std::span bufferUploads = std::span{ bufferUploadInfos.uploads.data(), bufferUploadInfos.count };
+	std::span imageUploads  = std::span{ imageUploadInfos.uploads.data(), imageUploadInfos.uploads.size() };
+	std::span bufferUploads = std::span{ bufferUploadInfos.uploads.data(), bufferUploadInfos.uploads.size() };
 
 	cmd->reset();
 	cmd->begin();
@@ -215,8 +339,8 @@ auto UploadHeap::upload_to_gpu(uint32 const poolIndex) -> void
 	acquire_buffer_resources(*cmd, bufferUploads);
 
 	cmd->pipeline_barrier({
-		.srcAccess = rhi::access::TOP_OF_PIPE_NONE,
-		.dstAccess = rhi::access::TRANSFER_WRITE
+		.srcAccess = gpu::access::TOP_OF_PIPE_NONE,
+		.dstAccess = gpu::access::TRANSFER_WRITE
 	});
 
 	acquire_image_resources(*cmd, imageUploads);
@@ -229,160 +353,233 @@ auto UploadHeap::upload_to_gpu(uint32 const poolIndex) -> void
 
 	cmd->end();
 
-	submitGroup.submit_command_buffer(*cmd);
+	submitGroup.submit(cmd);
 
-	rhi::Fence& fence = m_fences[poolIndex];
+	submitGroup.wait(m_gpuUploadTimeline, m_gpuUploadWaitTimelineValue[m_nextPool]);
+	submitGroup.signal(m_gpuUploadTimeline, m_cpuUploadTimeline);
 
-	submitGroup.wait_on_fence(fence, m_fence_values[poolIndex]);
-	submitGroup.signal_fence(fence, ++m_fence_values[poolIndex]);
+	m_commandQueue.send_to_gpu(gpu::DeviceQueue::Transfer);
 
-	m_transfer_command_queue.submission_queue().send_to_gpu_transfer_submissions();
-}
+	m_gpuUploadWaitTimelineValue[m_nextPool] = m_cpuUploadTimeline;
 
-auto UploadHeap::increment_counter(uint32 const poolIndex) -> void
-{
-	++m_upload_counter;
-	reset_pools(poolIndex);
-}
-
-auto UploadHeap::reset_pools(uint32 const poolIndex) -> void
-{
-	BufferPool& pool = m_staging_buffer_pool_queue[poolIndex];
-	auto& imageUploadPool = m_image_upload_queue[poolIndex];
-	auto& bufferUploadPool = m_buffer_upload_queue[poolIndex];
-
-	for (uint32 i = 0; i < pool.numBuffers; ++i)
+	if (waitIdle)
 	{
-		pool.buffers[i]->flush();
+		m_device.wait_idle();
+	}
+}
+
+auto UploadHeap::increment_counter() -> void
+{
+	m_nextPool = (m_nextPool + 1) % MAX_POOL_IN_QUEUE;
+
+	reset_next_pool();
+}
+
+auto UploadHeap::reset_next_pool() -> void
+{
+	auto& heapPool = next_heap_pool();
+
+	auto& imageUploadPool	= next_image_upload_info_pool();
+	auto& bufferUploadPool	= next_buffer_upload_info_pool();
+
+	for (auto& heap : heapPool.heaps)
+	{
+		heap.byteOffset = 0;
 	}
 
-	pool.index = 0;
-	imageUploadPool.count = 0;
-	bufferUploadPool.count = 0;
+	heapPool.current = 0;
+
+	imageUploadPool.uploads.clear();
+	bufferUploadPool.uploads.clear();
 }
 
-auto UploadHeap::copy_to_images(rhi::CommandBuffer& cmd, std::span<ImageUploadInfo>& imageUploads) -> void
+auto UploadHeap::copy_to_images(gpu::CommandBuffer& cmd, std::span<ImageUploadInfo>& imageUploads) -> void
 {
 	for (ImageUploadInfo& uploadInfo : imageUploads)
 	{
-		rhi::Buffer const& src = *uploadInfo.src;
-		rhi::Image const& dst = *uploadInfo.dst;
+		gpu::buffer const& src = uploadInfo.src;
+		gpu::image const& dst = uploadInfo.dst;
 
-		cmd.copy_buffer_to_image(src, dst, uploadInfo.copyInfo);
+		cmd.copy_buffer_to_image(*src, *dst, uploadInfo.copyInfo);
 	}
 }
 
-auto UploadHeap::copy_to_buffers(rhi::CommandBuffer& cmd, std::span<BufferUploadInfo>& bufferUploads) -> void
+auto UploadHeap::copy_to_buffers(gpu::CommandBuffer& cmd, std::span<BufferUploadInfo>& bufferUploads) -> void
 {
 	for (BufferUploadInfo& uploadInfo : bufferUploads)
 	{
-		rhi::Buffer const& src = *uploadInfo.src;
-		rhi::Buffer const& dst = *uploadInfo.dst;
+		gpu::buffer const& src = uploadInfo.src;
+		gpu::buffer const& dst = uploadInfo.dst;
 
-		cmd.copy_buffer_to_buffer(src, dst, uploadInfo.copyInfo);
+		cmd.copy_buffer_to_buffer(*src, *dst, uploadInfo.copyInfo);
 	}
 }
 
-auto UploadHeap::acquire_image_resources(rhi::CommandBuffer& cmd, std::span<ImageUploadInfo>& imageUploads) -> void
+auto UploadHeap::acquire_image_resources(gpu::CommandBuffer& cmd, std::span<ImageUploadInfo>& imageUploads) -> void
 {
 	for (ImageUploadInfo& info : imageUploads)
 	{
-		rhi::Image const& image = *info.dst;
+		gpu::image const& image = info.dst;
 
-		if (info.owningQueue != rhi::DeviceQueue::Transfer &&
-			info.owningQueue != rhi::DeviceQueue::None)
+		if (image->info().sharingMode == gpu::SharingMode::Concurrent)
+		{
+			continue;
+		}
+
+		if (info.owningQueue != gpu::DeviceQueue::Transfer &&
+			info.owningQueue != gpu::DeviceQueue::None)
 		{
 			cmd.pipeline_barrier(
-				image,
+				*image,
 				{
-					.dstAccess = rhi::access::TRANSFER_WRITE,
-					.newLayout = rhi::ImageLayout::Transfer_Dst,
+					.dstAccess = gpu::access::TRANSFER_WRITE,
+					.newLayout = gpu::ImageLayout::Transfer_Dst,
 					.subresource = info.copyInfo.imageSubresource,
 					.srcQueue = info.owningQueue,
-					.dstQueue = rhi::DeviceQueue::Transfer
+					.dstQueue = gpu::DeviceQueue::Transfer
 				}
 			);
 		}
 		else
 		{
 			cmd.pipeline_barrier(
-				image,
+				*image,
 				{
-					.dstAccess = rhi::access::TRANSFER_WRITE,
-					.oldLayout = rhi::ImageLayout::Undefined,
-					.newLayout = rhi::ImageLayout::Transfer_Dst,
+					.dstAccess = gpu::access::TRANSFER_WRITE,
+					.oldLayout = gpu::ImageLayout::Undefined,
+					.newLayout = gpu::ImageLayout::Transfer_Dst,
 					.subresource = info.copyInfo.imageSubresource,
-					.srcQueue = rhi::DeviceQueue::None,
-					.dstQueue = rhi::DeviceQueue::None
+					.srcQueue = gpu::DeviceQueue::None,
+					.dstQueue = gpu::DeviceQueue::None
 				}
 			);
 		}
 	}
 }
 
-auto UploadHeap::acquire_buffer_resources(rhi::CommandBuffer& cmd, std::span<BufferUploadInfo>& bufferUploads) -> void
+auto UploadHeap::acquire_buffer_resources(gpu::CommandBuffer& cmd, std::span<BufferUploadInfo>& bufferUploads) -> void
 {
 	for (BufferUploadInfo& info : bufferUploads)
 	{
-		rhi::Buffer const& buffer = *info.dst;
+		gpu::buffer const& buffer = info.dst;
 
-		if (info.owningQueue != rhi::DeviceQueue::Transfer &&
-			info.owningQueue != rhi::DeviceQueue::None)
+		if (buffer->info().sharingMode == gpu::SharingMode::Concurrent)
+		{
+			continue;
+		}
+
+		if (info.owningQueue != gpu::DeviceQueue::Transfer &&
+			info.owningQueue != gpu::DeviceQueue::None)
 		{
 			cmd.pipeline_barrier(
-				buffer,
+				*buffer,
 				{
 					.size = info.copyInfo.size,
 					.offset = info.copyInfo.dstOffset,
-					.dstAccess = rhi::access::TOP_OF_PIPE_NONE,
+					.dstAccess = gpu::access::TOP_OF_PIPE_NONE,
 					.srcQueue = info.owningQueue,
-					.dstQueue = rhi::DeviceQueue::Transfer
+					.dstQueue = gpu::DeviceQueue::Transfer
 				}
 			);
 		}
 	}
 }
 
-auto UploadHeap::release_image_resources(rhi::CommandBuffer& cmd, std::span<ImageUploadInfo>& imageUploads) -> void
+auto UploadHeap::release_image_resources(gpu::CommandBuffer& cmd, std::span<ImageUploadInfo>& imageUploads) -> void
 {
 	for (ImageUploadInfo& info : imageUploads)
 	{
+		if (info.dst->info().sharingMode == gpu::SharingMode::Concurrent)
+		{
+			continue;
+		}
+
 		cmd.pipeline_barrier(
 			*info.dst,
 			{
-				.srcAccess = rhi::access::TRANSFER_WRITE,
-				.oldLayout = rhi::ImageLayout::Transfer_Dst,
-				.newLayout = rhi::ImageLayout::Transfer_Dst,
+				.srcAccess = gpu::access::TRANSFER_WRITE,
+				.oldLayout = gpu::ImageLayout::Transfer_Dst,
+				.newLayout = gpu::ImageLayout::Transfer_Dst,
 				.subresource = info.copyInfo.imageSubresource,
-				.srcQueue = rhi::DeviceQueue::Transfer,
+				.srcQueue = gpu::DeviceQueue::Transfer,
 				.dstQueue = info.dstQueue
 			}
 		);
 	}
 }
 
-auto UploadHeap::release_buffer_resources(rhi::CommandBuffer& cmd, std::span<BufferUploadInfo>& bufferUploads) -> void
+auto UploadHeap::release_buffer_resources(gpu::CommandBuffer& cmd, std::span<BufferUploadInfo>& bufferUploads) -> void
 {
 	for (BufferUploadInfo& info : bufferUploads)
 	{
+		if (info.dst->info().sharingMode == gpu::SharingMode::Concurrent)
+		{
+			continue;
+		}
+
 		cmd.pipeline_barrier(
 			*info.dst,
 			{
 				.size = info.copyInfo.size,
 				.offset = info.copyInfo.dstOffset,
-				.srcAccess = rhi::access::TRANSFER_WRITE,
-				.srcQueue = rhi::DeviceQueue::Transfer,
+				.srcAccess = gpu::access::TRANSFER_WRITE,
+				.srcQueue = gpu::DeviceQueue::Transfer,
 				.dstQueue = info.dstQueue
 			}
 		);
 	}
 }
 
-auto UploadHeap::do_upload(uint32 const poolIndex) const -> bool
+auto UploadHeap::do_upload() const -> bool
 {
-	auto const& imageUploadInfoPool  = m_image_upload_queue[poolIndex];
-	auto const& bufferUploadInfoPool = m_buffer_upload_queue[poolIndex];
+	auto const& imageUploadInfoPool  = next_image_upload_info_pool();
+	auto const& bufferUploadInfoPool = next_buffer_upload_info_pool();
 
-	return imageUploadInfoPool.count || bufferUploadInfoPool.count;
+	return !imageUploadInfoPool.uploads.empty() || !bufferUploadInfoPool.uploads.empty();
 }
+
+auto UploadHeap::next_available_heap(size_t size) -> HeapBlock*
+{
+	auto& heapPool = next_heap_pool();
+
+	if (heapPool.heaps.empty())
+	{
+		allocate_heap(1);
+
+		return &heapPool.current_heap();
+	}
+
+	auto& heap = heapPool.current_heap();
+
+	if (size <= heap.remaining_capacity())
+	{
+		return &heap;
+	}
+	else if (size > heap.remaining_capacity() && heapPool.heaps.size() < MAX_UPLOAD_HEAP_PER_POOL)
+	{
+		allocate_heap(1);
+
+		++heapPool.current;
+
+		return &heapPool.current_heap();
+	}
+
+	return nullptr;
+}
+
+auto UploadHeap::next_heap_pool() const -> HeapPool&
+{
+	return m_heapPoolQueue[m_nextPool];
+}
+
+auto UploadHeap::next_image_upload_info_pool() const -> InfoPool<ImageUploadInfo>&
+{
+	return m_imageUploadInfo[m_nextPool];
+}
+
+auto UploadHeap::next_buffer_upload_info_pool() const -> InfoPool<BufferUploadInfo>&
+{
+	return m_bufferUploadInfo[m_nextPool];
+}
+
 }

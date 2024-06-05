@@ -704,6 +704,16 @@ auto Importer::open(std::filesystem::path const& path) -> bool
 	return true;
 }
 
+auto Importer::path() const -> std::string
+{
+	if (m_path.empty())
+	{
+		return std::string{};
+	}
+
+	return m_path.string();
+}
+
 auto Importer::close() -> void
 {
 	if (m_data.size())

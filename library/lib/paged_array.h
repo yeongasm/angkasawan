@@ -76,7 +76,7 @@ public:
 		ASSERTION(page < m_pages.size() && "Page in index exceeded page count of the container.");
 		ASSERTION(offset < m_pages[page]->buffer.size() && "Offset in index exceeded buffer capacity of the page.");
 
-		uint32 const ver = m_pages[page]->version[offset].load(std::memory_order_relaxed);
+		uint32 const ver = m_pages[page]->version[offset].load(std::memory_order_acquire);
 
 		ASSERTION(idx.version == ver && "Version do not match! Data retrieved is faulty.");
 
@@ -90,7 +90,7 @@ public:
 
 		if (page < m_pages.size() &&
 			offset < m_pages[page]->buffer.size() &&
-			idx.version == m_pages[page]->version[offset].load(std::memory_order_relaxed))
+			idx.version == m_pages[page]->version[offset].load(std::memory_order_acquire))
 		{
 			return &m_pages[page]->buffer[offset];
 		}
@@ -136,7 +136,7 @@ public:
 			{
 				std::atomic_uint32_t& versionCounter = m_pages[page]->version[offset];
 
-				if (idx.version == versionCounter.load(std::memory_order_relaxed))
+				if (idx.version == versionCounter.load(std::memory_order_acquire))
 				{
 					buffer[offset].~element_type();
 					m_indices.push_back(idx);
@@ -193,7 +193,7 @@ public:
 				}
 				ele.~element_type();
 
-				uint32 const val = page->version[i].load(std::memory_order_relaxed);
+				uint32 const val = page->version[i].load(std::memory_order_acquire);
 				page->version[i].compare_exchange_strong(val, 0, std::memory_order_relaxed);
 
 				++i;
@@ -271,7 +271,7 @@ private:
 			m_indices.pop();
 
 			element		= &m_pages[page]->buffer[offset];
-			idx.version = m_pages[page]->version[offset].load(std::memory_order_relaxed);
+			idx.version = m_pages[page]->version[offset].load(std::memory_order_acquire);
 		}
 		else
 		{
@@ -279,7 +279,7 @@ private:
 
 			idx.page	= static_cast<uint16>(m_current);
 			idx.offset	= static_cast<uint16>(pg->tail);
-			idx.version = pg->version[pg->tail].load(std::memory_order_relaxed);
+			idx.version = pg->version[pg->tail].load(std::memory_order_acquire);
 
 			element = &pg->buffer[pg->tail++];
 		}

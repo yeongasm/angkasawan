@@ -153,6 +153,7 @@ public:
 	Importer& operator=(Importer&&) noexcept;
 
 	auto open(std::filesystem::path const& path) -> bool;
+	auto path() const -> std::string;
 	auto close() -> void;
 	auto num_meshes() const -> uint32;
 	auto mesh_at(uint32 index) const -> std::optional<Mesh>;

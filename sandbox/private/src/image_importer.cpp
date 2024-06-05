@@ -60,20 +60,20 @@ auto ImageImporter::open(ImageImportInfo&& info) -> bool
 	switch (texture->numDimensions)
 	{
 	case 1:
-		m_image_info.type = rhi::ImageType::Image_1D;
+		m_image_info.type = gpu::ImageType::Image_1D;
 		break;
 	case 3:
-		m_image_info.type = rhi::ImageType::Image_3D;
+		m_image_info.type = gpu::ImageType::Image_3D;
 		break;
 	case 2:
 	default:
-		m_image_info.type = rhi::ImageType::Image_2D;
+		m_image_info.type = gpu::ImageType::Image_2D;
 		break;
 	}
 
 	m_image_info.name = std::move(info.name);
-	m_image_info.format = static_cast<rhi::Format>(texture->vkFormat);
-	m_image_info.imageUsage = rhi::ImageUsage::Transfer_Dst | rhi::ImageUsage::Sampled;
+	m_image_info.format = static_cast<gpu::Format>(texture->vkFormat);
+	m_image_info.imageUsage = gpu::ImageUsage::Transfer_Dst | gpu::ImageUsage::Sampled;
 	m_image_info.dimension.width = texture->baseWidth;
 	m_image_info.dimension.height = texture->baseHeight;
 	m_image_info.dimension.depth = texture->baseDepth;
@@ -123,7 +123,7 @@ auto ImageImporter::close(bool release) -> void
 		m_storage.clear();
 	}
 	m_path.~path();
-	lib::memset(&m_image_info, 0, sizeof(rhi::ImageInfo));
+	lib::memset(&m_image_info, 0, sizeof(gpu::ImageInfo));
 }
 
 auto ImageImporter::size_bytes() const -> size_t
@@ -131,7 +131,7 @@ auto ImageImporter::size_bytes() const -> size_t
 	return m_img_data.size_bytes();
 }
 
-auto ImageImporter::image_info() const -> rhi::ImageInfo
+auto ImageImporter::image_info() const -> gpu::ImageInfo
 {
 	return m_image_info;
 }

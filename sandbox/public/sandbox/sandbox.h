@@ -1,7 +1,7 @@
 #include "sandbox_api.h"
 #include "core/engine.h"
-#include "rhi/rhi.h"
-#include "rhi/util/shader_compiler.h"
+#include "gpu/gpu.h"
+#include "gpu/util/shader_compiler.h"
 
 namespace sandbox
 {
@@ -17,12 +17,11 @@ public:
 	SANDBOX_API virtual void terminate()	override;
 private:
 	core::wnd::window_handle m_root_app_window;
-	rhi::util::ShaderCompiler m_shader_compiler;
+	gpu::util::ShaderCompiler m_shader_compiler;
 	lib::array<std::unique_ptr<core::Application>> m_demo_applications;
 	lib::ref<core::Application> m_showcased_demo;
-	rhi::Instance m_instance;
-	rhi::Device* m_device;
-	rhi::Swapchain m_swapchain;
+	std::unique_ptr<gpu::Device> m_device;
+	gpu::Resource<gpu::Swapchain> m_swapchain;
 	size_t m_frame_index;
 };
 

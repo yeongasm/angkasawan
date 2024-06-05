@@ -118,10 +118,10 @@ wnd::window_handle Engine::create_window(wnd::WindowCreateInfo const& info)
 		true,
 		info.config.catchInput
 	);
-	mWindowContext.windowHandleTable.insert(reinterpret_cast<std::uintptr_t>(hwnd), wnd::window_handle{ res.first.to_uint32() });
+	mWindowContext.windowHandleTable.insert(reinterpret_cast<std::uintptr_t>(hwnd), wnd::window_handle{ res.first.to_uint64() });
 	++mWindowContext.count;
 
-	return wnd::window_handle{ res.first.to_uint32() };
+	return wnd::window_handle{ res.first.to_uint64() };
 }
 
 void* Engine::get_application_handle() const

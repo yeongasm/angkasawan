@@ -4,7 +4,7 @@
 
 #include <filesystem>
 #include "lib/array.h"
-#include "rhi/common.h"
+#include "gpu/common.h"
 
 namespace sandbox
 {
@@ -28,7 +28,7 @@ public:
 	auto is_open() const -> bool;
 	auto close(bool release = true) -> void;
 	auto size_bytes() const -> size_t;
-	auto image_info() const -> rhi::ImageInfo;
+	auto image_info() const -> gpu::ImageInfo;
 	auto data(uint32 mipLevel = std::numeric_limits<uint32>::max()) -> std::span<uint8>;
 private:
 	struct MipInfo
@@ -40,7 +40,7 @@ private:
 	lib::array<uint8> m_storage;
 	std::span<uint8> m_img_data;
 	std::span<MipInfo> m_mip_infos;
-	rhi::ImageInfo m_image_info;
+	gpu::ImageInfo m_image_info;
 };
 }
 

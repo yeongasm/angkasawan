@@ -13,9 +13,9 @@ class ModelDemoApp final : public DemoApplication
 public:
 	ModelDemoApp(
 		core::wnd::window_handle rootWindowHandle,
-		rhi::util::ShaderCompiler& shaderCompiler,
-		rhi::Device& device,
-		rhi::Swapchain& rootWindowSwapchain,
+		gpu::util::ShaderCompiler& shaderCompiler,
+		gpu::Device& device,
+		gpu::swapchain rootWindowSwapchain,
 		size_t const& frameIndex
 	);
 
@@ -27,61 +27,34 @@ public:
 
 private:
 
-	struct CameraProjView
-	{
-		glm::mat4 projection;
-		glm::mat4 view;
-	};
-
 	struct PushConstant
 	{
-		uint32 camera_proj_view_index;
-		uint32 transform_index;
-		uint32 base_color_map_index;
-		//uint64 camera_proj_view_address;
-		//uint64 transform_address;
+		uint64 vertexBufferPtr;
+		uint64 modelTransformPtr;
+		uint64 cameraTransformPtr;
+		uint32 baseColorMapIndex;
 	};
 
-	ResourceCache m_resource_cache;
-	SubmissionQueue m_submission_queue;
-	CommandQueue m_transfer_command_queue;
-	CommandQueue m_main_command_queue;
-	UploadHeap m_upload_heap;
-	GeometryCache m_geometry_cache;
+	CommandQueue m_commandQueue;
+	UploadHeap m_uploadHeap;
+	GeometryCache m_geometryCache;
 
-	Resource<rhi::Image> m_depth_buffer;
-
-	root_geometry_handle m_zelda_geometry_handle;
-	root_geometry_handle m_sponza_geometry_handle;
-	lib::array<Resource<rhi::Image>> m_image_store;
-	rhi::Sampler m_sampler;
+	gpu::sampler m_normalSampler = {};
+	gpu::image m_depthBuffer = {};
 	
-	Camera m_camera;
-	CameraState m_camera_state;
+	Camera m_camera = {};
+	CameraState m_cameraState = {};
 
-	Resource<rhi::Buffer> m_zelda_vertex_buffer;
-	Resource<rhi::Buffer> m_zelda_index_buffer;
-	Resource<rhi::Buffer> m_sponza_vertex_buffer;
-	Resource<rhi::Buffer> m_sponza_index_buffer;
-	std::array<Resource<rhi::Buffer>, 2> m_zelda_transforms;
-	std::array<Resource<rhi::Buffer>, 2> m_sponza_transforms;
-	std::array<Resource<rhi::Buffer>, 2> m_camera_proj_view;
+	lib::array<std::pair<gpu::image, uint32>> m_sponzaTextures = {};
 
-	rhi::Shader m_vertex_shader;
-	rhi::Shader m_pixel_shader;
-	rhi::RasterPipeline m_pipeline;
+	gpu::buffer m_sponzaTransform = {};
+	std::array<gpu::buffer, 2> m_cameraProjView = {};
 
-	std::array<rhi::Fence, 2> m_fences;
-	std::array<uint64, 2> m_fence_values;
+	gpu::pipeline m_pipeline = {};
 
-	std::array<uint32, 2> m_camera_proj_view_binding_indices;
-	std::array<uint32, 2> m_zelda_transform_binding_indices;
-	std::array<uint32, 2> m_sponza_transform_binding_indices;
-
-	uint32 m_bda_binding_index;
+	root_geometry_handle m_sponza = {};
 
 	auto allocate_camera_buffers() -> void;
-	auto release_camera_buffers() -> void;
 	auto update_camera_state(float32 dt) -> void;
 	auto update_camera_on_mouse_events(float32 dt) -> void;
 	auto update_camera_on_keyboard_events(float32 dt) -> void;
