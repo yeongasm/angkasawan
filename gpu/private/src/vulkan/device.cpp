@@ -64,6 +64,7 @@ using DestroyFuncPtr = void(vk::DeviceImpl::*)(uint64 const);
 constexpr DestroyFuncPtr resourceDestroyFn[] = {
 	&vk::DeviceImpl::destroy_binary_semaphore,
 	&vk::DeviceImpl::destroy_timeline_semaphore,
+	&vk::DeviceImpl::destroy_event,
 	&vk::DeviceImpl::destroy_buffer,
 	&vk::DeviceImpl::destroy_image,
 	&vk::DeviceImpl::destroy_sampler,
@@ -309,6 +310,7 @@ auto DeviceImpl::initialize(DeviceInitInfo const& info) -> bool
 		return false;
 	}
 
+	get_physical_device_subgroup_properties();
 	get_device_queue_family_indices();
 
 	if (!create_logical_device())
@@ -571,6 +573,21 @@ auto DeviceImpl::setup_debug_name(FenceImpl const& fence) -> void
 	}
 }
 
+auto DeviceImpl::setup_debug_name(EventImpl const& event) -> void
+{
+	auto&& name = event.info().name;
+	if (name.size())
+	{
+		VkDebugUtilsObjectNameInfoEXT debugResourceNameInfo{
+			.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+			.objectType = VK_OBJECT_TYPE_EVENT,
+			.objectHandle = reinterpret_cast<uint64_t>(event.handle),
+			.pObjectName = name.c_str(),
+		};
+		vkSetDebugUtilsObjectNameEXT(device, &debugResourceNameInfo);
+	}
+}
+
 auto DeviceImpl::create_vulkan_instance() -> bool
 {
 	const auto& appVer = m_initInfo.appVersion;
@@ -717,10 +734,37 @@ auto DeviceImpl::choose_physical_device() -> bool
 		}
 	}
 
+	vulkan13Properties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_PROPERTIES;
+
+	vulkan12Properties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_PROPERTIES;
+	vulkan12Properties.pNext = &vulkan13Properties;
+
+	vulkan11Properties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_PROPERTIES;
+	vulkan11Properties.pNext = &vulkan12Properties;
+
+	VkPhysicalDeviceProperties2 vulkanProperties2{
+		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2,
+		.pNext = &vulkan11Properties
+	};
+
+	vkGetPhysicalDeviceProperties2(gpu, &vulkanProperties2);
+
 	vkGetPhysicalDeviceProperties(gpu, &properties);
 	vkGetPhysicalDeviceFeatures(gpu, &features);
 
 	return true;
+}
+
+auto DeviceImpl::get_physical_device_subgroup_properties() -> void
+{
+	subgroupProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SUBGROUP_PROPERTIES;
+
+	VkPhysicalDeviceProperties2 deviceProperties2{
+		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2,
+		.pNext = &subgroupProperties
+	};
+
+	vkGetPhysicalDeviceProperties2(gpu, &deviceProperties2);
 }
 
 auto DeviceImpl::get_device_queue_family_indices() -> void
@@ -853,8 +897,10 @@ auto DeviceImpl::create_logical_device() -> bool
 
 	VkPhysicalDeviceVulkan13Features deviceFeatures13{
 		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
+		.subgroupSizeControl = VK_TRUE,
+		.computeFullSubgroups = VK_TRUE,
 		.synchronization2 = VK_TRUE,
-		.dynamicRendering = VK_TRUE
+		.dynamicRendering = VK_TRUE,
 	};
 
 	VkPhysicalDeviceVulkan12Features deviceFeatures12{
@@ -1244,6 +1290,18 @@ auto DeviceImpl::destroy_timeline_semaphore(uint64 const id) -> void
 	gpuResourcePool.timelineSemaphore.erase(index);
 }
 
+auto DeviceImpl::destroy_event(uint64 const id) -> void
+{
+	using event_index = decltype(gpuResourcePool.events)::index;
+
+	event_index const index = event_index::from(id);
+	EventImpl& event = gpuResourcePool.events[index];
+
+	vkDestroyEvent(device, event.handle, nullptr);
+
+	gpuResourcePool.events.erase(index);
+}
+
 auto DeviceImpl::destroy_buffer(uint64 const id) -> void
 {
 	using buffer_index = decltype(gpuResourcePool.buffers)::index;
@@ -1490,6 +1548,22 @@ auto translate_shader_stage(ShaderType type) -> VkShaderStageFlagBits
 		return VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT;
 	case ShaderType::Compute:
 		return VK_SHADER_STAGE_COMPUTE_BIT;
+	case ShaderType::Task:
+		return VK_SHADER_STAGE_TASK_BIT_NV;
+	case ShaderType::Mesh:
+		return VK_SHADER_STAGE_MESH_BIT_NV;
+	case ShaderType::Ray_Generation:
+		return VK_SHADER_STAGE_RAYGEN_BIT_KHR;
+	case ShaderType::Any_Hit:
+		return VK_SHADER_STAGE_ANY_HIT_BIT_KHR;
+	case ShaderType::Closest_Hit:
+		return VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+	case ShaderType::Ray_Miss:
+		return VK_SHADER_STAGE_MISS_BIT_KHR;
+	case ShaderType::Intersection:
+		return VK_SHADER_STAGE_INTERSECTION_BIT_KHR;
+	case ShaderType::Callable:
+		return VK_SHADER_STAGE_CALLABLE_BIT_KHR;
 	case ShaderType::None:
 	default:
 		return VK_SHADER_STAGE_FLAG_BITS_MAX_ENUM;
@@ -2353,30 +2427,40 @@ auto translate_memory_access_flags(MemoryAccessType accesses) -> VkAccessFlags2
 
 auto translate_shader_stage_flags(ShaderStage shaderStage) -> VkShaderStageFlags
 {
-	uint64 mask = static_cast<uint64>(shaderStage);
+	//uint64 mask = static_cast<uint64>(shaderStage);
 
-	constexpr VkShaderStageFlagBits bits[] = {
-		VK_SHADER_STAGE_VERTEX_BIT,
-		VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT,
-		VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT,
-		VK_SHADER_STAGE_GEOMETRY_BIT,
-		VK_SHADER_STAGE_FRAGMENT_BIT,
-		VK_SHADER_STAGE_COMPUTE_BIT,
-		VK_SHADER_STAGE_ALL_GRAPHICS,
-		VK_SHADER_STAGE_ALL
-	};
+	//constexpr VkShaderStageFlagBits bits[] = {
+	//	VK_SHADER_STAGE_VERTEX_BIT,
+	//	VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT,
+	//	VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT,
+	//	VK_SHADER_STAGE_GEOMETRY_BIT,
+	//	VK_SHADER_STAGE_FRAGMENT_BIT,
+	//	VK_SHADER_STAGE_COMPUTE_BIT,
+	//	VK_SHADER_STAGE_ALL_GRAPHICS,
+	//	VK_SHADER_STAGE_ALL,
+	//	VK_SHADER_STAGE_RAYGEN_BIT_KHR,
+	//	VK_SHADER_STAGE_ANY_HIT_BIT_KHR,
+	//	VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
+	//	VK_SHADER_STAGE_MISS_BIT_KHR,
+	//	VK_SHADER_STAGE_INTERSECTION_BIT_KHR,
+	//	VK_SHADER_STAGE_CALLABLE_BIT_KHR,
+	//	VK_SHADER_STAGE_TASK_BIT_NV,
+	//	VK_SHADER_STAGE_MESH_BIT_NV
+	//};
 
-	uint64 constexpr numBits = static_cast<uint64>(std::size(bits));
+	//uint64 constexpr numBits = static_cast<uint64>(std::size(bits));
 
-	VkShaderStageFlags result = 0;
+	//VkShaderStageFlags result = 0;
 
-	for (uint64 i = 0; i < numBits; ++i)
-	{
-		VkFlags64 const exist = (mask & (1ull << i)) != 0;
-		result |= (exist * bits[i]);
-	}
+	//for (uint64 i = 0; i < numBits; ++i)
+	//{
+	//	VkFlags64 const exist = (mask & (1ull << i)) != 0;
+	//	result |= (exist * bits[i]);
+	//}
 
-	return result;
+	//return result;
+
+	return static_cast<VkShaderStageFlags>(shaderStage);
 }
 
 auto translate_sharing_mode(SharingMode sharingMode) -> VkSharingMode
@@ -2436,6 +2520,11 @@ auto to_impl(Fence& fence) -> vk::FenceImpl&
 	return static_cast<vk::FenceImpl&>(fence);
 }
 
+auto to_impl(Event& event) -> vk::EventImpl&
+{
+	return static_cast<vk::EventImpl&>(event);
+}
+
 auto to_impl(Image& image) -> vk::ImageImpl&
 {
 	return static_cast<vk::ImageImpl&>(image);
@@ -2484,6 +2573,11 @@ auto to_impl(Semaphore const& semaphore) -> vk::SemaphoreImpl const&
 auto to_impl(Fence const& fence) -> vk::FenceImpl const&
 {
 	return static_cast<vk::FenceImpl const&>(fence);
+}
+
+auto to_impl(Event const& event) -> vk::EventImpl const&
+{
+	return static_cast<vk::EventImpl const&>(event);
 }
 
 auto to_impl(Image const& image) -> vk::ImageImpl const&

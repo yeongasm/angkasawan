@@ -7,6 +7,11 @@ auto RasterPipeline::info() const -> RasterPipelineInfo const&
 	return m_info;
 }
 
+auto ComputePipeline::info() const -> ComputePipelineInfo const&
+{
+	return m_info;
+}
+
 Pipeline::Pipeline(Device& device) :
 	DeviceResource{ device },
 	m_pipelineVariant{},
@@ -25,7 +30,7 @@ auto Pipeline::valid() const -> bool
 	return m_device != nullptr && self.handle != VK_NULL_HANDLE;
 }
 
-auto Pipeline::from(Device& device, PipelineShaderInfo const& pipelineShaderInfo, RasterPipelineInfo&& info) -> Resource<Pipeline>
+auto Pipeline::from(Device& device, RasterPipelineShaderInfo const& pipelineShaderInfo, RasterPipelineInfo&& info) -> Resource<Pipeline>
 {
 	// It is necessary for raster pipelines to have a vertex shader and fragment shader.
 	if (!pipelineShaderInfo.vertexShader.valid() ||
@@ -246,6 +251,64 @@ auto Pipeline::from(Device& device, PipelineShaderInfo const& pipelineShaderInfo
 	RasterPipeline& rasterPipeline = vkpipeline.m_pipelineVariant.emplace<RasterPipeline>();
 
 	rasterPipeline.m_info = std::move(info);
+
+	if constexpr (ENABLE_DEBUG_RESOURCE_NAMES)
+	{
+		vkdevice.setup_debug_name(vkpipeline);
+	}
+
+	return Resource<Pipeline>{ id.to_uint64(), vkpipeline };
+}
+
+auto Pipeline::from(Device& device, Resource<Shader>& computeShader, ComputePipelineInfo&& info) -> Resource<Pipeline>
+{
+	// It is necessary for raster pipelines to have a vertex shader and fragment shader.
+	if (!computeShader.valid())
+	{
+		return null_resource;
+	}
+
+	vk::DeviceImpl& vkdevice = *static_cast<vk::DeviceImpl*>(&device);
+
+	vk::ShaderImpl const& vkComputeShader = static_cast<vk::ShaderImpl const&>(*computeShader);
+
+	VkPipelineLayout layoutHandle = vkdevice.push_constant_pipeline_layout(info.pushConstantSize, vkdevice.properties.limits.maxPushConstantsSize);
+
+	VkComputePipelineCreateInfo const pipelineCreateInfo{
+		.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
+		.pNext = nullptr,
+		.stage = {
+			.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+			.stage = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT,
+			.module = vkComputeShader.handle,
+			.pName = vkComputeShader.info().entryPoint.c_str()
+		},
+		.layout = layoutHandle
+	};
+
+	VkPipeline handle = VK_NULL_HANDLE;
+
+	VkResult result = vkCreateComputePipelines(vkdevice.device, VK_NULL_HANDLE, 1u, &pipelineCreateInfo, nullptr, &handle);
+
+	if (result != VK_SUCCESS)
+	{
+		return null_resource;
+	}
+
+	auto&& [id, vkpipeline] = vkdevice.gpuResourcePool.pipelines.emplace(vkdevice);
+
+	if (!info.name.empty())
+	{
+		info.name.format("<pipeline.compute>:{}", info.name.c_str());
+	}
+
+	vkpipeline.handle = handle;
+	vkpipeline.layout = layoutHandle;
+	vkpipeline.m_type = PipelineType::Compute;
+
+	ComputePipeline& computePipeline = vkpipeline.m_pipelineVariant.emplace<ComputePipeline>();
+
+	computePipeline.m_info = std::move(info);
 
 	if constexpr (ENABLE_DEBUG_RESOURCE_NAMES)
 	{

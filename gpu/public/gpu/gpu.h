@@ -233,6 +233,30 @@ protected:
 	FenceInfo m_info;
 };
 
+class Event : public DeviceResource
+{
+public:
+	Event() = default;
+	~Event() = default;
+
+	auto info() const -> EventInfo const&;
+	auto valid() const -> bool;
+	auto state() const -> EventState;
+	auto signal() const -> void;
+	auto reset() const -> void;
+
+	static auto from(Device& device, EventInfo&& info) -> Resource<Event>;
+
+protected:
+	friend class Resource<Event>;
+
+	static auto destroy(Event const& resource, uint64 id) -> void;
+
+	Event(Device& device);
+
+	EventInfo m_info;
+};
+
 class Buffer : public DeviceResource
 {
 public:
@@ -391,7 +415,7 @@ protected:
 	ShaderInfo	m_info;
 };
 
-struct PipelineShaderInfo
+struct RasterPipelineShaderInfo
 {
 	Resource<Shader> vertexShader;
 	Resource<Shader> pixelShader;
@@ -411,8 +435,21 @@ private:
 	RasterPipelineInfo m_info;
 };
 
+class ComputePipeline
+{
+public:
+	ComputePipeline() = default;
+	~ComputePipeline() = default;
+
+	auto info() const -> ComputePipelineInfo const&;
+private:
+	friend class Pipeline;
+
+	ComputePipelineInfo m_info;
+};
+
 template <typename T>
-concept is_pipeline_type = std::same_as<T, RasterPipeline>;
+concept is_pipeline_type = std::same_as<T, RasterPipeline> || std::same_as<T, ComputePipeline>;
 
 class Pipeline : public DeviceResource
 {
@@ -426,13 +463,14 @@ public:
 	template <is_pipeline_type T>
 	auto as() const -> T const* { return std::get_if<T>(&m_pipelineVariant); }
 
-	static auto from(Device& device, PipelineShaderInfo const& pipelineShaderInfo, RasterPipelineInfo&& info) -> Resource<Pipeline>;
+	static auto from(Device& device, RasterPipelineShaderInfo const& pipelineShaderInfo, RasterPipelineInfo&& info) -> Resource<Pipeline>;
+	static auto from(Device& device, Resource<Shader>& computeShader, ComputePipelineInfo&& info) -> Resource<Pipeline>;
 protected:
 	friend class Resource<Pipeline>;
 
 	static auto destroy(Pipeline& resource, uint64 id) -> void;
 
-	using PipelineVariant = std::variant<RasterPipeline>;
+	using PipelineVariant = std::variant<RasterPipeline, ComputePipeline>;
 
 	Pipeline(Device& device);
 
@@ -458,6 +496,21 @@ struct RenderingInfo
 
 struct ImageBlitInfo
 {
+	Image& src;
+	Image& dst;
+	ImageLayout srcImageLayout;
+	std::array<Offset3D, 2> srcOffset;
+	ImageSubresource srcSubresource;
+	ImageLayout	dstImageLayout;
+	std::array<Offset3D, 2> dstOffset;
+	ImageSubresource dstSubresource;
+	TexelFilter	filter;
+};
+
+struct ImageSwapchainBlitInfo
+{
+	Image& src;
+	Swapchain& dst;
 	ImageLayout srcImageLayout;
 	std::array<Offset3D, 2> srcOffset;
 	ImageSubresource srcSubresource;
@@ -469,6 +522,7 @@ struct ImageBlitInfo
 
 struct ImageClearInfo
 {
+	Image& image;
 	ImageLayout dstImageLayout;
 	ClearValue clearValue;
 	ImageSubresource subresource;
@@ -476,6 +530,7 @@ struct ImageClearInfo
 
 struct BufferClearInfo
 {
+	Buffer& buffer;
 	size_t offset;
 	size_t size;
 	uint32 data;
@@ -502,6 +557,7 @@ struct MemoryBarrierInfo
 
 struct BufferBarrierInfo
 {
+	Buffer& buffer;
 	size_t size = std::numeric_limits<size_t>::max();
 	size_t offset = 0;
 	Access srcAccess = {};
@@ -512,6 +568,7 @@ struct BufferBarrierInfo
 
 struct ImageBarrierInfo
 {
+	Image& image;
 	Access srcAccess = {};
 	Access dstAccess = {};
 	ImageLayout	oldLayout = ImageLayout::Undefined;
@@ -540,6 +597,7 @@ struct DrawIndexedInfo
 
 struct DrawIndirectInfo
 {
+	Buffer& drawInfoBuffer;
 	size_t offset;
 	uint32 drawCount;
 	uint32 stride;
@@ -548,6 +606,8 @@ struct DrawIndirectInfo
 
 struct DrawIndirectCountInfo
 {
+	Buffer& drawInfoBuffer;
+	Buffer& drawCountBuffer;
 	size_t offset; // offset into the buffer that contains the packed draw parameters.
 	size_t countBufferOffset; // offset into a buffer that contains the packed unsigned 32-bit integer that signifies draw count.
 	uint32 maxDrawCount;
@@ -555,20 +615,37 @@ struct DrawIndirectCountInfo
 	bool indexed;
 };
 
+struct DispatchInfo
+{
+	uint32 x = 1;
+	uint32 y = 1;
+	uint32 z = 1;
+};
+
+struct DispatchIndirectInfo
+{
+	Buffer& dispatchInfoBuffer;
+	size_t offset = 0;
+};
+
 struct BindVertexBufferInfo
 {
+	Buffer& buffer;
 	uint32 firstBinding;
 	size_t offset;
 };
 
 struct BindIndexBufferInfo
 {
+	Buffer& buffer;
 	size_t offset;
 	IndexType indexType = IndexType::Uint_32;
 };
 
 struct BufferCopyInfo
 {
+	Buffer& src;
+	Buffer& dst;
 	size_t srcOffset;
 	size_t dstOffset;
 	size_t size;
@@ -576,6 +653,8 @@ struct BufferCopyInfo
 
 struct BufferImageCopyInfo
 {
+	Buffer& src;
+	Image& dst;
 	size_t bufferOffset;
 	ImageLayout dstImageLayout = ImageLayout::Transfer_Dst;
 	ImageSubresource imageSubresource = {};
@@ -585,6 +664,8 @@ struct BufferImageCopyInfo
 
 struct ImageBufferCopyInfo
 {
+	Image& src;
+	Buffer& dst;
 	size_t bufferOffset;
 	ImageLayout srcImageLayout = ImageLayout::Transfer_Src;
 	ImageSubresource imageSubresource = {};
@@ -594,6 +675,8 @@ struct ImageBufferCopyInfo
 
 struct ImageCopyInfo
 {
+	Image& src;
+	Image& dst;
 	ImageLayout srcImageLayout = ImageLayout::Transfer_Src;
 	ImageSubresource srcSubresource = {};
 	Offset3D srcOffset = {};
@@ -601,6 +684,22 @@ struct ImageCopyInfo
 	ImageSubresource dstSubresource = {};
 	Offset3D dstOffset;
 	Extent3D extent;
+};
+
+struct EventSignalInfo
+{
+	Event& event;
+	std::span<MemoryBarrierInfo> memoryBarrierInfo;
+	std::span<BufferBarrierInfo> bufferBarrierInfo;
+	std::span<ImageBarrierInfo> imageBarrierInfo;
+};
+
+using EventWaitInfo = EventSignalInfo;
+
+struct EventResetInfo
+{
+	Event& event;
+	PipelineStage stage;
 };
 
 struct DebugLabelInfo
@@ -640,15 +739,7 @@ public:
 
 	auto info() const -> CommandBufferInfo const&;
 	auto valid() const -> bool;
-	//auto is_initial() const -> bool;
-	//auto is_recording() const -> bool;
-	//auto is_executable() const -> bool;
-	//auto is_pending_complete() const -> bool;
-	//auto is_completed() -> bool;
-	//auto is_invalid() const -> bool;
-	//auto current_state() const -> CommandBufferState;
 	auto recording_timeline() const -> uint64;
-	//auto completion_timeline() const -> uint64;
 
 	auto reset() -> void;
 
@@ -656,35 +747,43 @@ public:
 	auto end() -> void;
 
 	auto clear(Image& image) -> void;
-	auto clear(Image& image, ImageClearInfo const& info) -> void;
+	auto clear(ImageClearInfo const& info) -> void;
 	auto clear(Buffer& buffer) -> void;
-	auto clear(Buffer& buffer, BufferClearInfo const& info) -> void;
+	auto clear(BufferClearInfo const& info) -> void;
 
 	auto draw(DrawInfo const& info) const -> void;
 	auto draw_indexed(DrawIndexedInfo const& info) const -> void;
-	auto draw_indirect(Buffer& drawInfoBuffer, DrawIndirectInfo const& info) const -> void;
-	auto draw_indirect_count(Buffer& drawInfoBuffer, Buffer& drawCountBuffer, DrawIndirectCountInfo const& info) const -> void;
+	auto draw_indirect(DrawIndirectInfo const& info) const -> void;
+	auto draw_indirect_count(DrawIndirectCountInfo const& info) const -> void;
 
-	auto bind_vertex_buffer(Buffer& buffer, BindVertexBufferInfo const& info) -> void;
-	auto bind_index_buffer(Buffer& buffer, BindIndexBufferInfo const& info) -> void;
+	auto bind_vertex_buffer(BindVertexBufferInfo const& info) -> void;
+	auto bind_index_buffer(BindIndexBufferInfo const& info) -> void;
 	auto bind_push_constant(BindPushConstantInfo const& info) -> void;
 
 	auto bind_pipeline(Pipeline& pipeline) -> void;
 
+	auto dispatch(DispatchInfo const& info) -> void;
+	auto dispatch_indirect(DispatchIndirectInfo const& info) -> void;
+
+	auto signal_event(EventSignalInfo const& info) -> void;
+	auto wait_events(std::span<EventWaitInfo const> const& infos) -> void;
+	auto wait_event(EventWaitInfo const& info) -> void;
+	auto reset_event(EventResetInfo const& info) -> void;
+
 	auto pipeline_barrier(MemoryBarrierInfo const& barrier) -> void;
-	auto pipeline_barrier(Buffer& buffer, BufferBarrierInfo const& barrier) -> void;
-	auto pipeline_barrier(Image& image, ImageBarrierInfo const& barrier) -> void;
+	auto pipeline_buffer_barrier(BufferBarrierInfo const& barrier) -> void;
+	auto pipeline_image_barrier(ImageBarrierInfo const& barrier) -> void;
 	auto flush_barriers() -> void;
 
 	auto begin_rendering(RenderingInfo const& info) -> void;
 	auto end_rendering() -> void;
 
-	auto copy_buffer_to_buffer(Buffer& src, Buffer& dst, BufferCopyInfo const& info) -> void;
-	auto copy_buffer_to_image(Buffer& src, Image& dst, BufferImageCopyInfo const& info) -> void;
-	auto copy_image_to_buffer(Image& src, Buffer& dst, ImageBufferCopyInfo const& info) -> void;
-	auto copy_image_to_image(Image& src, Image& dst, ImageCopyInfo const& info) -> void;
-	auto blit_image(Image& src, Image& dst, ImageBlitInfo const& info) -> void;
-	auto blit_image(Image& src, Swapchain& dst, ImageBlitInfo const& info) -> void;
+	auto copy_buffer_to_buffer(BufferCopyInfo const& info) -> void;
+	auto copy_buffer_to_image(BufferImageCopyInfo const& info) -> void;
+	auto copy_image_to_buffer(ImageBufferCopyInfo const& info) -> void;
+	auto copy_image_to_image(ImageCopyInfo const& info) -> void;
+	auto blit_image(ImageBlitInfo const& info) -> void;
+	auto blit_image_swapchain(ImageSwapchainBlitInfo const& info) -> void;
 
 	auto set_viewport(Viewport const& viewport) -> void;
 	auto set_scissor(Rect2D const& rect) -> void;
@@ -712,8 +811,6 @@ protected:
 	CommandBufferInfo m_info;
 	Resource<CommandPool> m_commandPool;
 	std::atomic_uint64_t m_recordingTimeline;
-	//Resource<Fence> m_completionTimeline;
-	//CommandBufferState m_state;
 };
 
 class CommandPool : public DeviceResource
@@ -739,6 +836,7 @@ protected:
 
 using semaphore		= Resource<Semaphore>;
 using fence			= Resource<Fence>;
+using event			= Resource<Event>;
 using buffer		= Resource<Buffer>;
 using image			= Resource<Image>;
 using sampler		= Resource<Sampler>;

@@ -328,6 +328,12 @@ struct RasterPipelineInfo
 	uint32 pushConstantSize = 128;
 };
 
+struct ComputePipelineInfo
+{
+	lib::string name;
+	uint32 pushConstantSize;
+};
+
 struct SemaphoreInfo
 {
 	lib::string name;
@@ -337,6 +343,11 @@ struct FenceInfo
 {
 	lib::string name;
 	uint64 initialValue = 0;
+};
+
+struct EventInfo
+{
+	lib::string name;
 };
 
 /**

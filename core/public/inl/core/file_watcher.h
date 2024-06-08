@@ -1,5 +1,3 @@
-module;
-
 #include <filesystem>
 #include <functional>
 
@@ -7,11 +5,9 @@ module;
 
 #include "engine_api.h"
 
-export module core.filewatcher;
-
 namespace core::filewatcher
 {
-export enum class FileAction
+enum class FileAction
 {
 	None,
 	Added,
@@ -19,7 +15,7 @@ export enum class FileAction
 	Deleted
 };
 
-export struct FileActionInfo
+struct FileActionInfo
 {
 	std::filesystem::path path;
 	FileAction action;
@@ -29,9 +25,9 @@ export struct FileActionInfo
 * NOTE(afiq):
 * Switch to move_only_function when we upgrade to C++23.
 */
-export using FileWatchCallbackFn = std::function<void(FileActionInfo const&)>;
+using FileWatchCallbackFn = std::function<void(FileActionInfo const&)>;
 
-export struct FileWatchInfo
+struct FileWatchInfo
 {
 	/**
 	* Path to a directory or file.
@@ -49,13 +45,13 @@ export struct FileWatchInfo
 	bool recursive;
 };
 
-export using file_watch_id = lib::handle<struct File, uint64, std::numeric_limits<uint64>::max()>;
+using file_watch_id = lib::handle<struct File, uint64, std::numeric_limits<uint64>::max()>;
 
-export CORE_API auto initialize_file_watcher() -> bool;
-export CORE_API auto terminate_file_watcher() -> void;
+CORE_API auto initialize_file_watcher() -> bool;
+CORE_API auto terminate_file_watcher() -> void;
 /**
 * Asynchronously watches for changes to a file or file(s) in a directory.
 */
-export CORE_API auto watch(FileWatchInfo&& watchInfo) -> file_watch_id;
-export CORE_API auto unwatch(file_watch_id id) -> void;
+CORE_API auto watch(FileWatchInfo&& watchInfo) -> file_watch_id;
+CORE_API auto unwatch(file_watch_id id) -> void;
 }

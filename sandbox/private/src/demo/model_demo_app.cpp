@@ -220,29 +220,25 @@ auto ModelDemoApp::initialize() -> bool
 
 		for (auto&& texture : m_sponzaTextures)
 		{
-			cmd->pipeline_barrier(
-				*texture.first,
-				{
-					.dstAccess = gpu::access::TRANSFER_WRITE,
-					.oldLayout = gpu::ImageLayout::Transfer_Dst,
-					.newLayout = gpu::ImageLayout::Shader_Read_Only,
-					.srcQueue = gpu::DeviceQueue::Transfer,
-					.dstQueue = gpu::DeviceQueue::Main
-				}
-			);
+			cmd->pipeline_image_barrier({
+				.image = *texture.first,
+				.dstAccess = gpu::access::TRANSFER_WRITE,
+				.oldLayout = gpu::ImageLayout::Transfer_Dst,
+				.newLayout = gpu::ImageLayout::Shader_Read_Only,
+				.srcQueue = gpu::DeviceQueue::Transfer,
+				.dstQueue = gpu::DeviceQueue::Main
+			});
 		}
 
-		cmd->pipeline_barrier(
-			*m_depthBuffer,
-			{
-				.srcAccess = gpu::access::TOP_OF_PIPE_NONE,
-				.oldLayout = gpu::ImageLayout::Undefined,
-				.newLayout = gpu::ImageLayout::Depth_Attachment,
-				.subresource = {
-					.aspectFlags = gpu::ImageAspect::Depth
-				}
+		cmd->pipeline_image_barrier({
+			.image = *m_depthBuffer,
+			.srcAccess = gpu::access::TOP_OF_PIPE_NONE,
+			.oldLayout = gpu::ImageLayout::Undefined,
+			.newLayout = gpu::ImageLayout::Depth_Attachment,
+			.subresource = {
+				.aspectFlags = gpu::ImageAspect::Depth
 			}
-		);
+		});
 
 		cmd->end();
 
@@ -286,14 +282,12 @@ auto ModelDemoApp::run() -> void
 		.dstAccess = gpu::access::HOST_READ
 	});
 
-	cmd->pipeline_barrier(
-		*swapchainImage,
-		{
-			.dstAccess = gpu::access::FRAGMENT_SHADER_READ,
-			.oldLayout = gpu::ImageLayout::Undefined,
-			.newLayout = gpu::ImageLayout::Color_Attachment
-		}
-	);
+	cmd->pipeline_image_barrier({
+		.image = *swapchainImage,
+		.dstAccess = gpu::access::FRAGMENT_SHADER_READ,
+		.oldLayout = gpu::ImageLayout::Undefined,
+		.newLayout = gpu::ImageLayout::Color_Attachment
+	});
 
 	gpu::RenderAttachment swapchainImageAttachment{
 		.image = swapchainImage,
@@ -340,12 +334,10 @@ auto ModelDemoApp::run() -> void
 	});
 	cmd->bind_pipeline(*m_pipeline);
 
-	cmd->bind_index_buffer(
-		*sponzaIb,
-		{
-			.indexType = gpu::IndexType::Uint_32
-		}
-	);
+	cmd->bind_index_buffer({
+		.buffer = *sponzaIb,
+		.indexType = gpu::IndexType::Uint_32
+	});
 
 	while (sponzaMesh)
 	{
@@ -368,15 +360,13 @@ auto ModelDemoApp::run() -> void
 
 	cmd->end_rendering();
 
-	cmd->pipeline_barrier(
-		*swapchainImage,
-		{
-			.srcAccess = gpu::access::FRAGMENT_SHADER_WRITE,
-			.dstAccess = gpu::access::TRANSFER_READ,
-			.oldLayout = gpu::ImageLayout::Color_Attachment,
-			.newLayout = gpu::ImageLayout::Present_Src
-		}
-	);
+	cmd->pipeline_image_barrier({
+		.image = *swapchainImage,
+		.srcAccess = gpu::access::FRAGMENT_SHADER_WRITE,
+		.dstAccess = gpu::access::TRANSFER_READ,
+		.oldLayout = gpu::ImageLayout::Color_Attachment,
+		.newLayout = gpu::ImageLayout::Present_Src
+	});
 
 	cmd->end();
 

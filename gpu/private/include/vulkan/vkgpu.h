@@ -25,6 +25,7 @@ enum class ResourceType : uint32
 {
 	Semaphore,
 	Fence,
+	Event,
 	Buffer,
 	Image,
 	Sampler,
@@ -59,6 +60,15 @@ public:
 	FenceImpl(DeviceImpl& device);
 
 	VkSemaphore handle = VK_NULL_HANDLE;
+};
+
+class EventImpl : public Event
+{
+public:
+	EventImpl() = default;
+	EventImpl(DeviceImpl& device);
+
+	VkEvent handle = VK_NULL_HANDLE;
 };
 
 // https://gpuopen-librariesandsdks.github.io/VulkanMemoryAllocator/html/usage_patterns.html
@@ -144,6 +154,10 @@ public:
 	CommandBufferImpl() = default;
 	CommandBufferImpl(DeviceImpl& device);
 
+	auto get_memory_barrier_info(MemoryBarrierInfo const& info) const -> VkMemoryBarrier2;
+	auto get_buffer_barrier_info(BufferBarrierInfo const& info) const -> VkBufferMemoryBarrier2;
+	auto get_image_barrier_info(ImageBarrierInfo const& info) const -> VkImageMemoryBarrier2;
+
 	static constexpr size_t MAX_COMMAND_BUFFER_BARRIER_COUNT = 16;
 
 	template <typename T>
@@ -190,6 +204,7 @@ struct ResourcePool
 {
 	Pool<SemaphoreImpl> binarySemaphore;
 	Pool<FenceImpl> timelineSemaphore;
+	Pool<EventImpl> events;
 	Pool<BufferImpl> buffers;
 	Pool<ImageImpl> images;
 	Pool<SamplerImpl> samplers;
@@ -228,7 +243,11 @@ public:
 	VkPhysicalDevice gpu = {};
 	VkDevice device	= {};
 	VkPhysicalDeviceProperties properties = {};
+	VkPhysicalDeviceVulkan11Properties vulkan11Properties = {};
+	VkPhysicalDeviceVulkan12Properties vulkan12Properties = {};
+	VkPhysicalDeviceVulkan13Properties vulkan13Properties = {};
 	VkPhysicalDeviceFeatures features = {};
+	VkPhysicalDeviceSubgroupProperties subgroupProperties = {};
 	VmaAllocator allocator = {};
 	VkDebugUtilsMessengerEXT debugger = {};
 	Queue mainQueue = {};
@@ -260,10 +279,12 @@ public:
 	auto setup_debug_name(CommandBufferImpl const& commandBuffer) -> void;
 	auto setup_debug_name(SemaphoreImpl const& semaphore) -> void;
 	auto setup_debug_name(FenceImpl const& fence) -> void;
+	auto setup_debug_name(EventImpl const& event) -> void;
 
 	auto create_vulkan_instance() -> bool;
 	auto create_debug_messenger() -> bool;
 	auto choose_physical_device() -> bool;
+	auto get_physical_device_subgroup_properties() -> void;
 	auto get_device_queue_family_indices() -> void;
 	auto create_logical_device() -> bool;
 	auto get_queue_handles() -> void;
@@ -279,6 +300,7 @@ public:
 
 	auto destroy_binary_semaphore(uint64 const id) -> void;
 	auto destroy_timeline_semaphore(uint64 const id) -> void;
+	auto destroy_event(uint64 const id) -> void;
 	auto destroy_buffer(uint64 const id) -> void;
 	auto destroy_image(uint64 const id) -> void;
 	auto destroy_sampler(uint64 const id) -> void;
@@ -333,6 +355,7 @@ auto to_device(Device* device) -> vk::DeviceImpl&;
 auto to_device(Device& device) -> vk::DeviceImpl&;
 auto to_impl(Semaphore& semaphore) -> vk::SemaphoreImpl&;
 auto to_impl(Fence& fence) -> vk::FenceImpl&;
+auto to_impl(Event& event) -> vk::EventImpl&;
 auto to_impl(Image& image) -> vk::ImageImpl&;
 auto to_impl(Buffer& buffer) -> vk::BufferImpl&;
 auto to_impl(Sampler& sampler) -> vk::SamplerImpl&;
@@ -343,6 +366,7 @@ auto to_impl(CommandBuffer& cmdBuffer) -> vk::CommandBufferImpl&;
 auto to_impl(CommandPool& cmdPool) -> vk::CommandPoolImpl&;
 auto to_impl(Semaphore const& semaphore) -> vk::SemaphoreImpl const&;
 auto to_impl(Fence const& fence) -> vk::FenceImpl const&;
+auto to_impl(Event const& event) -> vk::EventImpl const&;
 auto to_impl(Image const& image) -> vk::ImageImpl const&;
 auto to_impl(Buffer const& buffer) -> vk::BufferImpl const&;
 auto to_impl(Sampler const& image) -> vk::SamplerImpl const&;

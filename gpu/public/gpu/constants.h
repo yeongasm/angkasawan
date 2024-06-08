@@ -677,13 +677,12 @@ enum class PipelineType
 	Ray_Tracing
 };
 
-//enum class ResourceState
-//{
-//	None,
-//	Ok,
-//	In_Use,
-//	Released
-//};
+enum class SubgroupSize
+{
+	None,		// Vendor decides the appropriate subgroup size.
+	Varying,	// Subgroup size may vary in the shader stage.
+	Full		// Subgroup size must be launched with all invocations in the task, mesh or compute stage.
+};
 
 enum class ShaderType
 {
@@ -694,6 +693,14 @@ enum class ShaderType
 	Tesselation_Control,
 	Tesselation_Evaluation,
 	Compute,
+	Task,
+	Mesh,
+	Ray_Generation,
+	Any_Hit,
+	Closest_Hit,
+	Ray_Miss,
+	Intersection,
+	Callable,
 	None
 };
 
@@ -706,14 +713,28 @@ enum class ShaderStage
 	Fragment				= 1 << 4,
 	Pixel					= Fragment,
 	Compute					= 1 << 5,
-	All_Graphics			= 1 << 6,
-	All						= 1 << 7
+	Task					= 1 << 6,
+	Mesh					= 1 << 7,
+	All_Graphics			= 31,
+	Ray_Generation			= 1 << 8,
+	Any_Hit					= 1 << 9,
+	Closest_Hit				= 1 << 10,
+	Ray_Miss				= 1 << 11,
+	Intersection			= 1 << 12,
+	Callable				= 1 << 13,
+	All						= ~(1 << 31)
 };
 
 enum class SharingMode : uint32
 {
 	Exclusive,
 	Concurrent
+};
+
+enum class EventState : uint32
+{
+	Signaled,
+	Unsignaled
 };
 
 //enum class CommandBufferState : uint8

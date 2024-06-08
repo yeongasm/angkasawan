@@ -11,10 +11,7 @@ CommandBuffer::CommandBuffer(Device& device) :
 	DeviceResource{ device },
 	m_info{},
 	m_commandPool{},
-	m_recordingTimeline{}//,
-	//m_completionTimeline{},
-	//m_recordingTimeline{},
-	//m_state{ CommandBufferState::Initial }
+	m_recordingTimeline{}
 {}
 
 auto CommandBuffer::info() const -> CommandBufferInfo const&
@@ -29,57 +26,10 @@ auto CommandBuffer::valid() const -> bool
 	return m_device != nullptr && self.handle != VK_NULL_HANDLE;
 }
 
-//auto CommandBuffer::is_initial() const -> bool
-//{
-//	return m_state == CommandBufferState::Initial;
-//}
-//
-//auto CommandBuffer::is_recording() const -> bool
-//{
-//	return m_state == CommandBufferState::Recording;
-//}
-//
-//auto CommandBuffer::is_executable() const -> bool
-//{
-//	return m_state == CommandBufferState::Executable;
-//}
-//
-//auto CommandBuffer::is_pending_complete() const -> bool
-//{
-//	return m_state == CommandBufferState::Pending;
-//}
-//
-//auto CommandBuffer::is_completed() -> bool
-//{
-//	uint64 const completionTimeline = m_completionTimeline->value();
-//
-//	if (completionTimeline >= m_recordingTimeline)
-//	{
-//		m_state = CommandBufferState::Executable;
-//	}
-//
-//	return completionTimeline >= m_recordingTimeline;
-//}
-//
-//auto CommandBuffer::is_invalid() const -> bool
-//{
-//	return m_state == CommandBufferState::Invalid;
-//}
-//
-//auto CommandBuffer::current_state() const -> CommandBufferState
-//{
-//	return m_state;
-//}
-//
 auto CommandBuffer::recording_timeline() const -> uint64
 {
 	return m_recordingTimeline.load(std::memory_order_acquire);
 }
-//
-//auto CommandBuffer::completion_timeline() const -> uint64
-//{
-//	return m_completionTimeline->value();
-//}
 
 auto CommandBuffer::reset() -> void
 {
@@ -132,22 +82,22 @@ auto CommandBuffer::end() -> void
 
 auto CommandBuffer::clear(Image& image) -> void
 {
-	return clear(image, { .dstImageLayout = ImageLayout::General, .clearValue = image.info().clearValue });
+	return clear({ .image = image, .dstImageLayout = ImageLayout::General, .clearValue = image.info().clearValue });
 }
 
-auto CommandBuffer::clear(Image& image, ImageClearInfo const& info) -> void
+auto CommandBuffer::clear(ImageClearInfo const& info) -> void
 {
-	if (!valid() || !image.valid()) [[unlikely]]
+	if (!valid() || !info.image.valid()) [[unlikely]]
 	{
 		return;
 	}
 
 	flush_barriers();
 
-	ClearValue imgClearValue = image.info().clearValue;
+	ClearValue imgClearValue = info.image.info().clearValue;
 
 	auto const& self = to_impl(*this);
-	auto const& img = to_impl(image);
+	auto const& img = to_impl(info.image);
 
 	VkImageSubresourceRange subResourceRange{
 		.aspectMask = vk::translate_image_aspect_flags(info.subresource.aspectFlags),
@@ -157,7 +107,7 @@ auto CommandBuffer::clear(Image& image, ImageClearInfo const& info) -> void
 		.layerCount = info.subresource.layerCount
 	};
 
-	if (!is_color_format(image.info().format))
+	if (!is_color_format(info.image.info().format))
 	{
 		VkClearDepthStencilValue depthStencilValue{
 			.depth = imgClearValue.depthStencil.depth,
@@ -190,12 +140,12 @@ auto CommandBuffer::clear(Image& image, ImageClearInfo const& info) -> void
 auto CommandBuffer::clear(Buffer& buffer) -> void
 {
 	size_t const size = buffer.valid() ? buffer.info().size : 0;
-	clear(buffer, { .offset = 0, .size = size, .data = 0u });
+	clear({ .buffer = buffer, .offset = 0, .size = size, .data = 0u });
 }
 
-auto CommandBuffer::clear(Buffer& buffer, BufferClearInfo const& info) -> void
+auto CommandBuffer::clear(BufferClearInfo const& info) -> void
 {
-	if (!valid() || !buffer.valid()) [[unlikely]]
+	if (!valid() || !info.buffer.valid()) [[unlikely]]
 	{
 		return;
 	}
@@ -203,7 +153,7 @@ auto CommandBuffer::clear(Buffer& buffer, BufferClearInfo const& info) -> void
 	flush_barriers();
 
 	auto&& self = to_impl(*this);
-	auto const& buf = to_impl(buffer);
+	auto const& buf = to_impl(info.buffer);
 
 	vkCmdFillBuffer(
 		self.handle,
@@ -238,15 +188,15 @@ auto CommandBuffer::draw_indexed(DrawIndexedInfo const& info) const -> void
 	vkCmdDrawIndexed(self.handle, info.indexCount, info.instanceCount, info.firstIndex, info.vertexOffset, info.firstInstance);
 }
 
-auto CommandBuffer::draw_indirect(Buffer& drawInfoBuffer, DrawIndirectInfo const& info) const -> void
+auto CommandBuffer::draw_indirect(DrawIndirectInfo const& info) const -> void
 {
-	if (!valid() || !drawInfoBuffer.valid()) [[unlikely]]
+	if (!valid() || !info.drawInfoBuffer.valid()) [[unlikely]]
 	{
 		return;
 	}
 
 	auto&& self = to_impl(*this);
-	auto const& buf = to_impl(drawInfoBuffer);
+	auto const& buf = to_impl(info.drawInfoBuffer);
 
 	if (info.indexed)
 	{
@@ -270,16 +220,16 @@ auto CommandBuffer::draw_indirect(Buffer& drawInfoBuffer, DrawIndirectInfo const
 	}
 }
 
-auto CommandBuffer::draw_indirect_count(Buffer& drawInfoBuffer, Buffer& drawCountBuffer, DrawIndirectCountInfo const& info) const -> void
+auto CommandBuffer::draw_indirect_count(DrawIndirectCountInfo const& info) const -> void
 {
-	if (!valid() || !drawInfoBuffer.valid() || !drawCountBuffer.valid()) [[unlikely]]
+	if (!valid() || !info.drawInfoBuffer.valid() || !info.drawCountBuffer.valid()) [[unlikely]]
 	{
 		return;
 	}
 
 	auto&& self = to_impl(*this);
-	auto const& drawInfoBuf = to_impl(drawInfoBuffer);
-	auto const& countBuf = to_impl(drawCountBuffer);
+	auto const& drawInfoBuf = to_impl(info.drawInfoBuffer);
+	auto const& countBuf = to_impl(info.drawCountBuffer);
 
 	if (info.indexed)
 	{
@@ -307,9 +257,9 @@ auto CommandBuffer::draw_indirect_count(Buffer& drawInfoBuffer, Buffer& drawCoun
 	}
 }
 
-auto CommandBuffer::bind_vertex_buffer(Buffer& buffer, BindVertexBufferInfo const& info) -> void
+auto CommandBuffer::bind_vertex_buffer(BindVertexBufferInfo const& info) -> void
 {
-	if (!valid() || !buffer.valid()) [[unlikely]]
+	if (!valid() || !info.buffer.valid()) [[unlikely]]
 	{
 		return;
 	}
@@ -317,11 +267,11 @@ auto CommandBuffer::bind_vertex_buffer(Buffer& buffer, BindVertexBufferInfo cons
 	flush_barriers();
 
 	auto const& self = to_impl(*this);
-	auto const& buf = to_impl(buffer);
+	auto const& buf = to_impl(info.buffer);
 
 	using buffer_usage_t = std::underlying_type_t<BufferUsage>;
 
-	buffer_usage_t const usage = static_cast<buffer_usage_t>(buffer.info().bufferUsage);
+	buffer_usage_t const usage = static_cast<buffer_usage_t>(info.buffer.info().bufferUsage);
 	buffer_usage_t constexpr VERTEX_BUFFER_USAGE = static_cast<buffer_usage_t>(BufferUsage::Vertex);
 
 	if (usage & VERTEX_BUFFER_USAGE)
@@ -330,9 +280,9 @@ auto CommandBuffer::bind_vertex_buffer(Buffer& buffer, BindVertexBufferInfo cons
 	}
 }
 
-auto CommandBuffer::bind_index_buffer(Buffer& buffer, BindIndexBufferInfo const& info) -> void
+auto CommandBuffer::bind_index_buffer(BindIndexBufferInfo const& info) -> void
 {
-	if (!valid() || !buffer.valid()) [[unlikely]]
+	if (!valid() || !info.buffer.valid()) [[unlikely]]
 	{
 		return;
 	}
@@ -340,11 +290,11 @@ auto CommandBuffer::bind_index_buffer(Buffer& buffer, BindIndexBufferInfo const&
 	flush_barriers();
 
 	auto const& self = to_impl(*this);
-	auto const& buf = to_impl(buffer);
+	auto const& buf = to_impl(info.buffer);
 
 	using buffer_usage_t = std::underlying_type_t<BufferUsage>;
 
-	buffer_usage_t const usage = static_cast<buffer_usage_t>(buffer.info().bufferUsage);
+	buffer_usage_t const usage = static_cast<buffer_usage_t>(info.buffer.info().bufferUsage);
 	buffer_usage_t constexpr INDEX_BUFFER_USAGE = static_cast<buffer_usage_t>(BufferUsage::Index);
 
 	if (usage & INDEX_BUFFER_USAGE)
@@ -431,6 +381,168 @@ auto CommandBuffer::bind_pipeline(Pipeline& pipeline) -> void
 	vkCmdBindPipeline(self.handle, pipelineBindPoint, pipelineResource.handle);
 }
 
+auto CommandBuffer::dispatch(DispatchInfo const& info) -> void
+{
+	if (!valid()) [[unlikely]]
+	{
+		return;
+	}
+
+	auto&& self = to_impl(*this);
+
+	vkCmdDispatch(self.handle, info.x, info.y, info.z);
+}
+
+auto CommandBuffer::dispatch_indirect(DispatchIndirectInfo const& info) -> void
+{
+	if (!valid() || !info.dispatchInfoBuffer.valid()) [[unlikely]]
+	{
+		return;
+	}
+
+	auto&& self = to_impl(*this);
+	auto&& vkbuffer = to_impl(info.dispatchInfoBuffer);
+
+	vkCmdDispatchIndirect(self.handle, vkbuffer.handle, info.offset);
+}
+
+struct SplitBarrierDependencyInfoBuffer
+{
+	lib::array<VkMemoryBarrier2> vkMemoryBarriers = {};
+	lib::array<VkBufferMemoryBarrier2> vkBufferBarriers = {};
+	lib::array<VkImageMemoryBarrier2> vkImageBarriers = {};
+};
+
+/**
+* NOTE(afiq):
+* Implement a more robust solution.
+* Shamelessly stolen from Daxa, lpotrick will forgive me. Too lazy to think of an appropriate solution.
+*/
+static thread_local lib::array<SplitBarrierDependencyInfoBuffer> splitBarrierInfoBuffer = {};
+static thread_local lib::array<VkDependencyInfo> dependencyInfoBuffer = {};
+static thread_local lib::array<VkEvent> splitBarrierEventBuffer = {};
+
+auto CommandBuffer::signal_event(EventSignalInfo const& info) -> void
+{
+	if (!valid() || !info.event.valid()) [[unlikely]]
+	{
+		return;
+	}
+
+	flush_barriers();
+
+	auto const& self = to_impl(*this);
+	auto&& vkevent = to_impl(info.event);
+
+	auto& splitBarrierInfo = splitBarrierInfoBuffer.emplace_back();
+
+	for (auto& barrier : info.memoryBarrierInfo)
+	{
+		splitBarrierInfo.vkMemoryBarriers.push_back(self.get_memory_barrier_info(barrier));
+	}
+
+	for (auto& barrier : info.bufferBarrierInfo)
+	{
+		splitBarrierInfo.vkBufferBarriers.push_back(self.get_buffer_barrier_info(barrier));
+	}
+
+	for (auto& barrier : info.imageBarrierInfo)
+	{
+		splitBarrierInfo.vkImageBarriers.push_back(self.get_image_barrier_info(barrier));
+	}
+
+	VkDependencyInfo dependencyInfo{
+		.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+		.memoryBarrierCount = static_cast<uint32>(splitBarrierInfo.vkMemoryBarriers.size()),
+		.pMemoryBarriers = splitBarrierInfo.vkMemoryBarriers.data(),
+		.bufferMemoryBarrierCount = static_cast<uint32>(splitBarrierInfo.vkBufferBarriers.size()),
+		.pBufferMemoryBarriers = splitBarrierInfo.vkBufferBarriers.data(),
+		.imageMemoryBarrierCount = static_cast<uint32>(splitBarrierInfo.vkImageBarriers.size()),
+		.pImageMemoryBarriers = splitBarrierInfo.vkImageBarriers.data()
+	};
+
+	vkCmdSetEvent2(self.handle, vkevent.handle, &dependencyInfo);
+
+	splitBarrierInfoBuffer.clear();
+}
+
+auto CommandBuffer::wait_events(std::span<EventWaitInfo const> const& infos) -> void
+{
+	if (!valid()) [[unlikely]]
+	{
+		return;
+	}
+
+	auto&& self = to_impl(*this);
+
+	flush_barriers();
+
+	for (auto const& info : infos)
+	{
+		if (!info.event.valid()) [[unlikely]]
+		{
+			continue;
+		}
+
+		auto const& vkevent = to_impl(info.event);
+		auto& splitBarrierInfo = splitBarrierInfoBuffer.emplace_back();
+
+		for (auto& barrier : info.memoryBarrierInfo)
+		{
+			splitBarrierInfo.vkMemoryBarriers.push_back(self.get_memory_barrier_info(barrier));
+		}
+
+		for (auto& barrier : info.bufferBarrierInfo)
+		{
+			splitBarrierInfo.vkBufferBarriers.push_back(self.get_buffer_barrier_info(barrier));
+		}
+
+		for (auto& barrier : info.imageBarrierInfo)
+		{
+			splitBarrierInfo.vkImageBarriers.push_back(self.get_image_barrier_info(barrier));
+		}
+
+		dependencyInfoBuffer.emplace_back(
+			VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+			nullptr,
+			0u,
+			static_cast<uint32>(splitBarrierInfo.vkMemoryBarriers.size()),
+			splitBarrierInfo.vkMemoryBarriers.data(),
+			static_cast<uint32>(splitBarrierInfo.vkBufferBarriers.size()),
+			splitBarrierInfo.vkBufferBarriers.data(),
+			static_cast<uint32>(splitBarrierInfo.vkImageBarriers.size()),
+			splitBarrierInfo.vkImageBarriers.data()
+		);
+		splitBarrierEventBuffer.push_back(vkevent.handle);
+	}
+
+	vkCmdWaitEvents2(self.handle, static_cast<uint32>(splitBarrierEventBuffer.size()), splitBarrierEventBuffer.data(), dependencyInfoBuffer.data());
+
+	splitBarrierInfoBuffer.clear();
+	splitBarrierEventBuffer.clear();
+	dependencyInfoBuffer.clear();
+}
+
+auto CommandBuffer::wait_event(EventWaitInfo const& info) -> void
+{
+	wait_events(std::span{ &info, 1 });
+}
+
+auto CommandBuffer::reset_event(EventResetInfo const& info) -> void
+{
+	if (!valid()) [[unlikely]]
+	{
+		return;
+	}
+
+	flush_barriers();
+
+	auto&& self = to_impl(*this);
+	auto&& vkevent = to_impl(info.event);
+
+	vkCmdResetEvent2(self.handle, vkevent.handle, vk::translate_pipeline_stage_flags(info.stage));
+}
+
 auto CommandBuffer::pipeline_barrier(MemoryBarrierInfo const& barrier) -> void
 {
 	if (!valid()) [[unlikely]]
@@ -445,146 +557,41 @@ auto CommandBuffer::pipeline_barrier(MemoryBarrierInfo const& barrier) -> void
 		flush_barriers();
 	}
 
-	self.memoryBarriers[self.numMemoryBarrier++] = {
-		.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2,
-		.srcStageMask = vk::translate_pipeline_stage_flags(barrier.srcAccess.stages),
-		.srcAccessMask = vk::translate_memory_access_flags(barrier.srcAccess.type),
-		.dstStageMask = vk::translate_pipeline_stage_flags(barrier.dstAccess.stages),
-		.dstAccessMask = vk::translate_memory_access_flags(barrier.dstAccess.type),
-	};
+	self.memoryBarriers[self.numMemoryBarrier++] = self.get_memory_barrier_info(barrier);
 }
 
-auto CommandBuffer::pipeline_barrier(Buffer& buffer, BufferBarrierInfo const& barrier) -> void
+auto CommandBuffer::pipeline_buffer_barrier(BufferBarrierInfo const& barrier) -> void
 {
-	if (!valid() || !buffer.valid()) [[unlikely]]
+	if (!valid() || !barrier.buffer.valid()) [[unlikely]]
 	{
 		return;
 	}
 
-	auto&& vkdevice = to_device(m_device);
 	auto&& self = to_impl(*this);
-	auto const& buf = to_impl(buffer);
 
 	if (self.numBufferBarrier >= vk::CommandBufferImpl::MAX_COMMAND_BUFFER_BARRIER_COUNT)
 	{
 		flush_barriers();
 	}
 
-	uint32 srcQueueIndex = VK_QUEUE_FAMILY_IGNORED;
-	uint32 dstQueueIndex = VK_QUEUE_FAMILY_IGNORED;
-
-	switch (barrier.srcQueue)
-	{
-	case DeviceQueue::Main:
-		srcQueueIndex = vkdevice.mainQueue.familyIndex;
-		break;
-	case DeviceQueue::Transfer:
-		srcQueueIndex = vkdevice.transferQueue.familyIndex;
-		break;
-	case DeviceQueue::Compute:
-		srcQueueIndex = vkdevice.computeQueue.familyIndex;
-		break;
-	default:
-		break;
-	}
-
-	switch (barrier.dstQueue)
-	{
-	case DeviceQueue::Main:
-		dstQueueIndex = vkdevice.mainQueue.familyIndex;
-		break;
-	case DeviceQueue::Transfer:
-		dstQueueIndex = vkdevice.transferQueue.familyIndex;
-		break;
-	case DeviceQueue::Compute:
-		dstQueueIndex = vkdevice.computeQueue.familyIndex;
-		break;
-	default:
-		break;
-	}
-
-	self.bufferBarriers[self.numBufferBarrier++] = {
-		.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2,
-		.srcStageMask = vk::translate_pipeline_stage_flags(barrier.srcAccess.stages),
-		.srcAccessMask = vk::translate_memory_access_flags(barrier.srcAccess.type),
-		.dstStageMask = vk::translate_pipeline_stage_flags(barrier.dstAccess.stages),
-		.dstAccessMask = vk::translate_memory_access_flags(barrier.dstAccess.type),
-		.srcQueueFamilyIndex = srcQueueIndex,
-		.dstQueueFamilyIndex = dstQueueIndex,
-		.buffer = buf.handle,
-		.offset = barrier.offset,
-		.size = (barrier.size == std::numeric_limits<size_t>::max()) ? buffer.info().size : barrier.size,
-	};
+	self.bufferBarriers[self.numBufferBarrier++] = self.get_buffer_barrier_info(barrier);
 }
 
-auto CommandBuffer::pipeline_barrier(Image& image, ImageBarrierInfo const& barrier) -> void
+auto CommandBuffer::pipeline_image_barrier(ImageBarrierInfo const& barrier) -> void
 {
-	if (!valid() || !image.valid()) [[unlikely]]
+	if (!valid() || !barrier.image.valid()) [[unlikely]]
 	{
 		return;
 	}
 
-	auto&& vkdevice = to_device(m_device);
 	auto&& self = to_impl(*this);
-	auto const& img = to_impl(image);
 
 	if (self.numImageBarrier >= vk::CommandBufferImpl::MAX_COMMAND_BUFFER_BARRIER_COUNT)
 	{
 		flush_barriers();
 	}
 
-	uint32 srcQueueIndex = VK_QUEUE_FAMILY_IGNORED;
-	uint32 dstQueueIndex = VK_QUEUE_FAMILY_IGNORED;
-
-	switch (barrier.srcQueue)
-	{
-	case DeviceQueue::Main:
-		srcQueueIndex = vkdevice.mainQueue.familyIndex;
-		break;
-	case DeviceQueue::Transfer:
-		srcQueueIndex = vkdevice.transferQueue.familyIndex;
-		break;
-	case DeviceQueue::Compute:
-		srcQueueIndex = vkdevice.computeQueue.familyIndex;
-		break;
-	default:
-		break;
-	}
-
-	switch (barrier.dstQueue)
-	{
-	case DeviceQueue::Main:
-		dstQueueIndex = vkdevice.mainQueue.familyIndex;
-		break;
-	case DeviceQueue::Transfer:
-		dstQueueIndex = vkdevice.transferQueue.familyIndex;
-		break;
-	case DeviceQueue::Compute:
-		dstQueueIndex = vkdevice.computeQueue.familyIndex;
-		break;
-	default:
-		break;
-	}
-
-	self.imageBarriers[self.numImageBarrier++] = {
-		.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-		.srcStageMask = vk::translate_pipeline_stage_flags(barrier.srcAccess.stages),
-		.srcAccessMask = vk::translate_memory_access_flags(barrier.srcAccess.type),
-		.dstStageMask = vk::translate_pipeline_stage_flags(barrier.dstAccess.stages),
-		.dstAccessMask = vk::translate_memory_access_flags(barrier.dstAccess.type),
-		.oldLayout = vk::translate_image_layout(barrier.oldLayout),
-		.newLayout = vk::translate_image_layout(barrier.newLayout),
-		.srcQueueFamilyIndex = srcQueueIndex,
-		.dstQueueFamilyIndex = dstQueueIndex,
-		.image = img.handle,
-		.subresourceRange = {
-			.aspectMask = vk::translate_image_aspect_flags(barrier.subresource.aspectFlags),
-			.baseMipLevel = barrier.subresource.mipLevel,
-			.levelCount = barrier.subresource.levelCount,
-			.baseArrayLayer = barrier.subresource.baseArrayLayer,
-			.layerCount = barrier.subresource.layerCount
-		}
-	};
+	self.imageBarriers[self.numImageBarrier++] = self.get_image_barrier_info(barrier);
 }
 
 auto CommandBuffer::flush_barriers() -> void
@@ -760,9 +767,9 @@ auto CommandBuffer::end_rendering() -> void
 	vkCmdEndRendering(self.handle);
 }
 
-auto CommandBuffer::copy_buffer_to_buffer(Buffer& src, Buffer& dst, BufferCopyInfo const& info) -> void
+auto CommandBuffer::copy_buffer_to_buffer(BufferCopyInfo const& info) -> void
 {
-	if (!valid() || !src.valid() || !dst.valid())
+	if (!valid() || !info.src.valid() || !info.dst.valid())
 	{
 		return;
 	}
@@ -770,8 +777,8 @@ auto CommandBuffer::copy_buffer_to_buffer(Buffer& src, Buffer& dst, BufferCopyIn
 	flush_barriers();
 
 	auto const& self = to_impl(*this);
-	auto const& srcBuf = to_impl(src);
-	auto const& dstBuf = to_impl(dst);
+	auto const& srcBuf = to_impl(info.src);
+	auto const& dstBuf = to_impl(info.dst);
 
 	VkBufferCopy bufferCopy{
 		.srcOffset = info.srcOffset,
@@ -784,9 +791,9 @@ auto CommandBuffer::copy_buffer_to_buffer(Buffer& src, Buffer& dst, BufferCopyIn
 	vkCmdCopyBuffer(self.handle, srcBuf.handle, dstBuf.handle, 1, &bufferCopy);
 }
 
-auto CommandBuffer::copy_buffer_to_image(Buffer& src, Image& dst, BufferImageCopyInfo const& info) -> void
+auto CommandBuffer::copy_buffer_to_image(BufferImageCopyInfo const& info) -> void
 {
-	if (!valid() || !src.valid() || !dst.valid()) [[unlikely]]
+	if (!valid() || !info.src.valid() || !info.dst.valid()) [[unlikely]]
 	{
 		return;
 	}
@@ -794,8 +801,8 @@ auto CommandBuffer::copy_buffer_to_image(Buffer& src, Image& dst, BufferImageCop
 	flush_barriers();
 
 	auto const& self = to_impl(*this);
-	auto const& srcBuf = to_impl(src);
-	auto const& dstImg = to_impl(dst);
+	auto const& srcBuf = to_impl(info.src);
+	auto const& dstImg = to_impl(info.dst);
 
 	VkImageLayout layout = vk::translate_image_layout(info.dstImageLayout);
 	VkImageAspectFlags imageAspect = vk::translate_image_aspect_flags(info.imageSubresource.aspectFlags);
@@ -825,9 +832,9 @@ auto CommandBuffer::copy_buffer_to_image(Buffer& src, Image& dst, BufferImageCop
 	vkCmdCopyBufferToImage(self.handle, srcBuf.handle, dstImg.handle, layout, 1, &imageCopy);
 }
 
-auto CommandBuffer::copy_image_to_buffer(Image& src, Buffer& dst, ImageBufferCopyInfo const& info) -> void
+auto CommandBuffer::copy_image_to_buffer(ImageBufferCopyInfo const& info) -> void
 {
-	if (!valid() || !src.valid() || !dst.valid()) [[unlikely]]
+	if (!valid() || !info.src.valid() || !info.dst.valid()) [[unlikely]]
 	{
 		return;
 	}
@@ -835,8 +842,8 @@ auto CommandBuffer::copy_image_to_buffer(Image& src, Buffer& dst, ImageBufferCop
 	flush_barriers();
 
 	auto const& self = to_impl(*this);
-	auto const& srcImg = to_impl(src);
-	auto const& dstBuf = to_impl(dst);
+	auto const& srcImg = to_impl(info.src);
+	auto const& dstBuf = to_impl(info.dst);
 
 	VkImageLayout layout = vk::translate_image_layout(info.srcImageLayout);
 	VkImageAspectFlags imageAspect = vk::translate_image_aspect_flags(info.imageSubresource.aspectFlags);
@@ -866,9 +873,9 @@ auto CommandBuffer::copy_image_to_buffer(Image& src, Buffer& dst, ImageBufferCop
 	vkCmdCopyImageToBuffer(self.handle, srcImg.handle, layout, dstBuf.handle, 1, &imageCopy);
 }
 
-auto CommandBuffer::copy_image_to_image(Image& src, Image& dst, ImageCopyInfo const& info) -> void
+auto CommandBuffer::copy_image_to_image(ImageCopyInfo const& info) -> void
 {
-	if (!valid() || !src.valid() || !dst.valid()) [[unlikely]]
+	if (!valid() || !info.src.valid() || !info.dst.valid()) [[unlikely]]
 	{
 		return;
 	}
@@ -876,8 +883,8 @@ auto CommandBuffer::copy_image_to_image(Image& src, Image& dst, ImageCopyInfo co
 	flush_barriers();
 
 	auto const& self = to_impl(*this);
-	auto const& srcImg = to_impl(src);
-	auto const& dstImg = to_impl(dst);
+	auto const& srcImg = to_impl(info.src);
+	auto const& dstImg = to_impl(info.dst);
 
 	VkImageLayout srcLayout = vk::translate_image_layout(info.srcImageLayout);
 	VkImageLayout dstLayout = vk::translate_image_layout(info.dstImageLayout);
@@ -918,9 +925,9 @@ auto CommandBuffer::copy_image_to_image(Image& src, Image& dst, ImageCopyInfo co
 	vkCmdCopyImage(self.handle, srcImg.handle, srcLayout, dstImg.handle, dstLayout, 1, &imageCopy);
 }
 
-auto CommandBuffer::blit_image(Image& src, Image& dst, ImageBlitInfo const& info) -> void
+auto CommandBuffer::blit_image(ImageBlitInfo const& info) -> void
 {
-	if (!valid() || !src.valid() || !dst.valid()) [[unlikely]]
+	if (!valid() || !info.src.valid() || !info.dst.valid()) [[unlikely]]
 	{
 		return;
 	}
@@ -928,8 +935,8 @@ auto CommandBuffer::blit_image(Image& src, Image& dst, ImageBlitInfo const& info
 	flush_barriers();
 
 	auto const& self = to_impl(*this);
-	auto const& srcImg = to_impl(src);
-	auto const& dstImg = to_impl(dst);
+	auto const& srcImg = to_impl(info.src);
+	auto const& dstImg = to_impl(info.dst);
 
 	VkImageBlit region{
 		.srcSubresource = {
@@ -939,8 +946,8 @@ auto CommandBuffer::blit_image(Image& src, Image& dst, ImageBlitInfo const& info
 			.layerCount = info.srcSubresource.layerCount
 		},
 		.srcOffsets = {
-			{.x = info.srcOffset[0].x, .y = info.srcOffset[0].y, .z = info.srcOffset[0].z },
-			{.x = info.srcOffset[1].x, .y = info.srcOffset[1].y, .z = info.srcOffset[1].z },
+			{ .x = info.srcOffset[0].x, .y = info.srcOffset[0].y, .z = info.srcOffset[0].z },
+			{ .x = info.srcOffset[1].x, .y = info.srcOffset[1].y, .z = info.srcOffset[1].z },
 		},
 		.dstSubresource = {
 			.aspectMask = vk::translate_image_aspect_flags(info.dstSubresource.aspectFlags),
@@ -949,8 +956,8 @@ auto CommandBuffer::blit_image(Image& src, Image& dst, ImageBlitInfo const& info
 			.layerCount = info.dstSubresource.layerCount
 		},
 		.dstOffsets = {
-			{.x = info.dstOffset[0].x, .y = info.dstOffset[0].y, .z = info.dstOffset[0].z },
-			{.x = info.dstOffset[1].x, .y = info.dstOffset[1].y, .z = info.dstOffset[1].z },
+			{ .x = info.dstOffset[0].x, .y = info.dstOffset[0].y, .z = info.dstOffset[0].z },
+			{ .x = info.dstOffset[1].x, .y = info.dstOffset[1].y, .z = info.dstOffset[1].z },
 		}
 	};
 
@@ -961,9 +968,9 @@ auto CommandBuffer::blit_image(Image& src, Image& dst, ImageBlitInfo const& info
 	vkCmdBlitImage(self.handle, srcImg.handle, srcImgLayout, dstImg.handle, dstImgLayout, 1, &region, filter);
 }
 
-auto CommandBuffer::blit_image(Image& src, Swapchain& dst, ImageBlitInfo const& info) -> void
+auto CommandBuffer::blit_image_swapchain(ImageSwapchainBlitInfo const& info) -> void
 {
-	if (!valid() || !src.valid() || !dst.valid()) [[unlikely]]
+	if (!valid() || !info.src.valid() || !info.dst.valid()) [[unlikely]]
 	{
 		return;
 	}
@@ -971,8 +978,8 @@ auto CommandBuffer::blit_image(Image& src, Swapchain& dst, ImageBlitInfo const& 
 	flush_barriers();
 
 	auto const& self = to_impl(*this);
-	auto const& srcImg = to_impl(src);
-	auto const& dstImg = to_impl(*dst.current_image());
+	auto const& srcImg = to_impl(info.src);
+	auto const& dstImg = to_impl(*info.dst.current_image());
 
 	VkImageBlit region{
 		.srcSubresource = {
@@ -982,8 +989,8 @@ auto CommandBuffer::blit_image(Image& src, Swapchain& dst, ImageBlitInfo const& 
 			.layerCount = info.srcSubresource.layerCount
 		},
 		.srcOffsets = {
-			{.x = info.srcOffset[0].x, .y = info.srcOffset[0].y, .z = info.srcOffset[0].z },
-			{.x = info.srcOffset[1].x, .y = info.srcOffset[1].y, .z = info.srcOffset[1].z },
+			{ .x = info.srcOffset[0].x, .y = info.srcOffset[0].y, .z = info.srcOffset[0].z },
+			{ .x = info.srcOffset[1].x, .y = info.srcOffset[1].y, .z = info.srcOffset[1].z },
 		},
 		.dstSubresource = {
 			.aspectMask = vk::translate_image_aspect_flags(info.dstSubresource.aspectFlags),
@@ -992,8 +999,8 @@ auto CommandBuffer::blit_image(Image& src, Swapchain& dst, ImageBlitInfo const& 
 			.layerCount = info.dstSubresource.layerCount
 		},
 		.dstOffsets = {
-			{.x = info.dstOffset[0].x, .y = info.dstOffset[0].y, .z = info.dstOffset[0].z },
-			{.x = info.dstOffset[1].x, .y = info.dstOffset[1].y, .z = info.dstOffset[1].z },
+			{ .x = info.dstOffset[0].x, .y = info.dstOffset[0].y, .z = info.dstOffset[0].z },
+			{ .x = info.dstOffset[1].x, .y = info.dstOffset[1].y, .z = info.dstOffset[1].z },
 		}
 	};
 
@@ -1180,5 +1187,127 @@ namespace vk
 CommandBufferImpl::CommandBufferImpl(DeviceImpl& device) :
 	CommandBuffer{ device }
 {}
+
+auto CommandBufferImpl::get_memory_barrier_info(MemoryBarrierInfo const& info) const -> VkMemoryBarrier2
+{
+	return VkMemoryBarrier2{
+		.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2,
+		.srcStageMask = vk::translate_pipeline_stage_flags(info.srcAccess.stages),
+		.srcAccessMask = vk::translate_memory_access_flags(info.srcAccess.type),
+		.dstStageMask = vk::translate_pipeline_stage_flags(info.dstAccess.stages),
+		.dstAccessMask = vk::translate_memory_access_flags(info.dstAccess.type),
+	};
+}
+
+auto CommandBufferImpl::get_buffer_barrier_info(BufferBarrierInfo const& info) const -> VkBufferMemoryBarrier2
+{
+	auto const& vkdevice = to_device(m_device);
+	auto const& vkbuffer = to_impl(info.buffer);
+
+	uint32 srcQueueIndex = VK_QUEUE_FAMILY_IGNORED;
+	uint32 dstQueueIndex = VK_QUEUE_FAMILY_IGNORED;
+
+	switch (info.srcQueue)
+	{
+	case DeviceQueue::Main:
+		srcQueueIndex = vkdevice.mainQueue.familyIndex;
+		break;
+	case DeviceQueue::Transfer:
+		srcQueueIndex = vkdevice.transferQueue.familyIndex;
+		break;
+	case DeviceQueue::Compute:
+		srcQueueIndex = vkdevice.computeQueue.familyIndex;
+		break;
+	default:
+		break;
+	}
+
+	switch (info.dstQueue)
+	{
+	case DeviceQueue::Main:
+		dstQueueIndex = vkdevice.mainQueue.familyIndex;
+		break;
+	case DeviceQueue::Transfer:
+		dstQueueIndex = vkdevice.transferQueue.familyIndex;
+		break;
+	case DeviceQueue::Compute:
+		dstQueueIndex = vkdevice.computeQueue.familyIndex;
+		break;
+	default:
+		break;
+	}
+
+	return VkBufferMemoryBarrier2{
+		.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2,
+		.srcStageMask = vk::translate_pipeline_stage_flags(info.srcAccess.stages),
+		.srcAccessMask = vk::translate_memory_access_flags(info.srcAccess.type),
+		.dstStageMask = vk::translate_pipeline_stage_flags(info.dstAccess.stages),
+		.dstAccessMask = vk::translate_memory_access_flags(info.dstAccess.type),
+		.srcQueueFamilyIndex = srcQueueIndex,
+		.dstQueueFamilyIndex = dstQueueIndex,
+		.buffer = vkbuffer.handle,
+		.offset = info.offset,
+		.size = (info.size == std::numeric_limits<size_t>::max()) ? info.buffer.info().size : info.size,
+	};
+}
+
+auto CommandBufferImpl::get_image_barrier_info(ImageBarrierInfo const& info) const -> VkImageMemoryBarrier2
+{
+	auto const& vkdevice = to_device(m_device);
+	auto const& vkimage = to_impl(info.image);
+
+	uint32 srcQueueIndex = VK_QUEUE_FAMILY_IGNORED;
+	uint32 dstQueueIndex = VK_QUEUE_FAMILY_IGNORED;
+
+	switch (info.srcQueue)
+	{
+	case DeviceQueue::Main:
+		srcQueueIndex = vkdevice.mainQueue.familyIndex;
+		break;
+	case DeviceQueue::Transfer:
+		srcQueueIndex = vkdevice.transferQueue.familyIndex;
+		break;
+	case DeviceQueue::Compute:
+		srcQueueIndex = vkdevice.computeQueue.familyIndex;
+		break;
+	default:
+		break;
+	}
+
+	switch (info.dstQueue)
+	{
+	case DeviceQueue::Main:
+		dstQueueIndex = vkdevice.mainQueue.familyIndex;
+		break;
+	case DeviceQueue::Transfer:
+		dstQueueIndex = vkdevice.transferQueue.familyIndex;
+		break;
+	case DeviceQueue::Compute:
+		dstQueueIndex = vkdevice.computeQueue.familyIndex;
+		break;
+	default:
+		break;
+	}
+
+	return VkImageMemoryBarrier2{
+		.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+		.srcStageMask = vk::translate_pipeline_stage_flags(info.srcAccess.stages),
+		.srcAccessMask = vk::translate_memory_access_flags(info.srcAccess.type),
+		.dstStageMask = vk::translate_pipeline_stage_flags(info.dstAccess.stages),
+		.dstAccessMask = vk::translate_memory_access_flags(info.dstAccess.type),
+		.oldLayout = vk::translate_image_layout(info.oldLayout),
+		.newLayout = vk::translate_image_layout(info.newLayout),
+		.srcQueueFamilyIndex = srcQueueIndex,
+		.dstQueueFamilyIndex = dstQueueIndex,
+		.image = vkimage.handle,
+		.subresourceRange = {
+			.aspectMask = vk::translate_image_aspect_flags(info.subresource.aspectFlags),
+			.baseMipLevel = info.subresource.mipLevel,
+			.levelCount = info.subresource.levelCount,
+			.baseArrayLayer = info.subresource.baseArrayLayer,
+			.layerCount = info.subresource.layerCount
+		}
+	};
+}
 }
 }

@@ -126,8 +126,6 @@ private:
 	struct ImageUploadInfo
 	{
 		gpu::BufferImageCopyInfo copyInfo;
-		gpu::buffer src;
-		gpu::image dst;
 		gpu::DeviceQueue owningQueue;
 		gpu::DeviceQueue dstQueue;
 	};
@@ -135,8 +133,6 @@ private:
 	struct BufferUploadInfo
 	{
 		gpu::BufferCopyInfo copyInfo;
-		gpu::buffer src;
-		gpu::buffer dst;
 		gpu::DeviceQueue owningQueue;
 		gpu::DeviceQueue dstQueue;
 	};

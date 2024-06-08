@@ -1,7 +1,4 @@
-﻿module;
-
-#include <filesystem>
-#include <thread>
+﻿#include <thread>
 #include <mutex>
 #include <string>
 
@@ -14,7 +11,7 @@
 #include "lib/paged_array.h"
 #include "lib/string.h"
 
-module core.filewatcher;
+#include "file_watcher.h"
 
 template <>
 struct std::hash<core::filewatcher::file_watch_id>

@@ -217,6 +217,98 @@ auto Fence::destroy(Fence const& resource, uint64 id) -> void
 	vkdevice.gpuResourcePool.zombies.emplace_back(cpuTimelineValue, id, vk::ResourceType::Fence);
 }
 
+Event::Event(Device& device) :
+	DeviceResource{ device },
+	m_info{}
+{}
+
+auto Event::info() const -> EventInfo const&
+{
+	return m_info;
+}
+
+auto Event::valid() const -> bool
+{
+	auto const& vkevent = to_impl(*this);
+
+	return vkevent.handle != VK_NULL_HANDLE;
+}
+
+auto Event::state() const -> EventState
+{
+	auto const& vkevent = to_impl(*this);
+	auto const& vkdevice = to_device(m_device);
+
+	if (vkGetEventStatus(vkdevice.device, vkevent.handle) == VK_EVENT_SET)
+	{
+		return EventState::Signaled;
+	}
+
+	return EventState::Unsignaled;
+}
+
+auto Event::signal() const -> void
+{
+	auto const& vkevent = to_impl(*this);
+	auto const& vkdevice = to_device(m_device);
+
+	vkSetEvent(vkdevice.device, vkevent.handle);
+}
+
+auto Event::reset() const -> void
+{
+	auto&& vkevent = to_impl(*this);
+	auto&& vkdevice = to_device(m_device);
+
+	vkResetEvent(vkdevice.device, vkevent.handle);
+}
+
+auto Event::from(Device& device, EventInfo&& info) -> Resource<Event>
+{
+	auto&& vkdevice = to_device(device);
+
+	VkEventCreateInfo eventInfo{
+		.sType = VK_STRUCTURE_TYPE_EVENT_CREATE_INFO
+	};
+
+	VkEvent handle = VK_NULL_HANDLE;
+
+	VkResult result = vkCreateEvent(vkdevice.device, &eventInfo, nullptr, &handle);
+
+	if (result != VK_SUCCESS)
+	{
+		return null_resource;
+	}
+
+	auto&& [id, vkevent] = vkdevice.gpuResourcePool.events.emplace(vkdevice);
+
+	if (info.name.size())
+	{
+		info.name.format("<event>:{}", info.name.c_str());
+	}
+
+	vkevent.handle = handle;
+	vkevent.m_info = std::move(info);
+
+	if constexpr (ENABLE_DEBUG_RESOURCE_NAMES)
+	{
+		vkdevice.setup_debug_name(vkevent);
+	}
+
+	return Resource<Event>{ id.to_uint64(), vkevent };
+}
+
+auto Event::destroy(Event const& resource, uint64 id) -> void
+{
+	auto&& vkdevice = to_device(resource.m_device);
+
+	std::lock_guard const lock{ vkdevice.gpuResourcePool.zombieMutex };
+
+	uint64 const cpuTimelineValue = vkdevice.cpu_timeline();
+
+	vkdevice.gpuResourcePool.zombies.emplace_back(cpuTimelineValue, id, vk::ResourceType::Event);
+}
+
 namespace vk
 {
 SemaphoreImpl::SemaphoreImpl(DeviceImpl& device) :
@@ -225,6 +317,10 @@ SemaphoreImpl::SemaphoreImpl(DeviceImpl& device) :
 
 FenceImpl::FenceImpl(DeviceImpl& device) :
 	Fence{ device }
+{}
+
+EventImpl::EventImpl(DeviceImpl& device) :
+	Event{ device }
 {}
 }
 }

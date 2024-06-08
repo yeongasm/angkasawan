@@ -182,6 +182,8 @@ auto UploadHeap::upload_data_to_image(ImageDataUploadInfo&& info) -> upload_id
 
 	ImageUploadInfo uploadInfo{
 		.copyInfo = {
+			.src = *heap->buffer,
+			.dst = *info.image,
 			.bufferOffset = writtenByteOffset,
 			.imageSubresource = {
 				.aspectFlags = info.aspectMask,
@@ -194,8 +196,6 @@ auto UploadHeap::upload_data_to_image(ImageDataUploadInfo&& info) -> upload_id
 				.depth = 1u
 			}
 		},
-		.src = heap->buffer,
-		.dst = info.image,
 		.owningQueue = info.srcQueue,
 		.dstQueue = info.dstQueue
 	};
@@ -243,12 +243,12 @@ auto UploadHeap::upload_data_to_buffer(BufferDataUploadInfo&& info) -> upload_id
 
 		BufferUploadInfo uploadInfo{
 			.copyInfo = {
+				.src = *heapBlock.buffer,
+				.dst = *info.dst,
 				.srcOffset = writtenByteOffset,
 				.dstOffset = info.dstOffset + (i * HEAP_BLOCK_SIZE),
 				.size = writeSize,
 			},
-			.src = heapBlock.buffer,
-			.dst = info.dst,
 			.owningQueue = info.srcQueue,
 			.dstQueue = info.dstQueue
 		};
@@ -275,12 +275,12 @@ auto UploadHeap::upload_heap_to_buffer(BufferHeapBlockUploadInfo&& info) -> uplo
 
 	BufferUploadInfo uploadInfo{
 		.copyInfo = {
+			.src = *info.heapBlock.buffer,
+			.dst = *info.dst,
 			.srcOffset = info.heapWriteOffset,
 			.dstOffset = info.dstOffset,
 			.size = info.heapWriteSize,
 		},
-		.src = info.heapBlock.buffer,
-		.dst = info.dst,
 		.owningQueue = info.srcQueue,
 		.dstQueue = info.dstQueue
 	};
@@ -397,10 +397,7 @@ auto UploadHeap::copy_to_images(gpu::CommandBuffer& cmd, std::span<ImageUploadIn
 {
 	for (ImageUploadInfo& uploadInfo : imageUploads)
 	{
-		gpu::buffer const& src = uploadInfo.src;
-		gpu::image const& dst = uploadInfo.dst;
-
-		cmd.copy_buffer_to_image(*src, *dst, uploadInfo.copyInfo);
+		cmd.copy_buffer_to_image(uploadInfo.copyInfo);
 	}
 }
 
@@ -408,10 +405,7 @@ auto UploadHeap::copy_to_buffers(gpu::CommandBuffer& cmd, std::span<BufferUpload
 {
 	for (BufferUploadInfo& uploadInfo : bufferUploads)
 	{
-		gpu::buffer const& src = uploadInfo.src;
-		gpu::buffer const& dst = uploadInfo.dst;
-
-		cmd.copy_buffer_to_buffer(*src, *dst, uploadInfo.copyInfo);
+		cmd.copy_buffer_to_buffer(uploadInfo.copyInfo);
 	}
 }
 
@@ -419,9 +413,7 @@ auto UploadHeap::acquire_image_resources(gpu::CommandBuffer& cmd, std::span<Imag
 {
 	for (ImageUploadInfo& info : imageUploads)
 	{
-		gpu::image const& image = info.dst;
-
-		if (image->info().sharingMode == gpu::SharingMode::Concurrent)
+		if (info.copyInfo.dst.info().sharingMode == gpu::SharingMode::Concurrent)
 		{
 			continue;
 		}
@@ -429,30 +421,26 @@ auto UploadHeap::acquire_image_resources(gpu::CommandBuffer& cmd, std::span<Imag
 		if (info.owningQueue != gpu::DeviceQueue::Transfer &&
 			info.owningQueue != gpu::DeviceQueue::None)
 		{
-			cmd.pipeline_barrier(
-				*image,
-				{
-					.dstAccess = gpu::access::TRANSFER_WRITE,
-					.newLayout = gpu::ImageLayout::Transfer_Dst,
-					.subresource = info.copyInfo.imageSubresource,
-					.srcQueue = info.owningQueue,
-					.dstQueue = gpu::DeviceQueue::Transfer
-				}
-			);
+			cmd.pipeline_image_barrier({
+				.image = info.copyInfo.dst,
+				.dstAccess = gpu::access::TRANSFER_WRITE,
+				.newLayout = gpu::ImageLayout::Transfer_Dst,
+				.subresource = info.copyInfo.imageSubresource,
+				.srcQueue = info.owningQueue,
+				.dstQueue = gpu::DeviceQueue::Transfer
+			});
 		}
 		else
 		{
-			cmd.pipeline_barrier(
-				*image,
-				{
-					.dstAccess = gpu::access::TRANSFER_WRITE,
-					.oldLayout = gpu::ImageLayout::Undefined,
-					.newLayout = gpu::ImageLayout::Transfer_Dst,
-					.subresource = info.copyInfo.imageSubresource,
-					.srcQueue = gpu::DeviceQueue::None,
-					.dstQueue = gpu::DeviceQueue::None
-				}
-			);
+			cmd.pipeline_image_barrier({
+				.image = info.copyInfo.dst,
+				.dstAccess = gpu::access::TRANSFER_WRITE,
+				.oldLayout = gpu::ImageLayout::Undefined,
+				.newLayout = gpu::ImageLayout::Transfer_Dst,
+				.subresource = info.copyInfo.imageSubresource,
+				.srcQueue = gpu::DeviceQueue::None,
+				.dstQueue = gpu::DeviceQueue::None
+			});
 		}
 	}
 }
@@ -461,9 +449,7 @@ auto UploadHeap::acquire_buffer_resources(gpu::CommandBuffer& cmd, std::span<Buf
 {
 	for (BufferUploadInfo& info : bufferUploads)
 	{
-		gpu::buffer const& buffer = info.dst;
-
-		if (buffer->info().sharingMode == gpu::SharingMode::Concurrent)
+		if (info.copyInfo.dst.info().sharingMode == gpu::SharingMode::Concurrent)
 		{
 			continue;
 		}
@@ -471,16 +457,14 @@ auto UploadHeap::acquire_buffer_resources(gpu::CommandBuffer& cmd, std::span<Buf
 		if (info.owningQueue != gpu::DeviceQueue::Transfer &&
 			info.owningQueue != gpu::DeviceQueue::None)
 		{
-			cmd.pipeline_barrier(
-				*buffer,
-				{
-					.size = info.copyInfo.size,
-					.offset = info.copyInfo.dstOffset,
-					.dstAccess = gpu::access::TOP_OF_PIPE_NONE,
-					.srcQueue = info.owningQueue,
-					.dstQueue = gpu::DeviceQueue::Transfer
-				}
-			);
+			cmd.pipeline_buffer_barrier({
+				.buffer = info.copyInfo.dst,
+				.size = info.copyInfo.size,
+				.offset = info.copyInfo.dstOffset,
+				.dstAccess = gpu::access::TOP_OF_PIPE_NONE,
+				.srcQueue = info.owningQueue,
+				.dstQueue = gpu::DeviceQueue::Transfer
+			});
 		}
 	}
 }
@@ -489,22 +473,20 @@ auto UploadHeap::release_image_resources(gpu::CommandBuffer& cmd, std::span<Imag
 {
 	for (ImageUploadInfo& info : imageUploads)
 	{
-		if (info.dst->info().sharingMode == gpu::SharingMode::Concurrent)
+		if (info.copyInfo.dst.info().sharingMode == gpu::SharingMode::Concurrent)
 		{
 			continue;
 		}
 
-		cmd.pipeline_barrier(
-			*info.dst,
-			{
-				.srcAccess = gpu::access::TRANSFER_WRITE,
-				.oldLayout = gpu::ImageLayout::Transfer_Dst,
-				.newLayout = gpu::ImageLayout::Transfer_Dst,
-				.subresource = info.copyInfo.imageSubresource,
-				.srcQueue = gpu::DeviceQueue::Transfer,
-				.dstQueue = info.dstQueue
-			}
-		);
+		cmd.pipeline_image_barrier({
+			.image = info.copyInfo.dst,
+			.srcAccess = gpu::access::TRANSFER_WRITE,
+			.oldLayout = gpu::ImageLayout::Transfer_Dst,
+			.newLayout = gpu::ImageLayout::Transfer_Dst,
+			.subresource = info.copyInfo.imageSubresource,
+			.srcQueue = gpu::DeviceQueue::Transfer,
+			.dstQueue = info.dstQueue
+		});
 	}
 }
 
@@ -512,21 +494,19 @@ auto UploadHeap::release_buffer_resources(gpu::CommandBuffer& cmd, std::span<Buf
 {
 	for (BufferUploadInfo& info : bufferUploads)
 	{
-		if (info.dst->info().sharingMode == gpu::SharingMode::Concurrent)
+		if (info.copyInfo.dst.info().sharingMode == gpu::SharingMode::Concurrent)
 		{
 			continue;
 		}
 
-		cmd.pipeline_barrier(
-			*info.dst,
-			{
-				.size = info.copyInfo.size,
-				.offset = info.copyInfo.dstOffset,
-				.srcAccess = gpu::access::TRANSFER_WRITE,
-				.srcQueue = gpu::DeviceQueue::Transfer,
-				.dstQueue = info.dstQueue
-			}
-		);
+		cmd.pipeline_buffer_barrier({
+			.buffer = info.copyInfo.dst,
+			.size = info.copyInfo.size,
+			.offset = info.copyInfo.dstOffset,
+			.srcAccess = gpu::access::TRANSFER_WRITE,
+			.srcQueue = gpu::DeviceQueue::Transfer,
+			.dstQueue = info.dstQueue
+		});
 	}
 }
 

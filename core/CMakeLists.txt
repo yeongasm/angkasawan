@@ -25,6 +25,7 @@ set(
 	"public/inl/core/engine.h"
 	"public/inl/core/engine_api.h"
 	"public/inl/core/event_queue.h"
+	"public/inl/core/file_watcher.h"
 	"public/inl/core/io.h"
 	"public/inl/core/io_enums.h"
 	"public/inl/core/stat.h"
@@ -43,24 +44,9 @@ set(
 	win_source_list
 	"private/src/win/cursor.cpp"
 	"private/src/win/event_queue.cpp"
+	"private/src/win/file_watcher.cpp"
 	"private/src/win/stat.cpp"
 	"private/src/win/windowing.cpp"
-)
-
-set(
-	module_interface_units
-	"public/inl/core/file_watcher.ixx"
-	# "public/modules/win/file_watcher.ixx"
-	# "public/modules/win/repro_ice.ixx"
-)
-
-set(
-	module_impl_units
-)
-
-set(
-	win_module_impl_units
-	"private/src/win/file_watcher.cxx"
 )
 
 add_library(Core SHARED ${header_list} ${source_list} ${module_impl_units})
