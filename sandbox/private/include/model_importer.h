@@ -49,8 +49,8 @@ struct MaterialInfo
 	float32 roughnessFactor = 0.f;
 	float32 emmissiveFactor[3] = {};
 	float32 emmissiveStrength = 0.f;
-	//AlphaMode alphaMode = {};
-	//float32 alphaCutoff = 0.f;
+	AlphaMode alphaMode = {};
+	float32 alphaCutoff = 0.f;
 	bool unlit = true;
 };
 

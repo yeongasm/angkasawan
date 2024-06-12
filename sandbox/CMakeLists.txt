@@ -5,6 +5,9 @@ set(
 	sandbox_header_files
 	"public/sandbox/sandbox.h"
 	"public/sandbox/sandbox_api.h"
+	"public/sandbox/graphics_processing_unit.h"
+	"public/sandbox/command_queue.h"
+	"public/sandbox/upload_heap.h"
 	"private/include/camera.h"
 	"private/include/geometry_cache.h"
 	"private/include/image_importer.h"
@@ -12,8 +15,6 @@ set(
 	"private/include/model_importer.h"
 	#"private/include/resource_cache.h"
 	"private/include/sandbox_demo_application.h"
-	"private/include/command_queue.h"
-	"private/include/upload_heap.h"
 	"private/include/demo/model_demo_app.h"
 	#"private/include/demo/triangle_demo_app.h"
 )
@@ -22,6 +23,7 @@ set(
 	sandbox_source_files
 	"private/src/camera.cpp"
 	"private/src/geometry_cache.cpp"
+	"private/src/graphics_processing_unit.cpp"
 	"private/src/image_importer.cpp"
 	"private/src/model_importer.cpp"
 	#"private/src/resource_cache.cpp"
@@ -57,7 +59,7 @@ target_include_directories(
 	PRIVATE "public/sandbox"
 	PRIVATE "private/include"
 )
-target_link_libraries(Sandbox PRIVATE Core cgltf glm ktx)
+target_link_libraries(Sandbox PRIVATE Core cgltf glm ktx imgui)
 target_link_libraries(Sandbox PUBLIC gpu)
 target_compile_definitions(Sandbox PUBLIC GLM_FORCE_DEPTH_ZERO_TO_ONE)
 

@@ -2,6 +2,8 @@
 #ifndef SANDBOX_CUBE_DEMO_APP_H
 #define SANDBOX_CUBE_DEMO_APP_H
 
+#include "core/file_watcher.h"
+
 #include "sandbox_demo_application.h"
 #include "geometry_cache.h"
 #include "camera.h"
@@ -14,7 +16,7 @@ public:
 	ModelDemoApp(
 		core::wnd::window_handle rootWindowHandle,
 		gpu::util::ShaderCompiler& shaderCompiler,
-		gpu::Device& device,
+		GraphicsProcessingUnit& gpu,
 		gpu::swapchain rootWindowSwapchain,
 		size_t const& frameIndex
 	);
@@ -27,6 +29,12 @@ public:
 
 private:
 
+	struct GeometryRenderInfo
+	{
+		Geometry const* pGeometry;
+		uint32 baseColor;
+	};
+
 	struct PushConstant
 	{
 		uint64 vertexBufferPtr;
@@ -35,22 +43,23 @@ private:
 		uint32 baseColorMapIndex;
 	};
 
-	CommandQueue m_commandQueue;
-	UploadHeap m_uploadHeap;
 	GeometryCache m_geometryCache;
 
 	gpu::sampler m_normalSampler = {};
 	gpu::image m_depthBuffer = {};
+	gpu::image m_defaultWhiteTexture = {};
 	
 	Camera m_camera = {};
 	CameraState m_cameraState = {};
 
 	lib::array<std::pair<gpu::image, uint32>> m_sponzaTextures = {};
+	lib::array<GeometryRenderInfo> m_renderInfo = {};
 
 	gpu::buffer m_sponzaTransform = {};
 	std::array<gpu::buffer, 2> m_cameraProjView = {};
 
 	gpu::pipeline m_pipeline = {};
+	core::filewatcher::file_watch_id m_pipelineShaderCodeWatchId = {};
 
 	root_geometry_handle m_sponza = {};
 

@@ -3,8 +3,8 @@
 #define SANDBOX_DEMO_APPLICATION_H
 
 #include "core/engine.h"
-#include "gpu/gpu.h"
 #include "gpu/util/shader_compiler.h"
+#include "graphics_processing_unit.h"
 
 namespace sandbox
 {
@@ -16,13 +16,13 @@ public:
 	DemoApplication(
 		core::wnd::window_handle rootWindowHandle,
 		gpu::util::ShaderCompiler& shaderCompiler,
-		gpu::Device& device, 
+		GraphicsProcessingUnit& gpu, 
 		gpu::swapchain rootWindowSwapchain,
 		size_t const& frameIndex 
 	) :
 		m_root_app_window{ rootWindowHandle },
 		m_shader_compiler{ shaderCompiler },
-		m_device{ device },
+		m_gpu{ gpu },
 		m_swapchain{ rootWindowSwapchain },
 		m_frame_index{ frameIndex }
 	{};
@@ -35,7 +35,7 @@ public:
 protected:
 	core::wnd::window_handle m_root_app_window;
 	gpu::util::ShaderCompiler& m_shader_compiler;
-	gpu::Device& m_device;
+	GraphicsProcessingUnit& m_gpu;
 	gpu::swapchain m_swapchain;
 	size_t const& m_frame_index;
 };

@@ -63,6 +63,12 @@ struct FenceInfo
 	uint64 value;
 };
 
+struct HeapBlockRequestResult
+{
+	std::span<HeapBlock> heapBlocks;
+	bool overload;
+};
+
 /**
 * Uploads data to the specified device local buffer and images on the GPU via a pool of upload heaps.
 * 
@@ -80,8 +86,6 @@ public:
 	UploadHeap(gpu::Device& device, CommandQueue& commandQueue);
 	~UploadHeap() = default;
 
-	auto initialize() -> void;
-	auto terminate() -> void;
 	[[nodiscard]] auto device() const -> gpu::Device&;
 	/**
 	* @brief Retrieves HeapBlocks with spaces from the current active heap pool.
@@ -96,7 +100,7 @@ public:
 	auto upload_data_to_image(ImageDataUploadInfo&& info) -> upload_id;
 	auto upload_data_to_buffer(BufferDataUploadInfo&& info) -> upload_id;
 	auto upload_heap_to_buffer(BufferHeapBlockUploadInfo&& info) -> upload_id;
-	auto send_to_gpu() -> FenceInfo;
+	auto send_to_gpu(bool waitIdle = false) -> FenceInfo;
 	auto upload_completed(upload_id id) -> bool;
 	auto current_upload_id() const -> upload_id;
 private:
@@ -118,6 +122,7 @@ private:
 
 		auto current_heap() const -> HeapBlock&;
 		auto num_available_heaps() const -> size_t;
+		auto num_heaps_allocated() const -> size_t;
 		auto remaining_heaps_allocatable() const -> size_t;
 		auto remaining_capacity() const -> size_t;
 	};
@@ -145,18 +150,15 @@ private:
 
 	using ImageUploadInfoQueue	= std::array<InfoPool<ImageUploadInfo>, MAX_POOL_IN_QUEUE>;
 	using BufferUploadInfoQueue = std::array<InfoPool<BufferUploadInfo>, MAX_POOL_IN_QUEUE>;
-	//using Fences = std::array<gpu::fence, MAX_POOL_IN_QUEUE>;
-	//using FenceValues = std::array<uint64, MAX_POOL_IN_QUEUE>;
 	
 	mutable HeapPoolQueue m_heapPoolQueue;
 	mutable ImageUploadInfoQueue m_imageUploadInfo;
 	mutable BufferUploadInfoQueue m_bufferUploadInfo;
-	gpu::fence m_gpuUploadTimeline;
 	std::array<uint64, MAX_POOL_IN_QUEUE> m_gpuUploadWaitTimelineValue;
-	//FenceValues m_gpuUploadTimelineCounter;
 	uint64 m_cpuUploadTimeline;
 	gpu::Device& m_device;
 	CommandQueue& m_commandQueue;
+	gpu::fence m_gpuUploadTimeline;
 	uint32 m_nextPool;
 
 	auto allocate_heap(size_t count) -> void;
@@ -170,6 +172,9 @@ private:
 	auto release_image_resources(gpu::CommandBuffer& cmd, std::span<ImageUploadInfo>& imageUploads) -> void;
 	auto release_buffer_resources(gpu::CommandBuffer& cmd, std::span<BufferUploadInfo>& bufferUploads) -> void;
 	auto do_upload() const -> bool;
+	/*
+	* Differs from request_heap() by returning a HeapBlock that will fit the requested size.
+	*/
 	auto next_available_heap(size_t size) -> HeapBlock*;
 	auto next_heap_pool() const -> HeapPool&;
 	auto next_image_upload_info_pool() const -> InfoPool<ImageUploadInfo>&;

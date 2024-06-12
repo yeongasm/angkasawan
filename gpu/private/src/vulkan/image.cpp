@@ -24,9 +24,40 @@ auto Image::is_swapchain_image() const -> bool
 	auto const& self = to_impl(*this);
 
 	/**
-	 * Swapchain images will not contain an allocation handle because they are retrieved from the driver instead.
-	 */
-	return self.allocation == VK_NULL_HANDLE;
+	* Swapchain images will not contain an allocation handle because they are retrieved from the driver instead.
+	*/
+	return self.allocationBlock.valid();
+}
+
+auto Image::is_transient() const -> bool
+{
+	auto const& self = to_impl(*this);
+
+	return self.allocationBlock->aliased();
+}
+
+auto Image::memory_requirement(Device& device, ImageInfo const& info) -> MemoryRequirementInfo
+{
+	auto&& vkdevice = to_device(device);
+
+	VkImageCreateInfo imgCreateInfo = vk::get_image_create_info(info);
+
+	VkDeviceImageMemoryRequirements imageMemReq{
+		.sType = VK_STRUCTURE_TYPE_DEVICE_IMAGE_MEMORY_REQUIREMENTS,
+		.pCreateInfo = &imgCreateInfo
+	};
+
+	VkMemoryRequirements2 memReq{
+		.sType = VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2
+	};
+
+	vkGetDeviceImageMemoryRequirements(vkdevice.device, &imageMemReq, &memReq);
+
+	return MemoryRequirementInfo{
+		.size = memReq.memoryRequirements.size,
+		.alignment = memReq.memoryRequirements.alignment,
+		.memoryTypeBits = memReq.memoryRequirements.memoryTypeBits
+	};
 }
 
 auto Image::bind(ImageBindInfo const& info) const -> ImageBindInfo
@@ -92,7 +123,7 @@ auto Image::bind(ImageBindInfo const& info) const -> ImageBindInfo
 	return ImageBindInfo{ .sampler = info.sampler, .index = index };
 }
 
-auto Image::from(Device& device, ImageInfo&& info) -> Resource<Image>
+auto Image::from(Device& device, ImageInfo&& info, Resource<MemoryBlock> memoryBlock) -> Resource<Image>
 {
 	auto&& vkdevice = to_device(device);
 
@@ -102,16 +133,81 @@ auto Image::from(Device& device, ImageInfo&& info) -> Resource<Image>
 		vkdevice.transferQueue.familyIndex
 	};
 
-	constexpr uint32 MAX_IMAGE_MIP_LEVEL = 4u;
+	VkImageCreateInfo imgInfo = vk::get_image_create_info(info);
 
-	VkFormat format = vk::translate_format(info.format);
-	VkImageUsageFlags usage = vk::translate_image_usage_flags(info.imageUsage);
+	if ((imgInfo.sharingMode & VK_SHARING_MODE_CONCURRENT) != 0)
+	{
+		imgInfo.queueFamilyIndexCount = 3u;
+		imgInfo.pQueueFamilyIndices = queueFamilyIndices;
+	}
+
+	VkImage handle = VK_NULL_HANDLE;
+
+	if (memoryBlock.valid())
+	{
+		auto const& memBlockImpl = to_impl(*memoryBlock);
+		MemoryRequirementInfo const memReq = Image::memory_requirement(device, info);
+
+		if ((memReq.memoryTypeBits & memBlockImpl.allocationInfo.memoryType) != memReq.memoryTypeBits ||
+			memReq.size > memBlockImpl.allocationInfo.size)
+		{
+			return null_resource;
+		}
+
+		if (vkCreateImage(vkdevice.device, &imgInfo, nullptr, &handle) != VK_SUCCESS)
+		{
+			return null_resource;
+		}
+
+		vmaBindImageMemory(vkdevice.allocator, memBlockImpl.handle, handle);
+	}
+	else
+	{
+		auto allocationFlags = vk::translate_memory_usage(info.memoryUsage);
+
+		if ((allocationFlags & VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT) != 0 ||
+			(allocationFlags & VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT) != 0)
+		{
+			allocationFlags |= VMA_ALLOCATION_CREATE_MAPPED_BIT;
+		}
+
+		VmaAllocationCreateInfo allocInfo{
+			.flags = allocationFlags,
+			.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE
+		};
+
+		VmaAllocation allocation = VK_NULL_HANDLE;
+		VmaAllocationInfo allocationInfo = {};
+
+		if (vmaCreateImage(vkdevice.allocator, &imgInfo, &allocInfo, &handle, &allocation, &allocationInfo) != VK_SUCCESS)
+		{
+			return null_resource;
+		}
+
+		auto&& [memoryBlockId, vkmemoryblock] = vkdevice.gpuResourcePool.memoryBlocks.emplace(vkdevice, false);
+
+		vkmemoryblock.handle = allocation;
+		vkmemoryblock.allocationInfo = std::move(allocationInfo);
+
+		new (&memoryBlock) Resource<MemoryBlock>{ memoryBlockId.to_uint64(), vkmemoryblock };
+	}
+
+	auto&& [id, vkimage] = vkdevice.gpuResourcePool.images.emplace(vkdevice);
+
+	if (!info.name.empty())
+	{
+		info.name.format("<image>:{}", info.name.c_str());
+	}
+
+	vkimage.handle = handle;
+	vkimage.allocationBlock = memoryBlock;
+	vkimage.m_info = std::move(info);
 
 	VkImageAspectFlags aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT;
 
-	if ((usage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT) != 0)
+	if ((imgInfo.usage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT) != 0)
 	{
-		switch (format)
+		switch (imgInfo.format)
 		{
 		case VK_FORMAT_S8_UINT:
 			aspectFlags = VK_IMAGE_ASPECT_STENCIL_BIT;
@@ -127,97 +223,22 @@ auto Image::from(Device& device, ImageInfo&& info) -> Resource<Image>
 			aspectFlags = VK_IMAGE_ASPECT_DEPTH_BIT;
 			break;
 		}
-
 	}
-
-	uint32 depth{ 1 };
-
-	if (info.dimension.depth > 1)
-	{
-		depth = info.dimension.depth;
-	}
-
-	uint32 mipLevels{ 1 };
-
-	if (info.mipLevel > 1)
-	{
-		const float32 width = static_cast<const float32>(info.dimension.width);
-		const float32 height = static_cast<const float32>(info.dimension.height);
-
-		mipLevels = static_cast<uint32>(std::floorf(std::log2f(std::max(width, height)))) + 1u;
-		mipLevels = std::min(mipLevels, MAX_IMAGE_MIP_LEVEL);
-	}
-
-	VkImageCreateInfo imgInfo{
-		.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-		.imageType = vk::translate_image_type(info.type),
-		.format = format,
-		.extent = {
-			.width = info.dimension.width,
-			.height = info.dimension.height,
-			.depth = depth
-		},
-		.mipLevels = mipLevels,
-		.arrayLayers = 1,
-		.samples = vk::translate_sample_count(info.samples),
-		.tiling = vk::translate_image_tiling(info.tiling),
-		.usage = usage,
-		.sharingMode = vk::translate_sharing_mode(info.sharingMode),
-		.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-	};
-
-	if ((imgInfo.sharingMode & VK_SHARING_MODE_CONCURRENT) != 0)
-	{
-		imgInfo.queueFamilyIndexCount = 3u;
-		imgInfo.pQueueFamilyIndices = queueFamilyIndices;
-	}
-
-	auto allocationFlags = vk::translate_memory_usage(info.memoryUsage);
-
-	if ((allocationFlags & VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT) != 0 ||
-		(allocationFlags & VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT) != 0)
-	{
-		allocationFlags |= VMA_ALLOCATION_CREATE_MAPPED_BIT;
-	}
-
-	VmaAllocationCreateInfo allocInfo{
-		.flags = allocationFlags,
-		.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE
-	};
-
-	VkImage handle = VK_NULL_HANDLE;
-	VmaAllocation allocation = VK_NULL_HANDLE;
-	VmaAllocationInfo allocationInfo = {};
-
-	VkResult result = vmaCreateImage(vkdevice.allocator, &imgInfo, &allocInfo, &handle, &allocation, &allocationInfo);
-
-	if (result != VK_SUCCESS)
-	{
-		return null_resource;
-	}
-
-	auto&& [id, vkimage] = vkdevice.gpuResourcePool.images.emplace(vkdevice);
-
-	info.name.format("<image>:{}", info.name.c_str());
-
-	vkimage.handle = handle;
-	vkimage.allocation = allocation;
-	vkimage.allocationInfo = std::move(allocationInfo);
-	vkimage.m_info = std::move(info);
 
 	VkImageViewCreateInfo imgViewInfo{
 		.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
 		.image = vkimage.handle,
-		.viewType = vk::translate_image_view_type(info.type),
-		.format = format,
+		.viewType = vk::translate_image_view_type(vkimage.m_info.type),
+		.format = imgInfo.format,
 		.subresourceRange = {
 			.aspectMask = aspectFlags,
 			.baseMipLevel = 0,
-			.levelCount = mipLevels,
+			.levelCount = imgInfo.mipLevels,
 			.baseArrayLayer = 0,
 			.layerCount = 1
 		}
 	};
+
 	vkCreateImageView(vkdevice.device, &imgViewInfo, nullptr, &vkimage.imageView);
 
 	if constexpr (ENABLE_DEBUG_RESOURCE_NAMES)
@@ -297,8 +318,6 @@ auto Image::from(Swapchain& swapchain) -> lib::array<Resource<Image>>
 
 		vkimage.handle = vkImageHandles[i];
 		vkimage.imageView = vkImageViewHandles[i];
-		vkimage.allocation = VK_NULL_HANDLE;
-		vkimage.allocationInfo = {};
 		vkimage.m_info = std::move(imageInfo);
 
 		if constexpr (ENABLE_DEBUG_RESOURCE_NAMES)
@@ -315,9 +334,15 @@ auto Image::from(Swapchain& swapchain) -> lib::array<Resource<Image>>
 auto Image::destroy(Image& resource, uint64 id) -> void
 {
 	/*
-	 * At this point, the ref count on the resource is only 1 which means ONLY the resource has a reference to itself and can be safely deleted.
-	 */
+	* At this point, the ref count on the resource is only 1 which means ONLY the resource has a reference to itself and can be safely deleted.
+	*/
 	auto&& vkdevice = to_device(resource.m_device);
+	auto&& vkimage = to_impl(resource);
+
+	/*
+	* Release ownership of it's memory allocation.
+	*/
+	vkimage.allocationBlock.destroy();
 
 	std::lock_guard const lock{ vkdevice.gpuResourcePool.zombieMutex };
 

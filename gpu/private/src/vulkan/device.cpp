@@ -62,6 +62,7 @@ namespace gpu
 using DestroyFuncPtr = void(vk::DeviceImpl::*)(uint64 const);
 
 constexpr DestroyFuncPtr resourceDestroyFn[] = {
+	&vk::DeviceImpl::destroy_memory_block,
 	&vk::DeviceImpl::destroy_binary_semaphore,
 	&vk::DeviceImpl::destroy_timeline_semaphore,
 	&vk::DeviceImpl::destroy_event,
@@ -581,6 +582,21 @@ auto DeviceImpl::setup_debug_name(EventImpl const& event) -> void
 		VkDebugUtilsObjectNameInfoEXT debugResourceNameInfo{
 			.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
 			.objectType = VK_OBJECT_TYPE_EVENT,
+			.objectHandle = reinterpret_cast<uint64_t>(event.handle),
+			.pObjectName = name.c_str(),
+		};
+		vkSetDebugUtilsObjectNameEXT(device, &debugResourceNameInfo);
+	}
+}
+
+auto DeviceImpl::setup_debug_name(MemoryBlockImpl const& event) -> void
+{
+	auto const& name = event.info().name;
+	if (name.size())
+	{
+		VkDebugUtilsObjectNameInfoEXT debugResourceNameInfo{
+			.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+			.objectType = VK_OBJECT_TYPE_DEVICE_MEMORY,
 			.objectHandle = reinterpret_cast<uint64_t>(event.handle),
 			.pObjectName = name.c_str(),
 		};
@@ -1266,6 +1282,18 @@ auto DeviceImpl::flush_submit_info_buffers() -> void
 	presentImageIndices.clear();
 }
 
+auto DeviceImpl::destroy_memory_block(uint64 const id) -> void
+{
+	using memory_block_index = decltype(gpuResourcePool.memoryBlocks)::index;
+
+	memory_block_index const index = memory_block_index::from(id);
+	MemoryBlockImpl& memoryBlock = gpuResourcePool.memoryBlocks[index];
+
+	vmaFreeMemory(allocator, memoryBlock.handle);
+
+	gpuResourcePool.memoryBlocks.erase(index);
+}
+
 auto DeviceImpl::destroy_binary_semaphore(uint64 const id) -> void
 {
 	using semaphore_index = decltype(gpuResourcePool.binarySemaphore)::index;
@@ -1305,11 +1333,25 @@ auto DeviceImpl::destroy_event(uint64 const id) -> void
 auto DeviceImpl::destroy_buffer(uint64 const id) -> void
 {
 	using buffer_index = decltype(gpuResourcePool.buffers)::index;
+	using memory_block_index = decltype(gpuResourcePool.memoryBlocks)::index;
 
 	buffer_index const index = buffer_index::from(id);
 	BufferImpl& buffer = gpuResourcePool.buffers[index];
 
-	vmaDestroyBuffer(allocator, buffer.handle, buffer.allocation);
+	memory_block_index const memoryBlockId = memory_block_index::from(buffer.allocationBlock.id());
+
+	MemoryBlockImpl& memoryBlock = gpuResourcePool.memoryBlocks[memoryBlockId];
+
+	if (!buffer.is_transient())
+	{
+		vmaDestroyBuffer(allocator, buffer.handle, memoryBlock.handle);
+		// Buffer owns the memory allocation and erases it from the resource pool.
+		gpuResourcePool.memoryBlocks.erase(memoryBlockId);
+	}
+	else
+	{
+		vkDestroyBuffer(device, buffer.handle, nullptr);
+	}
 
 	gpuResourcePool.buffers.erase(index);
 }
@@ -1317,16 +1359,32 @@ auto DeviceImpl::destroy_buffer(uint64 const id) -> void
 auto DeviceImpl::destroy_image(uint64 const id) -> void
 {
 	using image_index = decltype(gpuResourcePool.images)::index;
+	using memory_block_index = decltype(gpuResourcePool.memoryBlocks)::index;
 
 	image_index const index = image_index::from(id);
 	ImageImpl& image = gpuResourcePool.images[index];
 
-	if (!image.is_swapchain_image())
+	if (!image.is_transient())
 	{
-		vmaDestroyImage(allocator, image.handle, image.allocation);
-	}
-	vkDestroyImageView(device, image.imageView, nullptr);
+		vkDestroyImageView(device, image.imageView, nullptr);
 
+		if (!image.is_swapchain_image())
+		{
+			memory_block_index const memoryBlockId = memory_block_index::from(image.allocationBlock.id());
+
+			MemoryBlockImpl& memoryBlock = gpuResourcePool.memoryBlocks[memoryBlockId];
+
+			vmaDestroyImage(allocator, image.handle, memoryBlock.handle);
+
+			// Image owns the memory allocation and erases it from the resource pool.
+			gpuResourcePool.memoryBlocks.erase(memoryBlockId);
+		}
+	}
+	else
+	{
+		vkDestroyImageView(device, image.imageView, nullptr);
+		vkDestroyImage(device, image.handle, nullptr);
+	}
 	gpuResourcePool.images.erase(index);
 }
 
@@ -2091,6 +2149,60 @@ auto vk_to_rhi_color_space(VkColorSpaceKHR colorSpace) -> ColorSpace
 	}
 }
 
+auto get_image_create_info(ImageInfo const& info) -> VkImageCreateInfo
+{
+	constexpr uint32 MAX_IMAGE_MIP_LEVEL = 4u;
+
+	VkFormat const format = translate_format(info.format);
+	VkImageUsageFlags const usage = translate_image_usage_flags(info.imageUsage);
+
+	uint32 depth{ 1 };
+
+	if (info.dimension.depth > 1)
+	{
+		depth = info.dimension.depth;
+	}
+
+	uint32 mipLevels{ 1 };
+
+	if (info.mipLevel > 1)
+	{
+		const float32 width = static_cast<const float32>(info.dimension.width);
+		const float32 height = static_cast<const float32>(info.dimension.height);
+
+		mipLevels = static_cast<uint32>(std::floorf(std::log2f(std::max(width, height)))) + 1u;
+		mipLevels = std::min(mipLevels, MAX_IMAGE_MIP_LEVEL);
+	}
+
+	return VkImageCreateInfo{
+		.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+		.imageType = translate_image_type(info.type),
+		.format = format,
+		.extent = {
+			.width = info.dimension.width,
+			.height = info.dimension.height,
+			.depth = depth
+		},
+		.mipLevels = mipLevels,
+		.arrayLayers = 1,
+		.samples = translate_sample_count(info.samples),
+		.tiling = translate_image_tiling(info.tiling),
+		.usage = usage,
+		.sharingMode = translate_sharing_mode(info.sharingMode),
+		.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+	};
+}
+
+auto get_buffer_create_info(BufferInfo const& info) -> VkBufferCreateInfo
+{
+	return VkBufferCreateInfo{
+		.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+		.size = info.size,
+		.usage = VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | translate_buffer_usage_flags(info.bufferUsage),
+		.sharingMode = translate_sharing_mode(info.sharingMode)
+	};
+}
+
 auto translate_shader_attrib_format(Format format) -> VkFormat
 {
 	switch (format)
@@ -2510,6 +2622,11 @@ auto to_device(Device& device) -> vk::DeviceImpl&
 	return to_device(&device);
 }
 
+auto to_impl(MemoryBlock& memoryBlock) -> vk::MemoryBlockImpl&
+{
+	return static_cast<vk::MemoryBlockImpl&>(memoryBlock);
+}
+
 auto to_impl(Semaphore& semaphore) -> vk::SemaphoreImpl&
 {
 	return static_cast<vk::SemaphoreImpl&>(semaphore);
@@ -2563,6 +2680,11 @@ auto to_impl(CommandBuffer& cmdBuffer) -> vk::CommandBufferImpl&
 auto to_impl(CommandPool& cmdPool) -> vk::CommandPoolImpl&
 {
 	return static_cast<vk::CommandPoolImpl&>(cmdPool);
+}
+
+auto to_impl(MemoryBlock const& memoryBlock) -> vk::MemoryBlockImpl const&
+{
+	return static_cast<vk::MemoryBlockImpl const&>(memoryBlock);
 }
 
 auto to_impl(Semaphore const& semaphore) -> vk::SemaphoreImpl const&

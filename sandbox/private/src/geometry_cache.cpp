@@ -56,6 +56,12 @@ auto GeometryCache::upload_gltf(gltf::Importer const& importer, GeometryInputLay
 
 		auto mesh = opt.value();
 
+		// Skip decals for now ...
+		if (mesh.material_info().alphaMode != gltf::AlphaMode::Opaque)
+		{
+			continue;
+		}
+
 		auto&& [idx, geo] = m_geometries.insert(Geometry{});
 
 		if (handle == root_geometry_handle::invalid_handle())
@@ -268,14 +274,14 @@ auto GeometryCache::gltf_unpack_interleaved(gltf::Importer const& importer, root
 	Geometry* const rootGeometry = &m_geometries[geometry_index::from(geometryHandle.get())];
 	Geometry* geometry = rootGeometry;
 
-	auto heapSpan = m_uploadHeap.request_heaps(verticesSizeBytes + indicesSizeBytes);
-	auto currentHeapIt = heapSpan.begin();
+	auto vbHeapSpan = m_uploadHeap.request_heaps(verticesSizeBytes);
+	auto currentVbHeapIt = vbHeapSpan.begin();
 
 	auto& vb = m_geometryVb[geometryHandle.get()];
-	auto& ib = m_geometryIb[geometryHandle.get()];
+	size_t vbOffset = 0;
 
 	// This will be used to record the starting offset that we wrote the vertex data.
-	size_t initialHeapWriteOffset = currentHeapIt->byteOffset;
+	size_t initialHeapWriteOffset = currentVbHeapIt->byteOffset;
 	uint32 vbIndexOffset = 0;
 
 	for (uint32 i = 0; i < meshCount; ++i)
@@ -288,6 +294,12 @@ auto GeometryCache::gltf_unpack_interleaved(gltf::Importer const& importer, root
 		}
 
 		auto mesh = opt.value();
+
+		// Skip decals for now ...
+		if (mesh.material_info().alphaMode != gltf::AlphaMode::Opaque)
+		{
+			continue;
+		}
 
 		geometry->vertices.offset = vbIndexOffset;
 
@@ -324,16 +336,28 @@ auto GeometryCache::gltf_unpack_interleaved(gltf::Importer const& importer, root
 
 				for (uint32 l = 0; l < componentCount; ++l)
 				{
-					if (currentHeapIt->remaining_capacity() < sizeof(float32)) [[unlikely]]
+					if (currentVbHeapIt->remaining_capacity() < sizeof(float32)) [[unlikely]]
 					{
-						++currentHeapIt;
+						++currentVbHeapIt;
+
+						if (currentVbHeapIt == vbHeapSpan.end())
+						{
+							vbOffset = upload_heap_blocks(vbHeapSpan, initialHeapWriteOffset, vb, vbOffset);
+							m_uploadHeap.send_to_gpu(true);
+
+							vbHeapSpan = m_uploadHeap.request_heaps(verticesSizeBytes);
+							currentVbHeapIt = vbHeapSpan.begin();
+
+							initialHeapWriteOffset = currentVbHeapIt->byteOffset;
+						}
 					}
 
-					float32* ptr = currentHeapIt->data_as<float32>();
+					float32* ptr = currentVbHeapIt->data_as<float32>();
 
 					*ptr = data[l];
 
-					currentHeapIt->byteOffset += sizeof(float32);
+					currentVbHeapIt->byteOffset += sizeof(float32);
+					verticesSizeBytes -= sizeof(float32);
 				}
 
 				geometry->vertices.size += componentCount * sizeof(float32);
@@ -348,30 +372,19 @@ auto GeometryCache::gltf_unpack_interleaved(gltf::Importer const& importer, root
 
 	// Reset the geometry pointer to it's initial one.
 	geometry = rootGeometry;
-	// Number of heaps used to upload vertex data.
-	size_t vbNumHeapsUsed = currentHeapIt - heapSpan.begin();
 
-	if (std::cmp_equal(vbNumHeapsUsed, 0))
-	{
-		vbNumHeapsUsed = 1;
-	}
+	upload_heap_blocks(vbHeapSpan, initialHeapWriteOffset, vb, vbOffset);
 
-	for (size_t i = 0; i < vbNumHeapsUsed; ++i)
-	{
-		m_uploadHeap.upload_heap_to_buffer({
-			.heapBlock = heapSpan[i],
-			.heapWriteOffset = initialHeapWriteOffset,
-			.heapWriteSize = heapSpan[i].byteOffset - initialHeapWriteOffset,
-			.dst = vb
-		});
+	auto ibHeapSpan = m_uploadHeap.request_heaps(indicesSizeBytes);
+	auto currentIbHeapIt = ibHeapSpan.begin();
 
-		initialHeapWriteOffset = 0;
-	}
+	auto& ib = m_geometryIb[geometryHandle.get()];
+	size_t ibOffset = 0;
 
 	// Update the initial write offset for the index data to the current heap's byte offset.
-	initialHeapWriteOffset = currentHeapIt->byteOffset;
+	initialHeapWriteOffset = currentIbHeapIt->byteOffset;
+
 	// Same with the initial index data written heap.
-	auto const ibInitialHeap = currentHeapIt;
 	uint32 ibIndexOffset = 0;
 
 	for (uint32 i = 0; i < meshCount; ++i)
@@ -385,20 +398,38 @@ auto GeometryCache::gltf_unpack_interleaved(gltf::Importer const& importer, root
 
 		auto mesh = opt.value();
 
+		// Skip decals for now ...
+		if (mesh.material_info().alphaMode != gltf::AlphaMode::Opaque)
+		{
+			continue;
+		}
+
 		geometry->indices.offset = ibIndexOffset;
 
 		for (uint32 j = 0; j < geometry->indices.count; ++j)
 		{
-			if (currentHeapIt->remaining_capacity() < sizeof(uint32)) [[unlikely]]
+			if (currentIbHeapIt->remaining_capacity() < sizeof(uint32)) [[unlikely]]
 			{
-				++currentHeapIt;
+				++currentIbHeapIt;
+
+				if (currentIbHeapIt == ibHeapSpan.end())
+				{
+					ibOffset = upload_heap_blocks(ibHeapSpan, initialHeapWriteOffset, ib, ibOffset);
+					m_uploadHeap.send_to_gpu(true);
+
+					ibHeapSpan = m_uploadHeap.request_heaps(indicesSizeBytes);
+					currentIbHeapIt = ibHeapSpan.begin();
+
+					initialHeapWriteOffset = currentIbHeapIt->byteOffset;
+				}
 			}
 
-			uint32* ptr = currentHeapIt->data_as<uint32>();
+			uint32* ptr = currentIbHeapIt->data_as<uint32>();
 
 			*ptr = mesh.read_uint_data(j);
 
-			currentHeapIt->byteOffset += sizeof(uint32);
+			currentIbHeapIt->byteOffset += sizeof(uint32);
+			indicesSizeBytes -= sizeof(uint32);
 		}
 
 		geometry->indices.size = geometry->indices.count * sizeof(uint32);
@@ -407,26 +438,7 @@ auto GeometryCache::gltf_unpack_interleaved(gltf::Importer const& importer, root
 		geometry = geometry->next;
 	}
 
-	// Number of heaps used to upload index data.
-	size_t ibNumHeapsUsed = currentHeapIt - heapSpan.begin();
-	size_t const ibHeapIndex = (heapSpan.end() - currentHeapIt) - 1;
-
-	if (std::cmp_equal(ibNumHeapsUsed, 0))
-	{
-		ibNumHeapsUsed = 1;
-	}
-
-	for (size_t i = ibHeapIndex; i < ibHeapIndex + ibNumHeapsUsed; ++i)
-	{
-		m_uploadHeap.upload_heap_to_buffer({
-			.heapBlock = heapSpan[i],
-			.heapWriteOffset = initialHeapWriteOffset,
-			.heapWriteSize = heapSpan[i].byteOffset - initialHeapWriteOffset,
-			.dst = ib
-		});
-
-		initialHeapWriteOffset = 0;
-	}
+	upload_heap_blocks(ibHeapSpan, initialHeapWriteOffset, ib, ibOffset);
 }
 
 auto GeometryCache::gltf_unpack_non_interleaved(gltf::Importer const& importer, root_geometry_handle geometryHandle, size_t verticesSizeBytes, size_t indicesSizeBytes) -> void
@@ -447,7 +459,7 @@ auto GeometryCache::gltf_unpack_non_interleaved(gltf::Importer const& importer, 
 
 	auto& vb = m_geometryVb[geometryHandle.get()];
 	auto& ib = m_geometryIb[geometryHandle.get()];
-
+	
 	// This will be used to record the starting offset that we wrote the vertex data.
 	size_t initialHeapWriteOffset = currentHeapIt->byteOffset;
 	uint32 vbIndexOffset = 0;
@@ -462,6 +474,12 @@ auto GeometryCache::gltf_unpack_non_interleaved(gltf::Importer const& importer, 
 		}
 
 		auto mesh = opt.value();
+
+		// Skip decals for now ...
+		if (mesh.material_info().alphaMode != gltf::AlphaMode::Opaque)
+		{
+			continue;
+		}
 
 		geometry->vertices.offset = vbIndexOffset;
 
@@ -578,6 +596,12 @@ auto GeometryCache::gltf_unpack_non_interleaved(gltf::Importer const& importer, 
 
 		auto mesh = opt.value();
 
+		// Skip decals for now ...
+		if (mesh.material_info().alphaMode != gltf::AlphaMode::Opaque)
+		{
+			continue;
+		}
+
 		geometry->indices.offset = ibIndexOffset;
 
 		for (uint32 j = 0; j < geometry->indices.count; ++j)
@@ -620,6 +644,27 @@ auto GeometryCache::gltf_unpack_non_interleaved(gltf::Importer const& importer, 
 
 		initialHeapWriteOffset = 0;
 	}
+}
+
+auto GeometryCache::upload_heap_blocks(std::span<HeapBlock> heapBlocks, size_t initialWriteOffset, gpu::buffer const& buffer, size_t dstOffset) -> size_t
+{
+	for (HeapBlock& heapBlock : heapBlocks)
+	{
+		size_t const writtenSize = heapBlock.byteOffset - initialWriteOffset;
+
+		m_uploadHeap.upload_heap_to_buffer({
+			.heapBlock = heapBlock,
+			.heapWriteOffset = initialWriteOffset,
+			.heapWriteSize = writtenSize,
+			.dst = buffer,
+			.dstOffset = dstOffset
+		});
+
+		dstOffset += writtenSize;
+		initialWriteOffset = 0;
+	}
+
+	return dstOffset;
 }
 
 }

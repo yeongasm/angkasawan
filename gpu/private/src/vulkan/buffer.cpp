@@ -14,18 +14,19 @@ auto Buffer::info() const -> BufferInfo const&
 
 auto Buffer::valid() const -> bool
 {
-	auto&& self = to_impl(*this);
+	auto const& self = to_impl(*this);
 
 	return m_device != nullptr && self.handle != VK_NULL_HANDLE;
 }
 
 auto Buffer::data() const -> void*
 {
-	auto&& self = to_impl(*this);
+	auto const& self = to_impl(*this);
+	auto const& memoryBlock = to_impl(*self.allocationBlock);
 
 	if (is_host_visible())
 	{
-		return self.allocationInfo.pMappedData;
+		return memoryBlock.allocationInfo.pMappedData;
 	}
 
 	return nullptr;
@@ -33,20 +34,19 @@ auto Buffer::data() const -> void*
 
 auto Buffer::size() const -> size_t
 {
-	auto&& self = to_impl(*this);
+	auto const& self = to_impl(*this);
+	auto const& memoryBlock = to_impl(*self.allocationBlock);
 
-	return self.allocationInfo.size;
+	return is_transient() ? m_info.size : memoryBlock.allocationInfo.size;
 }
 
 auto Buffer::write(void const* data, size_t size, size_t offset) const -> void
 {
-	auto&& self = to_impl(*this);
-
-	bool const isWithinRange = (offset + size) <= self.allocationInfo.size;
+	bool const isWithinRange = (offset + size) <= Buffer::size();
 
 	if (is_host_visible() && isWithinRange)
 	{
-		std::byte* pointer = static_cast<std::byte*>(self.allocationInfo.pMappedData);
+		std::byte* pointer = static_cast<std::byte*>(Buffer::data());
 		pointer += offset;
 		lib::memcopy(pointer, data, size);
 	}
@@ -56,9 +56,10 @@ auto Buffer::clear() const -> void
 {
 	if (is_host_visible())
 	{
-		auto&& self = to_impl(*this);
+		auto const& self = to_impl(*this);
+		auto const& memoryBlock = to_impl(*self.allocationBlock);
 
-		lib::memzero(self.allocationInfo.pMappedData, self.allocationInfo.size);
+		lib::memzero(memoryBlock.allocationInfo.pMappedData, m_info.size);
 	}
 }
 
@@ -69,6 +70,13 @@ auto Buffer::is_host_visible() const -> bool
 	uint32 const hostAccessible = static_cast<uint32>(MemoryUsage::Host_Accessible);
 
 	return (usageMask & hostWritable) || (usageMask & hostAccessible);
+}
+
+auto Buffer::is_transient() const -> bool
+{
+	auto const& self = to_impl(*this);
+
+	return self.allocationBlock->aliased();
 }
 
 auto Buffer::gpu_address() const -> uint64
@@ -85,7 +93,7 @@ auto Buffer::bind(BufferBindInfo const& info) const -> BufferBindInfo
 
 	uint32 index = info.index;
 
-	if (info.offset < self.allocationInfo.size && self.allocationInfo.size <= info.size)
+	if (info.offset < self.m_info.size && self.m_info.size <= info.size)
 	{
 		index = index % vkdevice.config().maxBuffers;
 
@@ -97,7 +105,31 @@ auto Buffer::bind(BufferBindInfo const& info) const -> BufferBindInfo
 	return BufferBindInfo{ .offset = info.offset, .size = info.size, .index = index };
 }
 
-auto Buffer::from(Device& device, BufferInfo&& info) -> Resource<Buffer>
+auto Buffer::memory_requirement(Device& device, BufferInfo const& info) -> MemoryRequirementInfo
+{
+	auto&& vkdevice = to_device(device);
+
+	VkBufferCreateInfo bufferCreateInfo = vk::get_buffer_create_info(info);
+
+	VkDeviceBufferMemoryRequirements bufferMemReq{
+		.sType = VK_STRUCTURE_TYPE_DEVICE_BUFFER_MEMORY_REQUIREMENTS,
+		.pCreateInfo = &bufferCreateInfo
+	};
+
+	VkMemoryRequirements2 memReq{
+		.sType = VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2
+	};
+
+	vkGetDeviceBufferMemoryRequirements(vkdevice.device, &bufferMemReq, &memReq);
+
+	return MemoryRequirementInfo{
+		.size = memReq.memoryRequirements.size,
+		.alignment = memReq.memoryRequirements.alignment,
+		.memoryTypeBits = memReq.memoryRequirements.memoryTypeBits
+	};
+}
+
+auto Buffer::from(Device& device, BufferInfo&& info, Resource<MemoryBlock> memoryBlock) -> Resource<Buffer>
 {
 	auto&& vkdevice = to_device(device);
 
@@ -107,12 +139,7 @@ auto Buffer::from(Device& device, BufferInfo&& info) -> Resource<Buffer>
 		vkdevice.transferQueue.familyIndex
 	};
 
-	VkBufferCreateInfo bufferInfo{
-		.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-		.size = info.size,
-		.usage = VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | vk::translate_buffer_usage_flags(info.bufferUsage),
-		.sharingMode = vk::translate_sharing_mode(info.sharingMode)
-	};
+	VkBufferCreateInfo bufferInfo = vk::get_buffer_create_info(info);
 
 	if ((bufferInfo.sharingMode & VK_SHARING_MODE_CONCURRENT) != 0)
 	{
@@ -120,47 +147,75 @@ auto Buffer::from(Device& device, BufferInfo&& info) -> Resource<Buffer>
 		bufferInfo.pQueueFamilyIndices = queueFamilyIndices;
 	}
 
-	auto allocationFlags = vk::translate_memory_usage(info.memoryUsage);
-
-	if ((allocationFlags & VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT) != 0 ||
-		(allocationFlags & VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT) != 0)
-	{
-		allocationFlags |= VMA_ALLOCATION_CREATE_MAPPED_BIT;
-	}
-
-	VmaAllocationCreateInfo allocInfo{
-		.flags = allocationFlags,
-		.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE
-	};
-
 	VkBuffer handle = VK_NULL_HANDLE;
-	VmaAllocation allocation = VK_NULL_HANDLE;
-	VmaAllocationInfo allocationInfo = {};
 
-	VkResult result = vmaCreateBuffer(vkdevice.allocator, &bufferInfo, &allocInfo, &handle, &allocation, &allocationInfo);
-
-	if (result != VK_SUCCESS)
+	if (memoryBlock.valid())
 	{
-		return null_resource;
+		auto const& memBlockImpl = to_impl(*memoryBlock);
+		MemoryRequirementInfo const memReq = Buffer::memory_requirement(device, info);
+
+		if ((memReq.memoryTypeBits & memBlockImpl.allocationInfo.memoryType) != memReq.memoryTypeBits ||
+			memReq.size > memBlockImpl.allocationInfo.size)
+		{
+			return null_resource;
+		}
+
+		if (vkCreateBuffer(vkdevice.device, &bufferInfo, nullptr, &handle) != VK_SUCCESS)
+		{
+			return null_resource;
+		}
+
+		vmaBindBufferMemory(vkdevice.allocator, memBlockImpl.handle, handle);
+	}
+	else
+	{
+		auto allocationFlags = vk::translate_memory_usage(info.memoryUsage);
+
+		if ((allocationFlags & VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT) != 0 ||
+			(allocationFlags & VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT) != 0)
+		{
+			allocationFlags |= VMA_ALLOCATION_CREATE_MAPPED_BIT;
+		}
+
+		VmaAllocationCreateInfo allocInfo{
+			.flags = allocationFlags,
+			.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE
+		};
+
+		VmaAllocation allocation = VK_NULL_HANDLE;
+		VmaAllocationInfo allocationInfo = {};
+
+		VkResult result = vmaCreateBuffer(vkdevice.allocator, &bufferInfo, &allocInfo, &handle, &allocation, &allocationInfo);
+
+		if (result != VK_SUCCESS)
+		{
+			return null_resource;
+		}
+
+		auto&& [memoryBlockId, vkmemoryblock] = vkdevice.gpuResourcePool.memoryBlocks.emplace(vkdevice, false);
+
+		vkmemoryblock.handle = allocation;
+		vkmemoryblock.allocationInfo = std::move(allocationInfo);
+
+		new (&memoryBlock) Resource<MemoryBlock>{ memoryBlockId.to_uint64(), vkmemoryblock };
 	}
 
 	auto&& [id, vkbuffer] = vkdevice.gpuResourcePool.buffers.emplace(vkdevice);
 
 	VkBufferDeviceAddressInfo addressInfo{
-		.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO_EXT,
+		.sType	= VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO_EXT,
 		.buffer = handle
 	};
 
 	vkbuffer.address = vkGetBufferDeviceAddress(vkdevice.device, &addressInfo);
 
-	if (info.name.size())
+	if (!info.name.empty())
 	{
 		info.name.format("<buffer>:{}", info.name.c_str());
 	}
 
 	vkbuffer.handle = handle;
-	vkbuffer.allocation = allocation;
-	vkbuffer.allocationInfo = std::move(allocationInfo);
+	vkbuffer.allocationBlock = memoryBlock;
 	vkbuffer.m_info = std::move(info);
 
 	if constexpr (ENABLE_DEBUG_RESOURCE_NAMES)
@@ -174,9 +229,15 @@ auto Buffer::from(Device& device, BufferInfo&& info) -> Resource<Buffer>
 auto Buffer::destroy(Buffer& resource, uint64 id) -> void
 {
 	/*
-	 * At this point, the ref count on the resource is only 1 which means ONLY the resource has a reference to itself and can be safely deleted.
-	 */
+	* At this point, the ref count on the resource is only 1 which means ONLY the resource has a reference to itself and can be safely deleted.
+	*/
 	auto&& vkdevice = to_device(resource.m_device);
+	auto&& vkbuffer = to_impl(resource);
+
+	/*
+	* Release ownership of it's memory allocation.
+	*/
+	vkbuffer.allocationBlock.destroy();
 
 	std::lock_guard const lock{ vkdevice.gpuResourcePool.zombieMutex };
 

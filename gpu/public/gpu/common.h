@@ -6,18 +6,10 @@
 #include "lib/string.h"
 #include "lib/map.h"
 #include "lib/bit_mask.h"
-//#include "rhi_api.h"
 #include "constants.h"
 
 namespace gpu
 {
-// Each Graphics API would have their own definition of what an APIContext is.
-//struct APIContext;
-//class Shader;
-//class Buffer;
-//class Image;
-//class Sampler;
-
 struct Viewport
 {
 	float32 x = 0.f;
@@ -229,13 +221,6 @@ struct ShaderInfo
 	lib::string entryPoint;
 };
 
-//struct PipelineShaderInfo
-//{
-//	Shader* vertexShader;
-//	Shader* pixelShader;
-//	std::span<ShaderAttribute> vertexInputAttributes = {};
-//};
-
 struct BufferInfo
 {
 	lib::string name;
@@ -350,6 +335,20 @@ struct EventInfo
 	lib::string name;
 };
 
+struct MemoryRequirementInfo
+{
+	size_t size;
+	size_t alignment;
+	uint32 memoryTypeBits;
+	MemoryUsage usage;
+};
+
+struct MemoryBlockInfo
+{
+	lib::string name;
+	MemoryUsage usage;
+};
+
 /**
 * https://registry.khronos.org/vulkan/specs/1.3-extensions/html/vkspec.html#VkPipeline
 * The Vulkan specification states that,
@@ -383,27 +382,6 @@ struct FrameInfo
 	*/
 	uint32 index;
 };
-
-//struct DescriptorBufferInfo
-//{
-//	Buffer& buffer;
-//	size_t offset;
-//	size_t size;
-//	uint32 index;
-//};
-//
-//struct DescriptorImageInfo
-//{
-//	Image& image;
-//	Sampler* pSampler;
-//	uint32 index;
-//};
-//
-//struct DescriptorSamplerInfo
-//{
-//	Sampler& sampler;
-//	uint32 index;
-//};
 
 /**
 * Pipeline barrier access information.

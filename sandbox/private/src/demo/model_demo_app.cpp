@@ -9,22 +9,18 @@ namespace sandbox
 ModelDemoApp::ModelDemoApp(
 	core::wnd::window_handle rootWindowHandle,
 	gpu::util::ShaderCompiler& shaderCompiler,
-	gpu::Device& device,
+	GraphicsProcessingUnit& gpu,
 	gpu::swapchain rootWindowSwapchain,
 	size_t const& frameIndex
 ) :
-	DemoApplication{ rootWindowHandle, shaderCompiler, device, rootWindowSwapchain, frameIndex },
-	m_commandQueue{ m_device },
-	m_uploadHeap{ m_device, m_commandQueue },
-	m_geometryCache{ m_uploadHeap }
+	DemoApplication{ rootWindowHandle, shaderCompiler, gpu, rootWindowSwapchain, frameIndex },
+	m_geometryCache{ m_gpu.upload_heap() }
 {}
 
 ModelDemoApp::~ModelDemoApp() {}
 
 auto ModelDemoApp::initialize() -> bool
 {
-	m_uploadHeap.initialize();
-
 	auto&& swapchainInfo = m_swapchain->info();
 
 	float32 const swapchainWidth = static_cast<float32>(swapchainInfo.dimension.width);
@@ -39,86 +35,95 @@ auto ModelDemoApp::initialize() -> bool
 	m_camera.frameWidth = swapchainWidth;
 	m_camera.frameHeight = swapchainHeight;
 
-	auto sourceCode = open_file("data/demo/shaders/model.glsl");
-
-	if (!sourceCode.size())
+	auto recreate_uber_pipeline_fn = [&](core::filewatcher::FileActionInfo const& fileAction) -> void
 	{
-		return false;
-	}
+		if (fileAction.action == core::filewatcher::FileAction::Modified)
+		{
+			auto sourceCode = open_file(fileAction.path);
+			if (!sourceCode.size())
+			{
+				return;
+			}
 
-	gpu::Resource<gpu::Shader> vertexShader;
-	gpu::Resource<gpu::Shader> pixelShader;
+			gpu::shader vs, ps;
 
-	gpu::util::ShaderCompileInfo compileInfo{
-		.name = "sponza vertex shader",
-		.path = "data/demo/shaders/model.glsl",
-		.type = gpu::ShaderType::Vertex,
-		.sourceCode = std::move(sourceCode)
+			gpu::util::ShaderCompileInfo compileInfo{
+				.name = "sponza vertex shader",
+				.path = "data/demo/shaders/model.glsl",
+				.type = gpu::ShaderType::Vertex,
+				.sourceCode = std::move(sourceCode)
+			};
+
+			{
+				compileInfo.add_macro_definition("VERTEX_SHADER");
+
+				if (auto result = m_shader_compiler.compile_shader(compileInfo); result.ok())
+				{
+					vs = gpu::Shader::from(m_gpu.device(), result.compiled_shader_info().value());
+				}
+				else
+				{
+					fmt::print("{}", result.error_msg().data());
+				}
+			}
+
+			{
+				compileInfo.name = "sponza pixel shader",
+				compileInfo.type = gpu::ShaderType::Pixel;
+				compileInfo.clear_macro_definitions();
+				compileInfo.add_macro_definition("FRAGMENT_SHADER");
+
+				if (auto result = m_shader_compiler.compile_shader(compileInfo); result.ok())
+				{
+					ps = gpu::Shader::from(m_gpu.device(), result.compiled_shader_info().value());
+				}
+				else
+				{
+					fmt::print("{}", result.error_msg().data());
+				}
+			}
+
+			if (!(vs.valid() && ps.valid()))
+			{
+				return;
+			}
+
+			auto compiledInfo = m_shader_compiler.get_compiled_shader_info(vs->info().name.c_str());
+
+			m_pipeline = gpu::Pipeline::from(
+				m_gpu.device(),
+				{
+					.vertexShader = vs,
+					.pixelShader = ps,
+				},
+				{
+					.name = "sponza uber pipeline",
+					.colorAttachments = {
+						{ .format = m_swapchain->image_format(), .blendInfo = { .enable = true } }
+					},
+					.depthAttachmentFormat = gpu::Format::D32_Float,
+					.rasterization = {
+						.cullMode = gpu::CullingMode::Back,
+						.frontFace = gpu::FrontFace::Counter_Clockwise
+					},
+					.depthTest = {
+						.depthTestCompareOp = gpu::CompareOp::Less,
+						.enableDepthTest = true,
+						.enableDepthWrite = true
+					},
+					.pushConstantSize = sizeof(PushConstant)
+				}
+			);
+		}
 	};
 
-	{
-		compileInfo.add_macro_definition("VERTEX_SHADER");
+	m_pipelineShaderCodeWatchId = core::filewatcher::watch({ .path = "data/demo/shaders/model.glsl", .callback = recreate_uber_pipeline_fn });
 
-		if (auto result = m_shader_compiler.compile_shader(compileInfo); result.ok())
-		{
-			vertexShader = gpu::Shader::from(m_device, result.compiled_shader_info().value());
-		}
-		else
-		{
-			fmt::print("{}", result.error_msg().data());
-		}
-	}
-
-	{
-		compileInfo.name = "sponza pixel shader",
-		compileInfo.type = gpu::ShaderType::Pixel;
-		compileInfo.clear_macro_definitions();
-		compileInfo.add_macro_definition("FRAGMENT_SHADER");
-
-		if (auto result = m_shader_compiler.compile_shader(compileInfo); result.ok())
-		{
-			pixelShader = gpu::Shader::from(m_device, result.compiled_shader_info().value());
-		}
-		else
-		{
-			fmt::print("{}", result.error_msg().data());
-		}
-	}
-
-	if (!vertexShader.valid() || !pixelShader.valid())
-	{
-		return false;
-	}
-
-	auto compiledInfo = m_shader_compiler.get_compiled_shader_info(vertexShader->info().name.c_str());
-
-	m_pipeline = gpu::Pipeline::from(
-		m_device,
-		{
-			.vertexShader = std::move(vertexShader),
-			.pixelShader = std::move(pixelShader),
-		},
-		{
-		.name = "sponza render",
-		.colorAttachments = {
-			{ .format = m_swapchain->image_format(), .blendInfo = { .enable = true } }
-		},
-		.depthAttachmentFormat = gpu::Format::D32_Float,
-		.rasterization = {
-			.cullMode = gpu::CullingMode::Back,
-			.frontFace = gpu::FrontFace::Counter_Clockwise
-		},
-		.depthTest = {
-			.depthTestCompareOp = gpu::CompareOp::Less,
-			.enableDepthTest = true,
-			.enableDepthWrite = true
-		},
-		.pushConstantSize = sizeof(PushConstant)
-	});
+	recreate_uber_pipeline_fn({ .path = "data/demo/shaders/model.glsl", .action = core::filewatcher::FileAction::Modified });
 
 	allocate_camera_buffers();
 
-	m_normalSampler = gpu::Sampler::from(m_device, {
+	m_normalSampler = gpu::Sampler::from(m_gpu.device(), {
 		.name = "normal sampler",
 		.minFilter = gpu::TexelFilter::Linear,
 		.magFilter = gpu::TexelFilter::Linear,
@@ -134,7 +139,7 @@ auto ModelDemoApp::initialize() -> bool
 		.borderColor = gpu::BorderColor::Float_Transparent_Black,
 	});
 
-	m_depthBuffer = gpu::Image::from(m_device, {
+	m_depthBuffer = gpu::Image::from(m_gpu.device(), {
 		.name = "depth buffer",
 		.type = gpu::ImageType::Image_2D,
 		.format = gpu::Format::D32_Float,
@@ -153,9 +158,26 @@ auto ModelDemoApp::initialize() -> bool
 		.mipLevel = 1
 	});
 
-	gltf::Importer sponzaImporter{ "data/demo/models/sponza/compressed/sponza.gltf" };
+	m_defaultWhiteTexture = gpu::Image::from(m_gpu.device(), {
+		.name = "default white texture",
+		.type = gpu::ImageType::Image_2D,
+		.format = gpu::Format::B8G8R8A8_Srgb,
+		.samples = gpu::SampleCount::Sample_Count_1,
+		.tiling = gpu::ImageTiling::Optimal,
+		.imageUsage = gpu::ImageUsage::Transfer_Dst | gpu::ImageUsage::Sampled,
+		.dimension = {
+			.width = 1,
+			.height = 1,
+		},
+		.mipLevel = 1
+	});
+
+	m_defaultWhiteTexture->bind({ .sampler = m_normalSampler, .index = 0u });
+
+	gltf::Importer sponzaImporter{ "data/demo/models/sponza_updated/compressed/scene.gltf" };
 
 	uint32 const sponzaMeshCount = sponzaImporter.num_meshes();
+	uint32 imageCount = 1;
 
 	for (uint32 i = 0; i < sponzaMeshCount; ++i)
 	{
@@ -167,7 +189,14 @@ auto ModelDemoApp::initialize() -> bool
 		}
 
 		auto mesh = result.value();
+
 		gltf::MaterialInfo const& material = mesh.material_info();
+
+		// Skip decals for now ...
+		if (material.alphaMode != gltf::AlphaMode::Opaque)
+		{
+			continue;
+		}
 
 		using img_type_t = std::underlying_type_t<gltf::ImageType>;
 
@@ -175,30 +204,69 @@ auto ModelDemoApp::initialize() -> bool
 
 		if (textureInfo)
 		{
-			ImageImporter importer{ { .name = lib::format("mesh:{}, base color", i), .uri = textureInfo->uri } };
+			ImageImporter importer{ {.name = lib::format("mesh:{}, base color", i), .uri = textureInfo->uri } };
 
 			auto&& baseColorMapInfo = importer.image_info();
 			baseColorMapInfo.mipLevel = 1;
 
-			auto& baseColorImage = m_sponzaTextures.emplace_back(gpu::Image::from(m_device, std::move(baseColorMapInfo)), i);
+			auto& baseColorImage = m_sponzaTextures.emplace_back(gpu::Image::from(m_gpu.device(), std::move(baseColorMapInfo)), imageCount);
 
-			m_uploadHeap.upload_data_to_image({
+			m_gpu.upload_heap().upload_data_to_image({
 				.image = baseColorImage.first,
 				.data = importer.data(0).data(),
 				.size = importer.data(0).size_bytes(),
 				.mipLevel = 0
 			});
 
-			baseColorImage.first->bind({ .sampler = m_normalSampler, .index = i });
+			baseColorImage.first->bind({ .sampler = m_normalSampler, .index = imageCount });
+
+			m_renderInfo.emplace_back(nullptr, imageCount);
+
+			++imageCount;
+		}
+		else
+		{
+			m_renderInfo.emplace_back(nullptr, 0u);
 		}
 	}
+
+	uint8 theColorWhite[4] = { 255, 255, 255, 255 };
+
+	m_gpu.upload_heap().upload_data_to_image({
+		.image = m_defaultWhiteTexture,
+		.data = theColorWhite,
+		.size = sizeof(uint8) * 4
+	});
 
 	GeometryInputLayout layout = { .inputs = GeometryInput::Position | GeometryInput::TexCoord, .interleaved = true };
 
 	m_sponza = m_geometryCache.upload_gltf(sponzaImporter, layout);
 
+	Geometry const* sponzaMesh = m_geometryCache.geometry_from(m_sponza);
+
+	for (uint32 i = 0, renderInfoIndex = 0; i < sponzaMeshCount; ++i)
+	{
+		auto result = sponzaImporter.mesh_at(i);
+
+		if (!result.has_value())
+		{
+			continue;
+		}
+
+		// Skip decals for now ...
+		if (result.value().material_info().alphaMode != gltf::AlphaMode::Opaque)
+		{
+			continue;
+		}
+
+		m_renderInfo[static_cast<size_t>(renderInfoIndex)].pGeometry = sponzaMesh;
+
+		++renderInfoIndex;
+		sponzaMesh = sponzaMesh->next;
+	}
+
 	m_sponzaTransform = gpu::Buffer::from(
-		m_device,
+		m_gpu.device(),
 		{
 			.name = "sponza transform",
 			.size = sizeof(glm::mat4),
@@ -208,13 +276,13 @@ auto ModelDemoApp::initialize() -> bool
 	);
 
 	glm::mat4 transform = glm::scale(glm::mat4{ 1.f }, glm::vec3{ 1.f, 1.f, 1.f });
-	m_uploadHeap.upload_data_to_buffer({ .dst = m_sponzaTransform, .data = &transform, .size = sizeof(glm::mat4) });
+	m_gpu.upload_heap().upload_data_to_buffer({ .dst = m_sponzaTransform, .data = &transform, .size = sizeof(glm::mat4) });
 
-	FenceInfo fenceInfo = m_uploadHeap.send_to_gpu();
+	FenceInfo fenceInfo = m_gpu.upload_heap().send_to_gpu();
 
 	{
 		// Acquire resources ...
-		auto cmd = m_commandQueue.next_free_command_buffer();
+		auto cmd = m_gpu.command_queue().next_free_command_buffer();
 
 		cmd->begin();
 
@@ -242,12 +310,12 @@ auto ModelDemoApp::initialize() -> bool
 
 		cmd->end();
 
-		auto ownershipTransferSubmission = m_commandQueue.new_submission_group();
+		auto ownershipTransferSubmission = m_gpu.command_queue().new_submission_group();
 		ownershipTransferSubmission.wait(fenceInfo.fence, fenceInfo.value);
 		ownershipTransferSubmission.submit(cmd);
 	}
 
-	m_commandQueue.send_to_gpu();
+	m_gpu.command_queue().send_to_gpu();
 
 	return true;
 }
@@ -256,14 +324,14 @@ auto ModelDemoApp::run() -> void
 {
 	auto dt = core::stat::delta_time_f();
 
-	m_device.clear_garbage();
+	m_gpu.device().clear_garbage();
 	update_camera_state(dt);
 
-	Geometry const* sponzaMesh = m_geometryCache.geometry_from(m_sponza);
+	/*Geometry const* sponzaMesh = m_geometryCache.geometry_from(m_sponza);*/
 	auto const sponzaVb = m_geometryCache.vertex_buffer_of(m_sponza);
 	auto const sponzaIb = m_geometryCache.index_buffer_of(m_sponza);
 
-	auto cmd = m_commandQueue.next_free_command_buffer();
+	auto cmd = m_gpu.command_queue().next_free_command_buffer();
 	auto&& swapchainImage = m_swapchain->acquire_next_image();
 
 	auto& projViewBuffer = m_cameraProjView[m_frame_index];
@@ -339,8 +407,10 @@ auto ModelDemoApp::run() -> void
 		.indexType = gpu::IndexType::Uint_32
 	});
 
-	while (sponzaMesh)
+	for (GeometryRenderInfo const& renderInfo : m_renderInfo)
 	{
+		pc.baseColorMapIndex = renderInfo.baseColor;
+
 		cmd->bind_push_constant({
 			.data = &pc,
 			.size = sizeof(PushConstant),
@@ -348,14 +418,11 @@ auto ModelDemoApp::run() -> void
 		});
 
 		cmd->draw_indexed({
-			.indexCount = sponzaMesh->indices.count,
-			.firstIndex = sponzaMesh->indices.offset,
-			.vertexOffset = sponzaMesh->vertices.offset
+			.indexCount = renderInfo.pGeometry->indices.count,
+			.firstIndex = renderInfo.pGeometry->indices.offset,
+			.vertexOffset = renderInfo.pGeometry->vertices.offset
 		});
 
-		sponzaMesh = sponzaMesh->next;
-
-		++pc.baseColorMapIndex;
 	}
 
 	cmd->end_rendering();
@@ -370,25 +437,24 @@ auto ModelDemoApp::run() -> void
 
 	cmd->end();
 
-	auto uploadFenceInfo = m_uploadHeap.send_to_gpu();
+	auto uploadFenceInfo = m_gpu.upload_heap().send_to_gpu();
 
-	auto submitGroup = m_commandQueue.new_submission_group();
+	auto submitGroup = m_gpu.command_queue().new_submission_group();
 	submitGroup.submit(cmd);
 	submitGroup.wait(m_swapchain->current_acquire_semaphore());
 	submitGroup.signal(m_swapchain->current_present_semaphore());
 	submitGroup.wait(uploadFenceInfo.fence, uploadFenceInfo.value);
 	submitGroup.signal(m_swapchain->get_gpu_fence(), m_swapchain->cpu_frame_count());
 
-	m_commandQueue.send_to_gpu();
+	m_gpu.command_queue().send_to_gpu();
 
-	m_device.present({ .swapchains = std::span{ &m_swapchain, 1 } });
+	m_gpu.device().present({ .swapchains = std::span{ &m_swapchain, 1 } });
 
-	m_commandQueue.clear();
+	m_gpu.command_queue().clear();
 }
 
 auto ModelDemoApp::terminate() -> void
 {
-	m_uploadHeap.terminate();
 }
 
 auto ModelDemoApp::allocate_camera_buffers() -> void
@@ -396,7 +462,7 @@ auto ModelDemoApp::allocate_camera_buffers() -> void
 	for (size_t i = 0; i < std::size(m_cameraProjView); ++i)
 	{
 		m_cameraProjView[i] = gpu::Buffer::from(
-			m_device, 
+			m_gpu.device(),
 			{
 				.name = lib::format("camera view proj {}", i),
 				.size = sizeof(glm::mat4) + sizeof(glm::mat4),
@@ -443,7 +509,7 @@ auto ModelDemoApp::update_camera_state(float32 dt) -> void
 	updateValue.projection = m_camera.projection;
 	updateValue.view = m_camera.view;
 
-	m_uploadHeap.upload_data_to_buffer({
+	m_gpu.upload_heap().upload_data_to_buffer({
 		.dst = projViewBuffer,
 		.data = &updateValue,
 		.size = sizeof(CameraProjectionView),

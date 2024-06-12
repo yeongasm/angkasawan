@@ -524,11 +524,10 @@ auto terminate_file_watcher() -> void
 
 	WindowsFileWatcherContext::ctx->terminate();
 
-	if (WindowsFileWatcherContext::ctx->fileWatcherThread.joinable())
-	{
-		WindowsFileWatcherContext::ctx->fileWatcherThread.join();
-		WindowsFileWatcherContext::ctx.~unique_ptr();
-	}
+	//while (!WindowsFileWatcherContext::ctx->fileWatcherThread.joinable());
+
+	//WindowsFileWatcherContext::ctx->fileWatcherThread.join();
+	//WindowsFileWatcherContext::ctx.~unique_ptr();
 }
 
 auto watch(FileWatchInfo&& watchInfo) -> file_watch_id

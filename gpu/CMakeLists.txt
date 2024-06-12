@@ -48,6 +48,7 @@ if (USE_VULKAN)
 		"private/src/vulkan/command_pool.cpp"
 		"private/src/vulkan/device.cpp"
 		"private/src/vulkan/image.cpp"
+		"private/src/vulkan/memory.cpp"
 		"private/src/vulkan/pipeline.cpp"
 		"private/src/vulkan/shader.cpp"
 		"private/src/vulkan/sampler.cpp"

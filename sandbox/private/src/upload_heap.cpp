@@ -44,6 +44,11 @@ auto UploadHeap::HeapPool::num_available_heaps() const -> size_t
 	return count;
 }
 
+auto UploadHeap::HeapPool::num_heaps_allocated() const -> size_t
+{
+	return heaps.size();
+}
+
 auto UploadHeap::HeapPool::remaining_heaps_allocatable() const -> size_t
 {
 	return UploadHeap::MAX_UPLOAD_HEAP_PER_POOL - heaps.size();
@@ -69,34 +74,13 @@ UploadHeap::UploadHeap(gpu::Device& device, CommandQueue& commandQueue) :
 	m_heapPoolQueue{},
 	m_imageUploadInfo{},
 	m_bufferUploadInfo{},
-	m_gpuUploadTimeline{},
 	m_gpuUploadWaitTimelineValue{},
 	m_cpuUploadTimeline{},
 	m_device{ device },
 	m_commandQueue{ commandQueue },
+	m_gpuUploadTimeline{ gpu::Fence::from(m_device, { .name = "upload heap gpu timeline" }) },
 	m_nextPool{}
 {}
-
-auto UploadHeap::initialize() -> void
-{
-	m_gpuUploadTimeline = gpu::Fence::from(m_device, { .name = "upload heap gpu timeline" });
-
-	for (auto& heapPool : m_heapPoolQueue)
-	{
-		heapPool.heaps.reserve(MAX_UPLOAD_HEAP_PER_POOL);
-	}
-}
-
-auto UploadHeap::terminate() -> void
-{
-	m_gpuUploadTimeline.destroy();
-
-	for (auto&& heapPool : m_heapPoolQueue)
-	{
-		heapPool.heaps.clear();
-		heapPool.current = 0;
-	}
-}
 
 auto UploadHeap::device() const -> gpu::Device&
 {
@@ -107,26 +91,31 @@ auto UploadHeap::request_heaps(size_t size) -> std::span<HeapBlock>
 {
 	HeapPool& heapPool = next_heap_pool();
 
-	if (heapPool.num_available_heaps() == MAX_UPLOAD_HEAP_PER_POOL && 
+	if (!heapPool.heaps.capacity())
+	{
+		heapPool.heaps.reserve(MAX_UPLOAD_HEAP_PER_POOL);
+	}
+
+	if (std::cmp_equal(heapPool.current, MAX_UPLOAD_HEAP_PER_POOL - 1u) &&
 		size > heapPool.remaining_capacity())
 	{
 		return std::span<HeapBlock>{};
 	}
 
-	auto const numHeapsRequired = (size + HEAP_BLOCK_SIZE - 1) / HEAP_BLOCK_SIZE;
+	auto numHeapsRequired = (size + HEAP_BLOCK_SIZE - 1) / HEAP_BLOCK_SIZE;
 
-	if (numHeapsRequired > heapPool.num_available_heaps())
+	// Allocate more heaps if we require more but only when we haven't reached the allowed maximum number of heaps per pool.
+	// At this point, we won't know if the current heap has sufficient space for the data size that it's being requested for.
+	if (numHeapsRequired > heapPool.num_available_heaps() &&
+		std::cmp_less(heapPool.heaps.size(), MAX_UPLOAD_HEAP_PER_POOL))
 	{
 		auto heapsToAllocate = numHeapsRequired - heapPool.num_available_heaps();
 
-		heapsToAllocate = std::clamp(heapsToAllocate, heapsToAllocate, heapPool.remaining_heaps_allocatable());
+		heapsToAllocate = std::min(heapsToAllocate, heapPool.remaining_heaps_allocatable());
 
-		if (heapPool.num_available_heaps() < MAX_UPLOAD_HEAP_PER_POOL)
-		{
-			allocate_heap(heapsToAllocate);
-		}
+		allocate_heap(heapsToAllocate);
 	}
-	
+
 	HeapBlock* currentHeap = &heapPool.current_heap();
 
 	// We do not need to check if the pool's current index exceeds MAX_UPLOAD_HEAP_PER_POOL here.
@@ -138,14 +127,16 @@ auto UploadHeap::request_heaps(size_t size) -> std::span<HeapBlock>
 		currentHeap = &heapPool.current_heap();
 	}
 
-	return std::span{ currentHeap, numHeapsRequired };
+	auto const heapSpanRange = std::min(numHeapsRequired, static_cast<size_t>(MAX_UPLOAD_HEAP_PER_POOL) - heapPool.current);
+
+	return std::span{ currentHeap, heapSpanRange };
 }
 
-auto UploadHeap::send_to_gpu() -> FenceInfo
+auto UploadHeap::send_to_gpu(bool waitIdle) -> FenceInfo
 {
 	if (do_upload())
 	{
-		upload_to_gpu(false);
+		upload_to_gpu(waitIdle);
 	}
 	increment_counter();
 
@@ -154,6 +145,8 @@ auto UploadHeap::send_to_gpu() -> FenceInfo
 
 auto UploadHeap::upload_data_to_image(ImageDataUploadInfo&& info) -> upload_id
 {
+	// For images, support to break uploads into smaller sized chunks is non-existent
+	// mainly because images with optimal layout can't be treated as a linear sequence of bytes.
 	auto const& imageInfo = info.image->info();
 
 	if (info.mipLevel > imageInfo.mipLevel)
@@ -162,27 +155,28 @@ auto UploadHeap::upload_data_to_image(ImageDataUploadInfo&& info) -> upload_id
 	}
 
 	auto& imgUploadPool = next_image_upload_info_pool();
-
-	auto heap = next_available_heap(info.size);
 	
-	if (!heap || std::cmp_greater_equal(imgUploadPool.uploads.size(), MAX_UPLOADS_PER_POOL))
+	auto heapBlock = next_available_heap(info.size);
+
+	if (heapBlock == nullptr ||
+		std::cmp_greater_equal(imgUploadPool.uploads.size(), MAX_UPLOADS_PER_POOL))
 	{
 		upload_to_gpu(true);
 
 		reset_next_pool();
 
-		heap = next_available_heap(info.size);
+		heapBlock = next_available_heap(info.size);
 	}
 
-	auto const writtenByteOffset = heap->byteOffset;
+	auto const writtenByteOffset = heapBlock->byteOffset;
 
-	heap->buffer->write(info.data, info.size, writtenByteOffset);
+	heapBlock->buffer->write(info.data, info.size, writtenByteOffset);
 
-	heap->byteOffset += info.size;
+	heapBlock->byteOffset += info.size;
 
 	ImageUploadInfo uploadInfo{
 		.copyInfo = {
-			.src = *heap->buffer,
+			.src = *heapBlock->buffer,
 			.dst = *info.image,
 			.bufferOffset = writtenByteOffset,
 			.imageSubresource = {
@@ -209,54 +203,62 @@ auto UploadHeap::upload_data_to_buffer(BufferDataUploadInfo&& info) -> upload_id
 {
 	auto& bufferUploadPool = next_buffer_upload_info_pool();
 
-	auto heapBlocks = request_heaps(info.size);
-
-	if (heapBlocks.empty() ||
-		std::cmp_greater_equal(bufferUploadPool.uploads.size(), MAX_UPLOADS_PER_POOL))
-	{
-		upload_to_gpu(true);
-
-		reset_next_pool();
-
-		heapBlocks = request_heaps(info.size);
-	}
-
 	std::byte const* data = static_cast<std::byte*>(info.data);
 	size_t remainingSizeToUpload = info.size;
 
-	for (size_t i = 0; i < heapBlocks.size(); ++i)
+	while (!std::cmp_equal(remainingSizeToUpload, 0))
 	{
-		auto& heapBlock = heapBlocks[i];
+		auto heapBlocks = request_heaps(remainingSizeToUpload);
 
-		size_t writeSize = HEAP_BLOCK_SIZE;
-		
-		if (i + 1 == heapBlocks.size())
+		if (heapBlocks.empty() ||
+			std::cmp_greater_equal(bufferUploadPool.uploads.size(), MAX_UPLOADS_PER_POOL))
 		{
-			writeSize = remainingSizeToUpload;
+			upload_to_gpu(true);
+
+			reset_next_pool();
+
+			heapBlocks = request_heaps(remainingSizeToUpload);
 		}
 
-		auto const writtenByteOffset = heapBlock.byteOffset;
+		for (size_t i = 0; i < heapBlocks.size(); ++i)
+		{
+			auto& heapBlock = heapBlocks[i];
 
-		heapBlock.buffer->write(data, writeSize, writtenByteOffset);
+			size_t writeSize = HEAP_BLOCK_SIZE;
+		
+			if (i + 1 == heapBlocks.size())
+			{
+				writeSize = remainingSizeToUpload;
+			}
 
-		heapBlock.byteOffset += writeSize;
+			if (heapBlock.remaining_capacity() < info.size)
+			{
+				writeSize = heapBlock.remaining_capacity();
+			}
 
-		BufferUploadInfo uploadInfo{
-			.copyInfo = {
-				.src = *heapBlock.buffer,
-				.dst = *info.dst,
-				.srcOffset = writtenByteOffset,
-				.dstOffset = info.dstOffset + (i * HEAP_BLOCK_SIZE),
-				.size = writeSize,
-			},
-			.owningQueue = info.srcQueue,
-			.dstQueue = info.dstQueue
-		};
+			auto const writtenByteOffset = heapBlock.byteOffset;
 
-		bufferUploadPool.uploads.push_back(std::move(uploadInfo));
+			heapBlock.buffer->write(data, writeSize, writtenByteOffset);
 
-		data += writeSize;
-		remainingSizeToUpload -= writeSize;
+			heapBlock.byteOffset += writeSize;
+
+			BufferUploadInfo uploadInfo{
+				.copyInfo = {
+					.src = *heapBlock.buffer,
+					.dst = *info.dst,
+					.srcOffset = writtenByteOffset,
+					.dstOffset = info.dstOffset + (i * HEAP_BLOCK_SIZE),
+					.size = writeSize,
+				},
+				.owningQueue = info.srcQueue,
+				.dstQueue = info.dstQueue
+			};
+
+			bufferUploadPool.uploads.push_back(std::move(uploadInfo));
+
+			data += writeSize;
+			remainingSizeToUpload -= writeSize;
+		}
 	}
 
 	return upload_id{ m_cpuUploadTimeline + 1 };
@@ -522,29 +524,38 @@ auto UploadHeap::next_available_heap(size_t size) -> HeapBlock*
 {
 	auto& heapPool = next_heap_pool();
 
-	if (heapPool.heaps.empty())
+	if (!heapPool.heaps.capacity())
+	{
+		heapPool.heaps.reserve(MAX_UPLOAD_HEAP_PER_POOL);
+	}
+
+	HeapBlock* pHeap = nullptr;
+
+	// Get the first heap that can fit.
+	size_t const numAvailableHeaps = heapPool.heaps.size();
+	// HeapPool.current is only incremented when the current heap it's referencing has no more capacity to hold data.
+	// Hence the reason why we start indexing from HeapPool.current.
+	for (size_t i = heapPool.current; i < numAvailableHeaps; ++i)
+	{
+		HeapBlock& heapBlock = heapPool.heaps[i];
+		if (heapBlock.remaining_capacity() >= size)
+		{
+			pHeap = &heapBlock;
+			break;
+		}
+	}
+
+	if (!pHeap && 
+		std::cmp_less(heapPool.heaps.size(), MAX_UPLOAD_HEAP_PER_POOL))
 	{
 		allocate_heap(1);
 
-		return &heapPool.current_heap();
+		pHeap = &heapPool.heaps.back();
+
+		// Don't increment HeapPool.current here because there could still be storage space in the previous block.
 	}
 
-	auto& heap = heapPool.current_heap();
-
-	if (size <= heap.remaining_capacity())
-	{
-		return &heap;
-	}
-	else if (size > heap.remaining_capacity() && heapPool.heaps.size() < MAX_UPLOAD_HEAP_PER_POOL)
-	{
-		allocate_heap(1);
-
-		++heapPool.current;
-
-		return &heapPool.current_heap();
-	}
-
-	return nullptr;
+	return pHeap;
 }
 
 auto UploadHeap::next_heap_pool() const -> HeapPool&

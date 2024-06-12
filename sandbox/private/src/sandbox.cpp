@@ -1,8 +1,9 @@
 #include <fstream>
 #include <utility>
 #include "sandbox.h"
-//#include "demo/triangle_demo_app.h"
 #include "demo/model_demo_app.h"
+
+#include "core/file_watcher.h"
 
 namespace sandbox
 {
@@ -12,7 +13,7 @@ SandboxApp::SandboxApp() :
 	m_shader_compiler{},
 	m_demo_applications{},
 	m_showcased_demo{},
-	m_device{},
+	m_gpu{},
 	m_swapchain{},
 	m_frame_index{}
 {}
@@ -30,6 +31,9 @@ bool SandboxApp::initialize()
 	core::io::update_configuration(core::IOConfiguration::Mouse_Double_Click_Distance, 5.f);
 	core::io::update_configuration(core::IOConfiguration::Mouse_Double_Click_Time, 1.f);
 	core::io::update_configuration(core::IOConfiguration::Mouse_Min_Duration_For_Hold, 0.05f);
+
+	// initialize file watcher.
+	core::filewatcher::initialize_file_watcher();
 
 	m_root_app_window = engine.create_window({
 		.title = L"Sandbox",
@@ -54,7 +58,7 @@ bool SandboxApp::initialize()
 		engine.set_state(core::EngineState::Terminating);
 	}, L"on_main_window_close");
 
-	if (auto&& result = gpu::Device::from({
+	if (auto&& result = GraphicsProcessingUnit::from({
 		.name = "Main GPU Device",
 		.appName = "AngkasawanRenderer",
 		.appVersion = { 0, 1, 0, 0 },
@@ -76,12 +80,12 @@ bool SandboxApp::initialize()
 		}
 	}); result.has_value())
 	{
-		m_device = std::move(result.value());
+		m_gpu = std::move(*result);
 	}
 
 	auto dim = engine.get_window_dimension(m_root_app_window);
 
-	m_swapchain = gpu::Swapchain::from(*m_device, {
+	m_swapchain = gpu::Swapchain::from(m_gpu->device(), {
 		.name = "main_window",
 		.surfaceInfo = {
 			.name = "main_window",
@@ -101,7 +105,7 @@ bool SandboxApp::initialize()
 	m_shader_compiler.add_macro_definition("SAMPLER_BINDING", gpu::SAMPLER_BINDING);
 	m_shader_compiler.add_macro_definition("BUFFER_DEVICE_ADDRESS_BINDING", gpu::BUFFER_DEVICE_ADDRESS_BINDING);
 
-	m_demo_applications.push_back(std::make_unique<ModelDemoApp>(m_root_app_window, m_shader_compiler, *m_device, m_swapchain, m_frame_index));
+	m_demo_applications.push_back(std::make_unique<ModelDemoApp>(m_root_app_window, m_shader_compiler, *m_gpu, m_swapchain, m_frame_index));
 
 	for (auto&& demo : m_demo_applications)
 	{
@@ -118,7 +122,7 @@ bool SandboxApp::initialize()
 
 void SandboxApp::run()
 {
-	gpu::DeviceConfig const& config = m_device->config();
+	gpu::DeviceConfig const& config = m_gpu->device().config();
 
 	if (!m_showcased_demo.is_null())
 	{
@@ -136,11 +140,11 @@ void SandboxApp::terminate()
 		auto& deleter = app.get_deleter();
 		deleter(app.release());
 	}
-
-	m_swapchain.destroy();
-	gpu::Device::destroy(m_device);
+	
 	core::Engine& engine = core::engine();
 	engine.destroy_window(m_root_app_window);
+
+	core::filewatcher::terminate_file_watcher();
 }
 
 }

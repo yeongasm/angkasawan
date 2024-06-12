@@ -308,6 +308,7 @@ auto store_material_name_length_data(
 	for (size_t i = 0, j = 0; i < data->materials_count; ++i)
 	{
 		cgltf_material& material = data->materials[i];
+
 		if (material.name)
 		{
 			size_t const len = lib::string_length(data->materials[i].name);
@@ -421,8 +422,8 @@ auto store_material_data(
 		lib::memcopy(info.emmissiveFactor, material.emissive_factor, sizeof(float32) * 3);
 		info.emmissiveStrength = material.emissive_strength.emissive_strength;
 		// Alpha mode & cutoff.
-		//info.alphaMode = translate_alpha_mode(material.alpha_mode);
-		//info.alphaCutoff = material.alpha_cutoff;
+		info.alphaMode = translate_alpha_mode(material.alpha_mode);
+		info.alphaCutoff = material.alpha_cutoff;
 		// Lit/unlit.
 		info.unlit = material.unlit;
 

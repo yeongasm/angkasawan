@@ -73,6 +73,9 @@ public:
 	{
 		if (this != &rhs)
 		{
+			// If the current resource object already holds something, destroy it first before a reassignment.
+			destroy();
+
 			m_id = rhs.m_id;
 			m_resource = rhs.m_resource;
 
@@ -187,6 +190,35 @@ protected:
 	Device* m_device = nullptr;
 };
 
+struct MemoryBlockAllocateInfo
+{
+	lib::string name;
+	MemoryRequirementInfo memoryRequirement;
+};
+
+class MemoryBlock : public DeviceResource
+{
+public:
+	MemoryBlock() = default;
+	~MemoryBlock() = default;
+
+	auto info() const -> MemoryBlockInfo const&;
+	auto valid() const -> bool;
+	auto aliased() const -> bool;
+	auto size() const -> size_t;
+
+	static auto from(Device& device, MemoryBlockAllocateInfo&& info) -> Resource<MemoryBlock>;
+protected:
+	friend class Resource<MemoryBlock>;
+
+	static auto destroy(MemoryBlock& resource, uint64 id) -> void;
+
+	MemoryBlock(Device& device, bool aliased);
+
+	MemoryBlockInfo m_info;
+	bool const m_aliased = false;
+};
+
 class Semaphore : public DeviceResource
 {
 public:
@@ -270,6 +302,7 @@ public:
 	auto write(void const* data, size_t size, size_t offset) const -> void;
 	auto clear() const -> void;
 	auto is_host_visible() const -> bool;
+	auto is_transient() const -> bool;
 	auto gpu_address() const -> uint64;
 	auto bind(BufferBindInfo const& info) const -> BufferBindInfo;
 
@@ -285,7 +318,9 @@ public:
 		write(data.data(), data.size_bytes(), offset);
 	}
 
-	static auto from(Device& device, BufferInfo&& info) -> Resource<Buffer>;
+	static auto memory_requirement(Device& device, BufferInfo const& info) -> MemoryRequirementInfo;
+
+	static auto from(Device& device, BufferInfo&& info, Resource<MemoryBlock> memoryBlock = null_resource) -> Resource<Buffer>;
 protected:
 	friend class Resource<Buffer>;
 
@@ -293,7 +328,7 @@ protected:
 
 	Buffer(Device& device);
 
-	BufferInfo	m_info;
+	BufferInfo m_info;
 };
 
 class Image : public DeviceResource
@@ -305,9 +340,12 @@ public:
 	auto info() const -> ImageInfo const&;
 	auto valid() const -> bool;
 	auto is_swapchain_image() const -> bool;
+	auto is_transient() const -> bool;
 	auto bind(ImageBindInfo const& info) const -> ImageBindInfo;
 
-	static auto from(Device& device, ImageInfo&& info) -> Resource<Image>;
+	static auto memory_requirement(Device& device, ImageInfo const& info) -> MemoryRequirementInfo;
+
+	static auto from(Device& device, ImageInfo&& info, Resource<MemoryBlock> memoryBlock = null_resource) -> Resource<Image>;
 	static auto from(Swapchain& swapchain) -> lib::array<Resource<Image>>;
 protected:
 	friend class Resource<Image>;
@@ -316,7 +354,7 @@ protected:
 
 	Image(Device& device);
 
-	ImageInfo	m_info;
+	ImageInfo m_info;
 };
 
 class Sampler : public DeviceResource

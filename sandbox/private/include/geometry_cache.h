@@ -146,6 +146,8 @@ private:
 	auto layout_size_bytes(GeometryInputLayout const& layout) -> size_t;
 	auto gltf_unpack_interleaved(gltf::Importer const& importer, root_geometry_handle geometryHandle, size_t verticesSizeBytes, size_t indicesSizeBytes) -> void;
 	auto gltf_unpack_non_interleaved(gltf::Importer const& importer, root_geometry_handle geometryHandle, size_t verticesSizeBytes, size_t indicesSizeBytes) -> void;
+
+	auto upload_heap_blocks(std::span<HeapBlock> heapBlocks, size_t initialWriteOffset, gpu::buffer const& buffer, size_t dstOffset) -> size_t;
 };
 }
 

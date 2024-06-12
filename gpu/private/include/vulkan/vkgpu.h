@@ -8,6 +8,7 @@
 #include "fmt/format.h"
 #include "lib/map.h"
 #include "lib/paged_array.h"
+#include "lib/handle.h"
 
 #include "vk.h"
 #include "gpu.h"
@@ -23,6 +24,7 @@ using Pool = lib::paged_array<T, 16>;
 
 enum class ResourceType : uint32
 {
+	Memory_Block,
 	Semaphore,
 	Fence,
 	Event,
@@ -42,6 +44,16 @@ struct Queue
 	VkQueue	queue = VK_NULL_HANDLE;
 	VkQueueFamilyProperties properties = {};
 	uint32 familyIndex = INVALID_QUEUE_FAMILY_INDEX;
+};
+
+class MemoryBlockImpl : public MemoryBlock
+{
+public:
+	MemoryBlockImpl() = default;
+	MemoryBlockImpl(DeviceImpl& device, bool aliased);
+
+	VmaAllocation handle = VK_NULL_HANDLE;
+	VmaAllocationInfo allocationInfo = {};
 };
 
 class SemaphoreImpl : public Semaphore
@@ -71,6 +83,8 @@ public:
 	VkEvent handle = VK_NULL_HANDLE;
 };
 
+//using allocation_id = lib::handle<struct VULKAN_VMA_ALLOCATION_ID, uint64, std::numeric_limits<uint64>::max()>;
+
 // https://gpuopen-librariesandsdks.github.io/VulkanMemoryAllocator/html/usage_patterns.html
 class BufferImpl : public Buffer
 {
@@ -80,8 +94,7 @@ public:
 
 	VkBuffer handle = VK_NULL_HANDLE;
 	VkDeviceAddress address = {};
-	VmaAllocation allocation = VK_NULL_HANDLE;
-	VmaAllocationInfo allocationInfo = {};
+	Resource<MemoryBlock> allocationBlock = {};
 };
 
 class ImageImpl : public Image
@@ -92,8 +105,7 @@ public:
 
 	VkImage	handle = VK_NULL_HANDLE;
 	VkImageView	imageView = VK_NULL_HANDLE;
-	VmaAllocation allocation = VK_NULL_HANDLE;
-	VmaAllocationInfo allocationInfo = {};
+	Resource<MemoryBlock> allocationBlock = {};
 };
 
 class SamplerImpl : public Sampler
@@ -213,7 +225,8 @@ struct ResourcePool
 	Pool<SwapchainImpl> swapchains;
 	Pool<ShaderImpl> shaders;
 	Pool<PipelineImpl> pipelines;
-
+	Pool<MemoryBlockImpl> memoryBlocks;
+	
 	Pool<std::unique_ptr<CommandPoolImpl>> commandPools;
 
 	std::deque<Zombie> zombies;
@@ -280,6 +293,7 @@ public:
 	auto setup_debug_name(SemaphoreImpl const& semaphore) -> void;
 	auto setup_debug_name(FenceImpl const& fence) -> void;
 	auto setup_debug_name(EventImpl const& event) -> void;
+	auto setup_debug_name(MemoryBlockImpl const& event) -> void;
 
 	auto create_vulkan_instance() -> bool;
 	auto create_debug_messenger() -> bool;
@@ -298,6 +312,7 @@ public:
 
 	auto flush_submit_info_buffers() -> void;
 
+	auto destroy_memory_block(uint64 const id) -> void;
 	auto destroy_binary_semaphore(uint64 const id) -> void;
 	auto destroy_timeline_semaphore(uint64 const id) -> void;
 	auto destroy_event(uint64 const id) -> void;
@@ -347,12 +362,16 @@ auto translate_shader_stage_flags(ShaderStage shaderStage) -> VkShaderStageFlags
 auto translate_sharing_mode(SharingMode sharingMode) -> VkSharingMode;
 auto stride_for_shader_attrib_format(Format const format) -> uint32;
 auto vk_to_rhi_color_space(VkColorSpaceKHR colorSpace) -> ColorSpace;
+
+auto get_image_create_info(ImageInfo const& info) -> VkImageCreateInfo;
+auto get_buffer_create_info(BufferInfo const& info) -> VkBufferCreateInfo;
 }
 
 auto to_device(Device const* device) -> vk::DeviceImpl const&;
 auto to_device(Device const& device) -> vk::DeviceImpl const&;
 auto to_device(Device* device) -> vk::DeviceImpl&;
 auto to_device(Device& device) -> vk::DeviceImpl&;
+auto to_impl(MemoryBlock& memoryBlock) -> vk::MemoryBlockImpl&;
 auto to_impl(Semaphore& semaphore) -> vk::SemaphoreImpl&;
 auto to_impl(Fence& fence) -> vk::FenceImpl&;
 auto to_impl(Event& event) -> vk::EventImpl&;
@@ -364,6 +383,7 @@ auto to_impl(Pipeline& pipeline) -> vk::PipelineImpl&;
 auto to_impl(Swapchain& swapchain) -> vk::SwapchainImpl&;
 auto to_impl(CommandBuffer& cmdBuffer) -> vk::CommandBufferImpl&;
 auto to_impl(CommandPool& cmdPool) -> vk::CommandPoolImpl&;
+auto to_impl(MemoryBlock const& memoryBlock) -> vk::MemoryBlockImpl const&;
 auto to_impl(Semaphore const& semaphore) -> vk::SemaphoreImpl const&;
 auto to_impl(Fence const& fence) -> vk::FenceImpl const&;
 auto to_impl(Event const& event) -> vk::EventImpl const&;
