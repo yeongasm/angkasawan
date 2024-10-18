@@ -39,7 +39,6 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debug_util_messenger_callback(
 	return VK_TRUE;
 }
 
-
 VkDebugUtilsMessengerCreateInfoEXT populate_debug_messenger(void* data)
 {
 	return VkDebugUtilsMessengerCreateInfoEXT{
@@ -637,9 +636,9 @@ auto DeviceImpl::create_vulkan_instance() -> bool
 		.ppEnabledExtensionNames = extensions.data()
 	};
 
+	literal_t layers[] = { "VK_LAYER_LUNARG_monitor", "VK_LAYER_KHRONOS_validation" };
 	if (m_initInfo.validation)
 	{
-		literal_t layers[] = { "VK_LAYER_LUNARG_monitor", "VK_LAYER_KHRONOS_validation" };
 		instanceInfo.enabledLayerCount = 2;
 		instanceInfo.ppEnabledLayerNames = layers;
 		auto debugUtil = populate_debug_messenger(const_cast<DeviceInitInfo*>(&m_initInfo));

@@ -129,7 +129,7 @@ public:
 protected:
 	friend typename array_type;
 
-	constexpr void verify_offset_is_in_range(difference_type const offset) const noexcept
+	constexpr void verify_offset_is_in_range([[maybe_unused]] difference_type const offset) const noexcept
 	{
 		ASSERTION(((m_data + offset) >= m_container->data()) && "Iterator exceeded past start range of the array.");
 		ASSERTION(((m_data + offset) <= m_container->data() + m_container->size()) && "Iterator exceeded past end range of the array.");

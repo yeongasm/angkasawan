@@ -26,7 +26,12 @@
         "xloctime": "cpp",
         "xmemory": "cpp",
         "xstring": "cpp",
-        "limits": "cpp"
+        "limits": "cpp",
+        "array": "cpp",
+        "ranges": "cpp",
+        "span": "cpp",
+        "vector": "cpp",
+        "xutility": "cpp"
     }
     // "editor.fontFamily": "Cascadia Mono SemiBold"
 }

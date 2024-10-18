@@ -2,7 +2,6 @@
 #ifndef LIB_STRING_H
 #define LIB_STRING_H
 
-//#include <vector>
 #include <string_view>
 #include <fmt/format.h>
 #include "array.h"
@@ -34,6 +33,9 @@ size_t string_length(const T* str)
     for (; *ch != nullTerminator; ++ch, ++length);
     return length;
 }
+
+template <typename T>
+inline static constexpr auto null_terminator_v = null_terminator<T>::val;
 
 // TODO(Afiq):
 // [x] 1. Remove C style string formatting.

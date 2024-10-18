@@ -18,31 +18,38 @@ endif()
 
 set(
 	source_list
-	"lib/.natvis"
-	"lib/api.h"
-	"lib/array.h"
-	"lib/bitset.h"
-	"lib/bit_mask.h"
-	"lib/common.h"
-	"lib/concepts.h"
-	"lib/dag.h"
-	"lib/handle.h"
-	"lib/hash.h"
-	"lib/linear_allocator.h"
-	"lib/map.h"
-	"lib/memory.h"
-	"lib/named_type.h"
-	"lib/paged_array.h"
-	"lib/set.h"
-	"lib/string.h"
-	"lib/type.h"
-	"lib/utility.h"
+	"public/lib/.natvis"
+	"public/lib/api.h"
+	"public/lib/array.h"
+	"public/lib/bitset.h"
+	"public/lib/bit_mask.h"
+	"public/lib/common.h"
+	"public/lib/concepts.h"
+	"public/lib/dag.h"
+	"public/lib/function.h"
+	"public/lib/handle.h"
+	"public/lib/hash.h"
+	"public/lib/linear_allocator.h"
+	"public/lib/map.h"
+	"public/lib/memory.h"
+	"public/lib/named_type.h"
+	"public/lib/paged_array.h"
+	"public/lib/set.h"
+	"public/lib/string.h"
+	"public/lib/type.h"
+	"public/lib/utility.h"
 	"private/memory.cpp"
 )
 
 add_library(Library SHARED ${source_list})
 target_compile_features(Library PUBLIC cxx_std_20)
 target_compile_definitions(Library PRIVATE "LIBRARY_EXPORT")
+
+target_sources(
+	Library
+	PRIVATE
+	$<$<PLATFORM_ID:Windows>:${win_source_list}>
+)
 
 # Disable RTTI and exceptions.
 # It's 2022 and CMake doesn't have built in properties for this, pathetic.
@@ -55,7 +62,10 @@ else()
 	set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} -fno-rtti -fno-exceptions)
 endif()
 
-target_include_directories(Library PUBLIC .)
+target_include_directories(
+	Library 
+	PUBLIC "public"
+)
 
 target_link_libraries(Library PUBLIC fmt)
 
@@ -67,5 +77,5 @@ target_link_libraries(Library PUBLIC fmt)
 #         $<TARGET_FILE_NAME:Library>
 #         ${EXECUTABLE_DIR}
 # )
-assign_source_group(${source_list})
+assign_source_group(${source_list} ${win_source_list})
 warnings_as_errors(Library)

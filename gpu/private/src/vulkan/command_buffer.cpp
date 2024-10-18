@@ -328,7 +328,7 @@ auto CommandBuffer::bind_push_constant(BindPushConstantInfo const& info) -> void
 	uint32 sz = static_cast<uint32>(info.size);
 	uint32 off = static_cast<uint32>(info.offset);
 
-	uint32 const MAX_PUSH_CONSTANT_SIZE = m_device->config().pushConstantMaxSize;
+	[[maybe_unused]] uint32 const MAX_PUSH_CONSTANT_SIZE = m_device->config().pushConstantMaxSize;
 
 	ASSERTION(sz <= MAX_PUSH_CONSTANT_SIZE && "Constant supplied exceeded maximum size allowed by the driver.");
 	ASSERTION(off <= MAX_PUSH_CONSTANT_SIZE && "Offset supplied exceeded maximum push constant size allowed by the driver.");

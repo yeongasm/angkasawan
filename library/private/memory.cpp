@@ -42,9 +42,9 @@ constexpr size_t pad_address(const uintptr_t address, const size_t alignment)
 	return static_cast<size_t>(alignedAddress - address);
 }
 
-bool is_64bit_aligned(void* pointer)
+constexpr bool is_64bit_aligned(void* pointer)
 {
-	uintptr_t address = reinterpret_cast<uintptr_t>(pointer);
+	uintptr_t address = std::bit_cast<uintptr_t>(pointer);
 	return (address & 0x7) == 0;
 }
 
@@ -56,7 +56,7 @@ struct memory
 
 struct system_memory final
 {
-	static memory malloc(size_t size, size_t alignment = 16)
+	static memory allocate(size_t size, size_t alignment = 16)
 	{
 		size_t allocated = 0;
 
@@ -73,7 +73,7 @@ struct system_memory final
 		return { pointer, allocated };
 	}
 
-	static void free(void* pointer)
+	static void deallocate(void* pointer)
 	{
 		ASSERTION(pointer != nullptr && "Pointer being released is null!");
 		if (pointer)
@@ -122,9 +122,27 @@ private:
 	}
 };
 
+auto default_allocator::allocate(size_t size, size_t alignment) const -> void*
+{
+	memory memory = system_memory::allocate(size + sizeof(size_t), alignment);
+	void* pointer = memory.pointer;
+
+	new (pointer) size_t{ memory.size };
+	pointer = static_cast<uint8*>(pointer) + sizeof(size_t);
+	ASSERTION(is_64bit_aligned(pointer) && "Address is not aligned!");
+
+	return pointer;
+}
+
+auto default_allocator::deallocate(void const* pointer) const -> void
+{
+	size_t* base = reinterpret_cast<size_t*>(static_cast<uint8*>(const_cast<void*>(pointer)) - sizeof(size_t));
+	system_memory::deallocate(base);
+}
+
 void* allocate_memory(allocate_info const& info)
 {
-	memory memory = system_memory::malloc(info.size + sizeof(size_t), info.alignment);
+	memory memory = system_memory::allocate(info.size + sizeof(size_t), info.alignment);
 	void* pointer = memory.pointer;
 
 	new (pointer) size_t{ memory.size };
@@ -138,7 +156,7 @@ void* allocate_memory(allocate_info const& info)
 void release_memory(void* pointer)
 {
 	size_t* base = reinterpret_cast<size_t*>(static_cast<uint8*>(pointer) - sizeof(size_t));
-	system_memory::free(base);
+	system_memory::deallocate(base);
 }
 
 }
