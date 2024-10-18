@@ -13,10 +13,8 @@ set(
 	"private/include/image_importer.h"
 	"private/include/material_cache.h"
 	"private/include/model_importer.h"
-	#"private/include/resource_cache.h"
 	"private/include/sandbox_demo_application.h"
 	"private/include/demo/model_demo_app.h"
-	#"private/include/demo/triangle_demo_app.h"
 )
 
 set(
@@ -26,13 +24,11 @@ set(
 	"private/src/graphics_processing_unit.cpp"
 	"private/src/image_importer.cpp"
 	"private/src/model_importer.cpp"
-	#"private/src/resource_cache.cpp"
 	"private/src/sandbox.cpp"
 	"private/src/sandbox.cpp"
 	"private/src/command_queue.cpp"
 	"private/src/upload_heap.cpp"
 	"private/src/demo/model_demo_app.cpp"
-	#"private/src/demo/triangle_demo_app.cpp"
 )
 
 CPMAddPackage(
@@ -43,7 +39,7 @@ CPMAddPackage(
 
 add_library(Sandbox SHARED ${sandbox_header_files} ${sandbox_source_files} ${module_impl_units})
 target_compile_features(Sandbox PUBLIC cxx_std_20)
-target_compile_definitions(Sandbox PRIVATE "SANDBOX_EXPORT")
+target_compile_definitions(Sandbox PRIVATE "SANDBOX_EXPORT" $<$<CONFIG:Debug>:DEBUG> $<$<CONFIG:Release>:RELEASE> $<$<CONFIG:RelWithDebInfo>:RELEASE_WDEBUG>)
 
 if (MSVC)
 	string(REPLACE "/GR" "/GR-" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")

@@ -28,8 +28,8 @@ public:
 	using element_page = unique_ptr<page_buffer>;
 
 	/**
-	 * index can no longer be 4 bytes. The slot version count needs to be included with the index.
-	 */
+	* index can no longer be 4 bytes. The slot version count needs to be included with the index.
+	*/
 	struct index
 	{
 		uint16 page;
@@ -56,18 +56,6 @@ public:
 
 	~paged_array() { release(); }
 
-	/*std::span<element_type> get_page(uint16 p)
-	{
-		constexpr size_t pg = static_cast<size_t>(p);
-		ASSERTION(pg < m_pages.size() && "Page in index exceeded page count of the container.");
-		if (pg >= m_pages.size())
-		{
-			return std::span{};
-		}
-		ref page = m_pages[pg];
-		return std::span{ page->buffer.data(), page->buffer.size() };
-	}*/
-
 	constexpr auto operator[](index idx) const -> element_type&
 	{
 		size_t const page = static_cast<size_t>(idx.page);
@@ -76,7 +64,7 @@ public:
 		ASSERTION(page < m_pages.size() && "Page in index exceeded page count of the container.");
 		ASSERTION(offset < m_pages[page]->buffer.size() && "Offset in index exceeded buffer capacity of the page.");
 
-		uint32 const ver = m_pages[page]->version[offset].load(std::memory_order_acquire);
+		[[maybe_unused]] uint32 const ver = m_pages[page]->version[offset].load(std::memory_order_acquire);
 
 		ASSERTION(idx.version == ver && "Version do not match! Data retrieved is faulty.");
 

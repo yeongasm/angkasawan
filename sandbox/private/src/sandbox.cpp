@@ -58,6 +58,12 @@ bool SandboxApp::initialize()
 		engine.set_state(core::EngineState::Terminating);
 	}, L"on_main_window_close");
 
+#if DEBUG
+	constexpr bool validation = true;
+#else
+	constexpr bool validation = false;
+#endif
+
 	if (auto&& result = GraphicsProcessingUnit::from({
 		.name = "Main GPU Device",
 		.appName = "AngkasawanRenderer",
@@ -70,7 +76,7 @@ bool SandboxApp::initialize()
 			.swapchainImageCount = 2
 		},
 		.shadingLanguage = gpu::ShaderLang::GLSL,
-		.validation = true,
+		.validation = validation,
 		.callback = [](
 			[[maybe_unused]] gpu::ErrorSeverity severity,
 			[[maybe_unused]] literal_t message

@@ -3,6 +3,9 @@
 #include "demo/model_demo_app.h"
 #include "model_importer.h"
 #include "image_importer.h"
+#include "lib/function.h"
+
+#include <iostream>
 
 namespace sandbox
 {
@@ -19,8 +22,49 @@ ModelDemoApp::ModelDemoApp(
 
 ModelDemoApp::~ModelDemoApp() {}
 
+auto print_hello_world() -> void
+{
+	std::cout << "Hello World from function pointer" << std::endl;
+}
+
+struct HelloWorld
+{
+	std::string message = "Hellow World from functor object";
+
+	auto fn() -> void
+	{
+		std::cout << message << std::endl;
+	}
+};
+
 auto ModelDemoApp::initialize() -> bool
 {
+	{
+		HelloWorld hw;
+
+		lib::function<int(int, int)> add = [](int a, int b) -> int { return a + b; };
+		lib::function<int(const int, const int&)> divide = [](const int a, const int& b) -> int { return b / a; };
+
+		lib::function<void()> print_lambda = []() -> void { std::cout << "Hello World!" << std::endl; };
+		lib::function<void()> print_fn_ptr = print_hello_world;
+		lib::function<void()> print_fn_obj = std::bind(&HelloWorld::fn, &hw);
+		lib::function<void(HelloWorld&)> print_hw_obj = &HelloWorld::fn;
+
+		print_lambda.swap(print_fn_ptr);
+
+		print_lambda();
+		print_fn_ptr();
+		print_fn_obj();
+		print_hw_obj(hw);
+
+		lib::function<void()> print_fn_obj2 = std::move(print_fn_obj);
+		print_fn_obj2();
+
+		const int six = 6;
+
+		std::cout << add(1, 1) << "\n" << divide(6, six);
+	}
+
 	auto&& swapchainInfo = m_swapchain->info();
 
 	float32 const swapchainWidth = static_cast<float32>(swapchainInfo.dimension.width);
@@ -440,6 +484,7 @@ auto ModelDemoApp::run() -> void
 	auto uploadFenceInfo = m_gpu.upload_heap().send_to_gpu();
 
 	auto submitGroup = m_gpu.command_queue().new_submission_group();
+
 	submitGroup.submit(cmd);
 	submitGroup.wait(m_swapchain->current_acquire_semaphore());
 	submitGroup.signal(m_swapchain->current_present_semaphore());

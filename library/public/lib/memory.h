@@ -33,7 +33,7 @@ void memswap(T* a, T* b)
 LIB_API constexpr size_t	is_power_of_two(size_t num);
 LIB_API constexpr size_t	pad_address(const uintptr_t address, const size_t alignment);
 
-LIB_API bool is_64bit_aligned(void* pointer);
+LIB_API constexpr bool		is_64bit_aligned(void* pointer);
 
 struct allocate_info
 {
@@ -42,9 +42,11 @@ struct allocate_info
 };
 
 // Allocates memory using the system.
+//[[deprecated("Every allocation needs to go through an allocator")]]
 LIB_API void*	allocate_memory(allocate_info const& info);
 
 // Releases memory from the system.
+//[[deprecated("Every allocation needs to go through an allocator")]]
 LIB_API void	release_memory(void* pointer);
 
 // All allocators must be derived from this class.
@@ -54,6 +56,14 @@ LIB_API void	release_memory(void* pointer);
 class allocator_base
 {
 public:
+	using value_type	= std::byte;
+	using pointer		= value_type*;
+	using const_pointer = value_type const*;
+	using void_pointer	= void*;
+	using const_void_pointer = void const*;
+	using difference_type = std::ptrdiff_t;
+	using size_type		= size_t;
+
 	constexpr allocator_base()	= default;
 	constexpr ~allocator_base() = default;
 
@@ -115,16 +125,42 @@ private:
 	allocator_base& operator=(allocator_base&&)			= delete;
 };
 
-// Allocator concept.
-// An allocator is an object that can call allocate_memory() and release_memory().
-//template <typename T>
-//concept can_allocate_memory = requires(T v)
-//{
-//	{ v.allocate_memory(allocate_info{}) };
-//	{ v.release_memory() };
-//};
+struct default_allocator
+{
+	using value_type	= std::byte;
+	using pointer		= value_type*;
+	using const_pointer = value_type const*;
+	using void_pointer	= void*;
+	using const_void_pointer = void const*;
+	using difference_type = std::ptrdiff_t;
+	using size_type		= size_t;
 
-struct default_allocator {};
+	struct deleter
+	{
+		auto operator()(is_pointer auto const pointer) -> void
+		{
+			using type = std::remove_const_t<std::remove_pointer_t<decltype(pointer)>>;
+			pointer->~type();
+			default_allocator{}.deallocate(pointer);
+		}
+	};
+
+	LIB_API auto allocate(size_t size, size_t alignment = alignof(std::max_align_t)) const -> void*;
+
+	template <typename T, typename... Args>
+	auto construct(T* p, Args&&... args) const -> void 
+	{ 
+		new (p) T{ std::forward<Args>(args)... }; 
+	}
+
+	auto destroy(is_pointer auto pointer) const -> void
+	{
+		using type = std::remove_pointer_t<decltype(pointer)>;
+		pointer->~type();
+	}
+
+	LIB_API auto deallocate(void const* pointer) const -> void;
+};
 
 template <typename T>
 concept provides_memory = std::same_as<T, default_allocator> /*|| can_allocate_memory<T>*/;
@@ -210,7 +246,7 @@ public:
 };
 
 template <typename T>
-using const_ref = ref<std::remove_const_t<T> const>;
+using const_ref = ref<std::conditional_t<std::is_const_v<T>, T, T const>>;
 
 template <typename T, typename... Arguments>
 constexpr unique_ptr<T> make_unique(Arguments&&... args)
@@ -287,6 +323,135 @@ struct system_memory_interface
 		}
 	}
 };
+
+template <typename allocator>
+struct _conditional_allocator_base
+{
+	constexpr _conditional_allocator_base(allocator& alloc) :
+		m_allocator{ &alloc }
+	{}
+
+	allocator* m_allocator;
+};
+
+template <>
+struct _conditional_allocator_base<default_allocator>
+{
+	constexpr _conditional_allocator_base() = default;
+
+	NO_UNIQUE_ADDRESS default_allocator m_allocator;
+};
+
+/**
+ * Not the same type of Box from Rust.
+ * Stores some value adjacent to an allocator.
+ */
+template <typename T, typename allocator = default_allocator>
+class box : protected _conditional_allocator_base<allocator>
+{
+public:
+	using type = T;
+	using value_type	 = std::conditional_t<std::is_const_v<type>, std::remove_cvref_t<type>, std::decay_t<T>>;
+	using allocator_type = std::decay_t<allocator>;
+
+	constexpr box() = default;
+
+	template <typename U = T>
+	constexpr box(U&& resource) requires (std::same_as<allocator, default_allocator>) :
+		_conditional_allocator_base<allocator>{},
+		m_value{ std::forward<U>(resource) }
+	{}
+
+	template <typename U = T>
+	constexpr box(U&& resource, allocator& alloc_) requires (!std::same_as<allocator, default_allocator>) :
+		_conditional_allocator_base<allocator>{ alloc_ },
+		m_value{ std::forward<U>(resource) }
+	{}
+
+	box(box const&) = delete;
+	auto operator=(box const&) -> box& = delete;
+
+	constexpr box(box&& rhs) :
+		m_value{ std::move(rhs.m_value) }
+	{
+		if constexpr (!std::is_same_v<allocator, default_allocator>)
+		{
+			box::m_allocator = std::exchange(rhs.m_allocator, nullptr);
+		}
+	}
+
+	constexpr auto operator=(box&& rhs) -> box&
+	{
+		if (this != &rhs)
+		{
+			~box();
+
+			m_value = std::move(rhs.m_value);
+			if constexpr (!std::is_same_v<allocator, default_allocator>)
+			{
+				box::m_allocator = std::exchange(rhs.m_allocator, nullptr);
+			}
+			new (&rhs) box{};
+		}
+		return *this;
+	}
+
+	constexpr ~box() = default;
+
+
+	constexpr auto operator*() const -> value_type&
+	{
+		return m_value;
+	}
+
+	constexpr auto operator->() const -> value_type*
+	{
+		return &m_value;
+	}
+
+	constexpr auto value() const -> decltype(auto)
+	{
+		return m_value;
+	}
+
+	constexpr explicit operator allocator_type&()
+	{
+		if constexpr (std::is_same_v<allocator, default_allocator>)
+		{
+			return box::m_allocator;
+		}
+		else
+		{
+			return *box::m_allocator;
+		}
+	}
+
+	constexpr explicit operator allocator_type const&() const
+	{
+		if constexpr (std::is_same_v<allocator, default_allocator>)
+		{
+			return box::m_allocator;
+		}
+		else
+		{
+			return *box::m_allocator;
+		}
+	}
+private:
+	value_type m_value;
+};
+
+template <typename T>
+constexpr auto make_box(T&& obj) -> box<T>
+{
+	return box<T>{ std::forward<T>(obj) };
+}
+
+template <typename T, typename allocator_type>
+constexpr auto make_box(T&& obj, allocator_type& allocator) -> box<T, allocator_type>
+{
+	return box<T, allocator_type>{ std::forward<T>(obj), allocator };
+}
 
 }
 
