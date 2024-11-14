@@ -4,7 +4,7 @@
 
 #include <filesystem>
 #include "lib/array.h"
-#include "gpu/common.h"
+#include "gpu/common.hpp"
 
 namespace sandbox
 {

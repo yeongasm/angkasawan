@@ -1,4 +1,4 @@
-#include "graphics_processing_unit.h"
+#include "graphics_processing_unit.hpp"
 
 namespace sandbox
 {

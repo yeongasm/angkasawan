@@ -3,13 +3,15 @@
 #define CORE_FILE_WATCHER_H
 
 #include <filesystem>
-#include <functional>
 
 #include "lib/handle.h"
+#include "lib/function.h"
 
 #include "engine_api.h"
 
-namespace core::filewatcher
+namespace core
+{
+namespace filewatcher
 {
 enum class FileAction
 {
@@ -58,6 +60,7 @@ CORE_API auto terminate_file_watcher() -> void;
 */
 CORE_API auto watch(FileWatchInfo&& watchInfo) -> file_watch_id;
 CORE_API auto unwatch(file_watch_id id) -> void;
+}
 }
 
 #endif // !CORE_FILE_WATCHER_H

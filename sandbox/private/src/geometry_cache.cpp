@@ -1,4 +1,4 @@
-#include "geometry_cache.h"
+#include "geometry_cache.hpp"
 
 namespace sandbox
 {

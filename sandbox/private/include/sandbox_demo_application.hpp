@@ -3,8 +3,8 @@
 #define SANDBOX_DEMO_APPLICATION_H
 
 #include "core/engine.h"
-#include "gpu/util/shader_compiler.h"
-#include "graphics_processing_unit.h"
+#include "gpu/util/shader_compiler.hpp"
+#include "graphics_processing_unit.hpp"
 
 namespace sandbox
 {
@@ -54,7 +54,7 @@ inline auto open_file(std::filesystem::path path) -> lib::string
 		result.reserve(size + 1);
 
 		stream.read(result.data(), size);
-		result[size] = lib::null_terminator<lib::string::value_type>::val;
+		result[size] = lib::null_v<lib::string::value_type>;
 
 		stream.close();
 	}

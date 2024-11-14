@@ -4,7 +4,7 @@
 #include <bitset>
 #include "cgltf.h"
 #include "lib/map.h"
-#include "model_importer.h"
+#include "model_importer.hpp"
 
 namespace sandbox
 {
@@ -176,7 +176,7 @@ auto decode_cgltf_data(cgltf_data* data) -> CgltfDecodedData
 		cgltf_image& image = data->images[i];
 		if (image.uri)
 		{
-			decoded.numImageUriChars += lib::string_length(image.uri);
+			decoded.numImageUriChars += lib::strlen(image.uri);
 		}
 	}
 	// Get total materials.
@@ -186,7 +186,7 @@ auto decode_cgltf_data(cgltf_data* data) -> CgltfDecodedData
 	{
 		if (data->materials[i].name)
 		{
-			decoded.numMaterialNameChars += lib::string_length(data->materials[i].name);
+			decoded.numMaterialNameChars += lib::strlen(data->materials[i].name);
 			++decoded.numMaterialsWithName;
 		}
 	}
@@ -254,7 +254,7 @@ auto store_image_uri_paths_length_data(
 {
 	for (size_t i = 0; i < data->images_count; ++i)
 	{
-		size_t const len = lib::string_length(data->images[i].uri);
+		size_t const len = lib::strlen(data->images[i].uri);
 		imageUriLengthSpan[i] = parentPathLength + len;
 	}
 }
@@ -311,7 +311,7 @@ auto store_material_name_length_data(
 
 		if (material.name)
 		{
-			size_t const len = lib::string_length(data->materials[i].name);
+			size_t const len = lib::strlen(data->materials[i].name);
 			materialNameLengthSpan[j++] = len;
 		}
 	}
@@ -626,7 +626,7 @@ auto Importer::open(std::filesystem::path const& path) -> bool
 	m_path = std::filesystem::absolute(path);
 
 	auto absolutePath = std::filesystem::absolute(m_path).remove_filename();
-	size_t const parentPathLength = lib::string_length(absolutePath.c_str());
+	size_t const parentPathLength = lib::strlen(absolutePath.c_str());
 
 	m_cgltf_ptr = create_cgltf_data(m_path);
 

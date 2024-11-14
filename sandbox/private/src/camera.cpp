@@ -1,5 +1,5 @@
 #include <algorithm>
-#include "camera.h"
+#include "camera.hpp"
 
 namespace sandbox
 {

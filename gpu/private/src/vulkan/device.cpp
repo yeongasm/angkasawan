@@ -1,4 +1,4 @@
-#include "vulkan/vkgpu.h"
+#include "vulkan/vkgpu.hpp"
 
 struct VolkInit
 {

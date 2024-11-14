@@ -48,46 +48,46 @@ public:
 
 	constexpr bool contains(key_type const& key) const
 	{
-		return super::get_impl(key) != super::invalid_bucket_v;
+		return super::_get_impl(key) != super::invalid_bucket_v;
 	}
 
 	constexpr void clear()
 	{
-		super::destruct(0, super::capacity());
+		super::_destruct(0, super::capacity());
 	}
 
 	constexpr void reserve(size_t capacity)
 	{
-		super::reserve(capacity);
+		super::_reserve(capacity);
 	}
 
 	template <typename... Args>
 	constexpr type& emplace(Args&&... args)
 	{
-		bucket_value_type bucket = super::emplace_internal(std::forward<Args>(args)...);
-		return super::data()[bucket];
+		bucket_value_type bucket = super::_emplace_internal(std::forward<Args>(args)...);
+		return super::_data()[bucket];
 	}
 
 	template <typename... Args>
 	constexpr bucket_value_type insert(Args&&... args)
 	{
-		return super::emplace_internal(std::forward<Args>(args)...);
+		return super::_emplace_internal(std::forward<Args>(args)...);
 	}
 
 	constexpr bool erase(key_type const& key)
 	{
-		return super::remove_impl(key);
+		return super::_remove_impl(key);
 	}
 
 	constexpr bucket_value_type bucket(key_type const& key) const
 	{
-		return super::get_impl(key);
+		return super::_get_impl(key);
 	}
 
 	constexpr type& element_at_bucket(bucket_value_type bucket) const
 	{
-		ASSERTION(super::info()[bucket].value() != nullptr && "Bucket value supplied is invalid!");
-		return super::data()[bucket];
+		ASSERTION(super::_info()[bucket].value() != nullptr && "Bucket value supplied is invalid!");
+		return super::_data()[bucket];
 	}
 };
 

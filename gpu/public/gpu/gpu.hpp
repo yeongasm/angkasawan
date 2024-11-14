@@ -7,7 +7,7 @@
 
 #include "lib/paged_array.h"
 
-#include "common.h"
+#include "common.hpp"
 
 #define NOCOPYANDMOVE(Object)					\
 	Object(Object const&) = delete;				\

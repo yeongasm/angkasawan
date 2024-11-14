@@ -1,5 +1,5 @@
 #include <fstream>
-#include "demo/triangle_demo_app.h"
+#include "demo/triangle_demo_app.hpp"
 
 namespace sandbox
 {

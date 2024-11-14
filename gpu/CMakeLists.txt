@@ -3,17 +3,16 @@ include(${CMAKE_SOURCE_DIR}/cmake/CPM.cmake)
 
 set(
 	gpu_rhi_header_files
-	"public/gpu/common.h"
-	"public/gpu/constants.h"
-	"public/gpu/gpu.h"
-	"public/gpu/gpu_api.h"
-	"public/gpu/util/shader_compiler.h"
+	"public/gpu/common.hpp"
+	"public/gpu/constants.hpp"
+	"public/gpu/gpu.hpp"
+	"public/gpu/gpu_api.hpp"
+	"public/gpu/util/shader_compiler.hpp"
 )
 
 set(
 	gpu_rhi_source_files
 	"private/src/common.cpp"
-	"private/src/gpu.cpp"
 )
 
 add_library(gpu STATIC ${gpu_rhi_header_files} ${gpu_rhi_source_files})	
@@ -38,7 +37,7 @@ if (USE_VULKAN)
 	set(
 		vulkan_header_files
 		"private/include/vulkan/vk.h"
-		"private/include/vulkan/vkgpu.h"
+		"private/include/vulkan/vkgpu.hpp"
 	)
 
 	set(

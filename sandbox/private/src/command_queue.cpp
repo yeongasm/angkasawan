@@ -1,5 +1,5 @@
 #include <fmt/std.h>
-#include "command_queue.h"
+#include "command_queue.hpp"
 
 namespace sandbox
 {

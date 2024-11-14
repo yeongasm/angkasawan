@@ -58,17 +58,17 @@ public:
 	template <typename K>
 	constexpr value_type& operator[](K&& key) requires std::same_as<std::decay_t<K>, key_type>
 	{
-		bucket_value_type bucket = super::get_impl(key);
+		bucket_value_type bucket = super::_get_impl(key);
 		if (bucket == super::invalid_bucket_v)
 		{
-			bucket = super::emplace_internal(std::forward<K>(key), value_type{});
+			bucket = super::_emplace_internal(std::forward<K>(key), value_type{});
 		}
-		return super::data()[bucket].second;
+		return super::_data()[bucket].second;
 	}
 
 	constexpr bool contains(key_type const& key) const
 	{
-		return super::get_impl(key) != super::invalid_bucket_v;
+		return super::_get_impl(key) != super::invalid_bucket_v;
 	}
 
 	/**
@@ -78,18 +78,18 @@ public:
 	constexpr ref<type> at(key_type const& key) const
 	{
 		ref<type> result{};
-		const bucket_value_type bucket = super::get_impl(key);
+		const bucket_value_type bucket = super::_get_impl(key);
 		//ASSERTION(bucket != super::invalid_bucket_v && "Key supplied is invalid!");
 		if (bucket != super::invalid_bucket_v)
 		{
-			new (&result) ref<type>{ super::data()[bucket] };
+			new (&result) ref<type>{ super::_data()[bucket] };
 		}
 		return result;
 	}
 
 	constexpr void clear()
 	{
-		super::destruct(0, super::capacity());
+		super::_destruct(0, super::capacity());
 		super::m_len = 0;
 	}
 
@@ -99,7 +99,7 @@ public:
 	*/
 	constexpr void reserve(size_t capacity)
 	{
-		super::reserve(capacity);
+		super::_reserve(capacity);
 	}
 
 	/**
@@ -109,8 +109,8 @@ public:
 	template <typename... Args>
 	constexpr type& emplace(Args&&... args)
 	{
-		const bucket_value_type bucket = super::emplace_internal(std::forward<Args>(args)...);
-		return super::data()[bucket];
+		const bucket_value_type bucket = super::_emplace_internal(std::forward<Args>(args)...);
+		return super::_data()[bucket];
 	}
 
 	/**
@@ -124,14 +124,14 @@ public:
 		{
 			return std::pair{ at(key) , false};
 		}
-		const bucket_value_type bucket = super::emplace_internal(std::forward<Args>(args)...);
-		return std::pair{ super::data()[bucket], true };
+		const bucket_value_type bucket = super::_emplace_internal(std::forward<Args>(args)...);
+		return std::pair{ super::_data()[bucket], true };
 	}
 
 	template <typename... Args>
 	constexpr bucket_value_type insert(Args&&... args)
 	{
-		return super::emplace_internal(std::forward<Args>(args)...);
+		return super::_emplace_internal(std::forward<Args>(args)...);
 	}
 
 	template <typename... Args>
@@ -141,24 +141,24 @@ public:
 		{
 			return std::nullopt;
 		}
-		const bucket_value_type bucket = super::emplace_internal(key, std::forward<Args>(args)...);
+		const bucket_value_type bucket = super::_emplace_internal(key, std::forward<Args>(args)...);
 		return std::make_optional<bucket_value_type>(bucket);
 	}
 
 	constexpr bool erase(key_type const& key)
 	{
-		return super::remove_impl(key);
+		return super::_remove_impl(key);
 	}
 
 	constexpr bucket_value_type bucket(key_type const& key) const
 	{
-		return super::get_impl(key);
+		return super::_get_impl(key);
 	}
 
 	constexpr type& element_at_bucket(bucket_value_type bucket)
 	{
-		ASSERTION(!super::info()[bucket].is_empty() && "Bucket value supplied is invalid!");
-		return super::data()[bucket];
+		ASSERTION(!super::_info()[bucket].is_empty() && "Bucket value supplied is invalid!");
+		return super::_data()[bucket];
 	}
 };
 

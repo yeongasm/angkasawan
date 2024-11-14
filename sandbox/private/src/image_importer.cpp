@@ -1,5 +1,5 @@
 #include <fstream>
-#include "image_importer.h"
+#include "image_importer.hpp"
 #include "ktx.h"
 
 namespace sandbox

@@ -6,7 +6,7 @@
 #include "lib/string.h"
 #include "lib/map.h"
 #include "lib/bit_mask.h"
-#include "constants.h"
+#include "constants.hpp"
 
 namespace gpu
 {

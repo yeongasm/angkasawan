@@ -2,7 +2,7 @@
 #ifndef SANDBOX_TRIANGLE_DEMO_APP_H
 #define SANDBOX_TRIANGLE_DEMO_APP_H
 
-#include "sandbox_demo_application.h"
+#include "sandbox_demo_application.hpp"
 
 namespace sandbox
 {

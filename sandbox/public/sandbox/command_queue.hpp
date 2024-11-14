@@ -3,7 +3,7 @@
 #define SANDBOX_SUBMISSION_QUEUE
 
 #include <thread>
-#include "gpu/gpu.h"
+#include "gpu/gpu.hpp"
 
 namespace sandbox
 {

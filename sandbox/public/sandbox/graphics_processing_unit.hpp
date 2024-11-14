@@ -2,7 +2,7 @@
 #ifndef GRAPHICS_PROCESSING_UNIT_H
 #define GRAPHICS_PROCESSING_UNIT_H
 
-#include "upload_heap.h"
+#include "upload_heap.hpp"
 
 namespace sandbox
 {

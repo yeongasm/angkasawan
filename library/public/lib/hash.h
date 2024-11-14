@@ -14,19 +14,27 @@ struct probe_sequence_length_limit
 	static constexpr size_t value = limit;
 };
 
+template <float32 factor>
+struct load_factor_limit
+{
+	static constexpr float32 value = factor;
+};
+
 // TODO:
 // [x] Implement min, max and normal load factor.
 // [x] Figure out how to pack load factor variable without making the container exceed 40 bytes.
 // [x] Fix iterators now that bucket_info is condensed to only hash & psl.
 // 
 // Linear probed, robin-hood hashing container with backward shifting deletion.
-template <typename traits, typename hasher, std::derived_from<container_growth_policy> growth_policy, provides_memory provided_allocator = default_allocator, typename probe_distance_limit = probe_sequence_length_limit<4096>>
-class hash_container_base : 
-	private traits,
-	private hasher,
-	private growth_policy,
-	protected probe_distance_limit,
-	protected std::conditional_t<std::is_same_v<provided_allocator, default_allocator>, system_memory_interface, allocator_memory_interface<provided_allocator>>
+template <
+	typename traits, 
+	typename hasher, 
+	std::derived_from<container_growth_policy> growth_policy, 
+	provides_memory allocator = default_allocator, 
+	typename probe_distance_limit = probe_sequence_length_limit<4096>,
+	typename default_load_factor = load_factor_limit<0.75f>
+>
+class hash_container_base
 {
 protected:
 
@@ -40,17 +48,11 @@ protected:
 	using pointer				= type*;
 	using const_pointer			= type const*;
 	using interface_type		= std::conditional_t<std::is_same_v<key_type, value_type>, const_type, type>;
-	using allocator_interface	= std::conditional_t<std::is_same_v<provided_allocator, default_allocator>, system_memory_interface, allocator_memory_interface<provided_allocator>>;
-	using allocator_type		= typename allocator_interface::allocator_type;
+	using allocator_type		= allocator;
 
 	static constexpr bucket_value_type invalid_bucket_v = std::numeric_limits<bucket_value_type>::max();
 
 	friend class hash_container_const_iterator;
-
-	constexpr allocator_type* get_allocator() const requires !std::same_as<allocator_type, default_allocator>
-	{
-		return this->get_allocator();
-	}
 
 	struct bucket_info
 	{
@@ -64,8 +66,8 @@ protected:
 
 	struct metadata
 	{
-		bool			grow_on_next_insert;
-		bucket_info*	p_bucket_info;
+		bool			growOnNextInsert;
+		bucket_info*	pBucketInfo;
 	};
 
 public:
@@ -81,10 +83,10 @@ public:
 		constexpr hash_container_const_iterator(bucket_info* data, hash_container_base const* hash_map) :
 			info{ data }, hash{ hash_map }
 		{
-			if (data && hash->m_metadata)
+			if (data && hash->m_box->metadata)
 			{
 				// This logic is here to just skip empty buckets.
-				bucket_info* end = hash->m_metadata->p_bucket_info + hash->m_capacity;
+				bucket_info* end = hash->m_box->metadata->pBucketInfo + hash->m_capacity;
 
 				while (info->is_empty() &&
 					   info != end)
@@ -109,10 +111,10 @@ public:
 			return info != rhs.info;
 		}
 
-		constexpr reference	operator* () const { return hash->data()[bucket()]; }
-		constexpr pointer	operator->() const { return &hash->data()[bucket()]; }
+		constexpr reference	operator* () const { return hash->_data()[bucket()]; }
+		constexpr pointer	operator->() const { return &hash->_data()[bucket()]; }
 
-		constexpr bucket_value_type bucket() const { return static_cast<bucket_value_type>(info - hash->m_metadata->p_bucket_info) ;}
+		constexpr bucket_value_type bucket() const { return static_cast<bucket_value_type>(info - hash->m_box->metadata->pBucketInfo) ;}
 
 		constexpr hash_container_const_iterator& operator++()
 		{
@@ -120,7 +122,7 @@ public:
 			{
 				++info;
 				// This checks if the current bucket is the final one in the hash container.
-				if (info == (hash->info() + hash->m_capacity))
+				if (info == (hash->_info() + hash->m_capacity))
 				{
 					break;
 				}
@@ -145,19 +147,19 @@ public:
 
 		using super::hash_container_const_iterator;
 
-		constexpr reference	operator* () const { return this->hash->data()[this->bucket()]; }
-		constexpr pointer	operator->() const { return &this->hash->data()[this->bucket()]; }
+		constexpr reference	operator* () const { return this->hash->_data()[this->bucket()]; }
+		constexpr pointer	operator->() const { return &this->hash->_data()[this->bucket()]; }
 	};
 
 	using iterator			= hash_container_iterator;
 	using const_iterator	= hash_container_const_iterator;
 
 	constexpr hash_container_base() requires std::same_as<allocator_type, default_allocator> :
-		m_metadata{}, m_data{}, m_len{}, m_capacity{}, m_max_load_factor{ 0.75f }
+		m_box{}, m_len{}, m_capacity{}, m_maxLoadFactor{ default_load_factor::value }
 	{}
 
 	constexpr hash_container_base(allocator_type& allocator) requires !std::same_as<allocator_type, default_allocator> :
-		m_metadata{}, m_data{}, m_len{}, m_capacity{}, m_max_load_factor{ 0.75f }, allocator_interface{ &allocator }
+		m_box{ stored_type{}, allocator }, m_len{}, m_capacity{}, m_maxLoadFactor{ default_load_factor::value }
 	{}
 
 	constexpr ~hash_container_base() { release(); }
@@ -165,29 +167,29 @@ public:
 	constexpr hash_container_base(size_t length) requires std::same_as<allocator_type, default_allocator> :
 		hash_container_base{}
 	{
-		reserve(length);
+		_reserve(length);
 	}
 
 	constexpr hash_container_base(allocator_type& allocator, size_t length) requires !std::same_as<allocator_type, default_allocator> :
 		hash_container_base{ allocator }
 	{
-		reserve(length);
+		_reserve(length);
 	}
 
 	constexpr hash_container_base(hash_container_base const& rhs) requires std::same_as<allocator_type, default_allocator> :
-		m_metadata{}, m_data{}, m_len{}, m_capacity{}, m_max_load_factor{ 0.75f }
+		m_box{}, m_len{}, m_capacity{}, m_maxLoadFactor{ default_load_factor::value }
 	{
 		*this = rhs;
 	}
 
 	constexpr hash_container_base(hash_container_base const& rhs) requires !std::same_as<allocator_type, default_allocator> :
-		m_metadata{}, m_data{}, m_len{}, m_capacity{}, m_max_load_factor{ 0.75f }, allocator_interface{rhs.allocator()}
+		m_box{}, m_len{}, m_capacity{}, m_maxLoadFactor{ default_load_factor::value }
 	{
 		*this = rhs;
 	}
 
 	constexpr hash_container_base(hash_container_base&& rhs) :
-		m_metadata{}, m_data{}, m_len{}, m_capacity{}
+		m_box{}, m_len{}, m_capacity{}, m_maxLoadFactor{ default_load_factor::value }
 	{
 		*this = std::move(rhs);
 	}
@@ -197,16 +199,16 @@ public:
 	{
 		for (type const& pair : initializer)
 		{
-			emplace_internal(pair);
+			_emplace_internal(pair);
 		}
 	}
 
 	constexpr hash_container_base(allocator_type& allocator, std::initializer_list<type> const& initializer) requires !std::same_as<allocator_type, default_allocator> :
-	hash_container_base{ allocator }
+		hash_container_base{ allocator }
 	{
 		for (type const& pair : initializer)
 		{
-			emplace_internal(pair);
+			_emplace_internal(pair);
 		}
 	}
 
@@ -214,28 +216,28 @@ public:
 	{
 		if (this != &rhs)
 		{
-			destruct(0, m_capacity);
+			_destruct(0, m_capacity);
 
 			if (m_capacity < rhs.m_capacity)
 			{
-				reserve(rhs.m_capacity);
+				_reserve(rhs.m_capacity);
 			}
 
 			m_len = rhs.m_len;
 
 			size_t count = m_len;
 
-			bucket_info* this_bucket_info = m_metadata->p_bucket_info;
-			bucket_info* rhs_bucket_info = rhs.m_metadata->p_bucket_info;
+			bucket_info* bucketInfo = m_box->metadata->pBucketInfo;
+			bucket_info* rhsBucketInfo = rhs.m_box->metadata->pBucketInfo;
 
 			for (size_t i = 0; i < m_capacity; ++i)
 			{
-				if (rhs_bucket_info[i].is_empty())
+				if (rhsBucketInfo[i].is_empty())
 				{
 					continue;
 				}
-				this_bucket_info[i] = rhs_bucket_info[i];
-				reinterpret_cast<mutable_type&>(m_data[i]) = rhs.m_data[i];
+				bucketInfo[i] = rhsBucketInfo[i];
+				reinterpret_cast<mutable_type&>(m_box->data[i]) = rhs.m_box->data[i];
 
 				--count;
 			}
@@ -252,15 +254,15 @@ public:
 
 			if constexpr (!std::is_same_v<allocator_type, default_allocator>)
 			{
-				if (get_allocator() != rhs.get_allocator())
+				if (m_box.allocator != rhs.m_box.allocator)
 				{
-					reserve(rhs.size());
+					_reserve(rhs.size());
 
 					m_len = rhs.m_len;
-					m_max_load_factor = rhs.m_max_load_factor;
+					m_maxLoadFactor = rhs.m_maxLoadFactor;
 
-					bucket_info* this_bucket_info = m_metadata->p_bucket_info;
-					bucket_info* rhs_bucket_info = rhs.m_metadata->p_bucket_info;
+					bucket_info const* bucketInfo = m_box->metadata->pBucketInfo;
+					bucket_info const* rhsBucketInfo = rhs.m_box->metadata->pBucketInfo;
 
 					for (size_t i = 0; i < rhs.m_capacity; ++i)
 					{
@@ -268,8 +270,8 @@ public:
 						{
 							continue;
 						}
-						this_bucket_info[i] = std::move(rhs_bucket_info[i]);
-						m_data[i] = std::move(rhs.m_data[i]);
+						bucketInfo[i]	= rhsBucketInfo[i];
+						m_box->data[i]	= std::move(rhs.m_box->data[i]);
 					}
 
 					rhs.release();
@@ -279,16 +281,16 @@ public:
 
 			if (move)
 			{
-				m_metadata	= rhs.m_metadata;
-				m_data	= rhs.m_data;
+				m_box->metadata	= rhs.m_box->metadata;
+				m_box->data	= rhs.m_box->data;
 				m_len	= rhs.m_len;
 				m_capacity = rhs.m_capacity;
-				m_max_load_factor = rhs.m_max_load_factor;
+				m_maxLoadFactor = rhs.m_maxLoadFactor;
 			}
 
 			if constexpr (!std::is_same_v<allocator_type, default_allocator>)
 			{
-				new (&rhs) hash_container_base{ *rhs.get_allocator() };
+				new (&rhs) hash_container_base{ *rhs.m_box.allocator };
 			}
 			else
 			{
@@ -300,126 +302,125 @@ public:
 
 	constexpr void release()
 	{
-		destruct(0, capacity());
+		_destruct(0, capacity());
 
 		if (m_capacity)
 		{
-			this->free_storage(m_metadata);
-			this->free_storage(m_data);
+			if (m_box->metadata != nullptr)
+			{
+				m_box.allocator.deallocate(m_box->metadata);
+			}
+
+			if (m_box->data != nullptr)
+			{
+				allocator_bind<allocator_type, type>::deallocate(m_box.allocator, m_box->data);
+			}
 		}
 
-		m_metadata = nullptr;
-		m_data = nullptr;
 		m_len = m_capacity = 0;
-		m_max_load_factor = .75f;
+		m_maxLoadFactor = default_load_factor::value;
+
+		m_box.~box_type();
 	}
 
 	constexpr size_t	size		() const { return m_len; }
 	constexpr size_t	capacity	() const { return m_capacity; }
 	constexpr bool		empty		() const { return m_len == 0; }
 	constexpr float32	load_factor	() const { return static_cast<float32>(m_len) / static_cast<float32>(m_capacity); }
-	constexpr float32	max_load_factor() const { return m_max_load_factor; }
+	constexpr float32	max_load_factor() const { return m_maxLoadFactor; }
 	constexpr void		max_load_factor(float32 factor) 
 	{
 		if (factor > 0.f && factor < 1.f)
 		{
-			m_max_load_factor = factor; 
+			m_maxLoadFactor = factor; 
 		}
 	}
 
-	iterator		begin	()		 { return iterator{ m_metadata ? m_metadata->p_bucket_info : nullptr, this }; }
-	iterator		end		()		 { return iterator{ m_metadata ? m_metadata->p_bucket_info + m_capacity : nullptr, this }; }
-	const_iterator	begin	() const { return const_iterator{ m_metadata ? m_metadata->p_bucket_info : nullptr, this }; }
-	const_iterator	end		() const { return const_iterator{ m_metadata ? m_metadata->p_bucket_info + m_capacity : nullptr, this }; }
-	const_iterator	cbegin	() const { return const_iterator{ m_metadata ? m_metadata->p_bucket_info : nullptr, this }; }
-	const_iterator	cend	() const { return const_iterator{ m_metadata ? m_metadata->p_bucket_info + m_capacity : nullptr, this }; }
+	iterator		begin	()		 { return iterator{ m_box->metadata ? m_box->metadata->pBucketInfo : nullptr, this }; }
+	iterator		end		()		 { return iterator{ m_box->metadata ? m_box->metadata->pBucketInfo + m_capacity : nullptr, this }; }
+	const_iterator	begin	() const { return const_iterator{ m_box->metadata ? m_box->metadata->pBucketInfo : nullptr, this }; }
+	const_iterator	end		() const { return const_iterator{ m_box->metadata ? m_box->metadata->pBucketInfo + m_capacity : nullptr, this }; }
+	const_iterator	cbegin	() const { return const_iterator{ m_box->metadata ? m_box->metadata->pBucketInfo : nullptr, this }; }
+	const_iterator	cend	() const { return const_iterator{ m_box->metadata ? m_box->metadata->pBucketInfo + m_capacity : nullptr, this }; }
 
 protected:
 
-	metadata* m_metadata;
-	type*	m_data;
+	struct stored_type
+	{
+		metadata* metadata;
+		pointer data;
+	};
+
+	using box_type = box<stored_type, allocator_type>;
+
+	box_type m_box;
 	size_t	m_len;
 	size_t	m_capacity;
-	float32 m_max_load_factor;
+	float32 m_maxLoadFactor;
 
-	constexpr bucket_info*	info() const	{ return m_metadata->p_bucket_info; }
-	constexpr pointer		data() const	{ return m_data; }
+	constexpr bucket_info*	_info() const	{ return m_box->metadata->pBucketInfo; }
+	constexpr pointer		_data() const	{ return m_box->data; }
 
 	template <typename Arg>
-	constexpr void destroy(Arg& element)
+	constexpr void _destroy(Arg& element)
 	{
 		using element_type = std::decay_t<Arg>;
-		if constexpr (std::is_trivially_destructible_v<element_type>)
-		{
-			memzero(const_cast<element_type*>(&element), sizeof(element_type));
-		}
-		else
-		{
-			element.~element_type();
-		}
+		element.~element_type();
 	}
 
-	constexpr void destruct(size_t from, size_t to)
+	constexpr void _destruct(size_t from, size_t to)
 	{
 		for (size_t i = from; i < to; ++i)
 		{
 			// Because not every bucket is filled, we need to check if the hash is actually set.
-			if (!m_metadata->p_bucket_info[i].is_empty())
+			if (!m_box->metadata->pBucketInfo[i].is_empty())
 			{
 				if constexpr (std::is_same_v<key_type, value_type>)
 				{
-					destroy(m_data[i]);
+					_destroy(m_box->data[i]);
 				}
 				else
 				{
-					destroy(m_data[i].first);
-					destroy(m_data[i].second);
+					_destroy(m_box->data[i].first);
+					_destroy(m_box->data[i].second);
 				}
-				m_data[i].~type();
+				m_box->data[i].~type();
 			}
-			m_metadata->p_bucket_info[i].reset();
+			m_box->metadata->pBucketInfo[i].reset();
 		}
 	}
 
-	constexpr void try_grow_on_next_insert()
+	constexpr void _try_grow_on_next_insert()
 	{
-		if (grow_on_next_insert())
+		if (_grow_on_next_insert())
 		{
-			reserve(growth_policy::new_capacity(m_capacity));
-			toggle_grow_on_next_insert();
+			_reserve(growth_policy::new_capacity(m_capacity));
+			_toggle_grow_on_next_insert();
 		}
 	}	
 
-	constexpr void reserve(size_t capacity)
+	constexpr void _reserve(size_t capacity)
 	{
-		//ASSERTION(
-		//	size() < capacity && 
-		//	"You are attempting to shrink the container when it has more elements than the specified capacity"
-		//);
+		size_t const metadataCapacity = sizeof(metadata) + (sizeof(bucket_info) * capacity);
+		std::byte* pBuffer = static_cast<std::byte*>(m_box.allocator.allocate(metadataCapacity));
 
-		metadata* metadataOld = m_metadata;
-		type* dataOld = m_data;
+		metadata* metadataOld = m_box->metadata;
+		type* dataOld = m_box->data;
 
-		size_t metadataCapacity = sizeof(metadata) + (sizeof(bucket_info) * capacity);
-		uint8* pBuffer = static_cast<uint8*>(this->allocate_storage({ .size = metadataCapacity }));
+		m_box->metadata = reinterpret_cast<metadata*>(pBuffer);
+		m_box->metadata->growOnNextInsert = false;
 
-		m_metadata = reinterpret_cast<metadata*>(pBuffer);
-		m_metadata->grow_on_next_insert = false;
+		m_box->metadata->pBucketInfo = reinterpret_cast<bucket_info*>(pBuffer + sizeof(metadata));
 
-		m_metadata->p_bucket_info = reinterpret_cast<bucket_info*>(pBuffer + sizeof(metadata));
-
-		m_data = this->allocate_storage<type>({ .size = capacity });
-		// This is not standard compliant and is by design.
-		// Doing this enables us to store types that does not contain a default constructor.
-		memzero(m_data, sizeof(type) * capacity);
+		m_box->data = allocator_bind<allocator_type, type>::allocate(m_box.allocator, capacity);
 
 		for (size_t i = 0; i < capacity; ++i)
 		{
-			new (m_metadata->p_bucket_info + i) bucket_info{};
+			new (m_box->metadata->pBucketInfo + i) bucket_info{};
 		}
 
 		// Capacity needs to be set before the container rehash.
-		size_t capacityOld = m_capacity;
+		size_t const capacityOld = m_capacity;
 		m_capacity = capacity;
 
 		// Rehash container when buckets are occupied.
@@ -431,20 +432,28 @@ protected:
 				m_len = m_capacity;
 			}
 
-			rehash(dataOld, metadataOld->p_bucket_info, size());
+			rehash(dataOld, metadataOld->pBucketInfo, size());
 
 			// Destruct old elements that were not moved.
 			for (size_t i = 0; i < capacityOld; ++i)
 			{
 				dataOld[i].~type();
 			}
-			this->free_storage(metadataOld);
-			this->free_storage(dataOld);
+
+			if (metadataOld != nullptr)
+			{
+				m_box.allocator.deallocate(metadataOld);
+			}
+
+			if (dataOld != nullptr)
+			{
+				allocator_bind<allocator_type, type>::deallocate(m_box.allocator, dataOld);
+			}
 		}
 	}
 
 		
-	constexpr bucket_value_type get_impl(key_type const& key) const
+	constexpr bucket_value_type _get_impl(key_type const& key) const
 	{
 		bucket_value_type bucket = invalid_bucket_v;
 		if (m_capacity != 0)
@@ -459,17 +468,17 @@ protected:
 	}
 
 	template <typename... Args>
-	constexpr bucket_value_type emplace_internal(Args&&... arguments)
+	constexpr bucket_value_type _emplace_internal(Args&&... arguments)
 	{
 		// Technically, now that we've added load factor in, we will never run out of empty buckets in the container.
-		if (!num_free_buckets() || 
+		if (!_num_free_buckets() || 
 			load_factor() > max_load_factor())
 		{
-			reserve(growth_policy::new_capacity(m_capacity));
+			_reserve(growth_policy::new_capacity(m_capacity));
 		}
 		else
 		{
-			try_grow_on_next_insert();
+			_try_grow_on_next_insert();
 		}
 		++m_len;
 
@@ -478,7 +487,7 @@ protected:
 
 	// Implementation of remove method.
 	// Backward shifting deletion.
-	constexpr bool remove_impl(key_type const& key)
+	constexpr bool _remove_impl(key_type const& key)
 	{
 		std::optional res = find_key(key);
 
@@ -489,16 +498,16 @@ protected:
 
 		bucket_value_type bucket = res.value();
 
-		destruct(bucket, bucket + 1);
+		_destruct(bucket, bucket + 1);
 		// Move the bucket to the next one so the object can be shifted down.
 		bucket = next_bucket(bucket);
 
-		bucket_info* p_info = info();
+		bucket_info* p_info = _info();
 
 		while (p_info[bucket].psl != 0 &&
 			!p_info[bucket].is_empty())
 		{
-			back_shift_bucket(previous_bucket(bucket), bucket);
+			_back_shift_bucket(previous_bucket(bucket), bucket);
 			bucket = next_bucket(bucket);
 		}
 		--m_len;
@@ -516,17 +525,17 @@ private:
 		if constexpr (std::is_trivial_v<type>)
 		{
 			mutable_type tmp{};
-			mutable_type& data = *reinterpret_cast<mutable_type*>(&m_data[bucket]);
+			mutable_type& data = *reinterpret_cast<mutable_type*>(&m_box->data[bucket]);
 
-			memcopy(&tmp, &data, sizeof(mutable_type));
+			std::memcpy(&tmp, &data, sizeof(mutable_type));
 			new (&data) mutable_type{ std::move(element.first), std::move(element.second) };
-			memcopy(&element, &tmp, sizeof(mutable_type));
+			std::memcpy(&element, &tmp, sizeof(mutable_type));
 		}
 		else
 		{
 			if constexpr (std::is_same_v<key_type, value_type>)
 			{
-				type& data = *const_cast<type*>(&m_data[bucket]);
+				type& data = *const_cast<type*>(&m_box->data[bucket]);
 				mutable_type tmp{ std::move(data) };
 
 				new (&data) type{ std::move(element) };
@@ -534,8 +543,8 @@ private:
 			}
 			else
 			{
-				key_type& key = *const_cast<key_type*>(&m_data[bucket].first);
-				value_type& value = m_data[bucket].second;
+				key_type& key = *const_cast<key_type*>(&m_box->data[bucket].first);
+				value_type& value = m_box->data[bucket].second;
 
 				mutable_type tmp{ std::move(key), std::move(value) };
 
@@ -546,7 +555,7 @@ private:
 			}
 		}
 
-		bucket_info& dst = m_metadata->p_bucket_info[bucket];
+		bucket_info& dst = m_box->metadata->pBucketInfo[bucket];
 
 		uint32 psl = dst.psl;
 		// Swap the contents of the bucket info.
@@ -564,9 +573,9 @@ private:
 		// Construct the to-be-inserted element once.
 		mutable_type element{ std::forward<Args>(args)... };
 
-		hash_value_type const hash = hashify(traits::extract_key(element));
-		bucket_info* p_info = info();
-		bucket_value_type bucket = bucket_for_hash(hash);
+		hash_value_type const hash = _hashify(traits::extract_key(element));
+		bucket_info* p_info = _info();
+		bucket_value_type bucket = _bucket_for_hash(hash);
 
 		bucket_info inserting_info{ .hash = hash };
 		bucket_value_type first_swapped_bucket = std::numeric_limits<bucket_value_type>::max();
@@ -578,7 +587,7 @@ private:
 				// Number of probes is really high, rehash container on next insert.
 				if (inserting_info.psl > probe_distance_limit::value)
 				{
-					toggle_grow_on_next_insert();
+					_toggle_grow_on_next_insert();
 				}
 				if (first_swapped_bucket == std::numeric_limits<bucket_value_type>::max())
 				{
@@ -593,11 +602,11 @@ private:
 		// Store the element.
 		if constexpr (std::is_same_v<key_type, value_type>)
 		{
-			new (m_data + bucket) type{ std::move(element) };
+			new (m_box->data + bucket) type{ std::move(element) };
 		}
 		else
 		{
-			new (m_data + bucket) type{ std::move(element.first), std::move(element.second) };
+			new (m_box->data + bucket) type{ std::move(element.first), std::move(element.second) };
 		}
 
 		p_info[bucket].hash = inserting_info.hash;
@@ -639,17 +648,17 @@ private:
 
 	constexpr std::optional<bucket_value_type> find_key(key_type const& key) const
 	{
-		const hash_value_type hash = hashify(key);
+		const hash_value_type hash = _hashify(key);
 
-		bucket_value_type bucket = bucket_for_hash(hash);
+		bucket_value_type bucket = _bucket_for_hash(hash);
 		size_t probeSequence = 0;
 
-		bucket_info* p_info = info();
+		bucket_info* p_info = _info();
 
 		while (probeSequence <= p_info[bucket].psl &&
 			!p_info[bucket].is_empty())
 		{
-			if (traits::compare_keys(key, traits::extract_key(m_data[bucket])))
+			if (traits::compare_keys(key, traits::extract_key(m_box->data[bucket])))
 			{
 				return std::make_optional(bucket);
 			}
@@ -659,40 +668,40 @@ private:
 		return std::nullopt;
 	}
 
-	constexpr void back_shift_bucket(size_t to, size_t from)
+	constexpr void _back_shift_bucket(size_t to, size_t from)
 	{
-		bucket_info* p_info = info();
+		bucket_info* p_info = _info();
 		p_info[to] = std::move(p_info[from]);
-		memmove(&m_data[to], &m_data[from], sizeof(type));
+		std::memcpy(&m_box->data[to], &m_box->data[from], sizeof(type));
 
 		// Reduce the bucket's psl by 1.
 		--p_info[to].psl;
-		destruct(from, from + 1);
+		_destruct(from, from + 1);
 	}
 
-	constexpr size_t num_free_buckets() const
+	constexpr size_t _num_free_buckets() const
 	{
 		return m_capacity - size();
 	}
 
-	constexpr bucket_value_type bucket_for_hash(hash_value_type hash) const
+	constexpr bucket_value_type _bucket_for_hash(hash_value_type hash) const
 	{
 		return hash % m_capacity;
 	}
 
-	constexpr uint32 hashify(key_type const& key) const
+	constexpr uint32 _hashify(key_type const& key) const
 	{
 		return static_cast<uint32>(hasher{}(key));
 	}
 
-	constexpr bool grow_on_next_insert() const
+	constexpr bool _grow_on_next_insert() const
 	{
-		return m_metadata->grow_on_next_insert;
+		return m_box->metadata->growOnNextInsert;
 	}
 
-	constexpr void toggle_grow_on_next_insert()
+	constexpr void _toggle_grow_on_next_insert()
 	{
-		m_metadata->grow_on_next_insert ^= true;
+		m_box->metadata->growOnNextInsert ^= true;
 	}
 };
 

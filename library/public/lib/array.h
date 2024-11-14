@@ -227,16 +227,15 @@ public:
 
 template <
 	typename T, 
-	provides_memory allocator = default_allocator, 
+	provides_memory allocator = default_allocator,
 	std::derived_from<container_growth_policy> growth_policy = shift_growth_policy<4>
 >
-class array final : protected std::conditional_t<std::is_same_v<allocator, default_allocator>, system_memory_interface, allocator_memory_interface<allocator>>
+class array final
 {
 public:
 
 	using value_type                = T;
-	using allocator_interface       = std::conditional_t<std::is_same_v<allocator, default_allocator>, system_memory_interface, allocator_memory_interface<allocator>>;
-	using allocator_type            = typename allocator_interface::allocator_type;
+	using allocator_type            = allocator;
 	using size_type                 = size_t;
 	using difference_type           = std::ptrdiff_t;
 	using reference                 = value_type&;
@@ -249,11 +248,11 @@ public:
 	using reverse_iterator          = reverse_iterator<iterator>;
 
 	constexpr array() requires std::same_as<allocator_type, default_allocator> :
-		m_data{ nullptr }, m_len{}, m_capacity{}
+		m_box{ nullptr }, m_len{}, m_capacity{}
 	{}
 
 	constexpr array(allocator_type& allocator) requires !std::same_as<allocator_type, default_allocator> :
-		m_data{ nullptr }, m_len{}, m_capacity{}, allocator_interface{ &allocator }
+		m_box{ nullptr, allocator }, m_len{}, m_capacity{}
 	{}
 
 	constexpr ~array()
@@ -286,7 +285,7 @@ public:
 	}
 
 	constexpr array(array const& rhs) requires !std::same_as<allocator_type, default_allocator> :
-		array{ *rhs.allocator() }
+		array{ *rhs.m_box.allocator }
 	{
 		*this = rhs;
 	}
@@ -312,7 +311,7 @@ public:
 
 			for (size_t i = 0; i < rhs.m_len; i++)
 			{
-				m_data[i] = rhs[i];
+				m_box.data[i] = rhs[i];
 			}
 		}
 		return *this;
@@ -327,7 +326,7 @@ public:
 
 			if constexpr (!std::is_same_v<allocator_type, default_allocator>)
 			{
-				if (allocator() != rhs.allocator())
+				if (m_box.allocator != rhs.m_box.allocator)
 				{
 					move = false;
 
@@ -336,7 +335,7 @@ public:
 
 					for (size_t i = 0; i < rhsLength; ++i)
 					{
-						m_data[i] = std::move(rhs.m_data[i]);
+						m_box.data[i] = std::move(rhs.m_box.data[i]);
 						++m_len;
 					}
 					rhs.release();
@@ -345,14 +344,14 @@ public:
 
 			if (move)
 			{
-				m_data = std::move(rhs.m_data);
+				m_box = std::move(rhs.m_box);
 				m_len = std::move(rhs.m_len);
 				m_capacity = std::move(rhs.m_capacity);
 			}
 
 			if constexpr (!std::is_same_v<allocator_type, default_allocator>)
 			{
-				new (&rhs) array{ *rhs.allocator() };
+				new (&rhs) array{ *rhs.m_box.allocator };
 			}
 			else
 			{
@@ -365,7 +364,7 @@ public:
 	constexpr value_type& operator[] (size_t index) const
 	{
 		ASSERTION(index < m_len && "The index specified exceeded the internal buffer size of the array!");
-		return m_data[index];
+		return m_box.data[index];
 	}
 
 	constexpr bool operator==(array const& rhs) const
@@ -376,7 +375,7 @@ public:
 		}
 		for (size_t i = 0; i < m_len; ++i)
 		{
-			if (m_data[i] != rhs.m_data[i])
+			if (m_box.data[i] != rhs.m_box.data[i])
 			{
 				return false;
 			}
@@ -438,12 +437,12 @@ public:
 	{
 		destruct(0, m_len);
 
-		if (m_data)
+		if (m_box.data)
 		{
-			this->free_storage(m_data); 
-			m_data = nullptr;
-			m_capacity = m_len = 0;
+			allocator_bind<allocator_type, value_type>::deallocate(m_box.allocator, m_box.data);
 		}
+		m_box.data = nullptr;
+		m_capacity = m_len = 0;
 	}
 
 	template <typename... Args>
@@ -620,9 +619,9 @@ public:
 		}
 	}
 
-	constexpr void pop_back()
+	constexpr void pop_back(size_t count = 1)
 	{
-		pop();
+		pop(count);
 	}
 
 	constexpr void pop_at(size_t index)
@@ -633,7 +632,7 @@ public:
 		size_t const count = m_len - index;
 
 		destruct(index, index + 1);
-		shift_forward(&m_data[index + 1], &m_data[index], count);
+		shift_forward(&m_box.data[index + 1], &m_box.data[index], count);
 
 		--m_len;
 	}
@@ -654,11 +653,11 @@ public:
 		size_t const count = m_len - index;
 
 		destruct(index, index + 1);
-		shift_forward(&m_data[index + 1], &m_data[index], count);
+		shift_forward(&m_box[index + 1], &m_box[index], count);
 
 		--m_len;
 
-		return iterator{ m_data + index, *this };
+		return iterator{ m_box.data + index, *this };
 	}
 
 	constexpr iterator erase(const_iterator begin, const_iterator end)
@@ -668,11 +667,11 @@ public:
 		size_t const count = m_len - to;
 
 		destruct(from, to);
-		shift_forward(&m_data[to], &m_data[to + 1], count);
+		shift_forward(&m_box[to], &m_box[to + 1], count);
 
 		m_len -= (to - from);
 
-		return iterator{ m_data + from, *this };
+		return iterator{ m_box.data + from, *this };
 	}
 
 	constexpr bool empty() const
@@ -694,12 +693,12 @@ public:
 	constexpr size_t index_of(value_type const* element) const
 	{
 		// Object must reside within the boundaries of the array.
-		ASSERTION(element >= m_data && element < m_data + m_capacity);
+		ASSERTION(element >= m_box.data && element < m_box.data + m_capacity);
 
 		// The specified object should reside at an address that is an even multiple of of the Type's size.
-		ASSERTION(((uint8*)element - (uint8*)m_data) % sizeof(value_type) == 0);
+		ASSERTION(((uint8*)element - (uint8*)m_box.data) % sizeof(value_type) == 0);
 
-		return static_cast<size_t>(element - m_data);
+		return static_cast<size_t>(element - m_box.data);
 	}
 
 	/**
@@ -709,7 +708,7 @@ public:
 
 	constexpr size_t    size    () const { return m_len; }
 	constexpr size_t    capacity() const { return m_capacity; }
-	constexpr pointer   data    () const { return m_data; }
+	constexpr pointer   data    () const { return m_box.data; }
 	constexpr size_t    bytes   () const { return m_len * sizeof(value_type); }
 
 	constexpr size_t    size_bytes() const { return bytes(); }
@@ -717,28 +716,28 @@ public:
 	/**
 	* Returns a pointer to the first element in the array.
 	*/
-	//[[deprecated]] constexpr pointer first   ()          { return m_data; }
-	//[[deprecated]] constexpr const_pointer first   () const    { return m_data; }
+	//[[deprecated]] constexpr pointer first   ()          { return m_box; }
+	//[[deprecated]] constexpr const_pointer first   () const    { return m_box; }
 
 	/**
 	* Returns a pointer to the last element in the array.
 	* If length of array is 0, Last() returns the 0th element.
 	*/
-	//[[deprecated]] constexpr pointer last    ()          { return m_data + (m_len - 1); }
-	//[[deprecated]] constexpr const_pointer last    () const    { return m_data + (m_len - 1); }
+	//[[deprecated]] constexpr pointer last    ()          { return m_box + (m_len - 1); }
+	//[[deprecated]] constexpr const_pointer last    () const    { return m_box + (m_len - 1); }
 
-	constexpr reference front   () { return *m_data; }
-	constexpr reference back    () { return *(m_data + (m_len - 1)); }
+	constexpr reference front   () { return *m_box.data; }
+	constexpr reference back    () { return *(m_box.data + (m_len - 1)); }
 
-	constexpr const_reference front ()  const    { return *m_data; }
-	constexpr const_reference back  ()  const    { return *(m_data + (m_len - 1)); }
+	constexpr const_reference front ()  const    { return *m_box; }
+	constexpr const_reference back  ()  const    { return *(m_box + (m_len - 1)); }
 
-	constexpr iterator                  begin   ()          { return iterator(m_data, *this); }
-	constexpr iterator                  end     ()          { return iterator(m_data + m_len, *this); }
-	constexpr const_iterator            begin   () const    { return const_iterator(m_data, *this); }
-	constexpr const_iterator            end     () const    { return const_iterator(m_data + m_len, *this); }
-	constexpr const_iterator            cbegin  () const    { return const_iterator(m_data, *this); }
-	constexpr const_iterator            cend    () const    { return const_iterator(m_data + m_len, *this); }
+	constexpr iterator                  begin   ()          { return iterator(m_box.data, *this); }
+	constexpr iterator                  end     ()          { return iterator(m_box.data + m_len, *this); }
+	constexpr const_iterator            begin   () const    { return const_iterator(m_box.data, *this); }
+	constexpr const_iterator            end     () const    { return const_iterator(m_box.data + m_len, *this); }
+	constexpr const_iterator            cbegin  () const    { return const_iterator(m_box.data, *this); }
+	constexpr const_iterator            cend    () const    { return const_iterator(m_box.data + m_len, *this); }
 	constexpr reverse_iterator          rbegin  ()          { return reverse_iterator(end()); }
 	constexpr reverse_iterator          rend    ()          { return reverse_iterator(begin()); }
 	constexpr const_reverse_iterator    rbegin  () const    { return const_reverse_iterator(end()); }
@@ -757,33 +756,36 @@ private:
 		}
 
 		// Basically a realloc.
-		pointer temp = this->allocate_storage<value_type>({ .size = m_capacity });
+		pointer temp = allocator_bind<allocator_type, value_type>::allocate(m_box.allocator, m_capacity);
 
 		if (m_len)
 		{
 			if constexpr (std::is_trivial_v<value_type> && std::is_trivially_move_assignable_v<value_type>)
 			{
-				memmove(temp, m_data, m_len * sizeof(value_type));
+				std::memcpy(temp, m_box.data, m_len * sizeof(value_type));
 			}
 			else
 			{
 				for (size_t i = 0; i < m_len; ++i)
 				{
-					new (temp + i) value_type{ std::move(m_data[i]) };
+					new (temp + i) value_type{ std::move(m_box.data[i]) };
 				}
 			}
 		}
 
-		this->free_storage(m_data);
+		if (m_box.data)
+		{
+			allocator_bind<allocator_type, value_type>::deallocate(m_box.allocator, m_box.data);
+		}
 
-		m_data = temp;
+		m_box.data = temp;
 	}
 
 	constexpr size_t destruct(size_t from, size_t to)
 	{
 		for (size_t i = from; i < to; ++i)
 		{
-			m_data[i].~value_type();
+			m_box.data[i].~value_type();
 		}
 		return to - from;
 	}
@@ -791,8 +793,8 @@ private:
 	template <typename... ForwardType>
 	constexpr reference emplace_internal(size_t pos, ForwardType&&... args)
 	{
-		new (m_data + pos) value_type{ std::forward<ForwardType>(args)... };
-		return m_data[pos];
+		new (m_box.data + pos) value_type{ std::forward<ForwardType>(args)... };
+		return m_box.data[pos];
 	}
 
 	constexpr void shift_forward(pointer src, pointer dst, size_t count)
@@ -856,14 +858,14 @@ private:
 		if (count && !insertAtEnd)
 		{
 			size_t const elementCount = tail - position + 1;
-			pointer src = &m_data[position];
-			pointer dst = &m_data[position + count];
+			pointer src = &m_box.data[position];
+			pointer dst = &m_box.data[position + count];
 
 			// Shift elements backwards to fill the padding created.
 			shift_backwards(src, dst, elementCount);
 		}
 
-		return iterator{ m_data + position, *this };
+		return iterator{ m_box.data + position, *this };
 	}
 
 	constexpr iterator insert_at(iterator pos, size_t count, value_type const* data)
@@ -895,12 +897,9 @@ private:
 		return copy;
 	}
 
-	constexpr allocator_type* allocator() const requires !std::same_as<allocator_type, default_allocator>
-	{
-		return this->get_allocator();
-	}
+	using box_type = box<pointer, allocator_type>;
 
-	pointer m_data;
+	box_type m_box;
 	size_t m_len;
 	size_t m_capacity;
 };

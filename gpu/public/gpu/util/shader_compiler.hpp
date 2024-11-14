@@ -8,7 +8,7 @@
 #include "lib/map.h"
 //#include "lib/set.h"
 #include "lib/handle.h"
-#include "gpu/common.h"
+#include "gpu/common.hpp"
 
 namespace gpu
 {

@@ -57,8 +57,8 @@ class allocator_base
 {
 public:
 	using value_type	= std::byte;
-	using pointer		= value_type*;
-	using const_pointer = value_type const*;
+	using pointer		= void*;
+	using const_pointer = void const*;
 	using void_pointer	= void*;
 	using const_void_pointer = void const*;
 	using difference_type = std::ptrdiff_t;
@@ -132,7 +132,7 @@ struct default_allocator
 	using const_pointer = value_type const*;
 	using void_pointer	= void*;
 	using const_void_pointer = void const*;
-	using difference_type = std::ptrdiff_t;
+	using difference_type = ptrdiff_t;
 	using size_type		= size_t;
 
 	struct deleter
@@ -145,25 +145,108 @@ struct default_allocator
 		}
 	};
 
-	LIB_API auto allocate(size_t size, size_t alignment = alignof(std::max_align_t)) const -> void*;
-
-	template <typename T, typename... Args>
-	auto construct(T* p, Args&&... args) const -> void 
-	{ 
-		new (p) T{ std::forward<Args>(args)... }; 
-	}
-
-	auto destroy(is_pointer auto pointer) const -> void
+	template <typename T>
+	class bind_to
 	{
-		using type = std::remove_pointer_t<decltype(pointer)>;
-		pointer->~type();
-	}
+	public:
+		using value_type	= std::decay_t<T>;
+		using pointer		= value_type*;
+		using const_pointer = value_type const*;
+		using void_pointer	= void*;
+		using const_void_pointer = void const*;
+		using difference_type = ptrdiff_t;
+		using size_type		= size_t;
 
+		bind_to([[maybe_unused]] default_allocator&) :
+			m_allocator{}
+		{};
+
+		~bind_to() = default;
+
+		auto allocate(size_t count) const -> pointer
+		{
+			return static_cast<pointer>(m_allocator.allocate(sizeof(value_type) * count, alignof(value_type)));
+		}
+
+		auto deallocate(is_pointer auto const* pointer, [[maybe_unused]] size_t) const -> void
+		{
+			m_allocator.deallocate(pointer);
+		}
+
+	private:
+		NO_UNIQUE_ADDRESS default_allocator m_allocator;
+	};
+
+	template <typename T>
+	struct rebind
+	{
+		using other = bind_to<T>;
+	};
+
+	LIB_API auto allocate(size_t size, size_t alignment = alignof(std::max_align_t)) const -> void*;
+	LIB_API auto allocate_bytes(size_t bytes, size_t alignment = alignof(std::max_align_t)) const -> void*;
 	LIB_API auto deallocate(void const* pointer) const -> void;
+	LIB_API auto deallocate(void const* pointer, [[maybe_unused]] size_t) const -> void;
+	LIB_API auto deallocate_bytes(void const* pointer, [[maybe_unused]] size_t, [[maybe_unused]] size_t) const -> void;
 };
 
 template <typename T>
-concept provides_memory = std::same_as<T, default_allocator> /*|| can_allocate_memory<T>*/;
+concept can_allocate_memory = requires (T allocator, size_t sz)
+{
+	{ allocator.allocate(sz) } -> std::same_as<void*>;
+};
+
+template <typename T>
+concept can_deallocate_memory = requires (T allocator)
+{
+	allocator.deallocate(nullptr);
+};
+
+template <typename T>
+concept provides_memory = can_allocate_memory<T> && can_deallocate_memory<T>;
+
+template <provides_memory AllocatorType, typename T = std::byte>
+struct allocator_bind
+{
+	using allocator_type		= AllocatorType;
+	using value_type			= T;
+	using pointer				= value_type*;
+	using const_pointer			= value_type const*;
+	using void_pointer			= void*;
+	using const_void_pointer	= void*;
+	using difference_type		= ptrdiff_t;
+	using size_type				= size_t;
+
+	template <typename Other>
+	using rebind = allocator_bind<AllocatorType, Other>;
+
+	static constexpr auto allocate(allocator_type const& allocator, size_t count = 1, size_t alignment = alignof(value_type)) -> pointer
+	{
+		return static_cast<pointer>(allocator.allocate(sizeof(value_type) * count, alignment));
+	}
+
+	static constexpr auto deallocate(allocator_type const& allocator, is_pointer auto const pointer) -> void
+	{
+		allocator.deallocate(pointer);
+	}
+
+	static constexpr auto deallocate(allocator_type const& allocator, is_pointer auto const pointer, [[maybe_unused]] size_t) -> void
+	{
+		allocator.deallocate(pointer);
+	}
+
+	template <typename... Args>
+	static constexpr auto construct(pointer p, Args&&... args) -> void
+	{
+		new (p) T{ std::forward<Args>(args)... };
+	}
+
+	static constexpr auto destroy(is_pointer auto const pointer) -> void
+	{
+		using type = std::remove_pointer_t<std::decay_t<decltype(pointer)>>;
+		pointer->~type();
+	}
+};
 
 template <typename T>
 struct default_delete
@@ -256,82 +339,14 @@ constexpr unique_ptr<T> make_unique(Arguments&&... args)
 	return unique_ptr<T>{ pointer };
 }
 
-// --- Allocator interfaces ---
-
-template <typename allocator>
-class allocator_memory_interface
-{
-public:
-	using allocator_type = allocator;
-
-	allocator_memory_interface(allocator_type& allocator) :
-		m_allocator{ &allocator }
-	{}
-
-	void* allocate_storage(allocate_info const& info)
-	{
-		return m_allocator->allocate_memory(info);
-	}
-
-	template <typename T>
-	T* allocate_storage(allocate_info const& info)
-	{
-		return static_cast<T*>(allocate_storage({ .size = info.size * sizeof(T), .alignment = info.alignment }));
-	}
-
-	template <is_pointer pointer_type>
-	void free_storage(pointer_type pointer)
-	{
-		using element_type = std::remove_pointer_t<std::remove_cv_t<pointer_type>>;
-		if (pointer)
-		{
-			m_allocator->release_memory(pointer);
-		}
-	}
-
-	allocator_type* get_allocator() const
-	{
-		ASSERTION(m_allocator != nullptr);
-		return m_allocator;
-	}
-private:
-	allocator_type* m_allocator = nullptr;
-};
-
-struct system_memory_interface
-{
-	using allocator_type = default_allocator;
-
-	void* allocate_storage(allocate_info const& info)
-	{
-		return allocate_memory(info);
-	}
-
-	template <typename T>
-	T* allocate_storage(allocate_info const& info)
-	{
-		return static_cast<T*>(allocate_memory({ .size = info.size * sizeof(T), .alignment = info.alignment }));
-	}
-
-	template <is_pointer pointer_type>
-	void free_storage(pointer_type pointer)
-	{
-		using element_type = std::remove_pointer_t<std::remove_cv_t<pointer_type>>;
-		if (pointer)
-		{
-			release_memory(pointer);
-		}
-	}
-};
-
 template <typename allocator>
 struct _conditional_allocator_base
 {
 	constexpr _conditional_allocator_base(allocator& alloc) :
-		m_allocator{ &alloc }
+		allocator{ &alloc }
 	{}
 
-	allocator* m_allocator;
+	allocator* allocator;
 };
 
 template <>
@@ -339,7 +354,7 @@ struct _conditional_allocator_base<default_allocator>
 {
 	constexpr _conditional_allocator_base() = default;
 
-	NO_UNIQUE_ADDRESS default_allocator m_allocator;
+	NO_UNIQUE_ADDRESS default_allocator allocator;
 };
 
 /**
@@ -347,49 +362,51 @@ struct _conditional_allocator_base<default_allocator>
  * Stores some value adjacent to an allocator.
  */
 template <typename T, typename allocator = default_allocator>
-class box : protected _conditional_allocator_base<allocator>
+struct box : public _conditional_allocator_base<allocator>
 {
-public:
 	using type = T;
 	using value_type	 = std::conditional_t<std::is_const_v<type>, std::remove_cvref_t<type>, std::decay_t<T>>;
 	using allocator_type = std::decay_t<allocator>;
+
+	value_type data;
 
 	constexpr box() = default;
 
 	template <typename U = T>
 	constexpr box(U&& resource) requires (std::same_as<allocator, default_allocator>) :
 		_conditional_allocator_base<allocator>{},
-		m_value{ std::forward<U>(resource) }
+		data{ std::forward<U>(resource) }
 	{}
 
 	template <typename U = T>
 	constexpr box(U&& resource, allocator& alloc_) requires (!std::same_as<allocator, default_allocator>) :
 		_conditional_allocator_base<allocator>{ alloc_ },
-		m_value{ std::forward<U>(resource) }
+		data{ std::forward<U>(resource) }
 	{}
 
 	box(box const&) = delete;
 	auto operator=(box const&) -> box& = delete;
 
 	constexpr box(box&& rhs) :
-		m_value{ std::move(rhs.m_value) }
+		data{ std::move(rhs.data) }
 	{
 		if constexpr (!std::is_same_v<allocator, default_allocator>)
 		{
-			box::m_allocator = std::exchange(rhs.m_allocator, nullptr);
+			box::allocator = std::exchange(rhs.allocator, nullptr);
 		}
+		new (&rhs) box{};
 	}
 
 	constexpr auto operator=(box&& rhs) -> box&
 	{
 		if (this != &rhs)
 		{
-			~box();
+			this->~box();
 
-			m_value = std::move(rhs.m_value);
+			data = std::move(rhs.data);
 			if constexpr (!std::is_same_v<allocator, default_allocator>)
 			{
-				box::m_allocator = std::exchange(rhs.m_allocator, nullptr);
+				box::allocator = std::exchange(rhs.allocator, nullptr);
 			}
 			new (&rhs) box{};
 		}
@@ -399,30 +416,35 @@ public:
 	constexpr ~box() = default;
 
 
-	constexpr auto operator*() const -> value_type&
+	constexpr auto operator*() const -> value_type const&
 	{
-		return m_value;
+		return data;
 	}
 
-	constexpr auto operator->() const -> value_type*
+	constexpr auto operator*() -> value_type&
 	{
-		return &m_value;
+		return data;
 	}
 
-	constexpr auto value() const -> decltype(auto)
+	constexpr auto operator->() const -> value_type const*
 	{
-		return m_value;
+		return &data;
+	}
+
+	constexpr auto operator->() -> value_type*
+	{
+		return &data;
 	}
 
 	constexpr explicit operator allocator_type&()
 	{
 		if constexpr (std::is_same_v<allocator, default_allocator>)
 		{
-			return box::m_allocator;
+			return box::allocator;
 		}
 		else
 		{
-			return *box::m_allocator;
+			return *box::allocator;
 		}
 	}
 
@@ -430,15 +452,13 @@ public:
 	{
 		if constexpr (std::is_same_v<allocator, default_allocator>)
 		{
-			return box::m_allocator;
+			return box::allocator;
 		}
 		else
 		{
-			return *box::m_allocator;
+			return *box::allocator;
 		}
 	}
-private:
-	value_type m_value;
 };
 
 template <typename T>

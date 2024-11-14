@@ -90,11 +90,11 @@ struct function_trait<Ret(Args...)>
 	{
 		if constexpr (insitu)
 		{
-			return std::invoke((*fn::detail::data<T>(std::true_type{}, accessor)).value(), std::forward<fn::detail::forward_arg<Args>>(args)...);
+			return std::invoke((*fn::detail::data<T>(std::true_type{}, accessor)).data, std::forward<fn::detail::forward_arg<Args>>(args)...);
 		}
 		else
 		{
-			return std::invoke((*fn::detail::data<T>(std::false_type{}, accessor)).value(), std::forward<fn::detail::forward_arg<Args>>(args)...);
+			return std::invoke((*fn::detail::data<T>(std::false_type{}, accessor)).data, std::forward<fn::detail::forward_arg<Args>>(args)...);
 		}
 	}
 };
@@ -130,11 +130,11 @@ struct function_trait<Ret(Args...) const>
 	{
 		if constexpr (insitu)
 		{
-			return std::invoke((*fn::detail::data<T>(std::true_type{}, accessor)).value(), std::forward<fn::detail::forward_arg<Args>>(args)...);
+			return std::invoke((*fn::detail::data<T>(std::true_type{}, accessor)).data, std::forward<fn::detail::forward_arg<Args>>(args)...);
 		}
 		else
 		{
-			return std::invoke((*fn::detail::data<T>(std::false_type{}, accessor)).value(), std::forward<fn::detail::forward_arg<Args>>(args)...);
+			return std::invoke((*fn::detail::data<T>(std::false_type{}, accessor)).data, std::forward<fn::detail::forward_arg<Args>>(args)...);
 		}
 	}
 };
@@ -170,11 +170,11 @@ struct function_trait<Ret(Args...) noexcept>
 	{
 		if constexpr (insitu)
 		{
-			return std::invoke((*fn::detail::data<T>(std::true_type{}, accessor)).value(), std::forward<fn::detail::forward_arg<Args>>(args)...);
+			return std::invoke((*fn::detail::data<T>(std::true_type{}, accessor)).data, std::forward<fn::detail::forward_arg<Args>>(args)...);
 		}
 		else
 		{
-			return std::invoke((*fn::detail::data<T>(std::false_type{}, accessor)).value(), std::forward<fn::detail::forward_arg<Args>>(args)...);
+			return std::invoke((*fn::detail::data<T>(std::false_type{}, accessor)).data, std::forward<fn::detail::forward_arg<Args>>(args)...);
 		}
 	}
 };
@@ -210,11 +210,11 @@ struct function_trait<Ret(Args...) const noexcept>
 	{
 		if constexpr (insitu)
 		{
-			return std::invoke((*fn::detail::data<T>(std::true_type{}, accessor)).value(), std::forward<fn::detail::forward_arg<Args>>(args)...);
+			return std::invoke((*fn::detail::data<T>(std::true_type{}, accessor)).data, std::forward<fn::detail::forward_arg<Args>>(args)...);
 		}
 		else
 		{
-			return std::invoke((*fn::detail::data<T>(std::false_type{}, accessor)).value(), std::forward<fn::detail::forward_arg<Args>>(args)...);
+			return std::invoke((*fn::detail::data<T>(std::false_type{}, accessor)).data, std::forward<fn::detail::forward_arg<Args>>(args)...);
 		}
 	}
 };
@@ -238,9 +238,7 @@ struct vtable
 		auto boxptr = fn::detail::data<box_type>(emplace_insitu{}, accessor);
 		if (boxptr == nullptr)
 		{
-			allocator_type const& allocator = static_cast<allocator_type const&>(box);
-
-			boxptr = static_cast<box_type*>(allocator.allocate(sizeof(box_type)));
+			boxptr = allocator_bind<allocator_type, box_type>::allocate(box.allocator);
 			accessor.ptr = boxptr;
 		}
 		new (boxptr) box_type{ std::forward<Type>(box) };
@@ -275,9 +273,9 @@ struct vtable
 			{
 				using allocator_type = typename Type::allocator_type;
 				auto box = fn::detail::data<box_type>(std::false_type{}, *dst);
-				allocator_type const& allocator = static_cast<allocator_type const&>(*box);
-				box->~box_type();
-				allocator.deallocate(box);
+
+				allocator_bind<allocator_type, box_type>::destroy(box);
+				allocator_bind<allocator_type, box_type>::deallocate(box->allocator, box);
 			}
 		}
 	}

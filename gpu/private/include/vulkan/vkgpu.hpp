@@ -11,7 +11,7 @@
 #include "lib/handle.h"
 
 #include "vk.h"
-#include "gpu.h"
+#include "gpu.hpp"
 
 namespace gpu
 {

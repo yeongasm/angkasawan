@@ -11,7 +11,7 @@
 #include <glm/gtc/quaternion.hpp>
 #pragma warning(pop)
 
-#include "gpu/gpu.h"
+#include "gpu/gpu.hpp"
 
 namespace sandbox
 {

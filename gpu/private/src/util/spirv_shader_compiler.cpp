@@ -1,6 +1,6 @@
 #include <spirv_reflect.h>
 #include <shaderc/shaderc.hpp>
-#include "util/shader_compiler.h"
+#include "util/shader_compiler.hpp"
 
 namespace gpu
 {
@@ -8,7 +8,7 @@ namespace util
 {
 auto ShaderCompileInfo::add_macro_definition(std::string_view key) -> void
 {
-	if (defines.capacity() == defines.sso_size())
+	if (defines.capacity() == defines.insitu_capacity())
 	{
 		defines.reserve((uint32)1_KiB);
 	}
@@ -19,7 +19,7 @@ auto ShaderCompileInfo::add_macro_definition(std::string_view key) -> void
 
 auto ShaderCompileInfo::add_macro_definition(std::string_view key, std::string_view value) -> void
 {
-	if (defines.capacity() == defines.sso_size())
+	if (defines.capacity() == defines.insitu_capacity())
 	{
 		defines.reserve((uint32)1_KiB);
 	}
@@ -36,7 +36,7 @@ auto ShaderCompileInfo::add_macro_definition(std::string_view key, std::string_v
 
 auto ShaderCompileInfo::add_macro_definition(std::string_view key, uint32 value) -> void
 {
-	if (defines.capacity() == defines.sso_size())
+	if (defines.capacity() == defines.insitu_capacity())
 	{
 		defines.reserve((uint32)1_KiB);
 	}

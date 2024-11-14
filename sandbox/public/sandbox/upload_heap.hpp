@@ -4,8 +4,8 @@
 
 #include "lib/handle.h"
 #include "lib/paged_array.h"
-#include "gpu/gpu.h"
-#include "command_queue.h"
+#include "gpu/gpu.hpp"
+#include "command_queue.hpp"
 
 namespace sandbox
 {

@@ -4,9 +4,9 @@
 
 #include "core/file_watcher.h"
 
-#include "sandbox_demo_application.h"
-#include "geometry_cache.h"
-#include "camera.h"
+#include "sandbox_demo_application.hpp"
+#include "geometry_cache.hpp"
+#include "camera.hpp"
 
 namespace sandbox
 {

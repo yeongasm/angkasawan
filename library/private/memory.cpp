@@ -134,10 +134,43 @@ auto default_allocator::allocate(size_t size, size_t alignment) const -> void*
 	return pointer;
 }
 
+auto default_allocator::allocate_bytes(size_t bytes, size_t alignment) const -> void*
+{
+	memory memory = system_memory::allocate(bytes + sizeof(size_t), alignment);
+	void* pointer = memory.pointer;
+
+	new (pointer) size_t{ memory.size };
+	pointer = static_cast<uint8*>(pointer) + sizeof(size_t);
+	ASSERTION(is_64bit_aligned(pointer) && "Address is not aligned!");
+
+	return pointer;
+}
+
 auto default_allocator::deallocate(void const* pointer) const -> void
 {
-	size_t* base = reinterpret_cast<size_t*>(static_cast<uint8*>(const_cast<void*>(pointer)) - sizeof(size_t));
-	system_memory::deallocate(base);
+	if (pointer != nullptr)
+	{
+		size_t* base = reinterpret_cast<size_t*>(static_cast<uint8*>(const_cast<void*>(pointer)) - sizeof(size_t));
+		system_memory::deallocate(base);
+	}
+}
+
+auto default_allocator::deallocate(void const* pointer, [[maybe_unused]] size_t) const -> void
+{
+	if (pointer != nullptr)
+	{
+		size_t* base = reinterpret_cast<size_t*>(static_cast<uint8*>(const_cast<void*>(pointer)) - sizeof(size_t));
+		system_memory::deallocate(base);
+	}
+}
+
+auto default_allocator::deallocate_bytes(void const* pointer, [[maybe_unused]] size_t, [[maybe_unused]] size_t) const -> void
+{
+	if (pointer != nullptr)
+	{
+		size_t* base = reinterpret_cast<size_t*>(static_cast<uint8*>(const_cast<void*>(pointer)) - sizeof(size_t));
+		system_memory::deallocate(base);
+	}
 }
 
 void* allocate_memory(allocate_info const& info)

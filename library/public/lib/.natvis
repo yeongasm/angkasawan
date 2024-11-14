@@ -26,10 +26,10 @@
     <Expand>
       <Item Name="[length]">m_len</Item>
       <Item Name="[capacity]">m_capacity</Item>
-      <Item Name="[allocator]" Optional="true">m_allocator</Item>
+      <Item Name="[allocator]">m_box.allocator</Item>
       <ArrayItems>
         <Size>m_len</Size>
-        <ValuePointer>m_data</ValuePointer>
+        <ValuePointer>m_box.data</ValuePointer>
       </ArrayItems>
     </Expand>
   </Type>
@@ -46,28 +46,21 @@
     </Expand>
   </Type>
 
-  <Type Name="lib::hash_container_base&lt;*&gt;::bucket_info">
-    <DisplayString>Bucket storing data {*m_data}</DisplayString>
-    <Expand>
-      <Item Name="[hash]">hash</Item>
-      <Item Name="[probe_sequence_length]">psl</Item>
-    </Expand>
-  </Type>
-
   <Type Name="lib::map&lt;*&gt;">
     <DisplayString>Map with {m_len} elements</DisplayString>
     <Expand>
       <Item Name="[length]">m_len</Item>
       <Item Name="[capacity]">m_capacity</Item>
       <Item Name="[buckets_remaining]">m_capacity - m_len</Item>
-      <Item Name="[max_load_factor]">m_max_load_factor</Item>
+      <Item Name="[max_load_factor]">m_maxLoadFactor</Item>
       <Item Name="[current_load_factor]">(float)m_len / (float)m_capacity</Item>
+      <Item Name="[allocator]">m_box.allocator</Item>
       <CustomListItems MaxItemsPerView="100" ExcludeView="Test">
         <Variable Name="i" InitialValue="0"/>
         <Size>m_len</Size>
         <Loop>
-          <If Condition="m_metadata->p_bucket_info[i].hash != 0">
-            <Item>m_data[i]</Item>
+          <If Condition="m_box.data.metadata->pBucketInfo[i].hash != 0">
+            <Item>m_box.data.data[i]</Item>
           </If>
           <Exec>++i</Exec>
         </Loop>
@@ -81,14 +74,15 @@
       <Item Name="[length]">m_len</Item>
       <Item Name="[capacity]">m_capacity</Item>
       <Item Name="[buckets_remaining]">m_capacity - m_len</Item>
-      <Item Name="[max_load_factor]">m_max_load_factor</Item>
+      <Item Name="[max_load_factor]">m_maxLoadFactor</Item>
       <Item Name="[current_load_factor]">load_factor()</Item>
+      <Item Name="[allocator]">m_box.allocator</Item>
       <CustomListItems MaxItemsPerView="100" ExcludeView="Test">
         <Variable Name="i" InitialValue="0"/>
         <Size>m_len</Size>
         <Loop>
-          <If Condition="m_metadata->p_bucket_info[i].hash != 0">
-            <Item>m_data[i]</Item>
+          <If Condition="m_box.data.metadata->pBucketInfo[i].hash != 0">
+            <Item>m_box.data.data[i]</Item>
           </If>
           <Exec>++i</Exec>
         </Loop>
@@ -161,50 +155,5 @@
       </ArrayItems>
     </Expand>
   </Type>
-
-  <!--<Type Name="math::Vector2&lt;*&gt;">
-    <DisplayString>x={x}, y={y}</DisplayString>
-    <Expand>
-      <Item Name="x">x</Item>
-      <Item Name="y">y</Item>
-    </Expand>
-  </Type>
-
-  <Type Name="math::Vector3&lt;*&gt;">
-    <DisplayString>x={x}, y={y}, z={z}</DisplayString>
-    <Expand>
-      <Item Name="x">x</Item>
-      <Item Name="y">y</Item>
-      <Item Name="z">z</Item>
-    </Expand>
-  </Type>
-
-  <Type Name="math::Vector4&lt;*&gt;">
-    <DisplayString>x={x}, y={y}, z={z}, w={w}</DisplayString>
-    <Expand>
-      <Item Name="x">x</Item>
-      <Item Name="y">y</Item>
-      <Item Name="z">z</Item>
-      <Item Name="w">w</Item>
-    </Expand>
-  </Type>
-
-  <Type Name="math::Quaternion&lt;*&gt;">
-    <DisplayString>w={w}, x={x}, y={y}, z={z}</DisplayString>
-    <Expand>
-      <Item Name="w">w</Item>
-      <Item Name="x">x</Item>
-      <Item Name="y">y</Item>
-      <Item Name="z">z</Item>
-    </Expand>
-  </Type>
-
-  <Type Name="math::Matrix3x3&lt;*&gt;">
-    <DisplayString>[{m00}, {m01}, {m02}], [{m10}, {m11}, {m12}], [{m20}, {m21}, {m22}]</DisplayString>
-  </Type>
-
-  <Type Name="math::Matrix4x4&lt;*&gt;">
-    <DisplayString>[{m00}, {m01}, {m02}, {m03}], [{m10}, {m11}, {m12}, {m13}], [{m20}, {m21}, {m22}, {m23}], [{m30}, {m31}, {m32}, {m33}]</DisplayString>
-  </Type>-->
 
 </AutoVisualizer>

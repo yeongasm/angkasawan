@@ -1,5 +1,5 @@
 #include "engine.h"
-#include "sandbox.h"
+#include "sandbox.hpp"
 
 EXTERN_C SANDBOX_API void on_dll_load(core::Engine* pEngine, core::ModuleInfo const& info)
 {

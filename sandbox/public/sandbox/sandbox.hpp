@@ -1,7 +1,7 @@
-#include "sandbox_api.h"
+#include "sandbox_api.hpp"
 #include "core/engine.h"
-#include "gpu/util/shader_compiler.h"
-#include "graphics_processing_unit.h"
+#include "gpu/util/shader_compiler.hpp"
+#include "graphics_processing_unit.hpp"
 
 namespace sandbox
 {

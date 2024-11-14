@@ -3,18 +3,17 @@ include(${CMAKE_SOURCE_DIR}/cmake/CPM.cmake)
 
 set(
 	sandbox_header_files
-	"public/sandbox/sandbox.h"
-	"public/sandbox/sandbox_api.h"
-	"public/sandbox/graphics_processing_unit.h"
-	"public/sandbox/command_queue.h"
-	"public/sandbox/upload_heap.h"
-	"private/include/camera.h"
-	"private/include/geometry_cache.h"
-	"private/include/image_importer.h"
-	"private/include/material_cache.h"
-	"private/include/model_importer.h"
-	"private/include/sandbox_demo_application.h"
-	"private/include/demo/model_demo_app.h"
+	"public/sandbox/sandbox.hpp"
+	"public/sandbox/sandbox_api.hpp"
+	"public/sandbox/graphics_processing_unit.hpp"
+	"public/sandbox/command_queue.hpp"
+	"public/sandbox/upload_heap.hpp"
+	"private/include/camera.hpp"
+	"private/include/geometry_cache.hpp"
+	"private/include/image_importer.hpp"
+	"private/include/model_importer.hpp"
+	"private/include/sandbox_demo_application.hpp"
+	"private/include/demo/model_demo_app.hpp"
 )
 
 set(
@@ -24,7 +23,6 @@ set(
 	"private/src/graphics_processing_unit.cpp"
 	"private/src/image_importer.cpp"
 	"private/src/model_importer.cpp"
-	"private/src/sandbox.cpp"
 	"private/src/sandbox.cpp"
 	"private/src/command_queue.cpp"
 	"private/src/upload_heap.cpp"

@@ -2,12 +2,12 @@
 #ifndef SANDBOX_GEOMETRY_H
 #define SANDBOX_GEOMETRY_H
 
-#include "gpu/gpu.h"
+#include "gpu/gpu.hpp"
 #include "lib/paged_array.h"
 #include "lib/handle.h"
 #include "lib/bitset.h"
-#include "model_importer.h"
-#include "upload_heap.h"
+#include "model_importer.hpp"
+#include "upload_heap.hpp"
 
 namespace sandbox
 {
