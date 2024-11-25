@@ -93,12 +93,7 @@ auto Sampler::from(Device& device, SamplerInfo&& info) -> Resource<Sampler>
 
 	VkSampler handle = VK_NULL_HANDLE;
 
-	VkResult result = vkCreateSampler(vkdevice.device, &createInfo, nullptr, &handle);
-
-	if (result != VK_SUCCESS)
-	{
-		return null_resource;
-	}
+	CHECK_OP(vkCreateSampler(vkdevice.device, &createInfo, nullptr, &handle))
 
 	auto&& [id, vksampler] = vkdevice.gpuResourcePool.samplers.emplace(vkdevice);
 

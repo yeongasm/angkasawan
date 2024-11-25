@@ -3,9 +3,10 @@
 #define GPU_H
 
 #include <variant>
+#include <expected>
 #include <atomic>
 
-#include "lib/paged_array.h"
+#include "lib/paged_array.hpp"
 
 #include "common.hpp"
 
@@ -33,9 +34,6 @@ class CommandPool;
 class CommandBuffer;
 class Device;
 
-class NullResource {};
-inline constexpr NullResource null_resource = {};
-
 template <typename T>
 class Resource
 {
@@ -56,11 +54,6 @@ public:
 	}
 
 	~Resource() { destroy(); }
-
-	Resource(NullResource) :
-		m_id{ std::numeric_limits<uint64>::max() },
-		m_resource{}
-	{}
 
 	Resource(Resource const& rhs) :
 		m_id{ rhs.m_id },
@@ -95,6 +88,9 @@ public:
 	{
 		if (this != &rhs)
 		{
+			// If the current resource object already holds something, destroy it first before a reassignment.
+			destroy();
+
 			m_id = std::move(rhs.m_id);
 			m_resource = std::move(rhs.m_resource);
 
@@ -107,6 +103,8 @@ public:
 	auto operator*() const -> reference { return *m_resource; }
 
 	auto valid() const -> bool { return m_resource != nullptr && m_resource->valid(); }
+
+	explicit operator bool() const { return valid(); }
 
 	auto destroy() -> void
 	{
@@ -151,12 +149,12 @@ public:
 
 	NOCOPYANDMOVE(RefCountedResource)
 
-	auto reference() -> void
+	auto reference([[maybe_unused]] bool chain = false) -> void
 	{
 		m_refCount.fetch_add(1, std::memory_order_relaxed);
 	}
 
-	auto dereference() -> uint64
+	auto dereference([[maybe_unused]] bool chain = false) -> uint64
 	{
 		return m_refCount.fetch_sub(1, std::memory_order_acq_rel) - 1;
 	}
@@ -320,7 +318,7 @@ public:
 
 	static auto memory_requirement(Device& device, BufferInfo const& info) -> MemoryRequirementInfo;
 
-	static auto from(Device& device, BufferInfo&& info, Resource<MemoryBlock> memoryBlock = null_resource) -> Resource<Buffer>;
+	static auto from(Device& device, BufferInfo&& info, Resource<MemoryBlock> memoryBlock = {}) -> Resource<Buffer>;
 protected:
 	friend class Resource<Buffer>;
 
@@ -345,10 +343,11 @@ public:
 
 	static auto memory_requirement(Device& device, ImageInfo const& info) -> MemoryRequirementInfo;
 
-	static auto from(Device& device, ImageInfo&& info, Resource<MemoryBlock> memoryBlock = null_resource) -> Resource<Image>;
+	static auto from(Device& device, ImageInfo&& info, Resource<MemoryBlock> memoryBlock = {}) -> Resource<Image>;
 	static auto from(Swapchain& swapchain) -> lib::array<Resource<Image>>;
 protected:
 	friend class Resource<Image>;
+	friend class Swapchain;
 
 	static auto destroy(Image& resource, uint64 id) -> void;
 
@@ -410,7 +409,9 @@ public:
 	auto image_format() const -> Format;
 	auto color_space() const -> ColorSpace;
 
-	static auto from(Device& device, SwapchainInfo&& info, Resource<Swapchain> previousSwapchain = null_resource) -> Resource<Swapchain>;
+	auto resize(Extent2D dim) -> bool;
+
+	static auto from(Device& device, SwapchainInfo&& info, Resource<Swapchain> previousSwapchain = {}) -> Resource<Swapchain>;
 protected:
 	friend class Resource<Swapchain>;
 
@@ -430,6 +431,7 @@ protected:
 	ColorSpace m_colorSpace = ColorSpace::Srgb_Non_Linear;
 	std::atomic_uint64_t m_cpuElapsedFrames;
 	uint32 m_currentFrameIndex;
+	uint32 m_previousFrameIndex;
 	uint32 m_nextImageIndex;
 };
 
@@ -911,14 +913,14 @@ public:
 	 * NOTE(afiq):
 	 * Return a std::expected instead of a std::optional when we use C++23.
 	 */
-	static auto from(DeviceInitInfo const& info) -> std::optional<std::unique_ptr<Device>>;
+	static auto from(DeviceInitInfo const& info) -> std::expected<std::unique_ptr<Device>, std::string_view>;
 	static auto destroy(std::unique_ptr<Device>& device) -> void;
 protected:
 	DeviceInfo m_info;
 	DeviceInitInfo m_initInfo;
 	DeviceConfig m_config;
 	std::atomic_uint64_t m_cpuTimeline;
-	Resource<Fence> m_gpuTimeline = NullResource{};
+	Resource<Fence> m_gpuTimeline;
 };
 }
 

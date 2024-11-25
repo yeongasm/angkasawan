@@ -23,11 +23,6 @@ struct Queue
 
 	struct SubmissionData
 	{
-		//std::span<std::pair<gpu::fence, uint64>> signalFences;
-		//std::span<std::pair<gpu::fence, uint64>> waitFences;
-		//std::span<gpu::semaphore> signalSemaphores;
-		//std::span<gpu::semaphore> waitSemaphores;
-		//std::span<gpu::command_buffer> commandBuffers;
 		uint32 id;
 		uint32 numSignalFences;
 		uint32 numWaitFences;

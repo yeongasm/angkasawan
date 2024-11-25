@@ -29,12 +29,7 @@ auto Semaphore::from(Device& device, SemaphoreInfo&& info) -> Resource<Semaphore
 
 	VkSemaphore handle = VK_NULL_HANDLE;
 
-	VkResult result = vkCreateSemaphore(vkdevice.device, &semaphoreInfo, nullptr, &handle);
-
-	if (result != VK_SUCCESS)
-	{
-		return null_resource;
-	}
+	CHECK_OP(vkCreateSemaphore(vkdevice.device, &semaphoreInfo, nullptr, &handle))
 
 	auto&& [id, vksemaphore] = vkdevice.gpuResourcePool.binarySemaphore.emplace(vkdevice);
 
@@ -181,12 +176,7 @@ auto Fence::from(Device& device, FenceInfo&& info) -> Resource<Fence>
 
 	VkSemaphore handle = VK_NULL_HANDLE;
 
-	VkResult result = vkCreateSemaphore(vkdevice.device, &semaphoreInfo, nullptr, &handle);
-
-	if (result != VK_SUCCESS)
-	{
-		return null_resource;
-	}
+	CHECK_OP(vkCreateSemaphore(vkdevice.device, &semaphoreInfo, nullptr, &handle))
 
 	auto&& [id, vksemaphore] = vkdevice.gpuResourcePool.timelineSemaphore.emplace(vkdevice);
 
@@ -273,12 +263,7 @@ auto Event::from(Device& device, EventInfo&& info) -> Resource<Event>
 
 	VkEvent handle = VK_NULL_HANDLE;
 
-	VkResult result = vkCreateEvent(vkdevice.device, &eventInfo, nullptr, &handle);
-
-	if (result != VK_SUCCESS)
-	{
-		return null_resource;
-	}
+	CHECK_OP(vkCreateEvent(vkdevice.device, &eventInfo, nullptr, &handle))
 
 	auto&& [id, vkevent] = vkdevice.gpuResourcePool.events.emplace(vkdevice);
 

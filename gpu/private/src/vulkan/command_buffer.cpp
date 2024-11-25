@@ -1125,7 +1125,7 @@ auto CommandBuffer::from(Resource<CommandPool>& commandPool) -> Resource<Command
 
 	if (cmdBufferPool.commandBufferCount + 1 > MAX_COMMAND_BUFFER_PER_POOL)
 	{
-		return null_resource;
+		return {};
 	}
 
 	size_t const index = cmdBufferPool.commandBufferCount++;
@@ -1143,12 +1143,7 @@ auto CommandBuffer::from(Resource<CommandPool>& commandPool) -> Resource<Command
 
 	VkCommandBuffer handle = VK_NULL_HANDLE;
 
-	VkResult result = vkAllocateCommandBuffers(vkdevice.device, &allocateInfo, &handle);
-
-	if (result != VK_SUCCESS)
-	{
-		return null_resource;
-	}
+	CHECK_OP(vkAllocateCommandBuffers(vkdevice.device, &allocateInfo, &handle))
 
 	CommandBufferInfo info{
 		.name = lib::format("<command_buffer:{}>:{}", index, commandPool->info().name.c_str())

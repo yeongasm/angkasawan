@@ -93,21 +93,21 @@
   <Type Name="lib::basic_string&lt;char,*&gt;">
     <AlternativeType Name="lib::string"/>
 
-    <Intrinsic Name="__small_string" Expression="(m_capacity &amp; msb_bit_flag) != 0"/>
-    <Intrinsic Name="__large_string" Expression="(m_capacity &amp; msb_bit_flag) == 0"/>
+    <Intrinsic Name="__small_string" Expression="(m_capacity &amp; _m_msb_bit_flag) != 0"/>
+    <Intrinsic Name="__large_string" Expression="(m_capacity &amp; _m_msb_bit_flag) == 0"/>
     
-    <DisplayString Condition="__small_string()">{m_buffer,na}</DisplayString>
-    <DisplayString Condition="__large_string()">{m_data,na}</DisplayString>
-    <StringView Condition="__small_string()">m_buffer,na</StringView>
-    <StringView Condition="__large_string()">m_data,na</StringView>
+    <DisplayString Condition="__small_string()">{m_box.data.buf,na}</DisplayString>
+    <DisplayString Condition="__large_string()">{m_box.data.ptr,na}</DisplayString>
+    <StringView Condition="__small_string()">m_box.data.buf,na</StringView>
+    <StringView Condition="__large_string()">m_box.data.ptr,na</StringView>
     <Expand>
       <Item Name="[length]">m_len</Item>
       <Item Name="[capacity]">m_capacity</Item>
       <Item Name="[is_small_string]">__small_string()</Item>
       <ArrayItems>
         <Size>m_len</Size>
-        <ValuePointer Condition="__small_string()">m_buffer</ValuePointer>
-        <ValuePointer Condition="__large_string()">m_data</ValuePointer>
+        <ValuePointer Condition="__small_string()">m_box.data.buf</ValuePointer>
+        <ValuePointer Condition="__large_string()">m_box.data.ptr</ValuePointer>
       </ArrayItems>
     </Expand>
   </Type>
@@ -115,21 +115,21 @@
   <Type Name="lib::basic_string&lt;wchar_t,*&gt;">
     <AlternativeType Name="lib::wstring"/>
 
-    <Intrinsic Name="__small_string" Expression="(m_capacity &amp; msb_bit_flag) != 0"/>
-    <Intrinsic Name="__large_string" Expression="(m_capacity &amp; msb_bit_flag) == 0"/>
+    <Intrinsic Name="__small_string" Expression="(m_capacity &amp; _m_msb_bit_flag) != 0"/>
+    <Intrinsic Name="__large_string" Expression="(m_capacity &amp; _m_msb_bit_flag) == 0"/>
 
-    <DisplayString Condition="__small_string()">{m_buffer,na}</DisplayString>
-    <DisplayString Condition="__large_string()">{m_data,na}</DisplayString>
-    <StringView Condition="__small_string()">m_buffer,na</StringView>
-    <StringView Condition="__large_string()">m_data,na</StringView>
+    <DisplayString Condition="__small_string()">{m_box.data.buf,na}</DisplayString>
+    <DisplayString Condition="__large_string()">{m_box.data.ptr,na}</DisplayString>
+    <StringView Condition="__small_string()">m_box.data.buf,na</StringView>
+    <StringView Condition="__large_string()">m_box.data.ptr,na</StringView>
     <Expand>
       <Item Name="[length]">m_len</Item>
       <Item Name="[capacity]">m_capacity</Item>
       <Item Name="[is_small_string]">__small_string()</Item>
       <ArrayItems>
         <Size>m_len</Size>
-        <ValuePointer Condition="__small_string()">m_buffer</ValuePointer>
-        <ValuePointer Condition="__large_string()">m_data</ValuePointer>
+        <ValuePointer Condition="__small_string()">m_box.data.buf</ValuePointer>
+        <ValuePointer Condition="__large_string()">m_box.data.ptr</ValuePointer>
       </ArrayItems>
     </Expand>
   </Type>

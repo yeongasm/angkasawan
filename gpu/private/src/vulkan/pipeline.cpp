@@ -33,10 +33,9 @@ auto Pipeline::valid() const -> bool
 auto Pipeline::from(Device& device, RasterPipelineShaderInfo const& pipelineShaderInfo, RasterPipelineInfo&& info) -> Resource<Pipeline>
 {
 	// It is necessary for raster pipelines to have a vertex shader and fragment shader.
-	if (!pipelineShaderInfo.vertexShader.valid() ||
-		!pipelineShaderInfo.pixelShader.valid())
+	if (!pipelineShaderInfo.vertexShader || !pipelineShaderInfo.pixelShader)
 	{
-		return null_resource;
+		return {};
 	}
 
 	vk::DeviceImpl& vkdevice = *static_cast<vk::DeviceImpl*>(&device);
@@ -230,12 +229,7 @@ auto Pipeline::from(Device& device, RasterPipelineShaderInfo const& pipelineShad
 
 	// TODO(Afiq):
 	// The only way this can fail is when we run out of host / device memory OR shader linkage has failed.
-	VkResult result = vkCreateGraphicsPipelines(vkdevice.device, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &handle);
-
-	if (result != VK_SUCCESS)
-	{
-		return null_resource;
-	}
+	CHECK_OP(vkCreateGraphicsPipelines(vkdevice.device, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &handle))
 
 	auto&& [id, vkpipeline] = vkdevice.gpuResourcePool.pipelines.emplace(vkdevice);
 
@@ -263,9 +257,9 @@ auto Pipeline::from(Device& device, RasterPipelineShaderInfo const& pipelineShad
 auto Pipeline::from(Device& device, Resource<Shader>& computeShader, ComputePipelineInfo&& info) -> Resource<Pipeline>
 {
 	// It is necessary for raster pipelines to have a vertex shader and fragment shader.
-	if (!computeShader.valid())
+	if (!computeShader)
 	{
-		return null_resource;
+		return {};
 	}
 
 	vk::DeviceImpl& vkdevice = *static_cast<vk::DeviceImpl*>(&device);
@@ -288,12 +282,7 @@ auto Pipeline::from(Device& device, Resource<Shader>& computeShader, ComputePipe
 
 	VkPipeline handle = VK_NULL_HANDLE;
 
-	VkResult result = vkCreateComputePipelines(vkdevice.device, VK_NULL_HANDLE, 1u, &pipelineCreateInfo, nullptr, &handle);
-
-	if (result != VK_SUCCESS)
-	{
-		return null_resource;
-	}
+	CHECK_OP(vkCreateComputePipelines(vkdevice.device, VK_NULL_HANDLE, 1u, &pipelineCreateInfo, nullptr, &handle))
 
 	auto&& [id, vkpipeline] = vkdevice.gpuResourcePool.pipelines.emplace(vkdevice);
 

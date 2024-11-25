@@ -2,6 +2,7 @@
 #ifndef GRAPHICS_PROCESSING_UNIT_H
 #define GRAPHICS_PROCESSING_UNIT_H
 
+#include <expected>
 #include "upload_heap.hpp"
 
 namespace sandbox
@@ -14,11 +15,11 @@ public:
 
 	NOCOPYANDMOVE(GraphicsProcessingUnit)
 
-	auto device() const->gpu::Device&;
-	auto command_queue() const->CommandQueue&;
-	auto upload_heap() const->UploadHeap&;
+	auto device() const -> gpu::Device&;
+	auto command_queue() const -> CommandQueue&;
+	auto upload_heap() const -> UploadHeap&;
 
-	static auto from(gpu::DeviceInitInfo const& deviceInfo) -> std::optional<std::unique_ptr<GraphicsProcessingUnit>>;
+	static auto from(gpu::DeviceInitInfo const& deviceInfo) -> std::expected<std::unique_ptr<GraphicsProcessingUnit>, std::string_view>;
 private:
 	std::unique_ptr<gpu::Device> m_device;
 	std::unique_ptr<CommandQueue> m_commandQueue;

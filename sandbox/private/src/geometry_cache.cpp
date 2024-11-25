@@ -20,11 +20,7 @@ auto translate_geometry_input_to_cgltf_importer_input_type(GeometryInput input) 
 	}
 }
 
-GeometryCache::GeometryCache(UploadHeap& uploadHeap) :
-	m_uploadHeap{ uploadHeap }
-{}
-
-auto GeometryCache::upload_gltf(gltf::Importer const& importer, GeometryInputLayout const& layout) -> root_geometry_handle
+auto GeometryCache::upload_gltf(UploadHeap& uploadHeap, gltf::Importer const& importer, GeometryInputLayout const& layout) -> root_geometry_handle
 {
 	using attrib_t = std::underlying_type_t<gltf::VertexAttribute>;
 
@@ -127,7 +123,7 @@ auto GeometryCache::upload_gltf(gltf::Importer const& importer, GeometryInputLay
 	m_geometryVb.emplace(
 		handle.get(),
 		gpu::Buffer::from(
-			m_uploadHeap.device(),
+			uploadHeap.device(),
 			{
 				.name = lib::format("<vertex>:{}", modelPath),
 				.size = verticesSizeBytes,
@@ -140,7 +136,7 @@ auto GeometryCache::upload_gltf(gltf::Importer const& importer, GeometryInputLay
 	m_geometryIb.emplace(
 		handle.get(),
 		gpu::Buffer::from(
-			m_uploadHeap.device(),
+			uploadHeap.device(),
 			{ 
 				.name = lib::format("<index>:{}", modelPath),
 				.size = indicesSizeBytes,
@@ -152,11 +148,11 @@ auto GeometryCache::upload_gltf(gltf::Importer const& importer, GeometryInputLay
 
 	if (layout.interleaved)
 	{
-		gltf_unpack_interleaved(importer, handle, verticesSizeBytes, indicesSizeBytes);
+		gltf_unpack_interleaved(uploadHeap, importer, handle, verticesSizeBytes, indicesSizeBytes);
 	}
 	else
 	{
-		gltf_unpack_non_interleaved(importer, handle, verticesSizeBytes, indicesSizeBytes);
+		gltf_unpack_non_interleaved(uploadHeap, importer, handle, verticesSizeBytes, indicesSizeBytes);
 	}
 
 	return handle;
@@ -204,7 +200,7 @@ auto GeometryCache::vertex_buffer_of(root_geometry_handle handle) const -> gpu::
 {
 	if (!m_geometryVb.contains(handle.get()))
 	{
-		return gpu::null_resource;
+		return {};
 	}
 	return m_geometryVb.at(handle.get())->second;
 }
@@ -213,7 +209,7 @@ auto GeometryCache::index_buffer_of(root_geometry_handle handle) const -> gpu::b
 {
 	if (!m_geometryIb.contains(handle.get()))
 	{
-		return gpu::null_resource;
+		return {};
 	}
 	return m_geometryIb.at(handle.get())->second;
 }
@@ -260,7 +256,7 @@ auto GeometryCache::layout_size_bytes(GeometryInputLayout const& layout) -> size
 	return total;
 }
 
-auto GeometryCache::gltf_unpack_interleaved(gltf::Importer const& importer, root_geometry_handle geometryHandle, size_t verticesSizeBytes, size_t indicesSizeBytes) -> void
+auto GeometryCache::gltf_unpack_interleaved(UploadHeap& uploadHeap, gltf::Importer const& importer, root_geometry_handle geometryHandle, size_t verticesSizeBytes, size_t indicesSizeBytes) -> void
 {
 	using attrib_t = std::underlying_type_t<gltf::VertexAttribute>;
 	using geometry_index = decltype(m_geometries)::index;
@@ -274,7 +270,7 @@ auto GeometryCache::gltf_unpack_interleaved(gltf::Importer const& importer, root
 	Geometry* const rootGeometry = &m_geometries[geometry_index::from(geometryHandle.get())];
 	Geometry* geometry = rootGeometry;
 
-	auto vbHeapSpan = m_uploadHeap.request_heaps(verticesSizeBytes);
+	auto vbHeapSpan = uploadHeap.request_heaps(verticesSizeBytes);
 	auto currentVbHeapIt = vbHeapSpan.begin();
 
 	auto& vb = m_geometryVb[geometryHandle.get()];
@@ -342,10 +338,10 @@ auto GeometryCache::gltf_unpack_interleaved(gltf::Importer const& importer, root
 
 						if (currentVbHeapIt == vbHeapSpan.end())
 						{
-							vbOffset = upload_heap_blocks(vbHeapSpan, initialHeapWriteOffset, vb, vbOffset);
-							m_uploadHeap.send_to_gpu(true);
+							vbOffset = upload_heap_blocks(uploadHeap, vbHeapSpan, initialHeapWriteOffset, vb, vbOffset);
+							uploadHeap.send_to_gpu(true);
 
-							vbHeapSpan = m_uploadHeap.request_heaps(verticesSizeBytes);
+							vbHeapSpan = uploadHeap.request_heaps(verticesSizeBytes);
 							currentVbHeapIt = vbHeapSpan.begin();
 
 							initialHeapWriteOffset = currentVbHeapIt->byteOffset;
@@ -373,9 +369,9 @@ auto GeometryCache::gltf_unpack_interleaved(gltf::Importer const& importer, root
 	// Reset the geometry pointer to it's initial one.
 	geometry = rootGeometry;
 
-	upload_heap_blocks(vbHeapSpan, initialHeapWriteOffset, vb, vbOffset);
+	upload_heap_blocks(uploadHeap, vbHeapSpan, initialHeapWriteOffset, vb, vbOffset);
 
-	auto ibHeapSpan = m_uploadHeap.request_heaps(indicesSizeBytes);
+	auto ibHeapSpan = uploadHeap.request_heaps(indicesSizeBytes);
 	auto currentIbHeapIt = ibHeapSpan.begin();
 
 	auto& ib = m_geometryIb[geometryHandle.get()];
@@ -414,10 +410,10 @@ auto GeometryCache::gltf_unpack_interleaved(gltf::Importer const& importer, root
 
 				if (currentIbHeapIt == ibHeapSpan.end())
 				{
-					ibOffset = upload_heap_blocks(ibHeapSpan, initialHeapWriteOffset, ib, ibOffset);
-					m_uploadHeap.send_to_gpu(true);
+					ibOffset = upload_heap_blocks(uploadHeap, ibHeapSpan, initialHeapWriteOffset, ib, ibOffset);
+					uploadHeap.send_to_gpu(true);
 
-					ibHeapSpan = m_uploadHeap.request_heaps(indicesSizeBytes);
+					ibHeapSpan = uploadHeap.request_heaps(indicesSizeBytes);
 					currentIbHeapIt = ibHeapSpan.begin();
 
 					initialHeapWriteOffset = currentIbHeapIt->byteOffset;
@@ -438,10 +434,10 @@ auto GeometryCache::gltf_unpack_interleaved(gltf::Importer const& importer, root
 		geometry = geometry->next;
 	}
 
-	upload_heap_blocks(ibHeapSpan, initialHeapWriteOffset, ib, ibOffset);
+	upload_heap_blocks(uploadHeap, ibHeapSpan, initialHeapWriteOffset, ib, ibOffset);
 }
 
-auto GeometryCache::gltf_unpack_non_interleaved(gltf::Importer const& importer, root_geometry_handle geometryHandle, size_t verticesSizeBytes, size_t indicesSizeBytes) -> void
+auto GeometryCache::gltf_unpack_non_interleaved(UploadHeap& uploadHeap, gltf::Importer const& importer, root_geometry_handle geometryHandle, size_t verticesSizeBytes, size_t indicesSizeBytes) -> void
 {
 	using attrib_t = std::underlying_type_t<gltf::VertexAttribute>;
 	using geometry_index = decltype(m_geometries)::index;
@@ -454,7 +450,7 @@ auto GeometryCache::gltf_unpack_non_interleaved(gltf::Importer const& importer, 
 	Geometry* const rootGeometry = &m_geometries[geometry_index::from(geometryHandle.get())];
 	Geometry* geometry = rootGeometry;
 
-	auto heapSpan = m_uploadHeap.request_heaps(verticesSizeBytes + indicesSizeBytes);
+	auto heapSpan = uploadHeap.request_heaps(verticesSizeBytes + indicesSizeBytes);
 	auto currentHeapIt = heapSpan.begin();
 
 	auto& vb = m_geometryVb[geometryHandle.get()];
@@ -569,7 +565,7 @@ auto GeometryCache::gltf_unpack_non_interleaved(gltf::Importer const& importer, 
 
 	for (size_t i = 0; i < vbNumHeapsUsed; ++i)
 	{
-		m_uploadHeap.upload_heap_to_buffer({
+		uploadHeap.upload_heap_to_buffer({
 			.heapBlock = heapSpan[i],
 			.heapWriteOffset = initialHeapWriteOffset,
 			.heapWriteSize = heapSpan[i].byteOffset - initialHeapWriteOffset,
@@ -635,7 +631,7 @@ auto GeometryCache::gltf_unpack_non_interleaved(gltf::Importer const& importer, 
 
 	for (size_t i = ibHeapIndex; i < ibHeapIndex + ibNumHeapsUsed; ++i)
 	{
-		m_uploadHeap.upload_heap_to_buffer({
+		uploadHeap.upload_heap_to_buffer({
 			.heapBlock = heapSpan[i],
 			.heapWriteOffset = initialHeapWriteOffset,
 			.heapWriteSize = heapSpan[i].byteOffset - initialHeapWriteOffset,
@@ -646,13 +642,13 @@ auto GeometryCache::gltf_unpack_non_interleaved(gltf::Importer const& importer, 
 	}
 }
 
-auto GeometryCache::upload_heap_blocks(std::span<HeapBlock> heapBlocks, size_t initialWriteOffset, gpu::buffer const& buffer, size_t dstOffset) -> size_t
+auto GeometryCache::upload_heap_blocks(UploadHeap& uploadHeap, std::span<HeapBlock> heapBlocks, size_t initialWriteOffset, gpu::buffer const& buffer, size_t dstOffset) -> size_t
 {
 	for (HeapBlock& heapBlock : heapBlocks)
 	{
 		size_t const writtenSize = heapBlock.byteOffset - initialWriteOffset;
 
-		m_uploadHeap.upload_heap_to_buffer({
+		uploadHeap.upload_heap_to_buffer({
 			.heapBlock = heapBlock,
 			.heapWriteOffset = initialWriteOffset,
 			.heapWriteSize = writtenSize,

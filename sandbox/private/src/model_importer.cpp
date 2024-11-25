@@ -3,7 +3,7 @@
 #include <array>
 #include <bitset>
 #include "cgltf.h"
-#include "lib/map.h"
+#include "lib/map.hpp"
 #include "model_importer.hpp"
 
 namespace sandbox

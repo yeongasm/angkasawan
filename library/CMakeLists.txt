@@ -20,33 +20,35 @@ set(
 	source_list
 	"public/lib/.natvis"
 	"public/lib/api.h"
-	"public/lib/array.h"
-	"public/lib/bitset.h"
-	"public/lib/bit_mask.h"
-	"public/lib/common.h"
-	"public/lib/concepts.h"
-	"public/lib/dag.h"
-	"public/lib/function.h"
-	"public/lib/handle.h"
-	"public/lib/hash.h"
-	"public/lib/linear_allocator.h"
-	"public/lib/map.h"
-	"public/lib/memory.h"
-	"public/lib/named_type.h"
-	"public/lib/paged_array.h"
-	"public/lib/set.h"
-	"public/lib/string.h"
-	"public/lib/type.h"
-	"public/lib/utility.h"
+	"public/lib/array.hpp"
+	"public/lib/bitset.hpp"
+	"public/lib/bit_mask.hpp"
+	"public/lib/common.hpp"
+	"public/lib/concepts.hpp"
+	"public/lib/dag.hpp"
+	"public/lib/function.hpp"
+	"public/lib/handle.hpp"
+	"public/lib/hash.hpp"
+	"public/lib/linear_allocator.hpp"
+	"public/lib/map.hpp"
+	"public/lib/memory.hpp"
+	"public/lib/named_type.hpp"
+	"public/lib/paged_array.hpp"
+	"public/lib/resource.hpp"
+	"public/lib/set_once.hpp"
+	"public/lib/set.hpp"
+	"public/lib/string.hpp"
+	"public/lib/type.hpp"
+	"public/lib/utility.hpp"
 	"private/memory.cpp"
 )
 
-add_library(Library SHARED ${source_list})
-target_compile_features(Library PUBLIC cxx_std_20)
-target_compile_definitions(Library PRIVATE "LIBRARY_EXPORT")
+add_library(lib STATIC ${source_list})
+target_compile_features(lib PUBLIC cxx_std_23)
+target_compile_definitions(lib PRIVATE "LIBRARY_EXPORT")
 
 target_sources(
-	Library
+	lib
 	PRIVATE
 	$<$<PLATFORM_ID:Windows>:${win_source_list}>
 )
@@ -56,18 +58,18 @@ target_sources(
 if (MSVC)
 	string(REPLACE "/GR" "/GR-" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 	string(REPLACE "/EHsc" "/EHs-c-" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-	target_compile_definitions(Library PUBLIC "MSVC_COMPILER")
-	target_compile_options(Library PRIVATE /permissive-)
+	target_compile_definitions(lib PUBLIC "MSVC_COMPILER")
+	target_compile_options(lib PRIVATE /permissive-)
 else()
 	set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} -fno-rtti -fno-exceptions)
 endif()
 
 target_include_directories(
-	Library 
+	lib
 	PUBLIC "public"
 )
 
-target_link_libraries(Library PUBLIC fmt)
+target_link_libraries(lib PUBLIC fmt)
 
 # add_custom_command(
 #     TARGET 
@@ -78,4 +80,4 @@ target_link_libraries(Library PUBLIC fmt)
 #         ${EXECUTABLE_DIR}
 # )
 assign_source_group(${source_list} ${win_source_list})
-warnings_as_errors(Library)
+warnings_as_errors(lib)

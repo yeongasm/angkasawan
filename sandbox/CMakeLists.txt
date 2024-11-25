@@ -4,7 +4,6 @@ include(${CMAKE_SOURCE_DIR}/cmake/CPM.cmake)
 set(
 	sandbox_header_files
 	"public/sandbox/sandbox.hpp"
-	"public/sandbox/sandbox_api.hpp"
 	"public/sandbox/graphics_processing_unit.hpp"
 	"public/sandbox/command_queue.hpp"
 	"public/sandbox/upload_heap.hpp"
@@ -12,7 +11,7 @@ set(
 	"private/include/geometry_cache.hpp"
 	"private/include/image_importer.hpp"
 	"private/include/model_importer.hpp"
-	"private/include/sandbox_demo_application.hpp"
+	"private/include/applet.hpp"
 	"private/include/demo/model_demo_app.hpp"
 )
 
@@ -27,6 +26,7 @@ set(
 	"private/src/command_queue.cpp"
 	"private/src/upload_heap.cpp"
 	"private/src/demo/model_demo_app.cpp"
+	"main.cpp"
 )
 
 CPMAddPackage(
@@ -35,32 +35,39 @@ CPMAddPackage(
 	GIT_REPOSITORY https://github.com/g-truc/glm
 )
 
-add_library(Sandbox SHARED ${sandbox_header_files} ${sandbox_source_files} ${module_impl_units})
-target_compile_features(Sandbox PUBLIC cxx_std_20)
-target_compile_definitions(Sandbox PRIVATE "SANDBOX_EXPORT" $<$<CONFIG:Debug>:DEBUG> $<$<CONFIG:Release>:RELEASE> $<$<CONFIG:RelWithDebInfo>:RELEASE_WDEBUG>)
+add_executable(sandbox ${sandbox_header_files} ${sandbox_source_files})
+target_compile_features(sandbox PUBLIC cxx_std_23)
+target_compile_definitions(sandbox PRIVATE $<$<CONFIG:Debug>:DEBUG> $<$<CONFIG:Release>:RELEASE> $<$<CONFIG:RelWithDebInfo>:RELEASE_WDEBUG>)
+
+set_target_properties(
+	sandbox
+    PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${CMAKE_BUILD_TYPE}
+)
 
 if (MSVC)
 	string(REPLACE "/GR" "/GR-" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 	string(REPLACE "/EHsc" "/EHs-c-" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-	target_compile_options(Sandbox PRIVATE /permissive-)
+	set(SUBSYSTEM_LINKER_OPTIONS "${CMAKE_EXE_LINKER_FLAGS} /SUBSYSTEM:WINDOWS /ENTRY:mainCRTStartup")
+	target_compile_options(sandbox PRIVATE /permissive-)
 else()
 	set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} -fno-rtti -fno-exceptions)
 endif()
 
 target_include_directories(
-	Sandbox 
+	sandbox
 	PUBLIC "public"
 	PRIVATE "public/sandbox"
 	PRIVATE "private/include"
 )
-target_link_libraries(Sandbox PRIVATE Core cgltf glm ktx imgui)
-target_link_libraries(Sandbox PUBLIC gpu)
-target_compile_definitions(Sandbox PUBLIC GLM_FORCE_DEPTH_ZERO_TO_ONE)
+
+target_link_libraries(sandbox PRIVATE glm imgui cgltf ktx)
+target_link_libraries(sandbox PUBLIC gpu core.platform)
+target_compile_definitions(sandbox PUBLIC GLM_FORCE_DEPTH_ZERO_TO_ONE)
 
 add_custom_target(
-	Data
+	data
 	${CMAKE_COMMAND} -E create_symlink ${CMAKE_SOURCE_DIR}/data ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${CMAKE_BUILD_TYPE}/data
 )
 
-assign_source_group(${sandbox_header_files} ${sandbox_source_files} ${module_interface_units} ${module_impl_units})
-warnings_as_errors(Sandbox)
+assign_source_group(${sandbox_header_files} ${sandbox_source_files})
+warnings_as_errors(sandbox)

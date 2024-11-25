@@ -44,7 +44,7 @@ auto Swapchain::current_image() const -> Resource<Image>
 	{
 		return m_images[m_nextImageIndex];
 	}
-	return null_resource;
+	return {};
 }
 
 auto Swapchain::current_image_index() const -> uint32
@@ -56,7 +56,7 @@ auto Swapchain::acquire_next_image() -> Resource<Image>
 {
 	if (!valid())
 	{
-		return null_resource;
+		return {};
 	}
 
 	auto&& vkdevice = to_device(m_device);
@@ -68,6 +68,7 @@ auto Swapchain::acquire_next_image() -> Resource<Image>
 	m_gpuElapsedFrames->wait_for_value(static_cast<uint64>(std::max(0ll, static_cast<int64>(m_cpuElapsedFrames))));
 
 	// Update swapchain's frame index for the next call to this function.
+	m_previousFrameIndex = m_currentFrameIndex;
 	m_currentFrameIndex = (m_currentFrameIndex + 1) % maxFramesInFlight;
 
 	vk::SemaphoreImpl const& vksemaphore = to_impl(*m_acquireSemaphore[m_currentFrameIndex]);
@@ -148,6 +149,117 @@ auto Swapchain::color_space() const -> ColorSpace
 	return m_colorSpace;
 }
 
+auto Swapchain::resize(Extent2D dim) -> bool
+{
+	auto&& self = to_impl(*this);
+	auto&& vkdevice = to_device(m_device);
+
+	auto&& surface = *self.pSurface;
+
+	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vkdevice.gpu, surface.handle, &surface.capabilities);
+
+	VkExtent2D const extent{
+		.width	= std::min(dim.width, surface.capabilities.currentExtent.width),
+		.height = std::min(dim.height, surface.capabilities.currentExtent.height)
+	};
+	uint32 imageCount{ std::min(std::max(m_info.imageCount, surface.capabilities.minImageCount), surface.capabilities.maxImageCount) };
+
+	VkImageUsageFlags imageUsage = vk::translate_image_usage_flags(m_info.imageUsage);
+	VkPresentModeKHR presentationMode = vk::translate_swapchain_presentation_mode(m_info.presentationMode);
+
+	bool foundPreferred = false;
+	VkSurfaceFormatKHR surfaceFormat = surface.availableColorFormats[0];
+
+	for (Format format : m_info.surfaceInfo.preferredSurfaceFormats)
+	{
+		VkFormat preferredFormat = vk::translate_format(format);
+
+		if (foundPreferred)
+		{
+			break;
+		}
+
+		for (VkSurfaceFormatKHR colorFormat : surface.availableColorFormats)
+		{
+			if (preferredFormat == colorFormat.format)
+			{
+				surfaceFormat = colorFormat;
+				foundPreferred = true;
+				break;
+			}
+		}
+	}
+
+	VkSwapchainCreateInfoKHR swapchainCreateInfo{
+		.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
+		.surface = surface.handle,
+		.minImageCount = imageCount,
+		.imageFormat = surfaceFormat.format,
+		.imageColorSpace = surfaceFormat.colorSpace,
+		.imageExtent = extent,
+		.imageArrayLayers = 1,
+		.imageUsage = imageUsage,
+		.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
+		.queueFamilyIndexCount = 1,
+		.pQueueFamilyIndices = &vkdevice.mainQueue.familyIndex,
+		.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR,
+		.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
+		.presentMode = presentationMode,
+		.clipped = VK_TRUE,
+		.oldSwapchain = self.handle
+	};
+
+	if (vkCreateSwapchainKHR(vkdevice.device, &swapchainCreateInfo, nullptr, &self.handle) != VK_SUCCESS)
+	{
+		return false;
+	}
+
+	m_info.dimension.width	= extent.width;
+	m_info.dimension.height = extent.height;
+
+	uint32 maxImageCount = (self.m_info.imageCount > MAX_FRAMES_IN_FLIGHT) ? MAX_FRAMES_IN_FLIGHT : self.m_info.imageCount;
+
+	std::array<VkImage, MAX_FRAMES_IN_FLIGHT> vkImageHandles = {};
+
+	for (uint32 i = 0; i < maxImageCount; ++i)
+	{
+		vkGetSwapchainImagesKHR(vkdevice.device, self.handle, &maxImageCount, vkImageHandles.data());
+	}
+
+	VkImageViewCreateInfo imageViewInfo{
+		.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+		.viewType = VK_IMAGE_VIEW_TYPE_2D,
+		.format = self.surfaceColorFormat.format,
+		.components = {
+			VK_COMPONENT_SWIZZLE_IDENTITY,
+			VK_COMPONENT_SWIZZLE_IDENTITY,
+			VK_COMPONENT_SWIZZLE_IDENTITY,
+			VK_COMPONENT_SWIZZLE_IDENTITY
+		},
+		.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 }
+	};
+
+	for (size_t i = 0; auto&& image : m_images)
+	{
+		auto&& vkimage = to_impl(*image);
+
+		vkDestroyImageView(vkdevice.device, vkimage.imageView, nullptr);
+
+		vkimage.handle = vkImageHandles[i];
+
+		vkimage.m_info.dimension.width	= m_info.dimension.width;
+		vkimage.m_info.dimension.height	= m_info.dimension.height;
+
+		imageViewInfo.image = vkimage.handle;
+
+		vkCreateImageView(vkdevice.device, &imageViewInfo, nullptr, &vkimage.imageView);
+
+		++i;
+	}
+
+	return true;
+}
+
 auto Swapchain::from(Device& device, SwapchainInfo&& info, Resource<Swapchain> previousSwapchain) -> Resource<Swapchain>
 {
 	auto&& vkdevice = to_device(device);
@@ -184,7 +296,6 @@ auto Swapchain::from(Device& device, SwapchainInfo&& info, Resource<Swapchain> p
 		vksurface.availableColorFormats.resize(static_cast<size_t>(count));
 
 		vkGetPhysicalDeviceSurfaceFormatsKHR(vkdevice.gpu, handle, &count, vksurface.availableColorFormats.data());
-		vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vkdevice.gpu, handle, &vksurface.capabilities);
 
 		/**
 		* A resource will always have a count of 1 because it references itself.
@@ -196,7 +307,7 @@ auto Swapchain::from(Device& device, SwapchainInfo&& info, Resource<Swapchain> p
 
 	if (!info.surfaceInfo.instance || !info.surfaceInfo.window)
 	{
-		return null_resource;
+		return {};
 	}
 
 	vk::Surface* pSurface = nullptr;
@@ -206,7 +317,6 @@ auto Swapchain::from(Device& device, SwapchainInfo&& info, Resource<Swapchain> p
 	{
 		pOldSwapchain = &to_impl(*previousSwapchain);
 		pSurface = pOldSwapchain->pSurface;
-
 	}
 	else
 	{
@@ -215,8 +325,10 @@ auto Swapchain::from(Device& device, SwapchainInfo&& info, Resource<Swapchain> p
 
 	pSurface->refCount.fetch_add(1, std::memory_order_relaxed);
 
+	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vkdevice.gpu, pSurface->handle, &pSurface->capabilities);
+
 	VkExtent2D const extent{
-		.width = std::min(info.dimension.width, pSurface->capabilities.currentExtent.width),
+		.width	= std::min(info.dimension.width, pSurface->capabilities.currentExtent.width),
 		.height = std::min(info.dimension.height, pSurface->capabilities.currentExtent.height)
 	};
 	uint32 imageCount{ std::min(std::max(info.imageCount, pSurface->capabilities.minImageCount), pSurface->capabilities.maxImageCount) };
@@ -268,12 +380,7 @@ auto Swapchain::from(Device& device, SwapchainInfo&& info, Resource<Swapchain> p
 
 	VkSwapchainKHR handle = VK_NULL_HANDLE;
 
-	VkResult result = vkCreateSwapchainKHR(vkdevice.device, &swapchainCreateInfo, nullptr, &handle);
-
-	if (result != VK_SUCCESS)
-	{
-		return null_resource;
-	}
+	CHECK_OP(vkCreateSwapchainKHR(vkdevice.device, &swapchainCreateInfo, nullptr, &handle))
 
 	FenceInfo fenceInfo{ .initialValue = 0 };
 

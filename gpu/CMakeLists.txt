@@ -17,11 +17,11 @@ set(
 
 add_library(gpu STATIC ${gpu_rhi_header_files} ${gpu_rhi_source_files})	
 
-target_compile_features(gpu PUBLIC cxx_std_20)
+target_compile_features(gpu PUBLIC cxx_std_23)
 target_compile_definitions(gpu PRIVATE "FORGE_EXPORT")
 target_compile_definitions(gpu PRIVATE $<$<PLATFORM_ID:Windows>:PLATFORM_OS_WINDOWS> $<$<PLATFORM_ID:Darwin>:PLATFORM_OS_APPLE> $<$<PLATFORM_ID:Linux>:PLATFORM_OS_LINUX>)
 
-target_link_libraries(gpu PUBLIC Library)
+target_link_libraries(gpu PUBLIC lib)
 assign_source_group(${gpu_rhi_header_files} ${gpu_rhi_source_files})
 
 target_include_directories(
@@ -98,6 +98,10 @@ if (USE_VULKAN)
 	)
 	set_target_properties(spirv-reflect-static PROPERTIES FOLDER thirdparty)
 	
+	if (MSVC)
+		target_compile_options(VulkanMemoryAllocator PUBLIC /wd4701 /wd4703)
+	endif()
+
 	target_link_libraries(gpu PRIVATE volk_headers VulkanMemoryAllocator shaderc spirv-reflect-static)
 	target_compile_definitions(gpu PRIVATE $<$<PLATFORM_ID:Windows>:VK_USE_PLATFORM_WIN32_KHR>)
 	assign_source_group(${vulkan_header_files} ${vulkan_source_files})

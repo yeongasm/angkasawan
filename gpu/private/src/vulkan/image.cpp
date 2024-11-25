@@ -26,14 +26,14 @@ auto Image::is_swapchain_image() const -> bool
 	/**
 	* Swapchain images will not contain an allocation handle because they are retrieved from the driver instead.
 	*/
-	return self.allocationBlock.valid();
+	return !self.allocationBlock.valid();
 }
 
 auto Image::is_transient() const -> bool
 {
 	auto const& self = to_impl(*this);
 
-	return self.allocationBlock->aliased();
+	return self.allocationBlock.valid() && self.allocationBlock->aliased();
 }
 
 auto Image::memory_requirement(Device& device, ImageInfo const& info) -> MemoryRequirementInfo
@@ -151,13 +151,10 @@ auto Image::from(Device& device, ImageInfo&& info, Resource<MemoryBlock> memoryB
 		if ((memReq.memoryTypeBits & memBlockImpl.allocationInfo.memoryType) != memReq.memoryTypeBits ||
 			memReq.size > memBlockImpl.allocationInfo.size)
 		{
-			return null_resource;
+			return {};
 		}
 
-		if (vkCreateImage(vkdevice.device, &imgInfo, nullptr, &handle) != VK_SUCCESS)
-		{
-			return null_resource;
-		}
+		CHECK_OP(vkCreateImage(vkdevice.device, &imgInfo, nullptr, &handle))
 
 		vmaBindImageMemory(vkdevice.allocator, memBlockImpl.handle, handle);
 	}
@@ -179,10 +176,7 @@ auto Image::from(Device& device, ImageInfo&& info, Resource<MemoryBlock> memoryB
 		VmaAllocation allocation = VK_NULL_HANDLE;
 		VmaAllocationInfo allocationInfo = {};
 
-		if (vmaCreateImage(vkdevice.allocator, &imgInfo, &allocInfo, &handle, &allocation, &allocationInfo) != VK_SUCCESS)
-		{
-			return null_resource;
-		}
+		CHECK_OP(vmaCreateImage(vkdevice.allocator, &imgInfo, &allocInfo, &handle, &allocation, &allocationInfo))
 
 		auto&& [memoryBlockId, vkmemoryblock] = vkdevice.gpuResourcePool.memoryBlocks.emplace(vkdevice, false);
 

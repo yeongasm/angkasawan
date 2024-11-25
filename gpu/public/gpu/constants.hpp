@@ -2,7 +2,7 @@
 #ifndef GPU_CONSTANTS_H
 #define GPU_CONSTANTS_H
 
-#include "lib/common.h"
+#include "lib/common.hpp"
 
 namespace gpu
 {

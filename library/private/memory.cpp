@@ -1,6 +1,6 @@
 #include <cstdlib>
 #include <cstring>
-#include "lib/memory.h"
+#include "lib/memory.hpp"
 
 namespace lib
 {

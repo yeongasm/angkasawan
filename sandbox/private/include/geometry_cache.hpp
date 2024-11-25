@@ -3,9 +3,9 @@
 #define SANDBOX_GEOMETRY_H
 
 #include "gpu/gpu.hpp"
-#include "lib/paged_array.h"
-#include "lib/handle.h"
-#include "lib/bitset.h"
+#include "lib/paged_array.hpp"
+#include "lib/handle.hpp"
+#include "lib/bitset.hpp"
 #include "model_importer.hpp"
 #include "upload_heap.hpp"
 
@@ -122,13 +122,13 @@ struct GeometryInfo
 class GeometryCache
 {
 public:
-	GeometryCache(UploadHeap& uploadHeap);
+	GeometryCache() = default;
 	~GeometryCache() = default;
 
 	/**
 	 * Uploads the model from the GLTF file to the GPU. 
 	 */
-	auto upload_gltf(gltf::Importer const& importer, GeometryInputLayout const& inputLayout) -> root_geometry_handle;
+	auto upload_gltf(UploadHeap& uploadHeap, gltf::Importer const& importer, GeometryInputLayout const& inputLayout) -> root_geometry_handle;
 	//auto stage_geometries_for_upload(StageGeometryInfo&& info) -> GeometryCacheUploadResult;
 	auto geometry_from(root_geometry_handle handle) -> Geometry const*;
 	auto geometry_info(root_geometry_handle handle) -> GeometryInfo;
@@ -136,7 +136,6 @@ public:
 	auto index_buffer_of(root_geometry_handle handle) const -> gpu::buffer;
 	//auto flush_storage() -> void;
 private:
-	UploadHeap& m_uploadHeap;
 	lib::map<uint64, gpu::buffer> m_geometryVb = {};
 	lib::map<uint64, gpu::buffer> m_geometryIb = {};
 	lib::paged_array<Geometry, 64> m_geometries = {};
@@ -144,10 +143,10 @@ private:
 	auto input_element_count(GeometryInput input) -> uint32;
 	auto input_size_bytes(GeometryInput input) -> size_t;
 	auto layout_size_bytes(GeometryInputLayout const& layout) -> size_t;
-	auto gltf_unpack_interleaved(gltf::Importer const& importer, root_geometry_handle geometryHandle, size_t verticesSizeBytes, size_t indicesSizeBytes) -> void;
-	auto gltf_unpack_non_interleaved(gltf::Importer const& importer, root_geometry_handle geometryHandle, size_t verticesSizeBytes, size_t indicesSizeBytes) -> void;
+	auto gltf_unpack_interleaved(UploadHeap& uploadHeap, gltf::Importer const& importer, root_geometry_handle geometryHandle, size_t verticesSizeBytes, size_t indicesSizeBytes) -> void;
+	auto gltf_unpack_non_interleaved(UploadHeap& uploadHeap, gltf::Importer const& importer, root_geometry_handle geometryHandle, size_t verticesSizeBytes, size_t indicesSizeBytes) -> void;
 
-	auto upload_heap_blocks(std::span<HeapBlock> heapBlocks, size_t initialWriteOffset, gpu::buffer const& buffer, size_t dstOffset) -> size_t;
+	auto upload_heap_blocks(UploadHeap& uploadHeap, std::span<HeapBlock> heapBlocks, size_t initialWriteOffset, gpu::buffer const& buffer, size_t dstOffset) -> size_t;
 };
 }
 

@@ -327,7 +327,7 @@ auto UploadHeap::upload_to_gpu(bool waitIdle) -> void
 	auto submitGroup = m_commandQueue.new_submission_group(gpu::DeviceQueue::Transfer);
 	auto cmd = m_commandQueue.next_free_command_buffer({ .queue = gpu::DeviceQueue::Transfer });
 
-	ASSERTION(cmd.valid() && "Ran out of command buffers for recording!");
+	ASSERTION(cmd && "Ran out of command buffers for recording!");
 
 	InfoPool<ImageUploadInfo>& imageUploadInfos		= next_image_upload_info_pool();
 	InfoPool<BufferUploadInfo>& bufferUploadInfos	= next_buffer_upload_info_pool();

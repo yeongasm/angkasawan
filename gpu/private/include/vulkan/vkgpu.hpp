@@ -6,12 +6,18 @@
 #include <mutex>
 
 #include "fmt/format.h"
-#include "lib/map.h"
-#include "lib/paged_array.h"
-#include "lib/handle.h"
+#include "lib/map.hpp"
+#include "lib/paged_array.hpp"
+#include "lib/handle.hpp"
 
 #include "vk.h"
 #include "gpu.hpp"
+
+#define CHECK_OP(op)						\
+	if (auto res = op; res != VK_SUCCESS)	\
+	{										\
+		return {};							\
+	}
 
 namespace gpu
 {
@@ -365,6 +371,8 @@ auto vk_to_rhi_color_space(VkColorSpaceKHR colorSpace) -> ColorSpace;
 
 auto get_image_create_info(ImageInfo const& info) -> VkImageCreateInfo;
 auto get_buffer_create_info(BufferInfo const& info) -> VkBufferCreateInfo;
+
+auto to_error_message(VkResult result) -> std::string_view;
 }
 
 auto to_device(Device const* device) -> vk::DeviceImpl const&;

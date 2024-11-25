@@ -157,13 +157,10 @@ auto Buffer::from(Device& device, BufferInfo&& info, Resource<MemoryBlock> memor
 		if ((memReq.memoryTypeBits & memBlockImpl.allocationInfo.memoryType) != memReq.memoryTypeBits ||
 			memReq.size > memBlockImpl.allocationInfo.size)
 		{
-			return null_resource;
+			return {};
 		}
 
-		if (vkCreateBuffer(vkdevice.device, &bufferInfo, nullptr, &handle) != VK_SUCCESS)
-		{
-			return null_resource;
-		}
+		CHECK_OP(vkCreateBuffer(vkdevice.device, &bufferInfo, nullptr, &handle))
 
 		vmaBindBufferMemory(vkdevice.allocator, memBlockImpl.handle, handle);
 	}
@@ -185,12 +182,7 @@ auto Buffer::from(Device& device, BufferInfo&& info, Resource<MemoryBlock> memor
 		VmaAllocation allocation = VK_NULL_HANDLE;
 		VmaAllocationInfo allocationInfo = {};
 
-		VkResult result = vmaCreateBuffer(vkdevice.allocator, &bufferInfo, &allocInfo, &handle, &allocation, &allocationInfo);
-
-		if (result != VK_SUCCESS)
-		{
-			return null_resource;
-		}
+		CHECK_OP(vmaCreateBuffer(vkdevice.allocator, &bufferInfo, &allocInfo, &handle, &allocation, &allocationInfo))
 
 		auto&& [memoryBlockId, vkmemoryblock] = vkdevice.gpuResourcePool.memoryBlocks.emplace(vkdevice, false);
 

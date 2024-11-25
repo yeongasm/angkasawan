@@ -2,32 +2,34 @@
 #ifndef SANDBOX_CUBE_DEMO_APP_H
 #define SANDBOX_CUBE_DEMO_APP_H
 
-#include "core/file_watcher.h"
-
-#include "sandbox_demo_application.hpp"
+#include "core.platform/file_watcher.hpp"
+#include "core.platform/application.hpp"
+#include "graphics_processing_unit.hpp"
 #include "geometry_cache.hpp"
 #include "camera.hpp"
 
 namespace sandbox
 {
-class ModelDemoApp final : public DemoApplication
+class ModelDemoApp final
 {
 public:
-	ModelDemoApp(
-		core::wnd::window_handle rootWindowHandle,
-		gpu::util::ShaderCompiler& shaderCompiler,
-		GraphicsProcessingUnit& gpu,
-		gpu::swapchain rootWindowSwapchain,
-		size_t const& frameIndex
-	);
+	ModelDemoApp() = default;
+	~ModelDemoApp() = default;
 
-	virtual ~ModelDemoApp() override;
+	auto start(
+		core::platform::Application& application,
+		core::Ref<core::platform::Window> rootWindow,
+		GraphicsProcessingUnit& gpu
+	) -> bool;
 
-	virtual auto initialize() -> bool override;
-	virtual auto run() -> void override;
-	virtual auto terminate() -> void override;
+	auto run() -> void;
+	auto stop() -> void;
 
 private:
+	core::platform::Application* m_app = {};
+	GraphicsProcessingUnit* m_gpu = {};
+	core::Ref<core::platform::Window> m_rootWindowRef = {};
+	gpu::swapchain m_swapchain = {};
 
 	struct GeometryRenderInfo
 	{
@@ -43,7 +45,7 @@ private:
 		uint32 baseColorMapIndex;
 	};
 
-	GeometryCache m_geometryCache;
+	GeometryCache m_geometryCache = {};
 
 	gpu::sampler m_normalSampler = {};
 	gpu::image m_depthBuffer = {};
@@ -62,6 +64,12 @@ private:
 	core::filewatcher::file_watch_id m_pipelineShaderCodeWatchId = {};
 
 	root_geometry_handle m_sponza = {};
+	uint32 m_currentFrame = {};
+
+	auto render() -> void;
+
+	auto make_swapchain(core::platform::Window& window) -> void;
+	auto make_render_targets(uint32 width, uint32 height) -> void;
 
 	auto allocate_camera_buffers() -> void;
 	auto update_camera_state(float32 dt) -> void;

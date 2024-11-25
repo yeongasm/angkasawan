@@ -17,9 +17,9 @@ auto GraphicsProcessingUnit::upload_heap() const -> UploadHeap&
 	return *m_uploadHeap;
 }
 
-auto GraphicsProcessingUnit::from(gpu::DeviceInitInfo const& deviceInfo) -> std::optional<std::unique_ptr<GraphicsProcessingUnit>>
+auto GraphicsProcessingUnit::from(gpu::DeviceInitInfo const& deviceInfo) -> std::expected<std::unique_ptr<GraphicsProcessingUnit>, std::string_view>
 {
-	if (auto result = gpu::Device::from(deviceInfo); result.has_value())
+	if (auto result = gpu::Device::from(deviceInfo); result)
 	{
 		auto gpu = std::make_unique<GraphicsProcessingUnit>();
 		gpu->m_device = std::move(*result);
@@ -27,9 +27,9 @@ auto GraphicsProcessingUnit::from(gpu::DeviceInitInfo const& deviceInfo) -> std:
 		gpu->m_commandQueue = std::make_unique<CommandQueue>(*gpu->m_device);
 		gpu->m_uploadHeap	= std::make_unique<UploadHeap>(*gpu->m_device, *gpu->m_commandQueue);
 
-		return std::make_optional(std::move(gpu));
+		return std::move(gpu);
 	}
 
-	return std::nullopt;
+	return std::unexpected{ "Failed to create GPU device interface" };
 }
 }

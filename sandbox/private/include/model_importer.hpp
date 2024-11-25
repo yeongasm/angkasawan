@@ -3,8 +3,8 @@
 #define SANDBOX_MODEL_IMPORTER_H
 
 #include <filesystem>
-#include "lib/array.h"
-#include "lib/string.h"
+#include "lib/array.hpp"
+#include "lib/string.hpp"
 
 namespace sandbox
 {
@@ -36,7 +36,7 @@ struct ImageInfo
 };
 
 /**
-* \brief GTLF 2.0 stores metallic and roughness in the same texture.
+* \brief GLTF 2.0 stores metallic and roughness in the same texture.
 * \brief - Roughness is in the green channel.
 * \brief - Metalness is in the blue channel.
 */

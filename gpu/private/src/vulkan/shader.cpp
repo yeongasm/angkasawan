@@ -23,7 +23,7 @@ auto Shader::from(Device& device, CompiledShaderInfo const& compiledShaderInfo) 
 {
 	if (compiledShaderInfo.binaries.empty())
 	{
-		return null_resource;
+		return {};
 	}
 
 	auto&& vkdevice = to_device(device);
@@ -45,12 +45,7 @@ auto Shader::from(Device& device, CompiledShaderInfo const& compiledShaderInfo) 
 
 	VkShaderModule handle = VK_NULL_HANDLE;
 
-	VkResult result = vkCreateShaderModule(vkdevice.device, &shaderInfo, nullptr, &handle);
-
-	if (result != VK_SUCCESS)
-	{
-		return null_resource;
-	}
+	CHECK_OP(vkCreateShaderModule(vkdevice.device, &shaderInfo, nullptr, &handle))
 
 	auto&& [id, vkshader] = vkdevice.gpuResourcePool.shaders.emplace(vkdevice);
 

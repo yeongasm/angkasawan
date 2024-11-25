@@ -1,5 +1,6 @@
 #include <fstream>
 
+#include "gpu/util/shader_compiler.hpp"
 #include "demo/model_demo_app.hpp"
 #include "model_importer.hpp"
 #include "image_importer.hpp"
@@ -8,21 +9,63 @@
 
 namespace sandbox
 {
-ModelDemoApp::ModelDemoApp(
-	core::wnd::window_handle rootWindowHandle,
-	gpu::util::ShaderCompiler& shaderCompiler,
-	GraphicsProcessingUnit& gpu,
-	gpu::swapchain rootWindowSwapchain,
-	size_t const& frameIndex
-) :
-	DemoApplication{ rootWindowHandle, shaderCompiler, gpu, rootWindowSwapchain, frameIndex },
-	m_geometryCache{ m_gpu.upload_heap() }
-{}
-
-ModelDemoApp::~ModelDemoApp() {}
-
-auto ModelDemoApp::initialize() -> bool
+inline auto open_file(std::filesystem::path path) -> lib::string
 {
+	lib::string result = {};
+	std::ifstream stream{ path, std::ios_base::in | std::ios_base::binary | std::ios_base::ate };
+
+	if (stream.good() &&
+		stream.is_open())
+	{
+		uint32 size = static_cast<uint32>(stream.tellg());
+		stream.seekg(0, std::ios::beg);
+
+		result.reserve(size + 1);
+
+		stream.read(result.data(), size);
+		result[size] = lib::null_v<lib::string::value_type>;
+
+		stream.close();
+	}
+
+	return result;
+}
+
+auto ModelDemoApp::start(
+	core::platform::Application& application,
+	core::Ref<core::platform::Window> rootWindow,
+	GraphicsProcessingUnit& gpu
+) -> bool
+{
+	m_app = &application;
+	m_gpu = &gpu;
+	m_rootWindowRef = rootWindow;
+
+	// Create swapchain for root window.
+	{
+		make_swapchain(*m_rootWindowRef);
+		if (!m_swapchain)
+		{
+			return false;
+		}
+	}
+
+	m_rootWindowRef->push_listener(
+		core::platform::WindowEvent::Type::Resize,
+		[this](core::platform::WindowEvent ev) -> void
+		{
+			auto const dim = ev.current.value<core::platform::WindowEvent::Type::Resize>();
+			m_gpu->device().wait_idle();
+			m_swapchain->resize({ 
+				.width = static_cast<uint32>(dim.width), 
+				.height = static_cast<uint32>(dim.height) 
+			});
+			make_render_targets(dim.width, dim.height);
+
+			render();
+		}
+	);
+
 	auto&& swapchainInfo = m_swapchain->info();
 
 	float32 const swapchainWidth = static_cast<float32>(swapchainInfo.dimension.width);
@@ -37,10 +80,18 @@ auto ModelDemoApp::initialize() -> bool
 	m_camera.frameWidth = swapchainWidth;
 	m_camera.frameHeight = swapchainHeight;
 
-	auto recreate_uber_pipeline_fn = [&](core::filewatcher::FileActionInfo const& fileAction) -> void
+	auto make_uber_pipeline = [&](core::filewatcher::FileActionInfo const& fileAction) -> void
 	{
 		if (fileAction.action == core::filewatcher::FileAction::Modified)
 		{
+			gpu::util::ShaderCompiler shaderCompiler{};
+
+			shaderCompiler.add_macro_definition("STORAGE_IMAGE_BINDING", gpu::STORAGE_IMAGE_BINDING);
+			shaderCompiler.add_macro_definition("COMBINED_IMAGE_SAMPLER_BINDING", gpu::COMBINED_IMAGE_SAMPLER_BINDING);
+			shaderCompiler.add_macro_definition("SAMPLED_IMAGE_BINDING", gpu::SAMPLED_IMAGE_BINDING);
+			shaderCompiler.add_macro_definition("SAMPLER_BINDING", gpu::SAMPLER_BINDING);
+			shaderCompiler.add_macro_definition("BUFFER_DEVICE_ADDRESS_BINDING", gpu::BUFFER_DEVICE_ADDRESS_BINDING);
+
 			auto sourceCode = open_file(fileAction.path);
 			if (!sourceCode.size())
 			{
@@ -59,9 +110,9 @@ auto ModelDemoApp::initialize() -> bool
 			{
 				compileInfo.add_macro_definition("VERTEX_SHADER");
 
-				if (auto result = m_shader_compiler.compile_shader(compileInfo); result.ok())
+				if (auto result = shaderCompiler.compile_shader(compileInfo); result.ok())
 				{
-					vs = gpu::Shader::from(m_gpu.device(), result.compiled_shader_info().value());
+					vs = gpu::Shader::from(m_gpu->device(), result.compiled_shader_info().value());
 				}
 				else
 				{
@@ -75,9 +126,9 @@ auto ModelDemoApp::initialize() -> bool
 				compileInfo.clear_macro_definitions();
 				compileInfo.add_macro_definition("FRAGMENT_SHADER");
 
-				if (auto result = m_shader_compiler.compile_shader(compileInfo); result.ok())
+				if (auto result = shaderCompiler.compile_shader(compileInfo); result.ok())
 				{
-					ps = gpu::Shader::from(m_gpu.device(), result.compiled_shader_info().value());
+					ps = gpu::Shader::from(m_gpu->device(), result.compiled_shader_info().value());
 				}
 				else
 				{
@@ -90,10 +141,10 @@ auto ModelDemoApp::initialize() -> bool
 				return;
 			}
 
-			auto compiledInfo = m_shader_compiler.get_compiled_shader_info(vs->info().name.c_str());
+			auto compiledInfo = shaderCompiler.get_compiled_shader_info(vs->info().name.c_str());
 
 			m_pipeline = gpu::Pipeline::from(
-				m_gpu.device(),
+				m_gpu->device(),
 				{
 					.vertexShader = vs,
 					.pixelShader = ps,
@@ -119,13 +170,13 @@ auto ModelDemoApp::initialize() -> bool
 		}
 	};
 
-	m_pipelineShaderCodeWatchId = core::filewatcher::watch({ .path = "data/demo/shaders/model.glsl", .callback = recreate_uber_pipeline_fn });
+	m_pipelineShaderCodeWatchId = core::filewatcher::watch({ .path = "data/demo/shaders/model.glsl", .callback = make_uber_pipeline });
 
-	recreate_uber_pipeline_fn({ .path = "data/demo/shaders/model.glsl", .action = core::filewatcher::FileAction::Modified });
+	make_uber_pipeline({ .path = "data/demo/shaders/model.glsl", .action = core::filewatcher::FileAction::Modified });
 
 	allocate_camera_buffers();
 
-	m_normalSampler = gpu::Sampler::from(m_gpu.device(), {
+	m_normalSampler = gpu::Sampler::from(m_gpu->device(), {
 		.name = "normal sampler",
 		.minFilter = gpu::TexelFilter::Linear,
 		.magFilter = gpu::TexelFilter::Linear,
@@ -141,26 +192,9 @@ auto ModelDemoApp::initialize() -> bool
 		.borderColor = gpu::BorderColor::Float_Transparent_Black,
 	});
 
-	m_depthBuffer = gpu::Image::from(m_gpu.device(), {
-		.name = "depth buffer",
-		.type = gpu::ImageType::Image_2D,
-		.format = gpu::Format::D32_Float,
-		.samples = gpu::SampleCount::Sample_Count_1,
-		.tiling = gpu::ImageTiling::Optimal,
-		.imageUsage = gpu::ImageUsage::Depth_Stencil_Attachment | gpu::ImageUsage::Sampled,
-		.dimension = {
-			.width = m_swapchain->info().dimension.width,
-			.height = m_swapchain->info().dimension.height,
-		},
-		.clearValue = {
-			.depthStencil = {
-				.depth = 1.f
-			}
-		},
-		.mipLevel = 1
-	});
+	make_render_targets(swapchainInfo.dimension.width, swapchainInfo.dimension.height);
 
-	m_defaultWhiteTexture = gpu::Image::from(m_gpu.device(), {
+	m_defaultWhiteTexture = gpu::Image::from(m_gpu->device(), {
 		.name = "default white texture",
 		.type = gpu::ImageType::Image_2D,
 		.format = gpu::Format::B8G8R8A8_Srgb,
@@ -211,9 +245,9 @@ auto ModelDemoApp::initialize() -> bool
 			auto&& baseColorMapInfo = importer.image_info();
 			baseColorMapInfo.mipLevel = 1;
 
-			auto& baseColorImage = m_sponzaTextures.emplace_back(gpu::Image::from(m_gpu.device(), std::move(baseColorMapInfo)), imageCount);
+			auto& baseColorImage = m_sponzaTextures.emplace_back(gpu::Image::from(m_gpu->device(), std::move(baseColorMapInfo)), imageCount);
 
-			m_gpu.upload_heap().upload_data_to_image({
+			m_gpu->upload_heap().upload_data_to_image({
 				.image = baseColorImage.first,
 				.data = importer.data(0).data(),
 				.size = importer.data(0).size_bytes(),
@@ -234,7 +268,7 @@ auto ModelDemoApp::initialize() -> bool
 
 	uint8 theColorWhite[4] = { 255, 255, 255, 255 };
 
-	m_gpu.upload_heap().upload_data_to_image({
+	m_gpu->upload_heap().upload_data_to_image({
 		.image = m_defaultWhiteTexture,
 		.data = theColorWhite,
 		.size = sizeof(uint8) * 4
@@ -242,7 +276,7 @@ auto ModelDemoApp::initialize() -> bool
 
 	GeometryInputLayout layout = { .inputs = GeometryInput::Position | GeometryInput::TexCoord, .interleaved = true };
 
-	m_sponza = m_geometryCache.upload_gltf(sponzaImporter, layout);
+	m_sponza = m_geometryCache.upload_gltf(m_gpu->upload_heap(), sponzaImporter, layout);
 
 	Geometry const* sponzaMesh = m_geometryCache.geometry_from(m_sponza);
 
@@ -268,7 +302,7 @@ auto ModelDemoApp::initialize() -> bool
 	}
 
 	m_sponzaTransform = gpu::Buffer::from(
-		m_gpu.device(),
+		m_gpu->device(),
 		{
 			.name = "sponza transform",
 			.size = sizeof(glm::mat4),
@@ -278,13 +312,13 @@ auto ModelDemoApp::initialize() -> bool
 	);
 
 	glm::mat4 transform = glm::scale(glm::mat4{ 1.f }, glm::vec3{ 1.f, 1.f, 1.f });
-	m_gpu.upload_heap().upload_data_to_buffer({ .dst = m_sponzaTransform, .data = &transform, .size = sizeof(glm::mat4) });
+	m_gpu->upload_heap().upload_data_to_buffer({ .dst = m_sponzaTransform, .data = &transform, .size = sizeof(glm::mat4) });
 
-	FenceInfo fenceInfo = m_gpu.upload_heap().send_to_gpu();
+	FenceInfo fenceInfo = m_gpu->upload_heap().send_to_gpu();
 
 	{
 		// Acquire resources ...
-		auto cmd = m_gpu.command_queue().next_free_command_buffer();
+		auto cmd = m_gpu->command_queue().next_free_command_buffer();
 
 		cmd->begin();
 
@@ -312,31 +346,44 @@ auto ModelDemoApp::initialize() -> bool
 
 		cmd->end();
 
-		auto ownershipTransferSubmission = m_gpu.command_queue().new_submission_group();
+		auto ownershipTransferSubmission = m_gpu->command_queue().new_submission_group();
 		ownershipTransferSubmission.wait(fenceInfo.fence, fenceInfo.value);
 		ownershipTransferSubmission.submit(cmd);
 	}
 
-	m_gpu.command_queue().send_to_gpu();
+	m_gpu->command_queue().send_to_gpu();
 
 	return true;
 }
 
 auto ModelDemoApp::run() -> void
 {
-	auto dt = core::stat::delta_time_f();
+	if (m_rootWindowRef->info().state != core::platform::WindowState::Ok)
+	{
+		return;
+	}
 
-	m_gpu.device().clear_garbage();
+	render();
+}
+
+auto ModelDemoApp::stop() -> void
+{
+}
+
+auto ModelDemoApp::render() -> void
+{
+	auto dt = static_cast<float32>(core::platform::PerformanceCounter::delta_time());
 	update_camera_state(dt);
 
-	/*Geometry const* sponzaMesh = m_geometryCache.geometry_from(m_sponza);*/
+	m_gpu->device().clear_garbage();
+
 	auto const sponzaVb = m_geometryCache.vertex_buffer_of(m_sponza);
 	auto const sponzaIb = m_geometryCache.index_buffer_of(m_sponza);
 
-	auto cmd = m_gpu.command_queue().next_free_command_buffer();
+	auto cmd = m_gpu->command_queue().next_free_command_buffer();
 	auto&& swapchainImage = m_swapchain->acquire_next_image();
 
-	auto& projViewBuffer = m_cameraProjView[m_frame_index];
+	auto& projViewBuffer = m_cameraProjView[m_currentFrame];
 
 	PushConstant pc{
 		.vertexBufferPtr = sponzaVb->gpu_address(),
@@ -378,7 +425,7 @@ auto ModelDemoApp::run() -> void
 		.depthAttachment = &depthAttachment,
 		.renderArea = {
 			.extent = {
-				.width	= swapchainImage->info().dimension.width,
+				.width = swapchainImage->info().dimension.width,
 				.height = swapchainImage->info().dimension.height
 			}
 		}
@@ -386,8 +433,8 @@ auto ModelDemoApp::run() -> void
 
 	auto const& swapchainInfo = swapchainImage->info();
 
-	float32 const width		= static_cast<float32>(swapchainInfo.dimension.width);
-	float32 const height	= static_cast<float32>(swapchainInfo.dimension.height);
+	float32 const width = static_cast<float32>(swapchainInfo.dimension.width);
+	float32 const height = static_cast<float32>(swapchainInfo.dimension.height);
 
 	cmd->begin_rendering(renderingInfo);
 	cmd->set_viewport({
@@ -398,7 +445,7 @@ auto ModelDemoApp::run() -> void
 	});
 	cmd->set_scissor({
 		.extent = {
-			.width	= swapchainImage->info().dimension.width,
+			.width = swapchainImage->info().dimension.width,
 			.height = swapchainImage->info().dimension.height
 		}
 	});
@@ -439,9 +486,9 @@ auto ModelDemoApp::run() -> void
 
 	cmd->end();
 
-	auto uploadFenceInfo = m_gpu.upload_heap().send_to_gpu();
+	auto uploadFenceInfo = m_gpu->upload_heap().send_to_gpu();
 
-	auto submitGroup = m_gpu.command_queue().new_submission_group();
+	auto submitGroup = m_gpu->command_queue().new_submission_group();
 
 	submitGroup.submit(cmd);
 	submitGroup.wait(m_swapchain->current_acquire_semaphore());
@@ -449,15 +496,53 @@ auto ModelDemoApp::run() -> void
 	submitGroup.wait(uploadFenceInfo.fence, uploadFenceInfo.value);
 	submitGroup.signal(m_swapchain->get_gpu_fence(), m_swapchain->cpu_frame_count());
 
-	m_gpu.command_queue().send_to_gpu();
+	m_gpu->command_queue().send_to_gpu();
 
-	m_gpu.device().present({ .swapchains = std::span{ &m_swapchain, 1 } });
+	m_gpu->device().present({ .swapchains = std::span{ &m_swapchain, 1 } });
 
-	m_gpu.command_queue().clear();
+	m_gpu->command_queue().clear();
+
+	m_currentFrame = (m_currentFrame + 1) % m_gpu->device().config().maxFramesInFlight;
 }
 
-auto ModelDemoApp::terminate() -> void
+auto ModelDemoApp::make_swapchain(core::platform::Window& window) -> void
 {
+	auto const& info = window.info();
+	m_swapchain = gpu::Swapchain::from(m_gpu->device(), {
+		.name = "root app window",
+		.surfaceInfo = {
+			.name = "root app surface",
+			.preferredSurfaceFormats = { gpu::Format::B8G8R8A8_Srgb },
+			.instance = window.process_handle(),
+			.window = info.nativeHandle
+		},
+		.dimension = { static_cast<uint32>(info.dim.width), static_cast<uint32>(info.dim.height) },
+		.imageCount = 4,
+		.imageUsage = gpu::ImageUsage::Color_Attachment | gpu::ImageUsage::Transfer_Dst,
+		.presentationMode = gpu::SwapchainPresentMode::Mailbox
+	}, (m_swapchain.valid()) ? m_swapchain: gpu::swapchain{});
+}
+
+auto ModelDemoApp::make_render_targets(uint32 width, uint32 height) -> void
+{
+	m_depthBuffer = gpu::Image::from(m_gpu->device(), {
+		.name = "depth buffer",
+		.type = gpu::ImageType::Image_2D,
+		.format = gpu::Format::D32_Float,
+		.samples = gpu::SampleCount::Sample_Count_1,
+		.tiling = gpu::ImageTiling::Optimal,
+		.imageUsage = gpu::ImageUsage::Depth_Stencil_Attachment | gpu::ImageUsage::Sampled,
+		.dimension = {
+			.width = width,
+			.height = height,
+		},
+		.clearValue = {
+			.depthStencil = {
+				.depth = 1.f
+			}
+		},
+		.mipLevel = 1
+	});
 }
 
 auto ModelDemoApp::allocate_camera_buffers() -> void
@@ -465,7 +550,7 @@ auto ModelDemoApp::allocate_camera_buffers() -> void
 	for (size_t i = 0; i < std::size(m_cameraProjView); ++i)
 	{
 		m_cameraProjView[i] = gpu::Buffer::from(
-			m_gpu.device(),
+			m_gpu->device(),
 			{
 				.name = lib::format("camera view proj {}", i),
 				.size = sizeof(glm::mat4) + sizeof(glm::mat4),
@@ -486,33 +571,39 @@ auto ModelDemoApp::update_camera_state(float32 dt) -> void
 
 	static bool firstRun[2] = { true, true };
 
+	auto const& swapchainDim = m_swapchain->info().dimension;
+
+	float32 const frameWidth  = static_cast<float32>(swapchainDim.width);
+	float32 const frameHeight = static_cast<float32>(swapchainDim.height);
+
 	gpu::DeviceQueue srcQueue = gpu::DeviceQueue::Main;
 
-	if (firstRun[m_frame_index])
+	if (firstRun[m_currentFrame])
 	{
 		srcQueue = gpu::DeviceQueue::None;
-		firstRun[m_frame_index] = false;
+		firstRun[m_currentFrame] = false;
 	}
-
-	core::Engine& engine = core::engine();
 
 	m_cameraState.dirty = false;
 
-	if (engine.is_window_focused(m_root_app_window))
+	if (m_rootWindowRef->is_focused())
 	{
 		update_camera_on_mouse_events(dt);
 		update_camera_on_keyboard_events(dt);
 	}
 
+	m_camera.frameWidth  = frameWidth;
+	m_camera.frameHeight = frameHeight;
+
 	m_camera.update_projection();
 	m_camera.update_view();
 
-	auto&& projViewBuffer = m_cameraProjView[m_frame_index];
+	auto&& projViewBuffer = m_cameraProjView[m_currentFrame];
 
 	updateValue.projection = m_camera.projection;
 	updateValue.view = m_camera.view;
 
-	m_gpu.upload_heap().upload_data_to_buffer({
+	m_gpu->upload_heap().upload_data_to_buffer({
 		.dst = projViewBuffer,
 		.data = &updateValue,
 		.size = sizeof(CameraProjectionView),
@@ -522,10 +613,8 @@ auto ModelDemoApp::update_camera_state(float32 dt) -> void
 
 auto ModelDemoApp::update_camera_on_mouse_events(float32 dt) -> void
 {
-	core::Engine& engine = core::engine();
-
-	core::Point const pos = core::io::mouse_position();
-	core::Point const windowPos = engine.get_window_position(m_root_app_window);
+	core::Point const pos = m_app->mouse_position();
+	core::Point const windowPos = m_rootWindowRef->info().pos;
 
 	/**
 	* "dragging" acts a multiplier to the computed delta that is set to 1 when the mouse is dragging.
@@ -551,7 +640,7 @@ auto ModelDemoApp::update_camera_on_mouse_events(float32 dt) -> void
 
 	m_cameraState.mode = CameraMouseMode::None;
 
-	float32 const mouseWheelV = core::io::mouse_wheel_v();
+	float32 const mouseWheelV = m_app->mouse_wheel_v();
 
 	/**
 	* Only allow zooming when the cursor is in the viewport.
@@ -562,11 +651,11 @@ auto ModelDemoApp::update_camera_on_mouse_events(float32 dt) -> void
 		m_cameraState.dirty = true;
 	}
 
-	if (core::io::mouse_held(core::IOMouseButton::Right))
+	if (m_app->mouse_held(core::IOMouseButton::Right))
 	{
 		m_cameraState.mode = CameraMouseMode::Pan_And_Tilt;
 	}
-	else if (core::io::mouse_held(core::IOMouseButton::Left))
+	else if (m_app->mouse_held(core::IOMouseButton::Left))
 	{
 		m_cameraState.mode = CameraMouseMode::Pan_And_Dolly;
 	}
@@ -578,8 +667,8 @@ auto ModelDemoApp::update_camera_on_mouse_events(float32 dt) -> void
 			int32 x = static_cast<int32>(m_cameraState.capturedMousePos.x);
 			int32 y = static_cast<int32>(m_cameraState.capturedMousePos.y);
 
-			engine.show_cursor();
-			engine.set_cursor_position(m_root_app_window, core::Point{ x, y });
+			m_app->show_cursor();
+			m_app->set_cursor_position(m_rootWindowRef, core::Point{ x, y });
 
 			m_cameraState.capturedMousePos = glm::vec2{ 0.f };
 			m_cameraState.firstMove = true;
@@ -588,7 +677,7 @@ auto ModelDemoApp::update_camera_on_mouse_events(float32 dt) -> void
 	}
 	else
 	{
-		if (core::io::mouse_dragging(core::IOMouseButton::Left) || core::io::mouse_dragging(core::IOMouseButton::Right))
+		if (m_app->mouse_dragging(core::IOMouseButton::Left) || m_app->mouse_dragging(core::IOMouseButton::Right))
 		{
 			dragging = 1;
 		}
@@ -604,8 +693,8 @@ auto ModelDemoApp::update_camera_on_mouse_events(float32 dt) -> void
 	int32 const cx = static_cast<int32>(cameraCentre.x);
 	int32 const cy = static_cast<int32>(cameraCentre.y);
 
-	engine.show_cursor(false);
-	engine.set_cursor_position(m_root_app_window, core::Point{ cx, cy });
+	m_app->show_cursor(false);
+	m_app->set_cursor_position(m_rootWindowRef, core::Point{ cx, cy });
 
 	glm::vec2 delta = mousePos - cameraCentre;
 	glm::vec2 const magnitude = glm::abs(delta);
@@ -647,43 +736,43 @@ auto ModelDemoApp::update_camera_on_keyboard_events(float32 dt) -> void
 	glm::vec3 const RIGHT = m_camera.get_right_vector();
 	glm::vec3 const FORWARD = m_camera.get_forward_vector();
 
-	if (core::io::key_pressed(core::IOKey::Q) ||
-		core::io::key_held(core::IOKey::Q))
+	if (m_app->key_pressed(core::IOKey::Q) ||
+		m_app->key_held(core::IOKey::Q))
 	{
 		m_camera.translate(-UP, dt);
 		m_cameraState.dirty = true;
 	}
 
-	if (core::io::key_pressed(core::IOKey::W) ||
-		core::io::key_held(core::IOKey::W))
+	if (m_app->key_pressed(core::IOKey::W) ||
+		m_app->key_held(core::IOKey::W))
 	{
 		m_camera.translate(FORWARD, dt);
 		m_cameraState.dirty = true;
 	}
 
-	if (core::io::key_pressed(core::IOKey::E) ||
-		core::io::key_held(core::IOKey::E))
+	if (m_app->key_pressed(core::IOKey::E) ||
+		m_app->key_held(core::IOKey::E))
 	{
 		m_camera.translate(UP, dt);
 		m_cameraState.dirty = true;
 	}
 
-	if (core::io::key_pressed(core::IOKey::A) ||
-		core::io::key_held(core::IOKey::A))
+	if (m_app->key_pressed(core::IOKey::A) ||
+		m_app->key_held(core::IOKey::A))
 	{
 		m_camera.translate(-RIGHT, dt);
 		m_cameraState.dirty = true;
 	}
 
-	if (core::io::key_pressed(core::IOKey::S) ||
-		core::io::key_held(core::IOKey::S))
+	if (m_app->key_pressed(core::IOKey::S) ||
+		m_app->key_held(core::IOKey::S))
 	{
 		m_camera.translate(-FORWARD, dt);
 		m_cameraState.dirty = true;
 	}
 
-	if (core::io::key_pressed(core::IOKey::D) ||
-		core::io::key_held(core::IOKey::D))
+	if (m_app->key_pressed(core::IOKey::D) ||
+		m_app->key_held(core::IOKey::D))
 	{
 		m_camera.translate(RIGHT, dt);
 		m_cameraState.dirty = true;

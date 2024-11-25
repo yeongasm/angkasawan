@@ -3,7 +3,7 @@
 #define IMAGE_IMPORTER_H
 
 #include <filesystem>
-#include "lib/array.h"
+#include "lib/array.hpp"
 #include "gpu/common.hpp"
 
 namespace sandbox

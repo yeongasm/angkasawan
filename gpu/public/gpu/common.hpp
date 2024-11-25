@@ -3,9 +3,9 @@
 #define GPU_COMMON_H
 
 #include <span>
-#include "lib/string.h"
-#include "lib/map.h"
-#include "lib/bit_mask.h"
+#include "lib/string.hpp"
+#include "lib/map.hpp"
+#include "lib/bit_mask.hpp"
 #include "constants.hpp"
 
 namespace gpu

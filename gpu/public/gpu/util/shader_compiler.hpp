@@ -4,10 +4,10 @@
 
 #include <fstream>
 #include <filesystem>
-#include "lib/string.h"
-#include "lib/map.h"
+#include "lib/string.hpp"
+#include "lib/map.hpp"
 //#include "lib/set.h"
-#include "lib/handle.h"
+#include "lib/handle.hpp"
 #include "gpu/common.hpp"
 
 namespace gpu

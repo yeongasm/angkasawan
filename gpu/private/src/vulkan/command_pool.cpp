@@ -60,12 +60,7 @@ auto CommandPool::from(Device& device, CommandPoolInfo&& info) -> Resource<Comma
 
 	VkCommandPool handle = VK_NULL_HANDLE;
 
-	VkResult result = vkCreateCommandPool(vkdevice.device, &commandPoolInfo, nullptr, &handle);
-
-	if (result != VK_SUCCESS)
-	{
-		return null_resource;
-	}
+	CHECK_OP(vkCreateCommandPool(vkdevice.device, &commandPoolInfo, nullptr, &handle))
 
 	auto&& [id, vkcommandpool] = vkdevice.gpuResourcePool.commandPools.emplace(std::make_unique<vk::CommandPoolImpl>(vkdevice));
 

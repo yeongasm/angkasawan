@@ -2,8 +2,8 @@
 #ifndef SANDBOX_UPLOAD_HEAP_H
 #define SANDBOX_UPLOAD_HEAP_H
 
-#include "lib/handle.h"
-#include "lib/paged_array.h"
+#include "lib/handle.hpp"
+#include "lib/paged_array.hpp"
 #include "gpu/gpu.hpp"
 #include "command_queue.hpp"
 
