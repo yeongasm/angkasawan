@@ -95,17 +95,6 @@ struct Geometry
 
 using root_geometry_handle = lib::handle<Geometry, uint64, std::numeric_limits<uint64>::max()>;
 
-//struct StageGeometryInfo
-//{
-//	root_geometry_handle geometry;
-//	gpu::Buffer& vb;
-//	gpu::Buffer& ib;
-//	size_t verticesWriteOffset;
-//	size_t indicesWriteOffset;
-//	gpu::DeviceQueue verticesDstQueue = gpu::DeviceQueue::Main;
-//	gpu::DeviceQueue indicesDstQueue = gpu::DeviceQueue::Main;
-//};
-
 struct GeometryInfo
 {
 	size_t verticesSizeBytes;

@@ -30,7 +30,7 @@ template <
 	typename traits, 
 	typename hasher, 
 	std::derived_from<container_growth_policy> growth_policy, 
-	provides_memory allocator = default_allocator, 
+	provides_memory allocator, 
 	typename probe_distance_limit = probe_sequence_length_limit<4096>,
 	typename default_load_factor = load_factor_limit<0.75f>
 >
@@ -101,14 +101,9 @@ public:
 		hash_container_const_iterator& operator=(hash_container_const_iterator const&)	= default;
 		hash_container_const_iterator& operator=(hash_container_const_iterator&&)		= default;
 
-		constexpr bool operator== (hash_container_const_iterator const& rhs) const
+		friend constexpr bool operator== (hash_container_const_iterator const& lhs, hash_container_const_iterator const& rhs)
 		{
-			return  info == rhs.info;
-		}
-
-		constexpr bool operator!= (hash_container_const_iterator const& rhs) const
-		{
-			return info != rhs.info;
+			return  lhs.info == rhs.info;
 		}
 
 		constexpr reference	operator* () const { return hash->_data()[bucket()]; }
@@ -154,56 +149,42 @@ public:
 	using iterator			= hash_container_iterator;
 	using const_iterator	= hash_container_const_iterator;
 
-	constexpr hash_container_base() requires std::same_as<allocator_type, default_allocator> :
-		m_box{}, m_len{}, m_capacity{}, m_maxLoadFactor{ default_load_factor::value }
+	constexpr hash_container_base() :
+		m_box{}, 
+		m_len{}, 
+		m_capacity{}, 
+		m_maxLoadFactor{ default_load_factor::value }
 	{}
 
-	constexpr hash_container_base(allocator_type& allocator) requires !std::same_as<allocator_type, default_allocator> :
-		m_box{ stored_type{}, allocator }, m_len{}, m_capacity{}, m_maxLoadFactor{ default_load_factor::value }
+	constexpr hash_container_base(allocator_type const& allocator) :
+		m_box{ stored_type{}, allocator }, 
+		m_len{}, 
+		m_capacity{},
+		m_maxLoadFactor{ default_load_factor::value }
 	{}
 
 	constexpr ~hash_container_base() { release(); }
 
-	constexpr hash_container_base(size_t length) requires std::same_as<allocator_type, default_allocator> :
-		hash_container_base{}
-	{
-		_reserve(length);
-	}
-
-	constexpr hash_container_base(allocator_type& allocator, size_t length) requires !std::same_as<allocator_type, default_allocator> :
+	constexpr hash_container_base(size_t length, allocator_type const& allocator = allocator_type{}) :
 		hash_container_base{ allocator }
 	{
 		_reserve(length);
 	}
 
-	constexpr hash_container_base(hash_container_base const& rhs) requires std::same_as<allocator_type, default_allocator> :
-		m_box{}, m_len{}, m_capacity{}, m_maxLoadFactor{ default_load_factor::value }
+	constexpr hash_container_base(hash_container_base const& other) :
+		hash_container_base{ std::allocator_traits<allocator_type>::select_on_containere_copy_construction(other.m_box) }
 	{
-		*this = rhs;
+		_deep_copy(other);
 	}
 
-	constexpr hash_container_base(hash_container_base const& rhs) requires !std::same_as<allocator_type, default_allocator> :
-		m_box{}, m_len{}, m_capacity{}, m_maxLoadFactor{ default_load_factor::value }
-	{
-		*this = rhs;
-	}
+	constexpr hash_container_base(hash_container_base&& other) :
+		m_box{ std::exchange(other.m_box, {}) },
+		m_len{ std::exchange(other.m_len, {}) },
+		m_capacity{ std::exchange(other.m_capacity, {}) },
+		m_maxLoadFactor{ std::exchange(other.m_maxLoadFactor, default_load_factor::value) }
+	{}
 
-	constexpr hash_container_base(hash_container_base&& rhs) :
-		m_box{}, m_len{}, m_capacity{}, m_maxLoadFactor{ default_load_factor::value }
-	{
-		*this = std::move(rhs);
-	}
-
-	constexpr hash_container_base(std::initializer_list<type> const& initializer) requires std::same_as<allocator_type, default_allocator> :
-		hash_container_base{}
-	{
-		for (type const& pair : initializer)
-		{
-			_emplace_internal(pair);
-		}
-	}
-
-	constexpr hash_container_base(allocator_type& allocator, std::initializer_list<type> const& initializer) requires !std::same_as<allocator_type, default_allocator> :
+	constexpr hash_container_base(std::initializer_list<type> const& initializer, allocator_type const& allocator = allocator_type{}) :
 		hash_container_base{ allocator }
 	{
 		for (type const& pair : initializer)
@@ -212,90 +193,26 @@ public:
 		}
 	}
 
-	hash_container_base& operator=(hash_container_base const& rhs)
+	hash_container_base& operator=(hash_container_base const& other)
 	{
-		if (this != &rhs)
+		if (this != &other)
 		{
 			_destruct(0, m_capacity);
-
-			if (m_capacity < rhs.m_capacity)
-			{
-				_reserve(rhs.m_capacity);
-			}
-
-			m_len = rhs.m_len;
-
-			size_t count = m_len;
-
-			bucket_info* bucketInfo = m_box->metadata->pBucketInfo;
-			bucket_info* rhsBucketInfo = rhs.m_box->metadata->pBucketInfo;
-
-			for (size_t i = 0; i < m_capacity; ++i)
-			{
-				if (rhsBucketInfo[i].is_empty())
-				{
-					continue;
-				}
-				bucketInfo[i] = rhsBucketInfo[i];
-				reinterpret_cast<mutable_type&>(m_box->data[i]) = rhs.m_box->data[i];
-
-				--count;
-			}
+			_deep_copy(other);
 		}
 		return *this;
 	}
 
-	hash_container_base& operator=(hash_container_base&& rhs)
+	hash_container_base& operator=(hash_container_base&& other)
 	{
-		if (this != &rhs)
+		if (this != &other)
 		{
-			bool move = true;
 			release();
 
-			if constexpr (!std::is_same_v<allocator_type, default_allocator>)
-			{
-				if (m_box.allocator != rhs.m_box.allocator)
-				{
-					_reserve(rhs.size());
-
-					m_len = rhs.m_len;
-					m_maxLoadFactor = rhs.m_maxLoadFactor;
-
-					bucket_info const* bucketInfo = m_box->metadata->pBucketInfo;
-					bucket_info const* rhsBucketInfo = rhs.m_box->metadata->pBucketInfo;
-
-					for (size_t i = 0; i < rhs.m_capacity; ++i)
-					{
-						if (rhs.m_info[i].is_empty())
-						{
-							continue;
-						}
-						bucketInfo[i]	= rhsBucketInfo[i];
-						m_box->data[i]	= std::move(rhs.m_box->data[i]);
-					}
-
-					rhs.release();
-					move = false;
-				}
-			}
-
-			if (move)
-			{
-				m_box->metadata	= rhs.m_box->metadata;
-				m_box->data	= rhs.m_box->data;
-				m_len	= rhs.m_len;
-				m_capacity = rhs.m_capacity;
-				m_maxLoadFactor = rhs.m_maxLoadFactor;
-			}
-
-			if constexpr (!std::is_same_v<allocator_type, default_allocator>)
-			{
-				new (&rhs) hash_container_base{ *rhs.m_box.allocator };
-			}
-			else
-			{
-				new (&rhs) hash_container_base{};
-			}
+			m_box = std::exchange(other.m_box, {});
+			m_len = std::exchange(other.m_len, {});
+			m_capacity = std::exchange(other.m_capacity, {});
+			m_maxLoadFactor = std::exchange(other.m_maxLoadFactor, default_load_factor::value);
 		}
 		return *this;
 	}
@@ -308,12 +225,17 @@ public:
 		{
 			if (m_box->metadata != nullptr)
 			{
-				m_box.allocator.deallocate(m_box->metadata);
+				using byte_allocator = typename std::allocator_traits<allocator_type>::template rebind_alloc<std::byte>;
+				size_t const metadataCapacity = sizeof(metadata) + (sizeof(bucket_info) * m_capacity);
+
+				byte_allocator byteAllocator{ m_box.resource() };
+
+				std::allocator_traits<byte_allocator>::deallocate(byteAllocator, reinterpret_cast<std::byte*>(m_box->metadata), metadataCapacity);
 			}
 
 			if (m_box->data != nullptr)
 			{
-				allocator_bind<allocator_type, type>::deallocate(m_box.allocator, m_box->data);
+				std::allocator_traits<allocator_type>::deallocate(m_box, m_box->data, m_capacity);
 			}
 		}
 
@@ -401,8 +323,12 @@ protected:
 
 	constexpr void _reserve(size_t capacity)
 	{
+		using byte_allocator = typename std::allocator_traits<allocator_type>::template rebind_alloc<std::byte>;
+
+		byte_allocator byteAllocator{ m_box.resource() };
+
 		size_t const metadataCapacity = sizeof(metadata) + (sizeof(bucket_info) * capacity);
-		std::byte* pBuffer = static_cast<std::byte*>(m_box.allocator.allocate(metadataCapacity));
+		std::byte* pBuffer = std::allocator_traits<byte_allocator>::allocate(byteAllocator, metadataCapacity);
 
 		metadata* metadataOld = m_box->metadata;
 		type* dataOld = m_box->data;
@@ -412,7 +338,7 @@ protected:
 
 		m_box->metadata->pBucketInfo = reinterpret_cast<bucket_info*>(pBuffer + sizeof(metadata));
 
-		m_box->data = allocator_bind<allocator_type, type>::allocate(m_box.allocator, capacity);
+		m_box->data = std::allocator_traits<allocator_type>::allocate(m_box, capacity);
 
 		for (size_t i = 0; i < capacity; ++i)
 		{
@@ -432,7 +358,7 @@ protected:
 				m_len = m_capacity;
 			}
 
-			rehash(dataOld, metadataOld->pBucketInfo, size());
+			_rehash(dataOld, metadataOld->pBucketInfo, size());
 
 			// Destruct old elements that were not moved.
 			for (size_t i = 0; i < capacityOld; ++i)
@@ -442,12 +368,12 @@ protected:
 
 			if (metadataOld != nullptr)
 			{
-				m_box.allocator.deallocate(metadataOld);
+				std::allocator_traits<byte_allocator>::deallocate(byteAllocator, reinterpret_cast<std::byte*>(metadataOld), sizeof(metadata) * (sizeof(bucket_info) * capacityOld));
 			}
 
 			if (dataOld != nullptr)
 			{
-				allocator_bind<allocator_type, type>::deallocate(m_box.allocator, dataOld);
+				std::allocator_traits<allocator_type>::deallocate(m_box, dataOld, capacityOld);
 			}
 		}
 	}
@@ -458,7 +384,7 @@ protected:
 		bucket_value_type bucket = invalid_bucket_v;
 		if (m_capacity != 0)
 		{
-			std::optional res = find_key(key);
+			std::optional res = _find_key(key);
 			if (res.has_value())
 			{
 				bucket = res.value();
@@ -482,14 +408,14 @@ protected:
 		}
 		++m_len;
 
-		return emplace_impl(std::forward<Args>(arguments)...);
+		return _emplace_impl(std::forward<Args>(arguments)...);
 	}
 
 	// Implementation of remove method.
 	// Backward shifting deletion.
 	constexpr bool _remove_impl(key_type const& key)
 	{
-		std::optional res = find_key(key);
+		std::optional res = _find_key(key);
 
 		if (!res.has_value())
 		{
@@ -500,15 +426,15 @@ protected:
 
 		_destruct(bucket, bucket + 1);
 		// Move the bucket to the next one so the object can be shifted down.
-		bucket = next_bucket(bucket);
+		bucket = _next_bucket(bucket);
 
 		bucket_info* p_info = _info();
 
 		while (p_info[bucket].psl != 0 &&
 			!p_info[bucket].is_empty())
 		{
-			_back_shift_bucket(previous_bucket(bucket), bucket);
-			bucket = next_bucket(bucket);
+			_back_shift_bucket(_previous_bucket(bucket), bucket);
+			bucket = _next_bucket(bucket);
 		}
 		--m_len;
 
@@ -517,8 +443,35 @@ protected:
 
 private:
 
+	constexpr auto _deep_copy(hash_container_base const& other) -> void
+	{
+		if (m_capacity < other.m_capacity)
+		{
+			_reserve(other.m_capacity);
+		}
+
+		m_len = other.m_len;
+
+		size_t count = m_len;
+
+		bucket_info* bucketInfo		= m_box->metadata->pBucketInfo;
+		bucket_info* rhsBucketInfo	= other.m_box->metadata->pBucketInfo;
+
+		for (size_t i = 0; i < m_capacity; ++i)
+		{
+			if (rhsBucketInfo[i].is_empty())
+			{
+				continue;
+			}
+			bucketInfo[i] = rhsBucketInfo[i];
+			reinterpret_cast<mutable_type&>(m_box->data[i]) = other.m_box->data[i];
+
+			--count;
+		}
+	}
+
 	// Helper function to swap contents.
-	constexpr void swap_element_at(bucket_value_type bucket, mutable_type& element, bucket_info& info)
+	constexpr void _swap_element_at(bucket_value_type bucket, mutable_type& element, bucket_info& info)
 	{
 		// Swap actual data.
 		// We do a memcopy to avoid weird funny logic that users might implement for their move assignment operator
@@ -568,7 +521,7 @@ private:
 	// Implementation of emplace method.
 	// For a map, arguments NEEDS to be a std::pair or Pair struct with a key() method specified.
 	template <typename... Args>
-	constexpr bucket_value_type emplace_impl(Args&&... args)
+	constexpr bucket_value_type _emplace_impl(Args&&... args)
 	{
 		// Construct the to-be-inserted element once.
 		mutable_type element{ std::forward<Args>(args)... };
@@ -593,9 +546,9 @@ private:
 				{
 					first_swapped_bucket = bucket;
 				}
-				swap_element_at(bucket, element, inserting_info);
+				_swap_element_at(bucket, element, inserting_info);
 			}
-			bucket = next_bucket(bucket);
+			bucket = _next_bucket(bucket);
 			++inserting_info.psl;
 		}
 
@@ -615,7 +568,7 @@ private:
 		return (first_swapped_bucket != std::numeric_limits<bucket_value_type>::max()) ? first_swapped_bucket : bucket;
 	}
 
-	constexpr void rehash(type* sourceData, bucket_info* sourceInfo, size_t count)
+	constexpr void _rehash(type* sourceData, bucket_info* sourceInfo, size_t count)
 	{
 		for (size_t i = 0; count != 0 && i < m_capacity; ++i)
 		{
@@ -624,12 +577,12 @@ private:
 			{ 
 				continue; 
 			}
-			emplace_impl(std::move(sourceData[i]));
+			_emplace_impl(std::move(sourceData[i]));
 			--count;
 		}
 	}
 
-	constexpr bucket_value_type previous_bucket(bucket_value_type current) const
+	constexpr bucket_value_type _previous_bucket(bucket_value_type current) const
 	{
 		bucket_value_type bucket = current - 1;
 		if (bucket == -1)
@@ -640,13 +593,13 @@ private:
 	}
 
 
-	constexpr bucket_value_type next_bucket(bucket_value_type current) const
+	constexpr bucket_value_type _next_bucket(bucket_value_type current) const
 	{
 		return (current + 1) % m_capacity;
 	}
 
 
-	constexpr std::optional<bucket_value_type> find_key(key_type const& key) const
+	constexpr std::optional<bucket_value_type> _find_key(key_type const& key) const
 	{
 		const hash_value_type hash = _hashify(key);
 
@@ -662,7 +615,7 @@ private:
 			{
 				return std::make_optional(bucket);
 			}
-			bucket = next_bucket(bucket);
+			bucket = _next_bucket(bucket);
 			++probeSequence;
 		}
 		return std::nullopt;

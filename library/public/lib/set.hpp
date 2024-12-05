@@ -26,13 +26,13 @@ struct set_traits
 	}
 };
 
-template <typename key, provides_memory provided_allocator = default_allocator, typename hasher = std::hash<key>, std::derived_from<container_growth_policy> growth_policy = shift_growth_policy<4>>
+template <typename key, provides_memory in_allocator = allocator<typename set_traits<key>::type>, typename hasher = std::hash<key>, std::derived_from<container_growth_policy> growth_policy = shift_growth_policy<4>>
 class set :
-	public hash_container_base<set_traits<key>, hasher, growth_policy, provided_allocator>
+	public hash_container_base<set_traits<key>, hasher, growth_policy, in_allocator>
 {
 private:
 
-	using super				= hash_container_base<set_traits<key>, hasher, growth_policy, provided_allocator>;
+	using super				= hash_container_base<set_traits<key>, hasher, growth_policy, in_allocator>;
 	using type				= typename super::interface_type;
 	using key_type			= typename super::key_type;
 	using value_type		= typename super::value_type;

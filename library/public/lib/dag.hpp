@@ -12,7 +12,7 @@ namespace lib
 * Implementation of a directed acyclic graph (DAG).
 * This implementation of a DAG is not thread-safe. Sorting is done single-threadedly.
 */
-template <typename T, provides_memory provided_allocator = default_allocator>
+template <typename T, provides_memory in_allocator = allocator<T>>
 class digraph
 {
 private:
@@ -24,8 +24,8 @@ private:
 
 	using value_type		= T;
 	using const_reference	= value_type const&;
-	using vertex_set		= set<T, provided_allocator>;
-	using edge_list			= array<graph_edge, provided_allocator>;
+	using vertex_set		= set<T, in_allocator>;
+	using edge_list			= array<graph_edge, in_allocator>;
 
 	vertex_set	m_vertices;
 	edge_list	m_edges;
@@ -225,9 +225,9 @@ public:
 	* Returns an ascending ordered list of T based on it's dependencies.
 	* If the graph is cyclic, the method returns an empty list.
 	*/
-	constexpr array<T, provided_allocator> sort()
+	constexpr array<T, in_allocator> sort()
 	{
-		array<T, provided_allocator> result{ m_vertices.size() };
+		array<T, in_allocator> result{ m_vertices.size() };
 
 		// Make copies of edges and vertices so that we don't modify the DAG's internal data.
 		edge_list	edges = m_edges;

@@ -38,12 +38,12 @@ struct map_traits
 // TODO:
 // Figure out a way to emplace elements without specifying a key and just let the Traits::extract_key work.
 
-template <typename key, typename value, provides_memory provided_allocator = default_allocator, typename hasher = std::hash<key>, std::derived_from<container_growth_policy> growth_policy = shift_growth_policy<4>>
+template <typename key, typename value, provides_memory in_allocator = allocator<typename map_traits<key, value>::type>, typename hasher = std::hash<key>, std::derived_from<container_growth_policy> growth_policy = shift_growth_policy<4>>
 class map : 
-	public hash_container_base<map_traits<key, value>, hasher, growth_policy, provided_allocator>
+	public hash_container_base<map_traits<key, value>, hasher, growth_policy, in_allocator>
 {
 public:
-	using super				= hash_container_base<map_traits<key, value>, hasher, growth_policy, provided_allocator>;
+	using super				= hash_container_base<map_traits<key, value>, hasher, growth_policy, in_allocator>;
 	using type				= typename super::interface_type;			// std::pair<const key_type, value_type>
 	using key_type			= typename super::key_type;
 	using value_type		= typename super::value_type;
@@ -75,16 +75,10 @@ public:
 	* Returns an optional with a Ref to the stored type.
 	* If the key does not exist, a std::nullopt is returned instead.
 	*/
-	constexpr ref<type> at(key_type const& key) const
+	constexpr std::optional<ref<type>> at(key_type const& key) const
 	{
-		ref<type> result{};
 		const bucket_value_type bucket = super::_get_impl(key);
-		//ASSERTION(bucket != super::invalid_bucket_v && "Key supplied is invalid!");
-		if (bucket != super::invalid_bucket_v)
-		{
-			new (&result) ref<type>{ super::_data()[bucket] };
-		}
-		return result;
+		return (bucket != super::invalid_bucket_v) ? std::optional{ ref<type>{ super::_data()[bucket] } } : std::nullopt;
 	}
 
 	constexpr void clear()

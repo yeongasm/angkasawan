@@ -226,13 +226,15 @@ public:
 };
 
 template <
-	typename T, 
-	provides_memory allocator = default_allocator,
+	typename T,
+	typename allocator = allocator<T>,
 	std::derived_from<container_growth_policy> growth_policy = shift_growth_policy<4>
 >
 class array final
 {
 public:
+
+	static_assert(std::is_reference_v<T> == false, "array does not support storing reference types.");
 
 	using value_type                = T;
 	using allocator_type            = allocator;
@@ -247,11 +249,11 @@ public:
 	using const_reverse_iterator    = reverse_iterator<const_iterator>;
 	using reverse_iterator          = reverse_iterator<iterator>;
 
-	constexpr array() requires std::same_as<allocator_type, default_allocator> :
-		m_box{ nullptr }, m_len{}, m_capacity{}
+	constexpr array() :
+		m_box{}, m_len{}, m_capacity{}
 	{}
 
-	constexpr array(allocator_type& allocator) requires !std::same_as<allocator_type, default_allocator> :
+	constexpr array(allocator_type const& allocator) :
 		m_box{ nullptr, allocator }, m_len{}, m_capacity{}
 	{}
 
@@ -260,103 +262,51 @@ public:
 		release();
 	}
 
-	constexpr array(size_t length) requires std::same_as<allocator_type, default_allocator> :
-		array{}
-	{
-		grow(length);
-	}
-
-	constexpr array(size_t length, allocator_type& allocator) requires !std::same_as<allocator_type, default_allocator> :
+	constexpr array(size_t length, allocator_type const& allocator = allocator_type{}) :
 		array{ allocator }
 	{
-		grow(length);
+		_grow(length);
 	}
 
-	constexpr array(std::initializer_list<value_type> const& list) requires std::same_as<allocator_type, default_allocator> :
+	constexpr array(std::initializer_list<value_type> const& list) :
 		array{}
 	{
 		append(list);
 	}
 
-	constexpr array(array const& rhs) requires std::same_as<allocator_type, default_allocator> :
-		array{}
-	{ 
-		*this = rhs; 
-	}
-
-	constexpr array(array const& rhs) requires !std::same_as<allocator_type, default_allocator> :
-		array{ *rhs.m_box.allocator }
+	constexpr array(array const& other) :
+		array{ std::allocator_traits<allocator_type>::select_on_container_copy_construction(other.m_box) }
 	{
-		*this = rhs;
+		_deep_copy(other);
 	}
 
-	constexpr array(array&& rhs) :
-		array{}
-	{ 
-		*this = std::move(rhs); 
-	}
+	constexpr array(array&& other) :
+		m_box{ std::exchange(other.m_box, {}) },
+		m_len{ std::exchange(other.m_len, {}) },
+		m_capacity{ std::exchange(other.m_capacity, {}) }
+	{}
 
-	constexpr array& operator= (array const& rhs)
+	constexpr array& operator= (array const& other)
 	{
-		if (this != &rhs)
+		if (this != &other)
 		{
-			destruct(0, m_len);
-
-			if (m_capacity < rhs.m_capacity)
-			{
-				grow(rhs.m_capacity);
-			}
-
-			m_len = rhs.m_len;
-
-			for (size_t i = 0; i < rhs.m_len; i++)
-			{
-				m_box.data[i] = rhs[i];
-			}
+			_destruct(0, m_len);
+			_deep_copy(other);
 		}
 		return *this;
 	}
 
-	constexpr array& operator= (array&& rhs)
+	constexpr array& operator= (array&& other)
 	{
-		if (this != &rhs)
+		if (this != &other)
 		{
-			bool move = true;
 			release();
 
-			if constexpr (!std::is_same_v<allocator_type, default_allocator>)
-			{
-				if (m_box.allocator != rhs.m_box.allocator)
-				{
-					move = false;
+			m_box = std::exchange(other.m_box, {});
+			m_len = std::exchange(other.m_len, 0);
+			m_capacity = std::exchange(other.m_capacity, 0);
 
-					grow(rhs.capacity());
-					size_t const rhsLength = rhs.size();
-
-					for (size_t i = 0; i < rhsLength; ++i)
-					{
-						m_box.data[i] = std::move(rhs.m_box.data[i]);
-						++m_len;
-					}
-					rhs.release();
-				}
-			}
-
-			if (move)
-			{
-				m_box = std::move(rhs.m_box);
-				m_len = std::move(rhs.m_len);
-				m_capacity = std::move(rhs.m_capacity);
-			}
-
-			if constexpr (!std::is_same_v<allocator_type, default_allocator>)
-			{
-				new (&rhs) array{ *rhs.m_box.allocator };
-			}
-			else
-			{
-				new (&rhs) array{};
-			}
+			// No placement new is needed to be done on rhs as it is already in an valid but unspecified state.
 		}
 		return *this;
 	}
@@ -387,12 +337,12 @@ public:
 	{
 		if (size < m_capacity)
 		{
-			size_t const numDestroyed = destruct(size - 1, m_capacity);
+			size_t const numDestroyed = _destruct(size - 1, m_capacity);
 			m_len -= numDestroyed;
 		}
 		else
 		{
-			grow(size);
+			_grow(size);
 		}
 	}
 
@@ -400,12 +350,12 @@ public:
 	{
 		if (count < m_len)
 		{
-			size_t const numDestroyed = destruct(count - 1, m_len - 1);
+			size_t const numDestroyed = _destruct(count - 1, m_len - 1);
 			m_len -= numDestroyed;
 		}
 		else if (count > m_capacity)
 		{
-			grow(count);
+			_grow(count);
 		}
 
 		for (size_t i = m_len; i < count; ++i)
@@ -419,12 +369,12 @@ public:
 	{
 		if (count < m_len)
 		{
-			size_t const numDestroyed = destruct(count - 1, m_len - 1);
+			size_t const numDestroyed = _destruct(count - 1, m_len - 1);
 			m_len -= numDestroyed;
 		}
 		else if (count >= m_capacity)
 		{
-			grow(count);
+			_grow(count);
 		}
 
 		for (size_t i = m_len; i < count; i++)
@@ -435,11 +385,11 @@ public:
 
 	constexpr void release()
 	{
-		destruct(0, m_len);
+		_destruct(0, m_len);
 
 		if (m_box.data)
 		{
-			allocator_bind<allocator_type, value_type>::deallocate(m_box.allocator, m_box.data);
+			std::allocator_traits<allocator_type>::deallocate(m_box, m_box.data, m_capacity);
 		}
 		m_box.data = nullptr;
 		m_capacity = m_len = 0;
@@ -450,9 +400,9 @@ public:
 	{
 		if (m_len == m_capacity)
 		{
-			grow();
+			_grow();
 		}
-		return emplace_internal(m_len++, std::forward<Args>(args)...);
+		return _emplace_internal(m_len++, std::forward<Args>(args)...);
 	}
 
 	template <typename... Args>
@@ -464,11 +414,11 @@ public:
 		size_t const position = std::distance(cbegin(), pos);
 		size_t const count = 1;
 
-		try_grow_for_insert(count);
+		_try_grow_for_insert(count);
 		// This is the position that we want to insert out value in.
-		iterator it = prepare_for_insert(insertAtEnd, position, count);
+		iterator it = _prepare_for_insert(insertAtEnd, position, count);
 
-		return emplace_at(it, count, std::forward<Args>(args)...);
+		return _emplace_at(it, count, std::forward<Args>(args)...);
 	}
 
 	constexpr size_t push(value_type const& element)
@@ -522,11 +472,11 @@ public:
 		bool const insertAtEnd = pos == cend();
 		size_t const position = std::distance(cbegin(), pos);
 
-		try_grow_for_insert(count);
+		_try_grow_for_insert(count);
 
-		iterator it = prepare_for_insert(insertAtEnd, position, count);
+		iterator it = _prepare_for_insert(insertAtEnd, position, count);
 
-		return emplace_at(it, count, value);
+		return _emplace_at(it, count, value);
 	}
 
 	template <typename InputIterator>
@@ -538,11 +488,11 @@ public:
 		size_t const position = std::distance(cbegin(), pos);
 		size_t const count = std::distance(first, last);
 
-		try_grow_for_insert(count);
+		_try_grow_for_insert(count);
 
-		iterator it = prepare_for_insert(insertAtEnd, position, count);
+		iterator it = _prepare_for_insert(insertAtEnd, position, count);
 
-		return insert_at(it, count, &(*first));
+		return _insert_at(it, count, &(*first));
 	}
 
 	constexpr iterator insert(const_iterator pos, std::initializer_list<value_type> list)
@@ -553,18 +503,18 @@ public:
 		size_t const position = std::distance(cbegin(), pos);
 		size_t const count = list.size();
 
-		try_grow_for_insert(count);
+		_try_grow_for_insert(count);
 
-		iterator it = prepare_for_insert(insertAtEnd, position, count);
+		iterator it = _prepare_for_insert(insertAtEnd, position, count);
 
-		return insert_at(it, count, list.begin());
+		return _insert_at(it, count, list.begin());
 	}
 
 	constexpr size_t append(std::initializer_list<value_type> list)
 	{
 		if (list.size() > m_capacity)
 		{
-			grow(list.size());
+			_grow(list.size());
 		}
 		for (value_type const& value : list)
 		{
@@ -578,7 +528,7 @@ public:
 		clear();
 		if (count > m_capacity)
 		{
-			grow(count);
+			_grow(count);
 		}
 		for (size_t i = 0; i < count; ++i)
 		{
@@ -593,7 +543,7 @@ public:
 		size_t const count = static_cast<size_t>(last - first);
 		if (count > m_capacity)
 		{
-			grow(count);
+			_grow(count);
 		}
 		while (first != last)
 		{
@@ -614,7 +564,7 @@ public:
 
 		if (m_len) [[likely]]
 		{ 
-			destruct(m_len - count, m_len);
+			_destruct(m_len - count, m_len);
 			m_len -= count;
 		}
 	}
@@ -631,8 +581,8 @@ public:
 		// count here means the number of elements to shift forward to close the gap.
 		size_t const count = m_len - index;
 
-		destruct(index, index + 1);
-		shift_forward(&m_box.data[index + 1], &m_box.data[index], count);
+		_destruct(index, index + 1);
+		_shift_forward(&m_box.data[index + 1], &m_box.data[index], count);
 
 		--m_len;
 	}
@@ -652,8 +602,8 @@ public:
 		// count here means the number of elements to shift forward to close the gap.
 		size_t const count = m_len - index;
 
-		destruct(index, index + 1);
-		shift_forward(&m_box[index + 1], &m_box[index], count);
+		_destruct(index, index + 1);
+		_shift_forward(&m_box[index + 1], &m_box[index], count);
 
 		--m_len;
 
@@ -666,8 +616,8 @@ public:
 		size_t const to = std::distance(cbegin(), end);
 		size_t const count = m_len - to;
 
-		destruct(from, to);
-		shift_forward(&m_box[to], &m_box[to + 1], count);
+		_destruct(from, to);
+		_shift_forward(&m_box[to], &m_box[to + 1], count);
 
 		m_len -= (to - from);
 
@@ -681,7 +631,7 @@ public:
 
 	constexpr void clear()
 	{
-		destruct(0, m_len);
+		_destruct(0, m_len);
 		m_len = 0;
 	}
 
@@ -708,26 +658,13 @@ public:
 
 	constexpr size_t    size    () const { return m_len; }
 	constexpr size_t    capacity() const { return m_capacity; }
-	constexpr pointer   data    () const { return m_box.data; }
+	constexpr pointer   data    () const { return *m_box; }
 	constexpr size_t    bytes   () const { return m_len * sizeof(value_type); }
 
 	constexpr size_t    size_bytes() const { return bytes(); }
 
-	/**
-	* Returns a pointer to the first element in the array.
-	*/
-	//[[deprecated]] constexpr pointer first   ()          { return m_box; }
-	//[[deprecated]] constexpr const_pointer first   () const    { return m_box; }
-
-	/**
-	* Returns a pointer to the last element in the array.
-	* If length of array is 0, Last() returns the 0th element.
-	*/
-	//[[deprecated]] constexpr pointer last    ()          { return m_box + (m_len - 1); }
-	//[[deprecated]] constexpr const_pointer last    () const    { return m_box + (m_len - 1); }
-
-	constexpr reference front   () { return *m_box.data; }
-	constexpr reference back    () { return *(m_box.data + (m_len - 1)); }
+	constexpr reference front   () { return *data(); }
+	constexpr reference back    () { return *(data() + (m_len - 1)); }
 
 	constexpr const_reference front ()  const    { return *m_box; }
 	constexpr const_reference back  ()  const    { return *(m_box + (m_len - 1)); }
@@ -746,8 +683,9 @@ public:
 	constexpr const_reverse_iterator    crend   () const    { return const_reverse_iterator(begin()); }
 
 private:
-	constexpr void grow(size_t size = 0)
+	constexpr void _grow(size_t size = 0)
 	{
+		size_t const oldCapacity = m_capacity;
 		m_capacity = growth_policy::new_capacity(m_capacity);
 
 		if (size)
@@ -756,7 +694,7 @@ private:
 		}
 
 		// Basically a realloc.
-		pointer temp = allocator_bind<allocator_type, value_type>::allocate(m_box.allocator, m_capacity);
+		pointer temp = std::allocator_traits<allocator_type>::allocate(m_box, m_capacity);
 
 		if (m_len)
 		{
@@ -775,13 +713,13 @@ private:
 
 		if (m_box.data)
 		{
-			allocator_bind<allocator_type, value_type>::deallocate(m_box.allocator, m_box.data);
+			std::allocator_traits<allocator_type>::deallocate(m_box, m_box.data, oldCapacity);
 		}
 
 		m_box.data = temp;
 	}
 
-	constexpr size_t destruct(size_t from, size_t to)
+	constexpr size_t _destruct(size_t from, size_t to)
 	{
 		for (size_t i = from; i < to; ++i)
 		{
@@ -791,13 +729,13 @@ private:
 	}
 
 	template <typename... ForwardType>
-	constexpr reference emplace_internal(size_t pos, ForwardType&&... args)
+	constexpr reference _emplace_internal(size_t pos, ForwardType&&... args)
 	{
 		new (m_box.data + pos) value_type{ std::forward<ForwardType>(args)... };
 		return m_box.data[pos];
 	}
 
-	constexpr void shift_forward(pointer src, pointer dst, size_t count)
+	constexpr void _shift_forward(pointer src, pointer dst, size_t count)
 	{
 		while (count)
 		{
@@ -815,7 +753,7 @@ private:
 		}
 	}
 
-	constexpr void shift_backwards(pointer src, pointer dst, size_t count)
+	constexpr void _shift_backwards(pointer src, pointer dst, size_t count)
 	{
 		dst = dst + count - 1;
 		src = src + count - 1;
@@ -836,18 +774,18 @@ private:
 		}
 	}
 
-	constexpr void try_grow_for_insert(size_t count)
+	constexpr void _try_grow_for_insert(size_t count)
 	{
 		if (count > (m_capacity - m_len))
 		{
-			grow(growth_policy::new_capacity(m_len + count));
+			_grow(growth_policy::new_capacity(m_len + count));
 		}
 	}
 
 	/**
 	* \brief "count" is the number of elements being inserted into the container.
 	*/
-	constexpr iterator prepare_for_insert(bool insertAtEnd, size_t position, size_t count)
+	constexpr iterator _prepare_for_insert(bool insertAtEnd, size_t position, size_t count)
 	{
 		// This is the tail index prior to inserting the elements.
 		size_t const tail = m_len - 1;
@@ -862,13 +800,13 @@ private:
 			pointer dst = &m_box.data[position + count];
 
 			// Shift elements backwards to fill the padding created.
-			shift_backwards(src, dst, elementCount);
+			_shift_backwards(src, dst, elementCount);
 		}
 
 		return iterator{ m_box.data + position, *this };
 	}
 
-	constexpr iterator insert_at(iterator pos, size_t count, value_type const* data)
+	constexpr iterator _insert_at(iterator pos, size_t count, value_type const* data)
 	{
 		iterator copy = pos;
 		if (data)
@@ -885,7 +823,7 @@ private:
 	}
 
 	template <typename... Args>
-	constexpr iterator emplace_at(iterator pos, size_t count, Args&&... args)
+	constexpr iterator _emplace_at(iterator pos, size_t count, Args&&... args)
 	{
 		iterator copy = pos;
 		while (count)
@@ -895,6 +833,28 @@ private:
 			--count;
 		}
 		return copy;
+	}
+
+	constexpr auto _deep_copy(array const& other) -> void
+	{
+		if (m_capacity < other.capacity())
+		{
+			_grow(other.capacity());
+		}
+
+		m_len = other.size();
+
+		if constexpr (std::is_trivial_v<value_type> && std::is_trivially_copyable_v<value_type>)
+		{
+			std::memcpy(m_box.data, other.m_box.data, sizeof(value_type) * other.size());
+		}
+		else
+		{
+			for (size_t i = 0; i < other.m_len; i++)
+			{
+				m_box.data[i] = other.m_box.data[i];
+			}
+		}
 	}
 
 	using box_type = box<pointer, allocator_type>;

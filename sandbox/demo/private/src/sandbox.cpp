@@ -1,7 +1,7 @@
 #include <fstream>
 #include <utility>
 #include "sandbox.hpp"
-#include "demo/model_demo_app.hpp"
+#include "model_demo_app.hpp"
 
 #include "core.platform/file_watcher.hpp"
 

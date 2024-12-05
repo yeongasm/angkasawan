@@ -10,10 +10,9 @@ struct EventQueueHandler
 {
 	auto update_window_dimension(OSEvent const& ev, bool const manual = false) -> void
 	{
-		auto&& result = hwndLookUpTable.at(std::bit_cast<uintptr_t>(ev.window));
-		if (!result.is_null())
+		if (auto&& result = hwndLookUpTable.at(std::bit_cast<uintptr_t>(ev.window)); result)
 		{
-			auto&& window = result->second;
+			auto&& window = result.value()->second;
 
 			auto const dim = window->m_info.dim;
 			auto&& callbacks = window->m_callbackTable[WindowEvent::value_of(WindowEvent::Type::Resize)];
@@ -74,10 +73,9 @@ struct EventQueueHandler
 
 	auto update_window_position(OSEvent const& ev, bool const manual = false) -> void
 	{
-		auto&& result = hwndLookUpTable.at(std::bit_cast<uintptr_t>(ev.window));
-		if (!result.is_null())
+		if (auto&& result = hwndLookUpTable.at(std::bit_cast<uintptr_t>(ev.window)); result)
 		{
-			auto&& window = result->second;
+			auto&& window = result.value()->second;
 
 			auto const pos = window->m_info.pos;
 			auto&& callbacks = window->m_callbackTable[WindowEvent::value_of(WindowEvent::Type::Move)];
@@ -125,11 +123,10 @@ struct EventQueueHandler
 	auto window_on_close(OSEvent const& ev) -> void
 	{
 		uintptr_t const hwnd = std::bit_cast<uintptr_t>(ev.window);
-		auto&& result = hwndLookUpTable.at(hwnd);
-
-		if (!result.is_null())
+		
+		if (auto&& result = hwndLookUpTable.at(hwnd); result)
 		{
-			auto&& window = result->second;
+			auto&& window = result.value()->second;
 
 			auto&& callbacks = window->m_callbackTable[WindowEvent::value_of(WindowEvent::Type::Close)];
 			window->m_info.state = WindowState::Closing;
@@ -145,10 +142,9 @@ struct EventQueueHandler
 
 	auto window_on_focus(OSEvent const& ev) -> void
 	{
-		auto&& result = hwndLookUpTable.at(std::bit_cast<uintptr_t>(ev.window));
-		if (!result.is_null())
+		if (auto&& result = hwndLookUpTable.at(std::bit_cast<uintptr_t>(ev.window)); result)
 		{
-			auto&& window = result->second;
+			auto&& window = result.value()->second;
 
 			auto&& callbacks = window->m_callbackTable[WindowEvent::value_of(WindowEvent::Type::Focus)];
 			WindowEvent e{
@@ -171,10 +167,10 @@ struct EventQueueHandler
 
 	auto window_handle_io(OSEvent const& ev) -> void
 	{
-		auto&& result = hwndLookUpTable.at(std::bit_cast<uintptr_t>(ev.window));
-		if (!result.is_null())
+		if (auto&& result = hwndLookUpTable.at(std::bit_cast<uintptr_t>(ev.window)); result)
 		{
-			auto&& window = result->second;
+			auto&& window = result.value()->second;
+
 			if (window->m_pContext == nullptr || 
 				window->m_pContext->m_pIoContext == nullptr)
 			{

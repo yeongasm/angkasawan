@@ -286,7 +286,12 @@ struct vtable
 		auto boxptr = fn::detail::data<box_type>(emplace_insitu{}, accessor);
 		if (boxptr == nullptr)
 		{
-			boxptr = allocator_bind<allocator_type, box_type>::allocate(box.allocator);
+			using box_allocator = typename std::allocator_traits<allocator_type>::template rebind_alloc<box_type>;;
+
+			box_allocator boxAllocator{ box.resource() };
+
+			boxptr = std::allocator_traits<box_allocator>::allocate(boxAllocator, 1);
+				
 			accessor.ptr = boxptr;
 		}
 		new (boxptr) box_type{ std::forward<Type>(box) };
@@ -320,10 +325,14 @@ struct vtable
 			else
 			{
 				using allocator_type = typename Type::allocator_type;
+				using box_allocator = typename std::allocator_traits<allocator_type>::template rebind_alloc<box_type>;
+
 				auto box = fn::detail::data<box_type>(std::false_type{}, *dst);
 
-				allocator_bind<allocator_type, box_type>::destroy(box);
-				allocator_bind<allocator_type, box_type>::deallocate(box->allocator, box);
+				box_allocator boxAllocator{ box->resource() };
+
+				std::allocator_traits<box_allocator>::destroy(boxAllocator, box);
+				std::allocator_traits<box_allocator>::deallocate(boxAllocator, box, 1);
 			}
 		}
 	}
@@ -387,12 +396,12 @@ public:
 		m_vtbl.op = vtable_t::template process_op<box_type, emplace_insitu>;
 	}
 
-	template <typename Functor, typename Allocator>
-	constexpr function(Functor&& functor, Allocator allocator) requires (!requires { typename Functor::internal_disable_constructor_on_move; }) :
+	template <typename Functor, provides_memory Allocator>
+	constexpr function(Functor&& functor, Allocator const& allocator) requires (!requires { typename Functor::internal_disable_constructor_on_move; }) :
 		m_storage{},
 		m_vtbl{}
 	{
-		using box_type = box<Functor, Allocator>;;
+		using box_type = box<Functor, Allocator>;
 		constexpr bool emplace_insitu = sizeof(box_type) <= properties.capacity;
 
 		vtable_t::template construct<emplace_insitu>(m_storage.accessor, make_box(std::forward<Functor>(functor), allocator));

@@ -9,7 +9,7 @@
 namespace lib
 {
 
-template <typename T, uint16 PAGE_SIZE, provides_memory allocator = default_allocator, std::derived_from<container_growth_policy> growth_policy = shift_growth_policy<4>>
+template <typename T, uint16 PAGE_SIZE>
 class paged_array
 {
 public:
@@ -25,7 +25,7 @@ public:
 		size_t			tail; // This marks the current end index of the buffer above.
 	};
 
-	using element_page = unique_ptr<page_buffer>;
+	using element_page = std::unique_ptr<page_buffer>;
 
 	/**
 	* index can no longer be 4 bytes. The slot version count needs to be included with the index.
@@ -233,16 +233,16 @@ public:
 	}
 
 private:
-	array<element_page, allocator, growth_policy> m_pages	= {};
-	array<index, allocator, growth_policy> m_indices		= {};
-	size_t m_current										= {};
+	array<element_page> m_pages		= {};
+	array<index>		m_indices	= {};
+	size_t				m_current	= {};
 
 	std::pair<index, element_type&> get_slot()
 	{
 		if (m_current == m_pages.capacity() ||
 			m_pages[m_current]->tail == m_pages[m_current]->buffer.size())
 		{
-			auto it		= m_pages.emplace(m_pages.end(), make_unique<page_buffer>());
+			auto it		= m_pages.emplace(m_pages.end(), std::make_unique<page_buffer>());
 			m_current	= std::distance(m_pages.begin(), it);
 		}
 

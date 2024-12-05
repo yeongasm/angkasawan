@@ -354,13 +354,12 @@ auto ShaderCompiler::compile_shader(ShaderCompileInfo const& info) -> Compilatio
 
 auto ShaderCompiler::get_compiled_shader_info(std::string_view name) const -> std::optional<CompiledShaderInfo>
 {
-	auto result = m_shader_compilations.at(name);
-	if (!result.is_null())
+	if (auto result = m_shader_compilations.at(name); result)
 	{
-		auto&& compiledUnit = result->second;
+		auto&& compiledUnit = result.value()->second;
 
 		CompiledShaderInfo compiledInfo{
-			.name = result->first,
+			.name = result.value()->first,
 			.type = compiledUnit.type,
 			.entryPoint = compiledUnit.entryPoint,
 			.binaries = std::span{ compiledUnit.binaries.data(), compiledUnit.binaries.size() },

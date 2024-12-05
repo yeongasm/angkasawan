@@ -37,37 +37,6 @@ auto strlen(const T* str) -> size_t
 	return length;
 }
 
-template <is_char_type char_type, provides_memory provided_allocator = default_allocator>
-struct fmt_allocator_interface : protected _conditional_allocator_base<provided_allocator>
-{
-    using super                 = _conditional_allocator_base<provided_allocator>;
-	using allocator_type		= provided_allocator;
-    using value_type            = char_type;
-    using size_type             = size_t;
-    using buffer                = fmt::basic_memory_buffer<value_type, fmt::inline_buffer_size, fmt_allocator_interface>;
-
-    template<class U> 
-    struct rebind 
-    { 
-        using other = fmt_allocator_interface<U, allocator_type>;
-    };
-
-    fmt_allocator_interface() requires std::same_as<allocator_type, default_allocator> {}
-    fmt_allocator_interface(allocator_type& allocator) requires !std::same_as<allocator_type, default_allocator> :
-        super{ &allocator }
-    {}
-
-    value_type* allocate(size_type size)
-    {
-        return allocator_bind<allocator_type, value_type>::allocate(super::allocator, size);
-    }
-
-    void deallocate(value_type* pointer, [[maybe_unused]] size_t size)
-    {
-		allocator_bind<allocator_type, value_type>::deallocate(super::allocator, pointer);
-    }
-};
-
 /**
 * Small String Optimized BasicString class.
 *
@@ -76,12 +45,12 @@ struct fmt_allocator_interface : protected _conditional_allocator_base<provided_
 * A decision was made to not revert the string class to a small string optimised version if the string is somehow altered to be shorter than before and less than 24 bytes.
 * Reason being the cost of allocating memory on the heap outweighs the pros of putting the string on the stack.
 */
-template <is_char_type char_type, provides_memory allocator = default_allocator, std::derived_from<container_growth_policy> growth_policy = shift_growth_policy<5>>
+template <is_char_type char_type, provides_memory in_allocator = allocator<char_type>, std::derived_from<container_growth_policy> growth_policy = shift_growth_policy<5>>
 class basic_string final
 {
 public:
 
-    using allocator_type	= allocator;
+    using allocator_type	= in_allocator;
     using value_type        = char_type;
     using size_type         = std::allocator_traits<allocator_type>::size_type;
     using difference_type   = std::allocator_traits<allocator_type>::difference_type;
@@ -92,13 +61,13 @@ public:
     using iterator          = array_iterator<basic_string>;
     using const_iterator    = array_const_iterator<basic_string>;
 
-	constexpr basic_string() requires std::same_as<allocator_type, default_allocator> :
-		m_box{ stored_type{} },
+	constexpr basic_string() :
+		m_box{},
 		m_capacity{ _m_msb_bit_flag | _m_sso_max },
 		m_len{ 0 }
 	{}
 
-	constexpr basic_string(allocator_type& allocator) requires !std::same_as<allocator_type, default_allocator> :
+	constexpr basic_string(allocator_type const& allocator) :
 		m_box{ stored_type{}, allocator},
 		m_capacity{ _m_msb_bit_flag | _m_sso_max },
 		m_len{ 0 }
@@ -109,48 +78,29 @@ public:
 		release();
 	}
 
-	constexpr basic_string(size_t size) requires std::same_as<allocator_type, default_allocator> :
-		basic_string{}
+	constexpr basic_string(size_t size, allocator_type const& allocator = allocator_type{}) :
+		basic_string{ allocator }
 	{
 		_grow(size);
 	}
 
-	constexpr basic_string(allocator_type& allocator, size_t size) requires !std::same_as<allocator_type, default_allocator> :
-		basic_string{ &allocator }
-	{
-		_grow(size);
-	}
-
-	constexpr basic_string(const_pointer str) requires std::same_as<allocator_type, default_allocator> :
-		basic_string{}
+	constexpr basic_string(const_pointer str, allocator_type const& allocator = allocator_type{}) :
+		basic_string{ allocator }
 	{
 		_write_fv(str, strlen(str));
 	}
 
+	constexpr basic_string(const_pointer str, size_type size, allocator_type const& allocator = allocator_type{}) :
+		basic_string{ allocator }
+	{
+		_write_fv(str, size);
+	}
+
 	template <typename... Args>
-	constexpr basic_string(std::basic_string_view<char_type> str, Args&&... args) requires std::same_as<allocator_type, default_allocator> :
+	constexpr basic_string(std::basic_string_view<char_type> str, Args&&... args) :
 		basic_string{}
 	{
 		_write_fv(fmt::basic_string_view<char_type>{ str }, fmt::make_format_args(args...));
-	}
-
-	template <typename... Args>
-	constexpr basic_string(allocator_type& allocator, const_pointer str, Args&&... args) requires !std::same_as<allocator_type, default_allocator> :
-		basic_string{ allocator }
-	{
-		_write_fv(m_box.allocator, fmt::basic_string_view<char_type>{ str }, fmt::make_format_args(args...));
-	}
-
-	constexpr basic_string(allocator_type& allocator, const_pointer str) requires !std::same_as<allocator_type, default_allocator> :
-		basic_string{ &allocator }
-	{
-		_write_fv(str, strlen(str));
-	}
-
-	constexpr basic_string(const_pointer str, size_type length) requires std::same_as<allocator_type, default_allocator> :
-		basic_string{}
-	{
-		_write_fv(str, length);
 	}
 
 	/**
@@ -172,126 +122,64 @@ public:
 	* Copy constructor.
 	* Performs a deep copy.
 	*/
-	constexpr basic_string(basic_string const& rhs) requires std::same_as<allocator_type, default_allocator> :
-		basic_string{}
+	constexpr basic_string(basic_string const& other) :
+		basic_string{ std::allocator_traits<allocator_type>::select_on_container_copy_construction(other.m_box) }
 	{
-		*this = rhs;
+		_deep_copy(other);
 	}
 
-
-	constexpr basic_string(basic_string const& rhs) requires !std::same_as<allocator_type, default_allocator> :
-		basic_string{ *rhs.m_box.allocator }
-	{
-		*this = rhs;
-	}
+	constexpr basic_string(basic_string&& other) :
+		m_box{ std::exchange(other.m_box, {}) },
+		m_capacity{ std::exchange(other.m_capacity, other._m_msb_bit_flag | other._m_sso_max) },
+		m_len{ std::exchange(other.m_len, {}) }
+	{}
 
 	/**
 	* Copy assignment operator.
 	* Performs a deep copy.
 	*/
-	constexpr basic_string& operator= (basic_string const& rhs)
+	constexpr basic_string& operator= (basic_string const& other)
 	{
-		if (this != &rhs)
+		if (this != &other)
 		{
-			const_pointer rhsPointer = rhs._data();
-
-			// Perform a deep copy if the copied string is not a small string.
-			if (!rhs.is_small_string())
-			{
-				_grow(rhs.m_capacity);
-			}
-
-			pointer ptr = _data();
-
-			m_len = rhs.m_len;
-			m_capacity = rhs.m_capacity;
-
-			for (size_type i = 0; i < m_len; i++)
-			{
-				ptr[i] = rhsPointer[i];
-			}
-
-			ptr[m_len] = null_v<value_type>;
+			clear();
+			_deep_copy(other);
 		}
 		return *this;
 	}
 
-	constexpr basic_string(basic_string&& rhs) :
-		basic_string{}
+	constexpr basic_string& operator= (basic_string&& other)
 	{
-		*this = std::move(rhs);
-	}
-
-	constexpr basic_string& operator= (basic_string&& rhs)
-	{
-		if (this != &rhs)
+		if (this != &other)
 		{
-			if (!rhs.is_small_string())
+			if (!other.is_small_string())
 			{
 				release();
 
-				bool move = true;
-
-				if constexpr (!std::is_same_v<allocator_type, default_allocator>)
-				{
-					if (m_box.allocator != rhs.m_box.allocator)
-					{
-						_grow(rhs.capacity());
-						size_type const rhsSize = rhs.size();
-
-						for (size_type i = 0; i < rhsSize; ++i)
-						{
-							m_box->ptr[i] = rhs.m_box->ptr[i];
-						}
-
-						rhs.release();
-
-						move = false;
-					}
-				}
-
-				if (move)
-				{
-					m_box = std::move(rhs.m_box);
-					m_capacity = rhs.m_capacity;
-					m_len = rhs.m_len;
-				}
+				m_box = std::exchange(other.m_box, {});
 			}
 			else
 			{
-				m_len = rhs.m_len;
-				m_capacity = rhs.m_capacity;
-
-				for (size_type i = 0; i < m_len; i++)
-				{
-					m_box->buf[i] = rhs.m_box->buf[i];
-				}
-
-				m_box->buf[m_len] = null_v<value_type>;
+				std::memcpy(m_box->buf, other.m_box->buf, sizeof(value_type) * insitu_capacity());
+				std::memset(other.m_box->buf, '0', sizeof(value_type) * insitu_capacity());
 			}
 
-			if constexpr (!std::is_same_v<allocator_type, default_allocator>)
-			{
-				new (&rhs) basic_string{ *rhs.m_box.allocator };
-			}
-			else
-			{
-				new (&rhs) basic_string{};
-			}
+			m_capacity = std::exchange(other.m_capacity, other._m_msb_bit_flag | other._m_sso_max);
+			m_len = std::exchange(other.m_len, {});
 		}
 		return *this;
 	}
 
 
-	constexpr bool operator== (basic_string const& rhs) const
+	friend auto operator== (basic_string const& lhs, basic_string const& rhs) -> bool
 	{
-		return _compare(rhs);
+		return lhs._compare(rhs);
 	}
 
 
-	constexpr bool operator== (const_pointer str) const
+	friend auto operator== (basic_string const& s, const_pointer str) -> bool
 	{
-		return _compare(str);
+		return s._compare(str);
 	}
 
 	/**
@@ -340,7 +228,7 @@ public:
 		{
 			if (m_box->ptr)
 			{
-				allocator_bind<allocator_type, value_type>::deallocate(m_box.allocator, m_box->ptr);
+				std::allocator_traits<allocator_type>::deallocate(m_box, m_box->ptr, m_capacity);
 			}
 		}
 		m_box->ptr = nullptr;
@@ -377,14 +265,7 @@ public:
 	template <typename... Args>
 	constexpr size_type format(std::basic_string_view<char_type> str, Args&&... args)
 	{
-		if constexpr (std::is_same_v<allocator_type, default_allocator>)
-		{
-			_write_fv(fmt::basic_string_view<char_type>{ str.data(), str.size() }, fmt::make_format_args(args...));
-		}
-		else
-		{
-			_write_fv(m_box.allocator, fmt::basic_string_view<char_type>{ str.data(), str.size() }, fmt::make_format_args(args...));
-		}
+		_write_fv(fmt::basic_string_view<char_type>{ str.data(), str.size() }, fmt::make_format_args(args...));
 
 		return m_len;
 	}
@@ -458,14 +339,8 @@ public:
 	template <typename... Args>
 	constexpr basic_string& append(std::basic_string_view<char_type> str, Args&&... args)
 	{
-		if constexpr (std::is_same_v<allocator_type, default_allocator>)
-		{
-			_append_internal(fmt::basic_string_view<char_type>{ str.data(), str.size() }, fmt::make_format_args(args...));
-		}
-		else
-		{
-			_append_internal(m_box.allocator, fmt::basic_string_view<char_type>{ str.data(), str.size() }, fmt::make_format_args(args...));
-		}
+		_append_internal(fmt::basic_string_view<char_type>{ str.data(), str.size() }, fmt::make_format_args(args...));
+
 		return *this;
 	}
 
@@ -514,16 +389,15 @@ public:
 
 private:
 
-    using fmt_allocator	= fmt_allocator_interface<value_type, allocator_type>;
-    using fmt_buffer    = fmt::basic_memory_buffer<value_type, fmt::inline_buffer_size, fmt_allocator>;
+    using fmt_buffer = fmt::basic_memory_buffer<value_type, fmt::inline_buffer_size, allocator_type>;
 
 	static constexpr uint32 _m_msb_bit_flag	= 0x80000000;
-    static constexpr size_type _m_sso_max		= 24 / sizeof(value_type) < 1 ? 1 : 24 / sizeof(value_type);
+    static constexpr uint32 _m_sso_max	= 24 / sizeof(value_type) < 1 ? 1 : 24 / sizeof(value_type);
 
     union stored_type
     {
 		pointer ptr;
-        value_type buf[_m_sso_max];
+		value_type buf[_m_sso_max] = {};
     };
 	
 	using box_type = box<stored_type, allocator_type>;
@@ -560,23 +434,9 @@ private:
     /**
     * Calls { fmt } to format string (non-allocator referenced version).
     */
-    constexpr size_type _write_fv(fmt::basic_string_view <char_type>str, fmt::format_args args) requires std::same_as<allocator_type, default_allocator>
+    constexpr size_type _write_fv(fmt::basic_string_view <char_type>str, fmt::format_args args)
     {
-        fmt_allocator fmtAlloc;
-        fmt_buffer buffer{ fmtAlloc };
-
-        fmt::vformat_to(std::back_inserter(buffer), str, args);
-
-        return _write_fv(buffer.data(), static_cast<size_type>(buffer.size()));
-    }
-
-    /**
-    * Calls { fmt } to format string (allocator referenced version).
-    */
-    constexpr size_type _write_fv(allocator_type& allocator, fmt::basic_string_view <char_type>str, fmt::format_args args) requires !std::same_as<allocator_type, default_allocator>
-    {
-        fmt_allocator fmtAlloc{ &allocator };
-        fmt_buffer buffer{ fmtAlloc };
+        fmt_buffer buffer{ m_box };
 
         fmt::vformat_to(std::back_inserter(buffer), str, args);
 
@@ -602,20 +462,9 @@ private:
         return m_len;
     }
 
-    constexpr size_type _append_internal(fmt::basic_string_view<char_type> str, fmt::format_args args) requires std::same_as<allocator_type, default_allocator>
+    constexpr size_type _append_internal(fmt::basic_string_view<char_type> str, fmt::format_args args)
     {
-        fmt_allocator fmtAlloc;
-        fmt_buffer buffer{ fmtAlloc };
-
-        fmt::vformat_to(std::back_inserter(buffer), str, args);
-
-        return _append_internal(buffer.data(), static_cast<size_type>(buffer.size()));
-    }
-
-    constexpr size_type _append_internal(allocator_type& allocator, fmt::basic_string_view<char_type> str, fmt::format_args args) requires !std::same_as<allocator_type, default_allocator>
-    {
-        fmt_allocator fmtAlloc{ &allocator };
-        fmt_buffer buffer{ fmtAlloc };
+        fmt_buffer buffer{ m_box };
 
         fmt::vformat_to(std::back_inserter(buffer), str, args);
 
@@ -627,26 +476,25 @@ private:
         return is_small_string() ? m_box->buf : m_box->ptr;
     }
 
-    /**
-    * Returns a pointer to the current buffer that is in use for the string.
-    */
-    constexpr const_pointer _data() const
-    {
-        return is_small_string() ? m_box->buf : m_box->ptr;
-    }
+	constexpr const_pointer _data() const
+	{
+		return is_small_string() ? m_box->buf : m_box->ptr;
+	}
 
     constexpr void _grow(size_t length)
     {
         bool const wasPrevSmallString = is_small_string();
-        // Unset the msb in m_capacity to signify that it's no longer a SSO string.
-        pointer ptr = allocator_bind<allocator_type, value_type>::allocate(m_box.allocator, length);
 
+		size_t const previousCapacity = m_capacity;
         m_capacity = static_cast<uint32>(length);
+
+		// Unset the msb in m_capacity to signify that it's no longer a SSO string.
+		pointer ptr = std::allocator_traits<allocator_type>::allocate(m_box, m_capacity);
 
         if (!wasPrevSmallString)
         {
 			std::memcpy(ptr, m_box->ptr, m_len * sizeof(value_type));
-			allocator_bind<allocator_type, value_type>::deallocate(m_box.allocator, m_box->ptr);
+			std::allocator_traits<allocator_type>::deallocate(m_box, m_box->ptr, previousCapacity);
         }
         else
         {
@@ -712,6 +560,26 @@ private:
         }
         return true;
     }
+
+	constexpr auto _deep_copy(basic_string const& other) -> void
+	{
+		const_pointer src = other._data();
+
+		// Perform a deep copy if the copied string is not a small string.
+		if (!other.is_small_string())
+		{
+			_grow(other.capacity());
+		}
+
+		pointer dst = _data();
+
+		m_len = other.m_len;
+		m_capacity = other.m_capacity;
+
+		std::memcpy(dst, src, sizeof(value_type) * other.size());
+
+		dst[m_len] = null_v<value_type>;
+	}
 };
 
 template <is_char_type char_type, size_t Capacity>
@@ -935,15 +803,25 @@ using hash_wstring_view = basic_hash_string_view<wchar_t>;
 template <is_char_type char_type, typename... Args>
 constexpr basic_string<char_type> format(char_type const* str, Args&&... arguments)
 {
-    using fmt_allocator = fmt_allocator_interface<char_type, default_allocator>;
-    using string_type   = basic_string<char_type>;
+    using string_type = basic_string<char_type>;
 
-    fmt_allocator fmtAlloc;
-    fmt::basic_memory_buffer<char_type, fmt::inline_buffer_size, fmt_allocator> buffer{ fmtAlloc };
+    fmt::basic_memory_buffer<char_type, fmt::inline_buffer_size> buffer{};
 
     fmt::vformat_to(std::back_inserter(buffer), fmt::basic_string_view<char_type>{ str }, fmt::make_format_args(arguments...));
 
     return string_type{ buffer.data(), static_cast<typename string_type::size_type>(buffer.size()) };
+}
+
+template <is_char_type char_type, typename... Args, provides_memory allocator_type = allocator<char_type>>
+constexpr basic_string<char_type> format(allocator_type const& allocator_, char_type const* str, Args&&... arguments)
+{
+	using string_type = basic_string<char_type>;
+
+	fmt::basic_memory_buffer<char_type, fmt::inline_buffer_size, allocator_type> buffer{ allocator_ };
+
+	fmt::vformat_to(std::back_inserter(buffer), fmt::basic_string_view<char_type>{ str }, fmt::make_format_args(arguments...));
+
+	return string_type{ buffer.data(), static_cast<typename string_type::size_type>(buffer.size()), allocator_ };
 }
 
 /**

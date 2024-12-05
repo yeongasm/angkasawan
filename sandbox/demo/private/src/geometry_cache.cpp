@@ -202,7 +202,7 @@ auto GeometryCache::vertex_buffer_of(root_geometry_handle handle) const -> gpu::
 	{
 		return {};
 	}
-	return m_geometryVb.at(handle.get())->second;
+	return m_geometryVb.at(handle.get()).value()->second;
 }
 
 auto GeometryCache::index_buffer_of(root_geometry_handle handle) const -> gpu::buffer
@@ -211,7 +211,7 @@ auto GeometryCache::index_buffer_of(root_geometry_handle handle) const -> gpu::b
 	{
 		return {};
 	}
-	return m_geometryIb.at(handle.get())->second;
+	return m_geometryIb.at(handle.get()).value()->second;
 }
 
 auto GeometryCache::input_element_count(GeometryInput input) -> uint32

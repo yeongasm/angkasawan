@@ -1,5 +1,5 @@
 #include "core.platform/application.hpp"
-#include "demo/model_demo_app.hpp"
+#include "model_demo_app.hpp"
 #include "graphics_processing_unit.hpp"
 
 namespace sandbox

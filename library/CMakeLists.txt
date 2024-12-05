@@ -29,7 +29,7 @@ set(
 	"public/lib/function.hpp"
 	"public/lib/handle.hpp"
 	"public/lib/hash.hpp"
-	"public/lib/linear_allocator.hpp"
+	#"public/lib/linear_allocator.hpp"
 	"public/lib/map.hpp"
 	"public/lib/memory.hpp"
 	"public/lib/named_type.hpp"

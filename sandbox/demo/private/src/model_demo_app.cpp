@@ -1,7 +1,7 @@
 #include <fstream>
 
 #include "gpu/util/shader_compiler.hpp"
-#include "demo/model_demo_app.hpp"
+#include "model_demo_app.hpp"
 #include "model_importer.hpp"
 #include "image_importer.hpp"
 

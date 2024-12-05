@@ -2,7 +2,6 @@
 #ifndef LIB_MEMORY_HPP
 #define LIB_MEMORY_HPP
 
-#include <source_location>
 #include <bit>
 #include "common.hpp"
 #include "concepts.hpp"
@@ -32,46 +31,173 @@ void memswap(T* a, T* b)
 
 LIB_API constexpr size_t	is_power_of_two(size_t num);
 LIB_API constexpr size_t	pad_address(const uintptr_t address, const size_t alignment);
-
 LIB_API constexpr bool		is_64bit_aligned(void* pointer);
 
-struct allocate_info
+class memory_resource : non_copyable_non_movable
 {
-	size_t size;
-	size_t alignment = __STDCPP_DEFAULT_NEW_ALIGNMENT__;
+public:
+	memory_resource() = default;
+	virtual ~memory_resource() {};
+
+	auto allocate(size_t size, size_t alignment = alignof(std::max_align_t)) -> void*;
+	auto deallocate(void* p, size_t bytes, size_t alignment = alignof(std::max_align_t)) -> void;
+	auto is_equal(memory_resource const& other) -> bool;
+
+private:
+	virtual auto do_allocate(size_t size, size_t alignment) -> void* = 0;
+	virtual auto do_deallocate(void* p, size_t bytes, size_t alignment) -> void = 0;
+	virtual auto do_is_equal(memory_resource const& other) -> bool = 0;
 };
 
-// Allocates memory using the system.
-[[deprecated("Every allocation needs to go through an allocator")]]
-LIB_API void*	allocate_memory(allocate_info const& info);
+class default_memory_resource : public memory_resource
+{
+private:
+	virtual auto do_allocate(size_t size, size_t alignment) -> void* override;
+	virtual auto do_deallocate(void* p, size_t bytes, size_t alignment) -> void override;
+	virtual auto do_is_equal(memory_resource const& other) -> bool override;
+};
 
-// Releases memory from the system.
-[[deprecated("Every allocation needs to go through an allocator")]]
-LIB_API void	release_memory(void* pointer);
+auto get_default_resource() noexcept -> memory_resource*;
+
+template <typename T>
+concept can_allocate_memory = requires (T allocator)
+{
+	{ allocator.allocate(0) } -> std::same_as<typename T::pointer>;
+};
+
+template <typename T>
+concept can_deallocate_memory = requires (T allocator)
+{
+	{ allocator.deallocate(nullptr, 0) } -> std::same_as<void>;
+};
+
+template <typename T>
+concept provides_memory = can_allocate_memory<T> && can_deallocate_memory<T>;
+
+template <typename T = std::byte>
+class allocator : not_copy_assignable
+{
+public:
+	using value_type = T;
+	using pointer = value_type*;
+	using const_pointer = value_type const*;
+	using void_pointer = void*;
+	using const_void_pointer = void const*;
+	using difference_type = ptrdiff_t;
+	using size_type = size_t;
+
+	template <typename U>
+	struct rebind
+	{
+		using other = allocator<U>;
+	};
+
+	allocator() noexcept = default;
+	~allocator() = default;
+
+	allocator(allocator const& other) :
+		m_memoryResource{ other.m_memoryResource }
+	{}
+
+	template <typename U>
+	allocator(allocator<U> const& other) :
+		m_memoryResource{ other.m_memoryResource }
+	{}
+
+	allocator(memory_resource* resource) :
+		m_memoryResource{ resource }
+	{}
+
+	template <typename A>
+	auto operator==(allocator<A> const& rhs) const -> bool
+	{
+		return m_memoryResource == rhs.m_memoryResource;
+	}
+
+	friend auto operator==(allocator const& lhs, allocator const& rhs) -> bool
+	{
+		return lhs.m_memoryResource == rhs.m_memoryResource;
+	}
+
+	auto allocate(size_t n = 1) -> pointer
+	{
+		return static_cast<pointer>(m_memoryResource->allocate(sizeof(value_type) * n));
+	}
+
+	auto deallocate(pointer p, size_t n = 1) -> void
+	{
+		return m_memoryResource->deallocate(p, sizeof(value_type) * n);
+	}
+
+	template <typename U, typename... Args>
+	auto construct(U* p, Args&&... args) -> void
+	{
+		new (p) std::decay_t<U>{ std::forward<Args>(args)... };
+	}
+
+	template <typename U>
+	auto destroy(U* p) -> void
+	{
+		p->~U();
+	};
+
+	auto allocate_bytes(size_t nbytes, size_t alignment = alignof(std::max_align_t)) -> void*
+	{
+		return m_memoryResource->allocate(nbytes, alignment);
+	}
+
+	auto deallocate_bytes(void* p, size_t nbytes, size_t alignment = alignof(std::max_align_t)) -> void
+	{
+		m_memoryResource->deallocate(p, nbytes, alignment);
+	}
+
+	template <typename U>
+	auto allocate_object(size_t n = 1) -> U*
+	{
+		return static_cast<U*>(m_memoryResource->allocate(sizeof(U) * n, alignof(U)));
+	}
+
+	template <typename U>
+	auto deallocate_object(U* p, size_t n = 1) -> void
+	{
+		m_memoryResource->deallocate(p, sizeof(U) * n, alignof(U));
+	}
+
+	auto select_on_container_copy_construction() const -> allocator
+	{
+		return allocator{};
+	}
+
+	auto resource() const -> memory_resource* { return m_memoryResource; }
+
+private:
+	memory_resource* m_memoryResource = get_default_resource();
+};
 
 // All allocators must be derived from this class.
 // Allocators can not be:
 // 1. Copy constructable & assignable.
 // 2. Move constructable & assignable.
-class allocator_base
+class allocator_base : non_copyable_non_movable
 {
 public:
-	using value_type	= std::byte;
-	using pointer		= void*;
+	using value_type = std::byte;
+	using pointer = void*;
 	using const_pointer = void const*;
-	using void_pointer	= void*;
+	using void_pointer = void*;
 	using const_void_pointer = void const*;
 	using difference_type = std::ptrdiff_t;
-	using size_type		= size_t;
+	using size_type = size_t;
 
-	constexpr allocator_base()	= default;
+	constexpr allocator_base() = default;
 	constexpr ~allocator_base() = default;
 
-	template <typename allocator_type>
-	struct alignas(16) memory_header
+protected:
+
+	struct memory_header
 	{
-		allocator_type* allocator;
-		size_t			size;
+		memory_resource* pAllocator;
+		size_t			bytesAllocated;
 	};
 
 	/**
@@ -80,17 +206,17 @@ public:
 	void* aligned_alloc(void* pointer, size_t bytes, size_t alignment, size_t& allocated)
 	{
 		static auto aligned_pointer = [](void* ptr, size_t align) -> uint8*
+		{
+			const uintptr_t address = reinterpret_cast<uintptr_t>(ptr);
+			const uintptr_t aligned = [](uintptr_t add, size_t al) -> uintptr_t
 			{
-				const uintptr_t address = reinterpret_cast<uintptr_t>(ptr);
-				const uintptr_t aligned = [](uintptr_t add, size_t al) -> uintptr_t
-					{
-						const size_t mask = al - 1;
-						ASSERTION((al + mask) != 0);
-						return(add + mask) & ~mask;
-					}(address, align);
+				const size_t mask = al - 1;
+				ASSERTION((al + mask) != 0);
+				return(add + mask) & ~mask;
+			}(address, align);
 
-					return reinterpret_cast<uint8*>(aligned);
-			};
+			return reinterpret_cast<uint8*>(aligned);
+		};
 
 		allocated += (bytes + alignment);
 		uint8* ptr = aligned_pointer(pointer, alignment);
@@ -116,155 +242,7 @@ public:
 		}
 		return block - shift;
 	}
-
-private:
-	allocator_base(const allocator_base&)	= delete;
-	allocator_base(allocator_base&&)		= delete;
-
-	allocator_base& operator=(const allocator_base&)	= delete;
-	allocator_base& operator=(allocator_base&&)			= delete;
 };
-
-struct default_allocator
-{
-	using value_type	= std::byte;
-	using pointer		= value_type*;
-	using const_pointer = value_type const*;
-	using void_pointer	= void*;
-	using const_void_pointer = void const*;
-	using difference_type = ptrdiff_t;
-	using size_type		= size_t;
-
-	struct deleter
-	{
-		auto operator()(is_pointer auto const pointer) -> void
-		{
-			using type = std::remove_const_t<std::remove_pointer_t<decltype(pointer)>>;
-			pointer->~type();
-			default_allocator{}.deallocate(pointer);
-		}
-	};
-
-	template <typename T>
-	class bind_to
-	{
-	public:
-		using value_type	= std::decay_t<T>;
-		using pointer		= value_type*;
-		using const_pointer = value_type const*;
-		using void_pointer	= void*;
-		using const_void_pointer = void const*;
-		using difference_type = ptrdiff_t;
-		using size_type		= size_t;
-
-		bind_to([[maybe_unused]] default_allocator&) :
-			m_allocator{}
-		{};
-
-		~bind_to() = default;
-
-		auto allocate(size_t count) const -> pointer
-		{
-			return static_cast<pointer>(m_allocator.allocate(sizeof(value_type) * count, alignof(value_type)));
-		}
-
-		auto deallocate(is_pointer auto const* pointer, [[maybe_unused]] size_t) const -> void
-		{
-			m_allocator.deallocate(pointer);
-		}
-
-	private:
-		NO_UNIQUE_ADDRESS default_allocator m_allocator;
-	};
-
-	template <typename T>
-	struct rebind
-	{
-		using other = bind_to<T>;
-	};
-
-	LIB_API auto allocate(size_t size, size_t alignment = alignof(std::max_align_t)) const -> void*;
-	LIB_API auto allocate_bytes(size_t bytes, size_t alignment = alignof(std::max_align_t)) const -> void*;
-	LIB_API auto deallocate(void const* pointer) const -> void;
-	LIB_API auto deallocate(void const* pointer, [[maybe_unused]] size_t) const -> void;
-	LIB_API auto deallocate_bytes(void const* pointer, [[maybe_unused]] size_t, [[maybe_unused]] size_t) const -> void;
-};
-
-template <typename T>
-concept can_allocate_memory = requires (T allocator, size_t sz)
-{
-	{ allocator.allocate(sz) } -> std::same_as<void*>;
-};
-
-template <typename T>
-concept can_deallocate_memory = requires (T allocator)
-{
-	allocator.deallocate(nullptr);
-};
-
-template <typename T>
-concept provides_memory = can_allocate_memory<T> && can_deallocate_memory<T>;
-
-template <provides_memory AllocatorType, typename T = std::byte>
-struct allocator_bind
-{
-	using allocator_type		= AllocatorType;
-	using value_type			= T;
-	using pointer				= value_type*;
-	using const_pointer			= value_type const*;
-	using void_pointer			= void*;
-	using const_void_pointer	= void*;
-	using difference_type		= ptrdiff_t;
-	using size_type				= size_t;
-
-	template <typename Other>
-	using rebind = allocator_bind<AllocatorType, Other>;
-
-	static constexpr auto allocate(allocator_type const& allocator, size_t count = 1, size_t alignment = alignof(value_type)) -> pointer
-	{
-		return static_cast<pointer>(allocator.allocate(sizeof(value_type) * count, alignment));
-	}
-
-	static constexpr auto deallocate(allocator_type const& allocator, is_pointer auto const pointer) -> void
-	{
-		allocator.deallocate(pointer);
-	}
-
-	static constexpr auto deallocate(allocator_type const& allocator, is_pointer auto const pointer, [[maybe_unused]] size_t) -> void
-	{
-		allocator.deallocate(pointer);
-	}
-
-	template <typename... Args>
-	static constexpr auto construct(pointer p, Args&&... args) -> void
-	{
-		new (p) T{ std::forward<Args>(args)... };
-	}
-
-	static constexpr auto destroy(is_pointer auto const pointer) -> void
-	{
-		using type = std::remove_pointer_t<std::decay_t<decltype(pointer)>>;
-		pointer->~type();
-	}
-};
-
-template <typename T>
-struct default_delete
-{
-	constexpr default_delete() noexcept = default;
-
-	constexpr void operator()(T* pointer) const
-	{
-		pointer->~T();
-		default_allocator{}.deallocate(pointer);
-	}
-};
-
-/**
-* An extension to std::unique_ptr that integrates our memory tracking capabilities.
-*/
-template <typename T, typename deleter = default_delete<T>>
-using unique_ptr = std::unique_ptr<T, deleter>;
 
 /**
 * References a unique_ptr or a pointer.
@@ -277,14 +255,12 @@ class ref
 private:
 	using element_type = std::conditional_t<std::is_const_v<T>, const std::decay_t<T>, std::decay_t<T>>;
 	element_type* m_data;
-
-	constexpr void unreference() { m_data = nullptr; }
 public:
 	constexpr ref() : m_data{ nullptr } {}
 	constexpr ref(element_type* data) : m_data{ data } {}
 	constexpr ref(element_type& data) : ref{ &data } {}
-	constexpr ref(unique_ptr<T>& pointer) : m_data{ pointer.get() } {}
-	constexpr ~ref() { unreference(); }
+	constexpr ref(std::unique_ptr<T> const& pointer) : m_data{ pointer.get() } {}
+	constexpr ~ref() { m_data = nullptr; }
 
 	constexpr ref(ref const& rhs) : m_data{ rhs.m_data } {}
 	constexpr ref(ref&& rhs) noexcept { *this = std::move(rhs); }
@@ -320,83 +296,38 @@ public:
 		return m_data;
 	}
 
-	constexpr element_type*			get() const	{ return m_data; }
+	constexpr element_type*	get() const	{ return m_data; }
 
 	constexpr bool	operator== (ref const& rhs) const { return m_data == rhs.m_data; }
 	constexpr bool	operator== (std::nullptr_t) const { return m_data == nullptr; }
-
-	constexpr bool	is_null() const { return m_data == nullptr; }
 };
 
 template <typename T>
-using const_ref = ref<std::conditional_t<std::is_const_v<T>, T, T const>>;
-
-template <typename T, typename... Arguments>
-constexpr unique_ptr<T> make_unique(Arguments&&... args)
-{
-	T* pointer = static_cast<T*>(default_allocator{}.allocate(sizeof(T)));
-	new (pointer) T{ std::forward<Arguments>(args)... };
-	return unique_ptr<T>{ pointer };
-}
-
-template <typename allocator>
-struct _conditional_allocator_base
-{
-	constexpr _conditional_allocator_base() = default;
-
-	constexpr _conditional_allocator_base(allocator& alloc) :
-		allocator{ &alloc }
-	{}
-
-	allocator* allocator = nullptr;
-};
-
-template <>
-struct _conditional_allocator_base<default_allocator>
-{
-	constexpr _conditional_allocator_base() = default;
-
-	NO_UNIQUE_ADDRESS default_allocator allocator = {};
-};
+using const_ref = ref<std::conditional_t<!std::is_const_v<T>, T, T const>>;
 
 /**
- * Not the same type of Box from Rust.
- * Stores some value adjacent to an allocator.
- */
-template <typename T, typename allocator = default_allocator>
-struct box : public _conditional_allocator_base<allocator>
+* Not the same type of Box from Rust.
+* It is a compressed pair that stores some value adjacent to an allocator.
+*/
+template <typename T, provides_memory allocator = allocator<std::decay_t<T>>>
+struct box : public allocator, non_copyable
 {
-	using type = T;
-	using value_type	 = std::conditional_t<std::is_const_v<type>, std::remove_cvref_t<type>, std::decay_t<T>>;
-	using allocator_type = std::decay_t<allocator>;
+	using value_type	 = std::decay_t<T>;
+	using allocator_type = allocator;
 
-	value_type data;
+	value_type data = {};
 
-	constexpr box() = default;
-
-	template <typename U = T>
-	constexpr box(U&& resource) requires (std::same_as<allocator, default_allocator>) :
-		_conditional_allocator_base<allocator>{},
-		data{ std::forward<U>(resource) }
-	{}
+	constexpr box()	= default;
 
 	template <typename U = T>
-	constexpr box(U&& resource, allocator& alloc_) requires (!std::same_as<allocator, default_allocator>) :
-		_conditional_allocator_base<allocator>{ alloc_ },
+	constexpr box(U&& resource, const allocator_type& alloc_ = allocator_type{}) :
+		allocator_type{ alloc_ },
 		data{ std::forward<U>(resource) }
 	{}
-
-	box(box const&) = delete;
-	auto operator=(box const&) -> box& = delete;
 
 	constexpr box(box&& rhs) noexcept :
 		data{ std::move(rhs.data) }
-	{
-		if constexpr (!std::is_same_v<allocator, default_allocator>)
-		{
-			box::allocator = std::exchange(rhs.allocator, nullptr);
-		}
-	}
+	{}
 
 	constexpr auto operator=(box&& rhs) noexcept -> box&
 	{
@@ -405,16 +336,9 @@ struct box : public _conditional_allocator_base<allocator>
 			this->~box();
 
 			data = std::move(rhs.data);
-			if constexpr (!std::is_same_v<allocator, default_allocator>)
-			{
-				box::allocator = std::exchange(rhs.allocator, nullptr);
-			}
 		}
 		return *this;
 	}
-
-	constexpr ~box() = default;
-
 
 	constexpr auto operator*() const -> value_type const&
 	{
@@ -435,44 +359,13 @@ struct box : public _conditional_allocator_base<allocator>
 	{
 		return &data;
 	}
-
-	constexpr explicit operator allocator_type&()
-	{
-		if constexpr (std::is_same_v<allocator, default_allocator>)
-		{
-			return box::allocator;
-		}
-		else
-		{
-			return *box::allocator;
-		}
-	}
-
-	constexpr explicit operator allocator_type const&() const
-	{
-		if constexpr (std::is_same_v<allocator, default_allocator>)
-		{
-			return box::allocator;
-		}
-		else
-		{
-			return *box::allocator;
-		}
-	}
 };
 
 template <typename T>
-constexpr auto make_box(T&& obj) -> box<T>
+constexpr auto make_box(T&& obj, allocator<std::decay_t<T>> const& allocator_ = allocator<std::decay_t<T>>{}) -> box<T>
 {
-	return box<T>{ std::forward<T>(obj) };
+	return box<T>{ std::forward<T>(obj), allocator_ };
 }
-
-template <typename T, typename allocator_type>
-constexpr auto make_box(T&& obj, allocator_type& allocator) -> box<T, allocator_type>
-{
-	return box<T, allocator_type>{ std::forward<T>(obj), allocator };
-}
-
 }
 
 #endif LIB_MEMORY_HPP
