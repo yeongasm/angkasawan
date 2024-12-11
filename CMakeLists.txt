@@ -8,10 +8,10 @@ message("CMake version: ${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION}.${CMAKE_PA
 enable_testing()
 
 project(AngkasaOne)
+include(CheckIPOSupported)
 include(cmake/CPM.cmake)
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
-#set(EXECUTABLE_DIR "${PROJECT_BINARY_DIR}/exe/")
 
 get_filename_component(
     DEP_PATH
@@ -22,13 +22,16 @@ get_filename_component(
 set(CPM_SOURCE_CACHE "${DEP_PATH}")
 message("CPM_SOURCE_CACHE: ${CPM_SOURCE_CACHE}")
 
-# Include sub-projects.
-add_subdirectory(exe)
+check_ipo_supported(RESULT result OUTPUT output)
+
+if (result)
+    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+else()
+    message(WARNING "IPO is not supported: ${output}")
+endif()
+
 add_subdirectory(library)
-#add_subdirectory(math)
 add_subdirectory(core)
 add_subdirectory(gpu)
-#add_subdirectory(renderer)
 add_subdirectory(sandbox)
 add_subdirectory(thirdparty)
-add_subdirectory(unit_tests)

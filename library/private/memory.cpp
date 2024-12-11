@@ -1,6 +1,6 @@
 #include <cstdlib>
 #include <cstring>
-#include "lib/memory.h"
+#include "lib/memory.hpp"
 
 namespace lib
 {
@@ -42,9 +42,9 @@ constexpr size_t pad_address(const uintptr_t address, const size_t alignment)
 	return static_cast<size_t>(alignedAddress - address);
 }
 
-bool is_64bit_aligned(void* pointer)
+constexpr bool is_64bit_aligned(void* pointer)
 {
-	uintptr_t address = reinterpret_cast<uintptr_t>(pointer);
+	uintptr_t address = std::bit_cast<uintptr_t>(pointer);
 	return (address & 0x7) == 0;
 }
 
@@ -56,7 +56,7 @@ struct memory
 
 struct system_memory final
 {
-	static memory malloc(size_t size, size_t alignment = 16)
+	static memory allocate(size_t size, size_t alignment = 16)
 	{
 		size_t allocated = 0;
 
@@ -73,7 +73,7 @@ struct system_memory final
 		return { pointer, allocated };
 	}
 
-	static void free(void* pointer)
+	static void deallocate(void* pointer)
 	{
 		ASSERTION(pointer != nullptr && "Pointer being released is null!");
 		if (pointer)
@@ -122,23 +122,45 @@ private:
 	}
 };
 
-void* allocate_memory(allocate_info const& info)
+auto memory_resource::allocate(size_t size, size_t alignment) -> void*
 {
-	memory memory = system_memory::malloc(info.size + sizeof(size_t), info.alignment);
+	return do_allocate(size, alignment);
+}
+
+auto memory_resource::deallocate(void* p, size_t bytes, size_t alignment) -> void
+{
+	do_deallocate(p, bytes, alignment);
+}
+
+auto memory_resource::is_equal(memory_resource const& other) -> bool
+{
+	return do_is_equal(other);
+}
+
+auto default_memory_resource::do_allocate(size_t size, size_t alignment) -> void*
+{
+	memory memory = system_memory::allocate(size, alignment);
 	void* pointer = memory.pointer;
-
-	new (pointer) size_t{ memory.size };
-
-	pointer = static_cast<uint8*>(pointer) + sizeof(size_t);
-	ASSERTION(is_64bit_aligned(pointer) && "Address is not aligned!");
 
 	return pointer;
 }
 
-void release_memory(void* pointer)
+auto default_memory_resource::do_deallocate(void* p, [[maybe_unused]] size_t bytes, [[maybe_unused]] size_t alignment) -> void
 {
-	size_t* base = reinterpret_cast<size_t*>(static_cast<uint8*>(pointer) - sizeof(size_t));
-	system_memory::free(base);
+	if (p != nullptr)
+	{
+		system_memory::deallocate(p);
+	}
 }
 
+auto default_memory_resource::do_is_equal(memory_resource const& other) -> bool
+{
+	return this == std::addressof(other);
+}
+
+auto get_default_resource() noexcept -> memory_resource*
+{
+	static default_memory_resource _default = {};
+	return &_default;
+}
 }

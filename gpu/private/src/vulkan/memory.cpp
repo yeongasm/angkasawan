@@ -1,4 +1,4 @@
-#include "vulkan/vkgpu.h"
+#include "vulkan/vkgpu.hpp"
 
 namespace gpu
 {
@@ -35,7 +35,7 @@ auto MemoryBlock::from(Device& device, MemoryBlockAllocateInfo&& info) -> Resour
 {
 	if (std::cmp_equal(info.memoryRequirement.size, 0) || std::cmp_equal(info.memoryRequirement.alignment, 0))
 	{
-		return null_resource;
+		return {};
 	}
 
 	auto&& vkdevice = to_device(device);
@@ -64,10 +64,7 @@ auto MemoryBlock::from(Device& device, MemoryBlockAllocateInfo&& info) -> Resour
 	VmaAllocation handle = VK_NULL_HANDLE;
 	VmaAllocationInfo allocInfo = {};
 
-	if (vmaAllocateMemory(vkdevice.allocator, &memReq, &allocCreateInfo, &handle, &allocInfo) != VK_SUCCESS)
-	{
-		return null_resource;
-	}
+	CHECK_OP(vmaAllocateMemory(vkdevice.allocator, &memReq, &allocCreateInfo, &handle, &allocInfo))
 
 	auto&& [id, vkmemory] = vkdevice.gpuResourcePool.memoryBlocks.emplace(vkdevice, true);
 

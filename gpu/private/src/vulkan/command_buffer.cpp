@@ -1,4 +1,4 @@
-#include "vulkan/vkgpu.h"
+#include "vulkan/vkgpu.hpp"
 
 /**
 * Vulkan Command Buffers Specification
@@ -328,7 +328,7 @@ auto CommandBuffer::bind_push_constant(BindPushConstantInfo const& info) -> void
 	uint32 sz = static_cast<uint32>(info.size);
 	uint32 off = static_cast<uint32>(info.offset);
 
-	uint32 const MAX_PUSH_CONSTANT_SIZE = m_device->config().pushConstantMaxSize;
+	[[maybe_unused]] uint32 const MAX_PUSH_CONSTANT_SIZE = m_device->config().pushConstantMaxSize;
 
 	ASSERTION(sz <= MAX_PUSH_CONSTANT_SIZE && "Constant supplied exceeded maximum size allowed by the driver.");
 	ASSERTION(off <= MAX_PUSH_CONSTANT_SIZE && "Offset supplied exceeded maximum push constant size allowed by the driver.");
@@ -1125,7 +1125,7 @@ auto CommandBuffer::from(Resource<CommandPool>& commandPool) -> Resource<Command
 
 	if (cmdBufferPool.commandBufferCount + 1 > MAX_COMMAND_BUFFER_PER_POOL)
 	{
-		return null_resource;
+		return {};
 	}
 
 	size_t const index = cmdBufferPool.commandBufferCount++;
@@ -1143,12 +1143,7 @@ auto CommandBuffer::from(Resource<CommandPool>& commandPool) -> Resource<Command
 
 	VkCommandBuffer handle = VK_NULL_HANDLE;
 
-	VkResult result = vkAllocateCommandBuffers(vkdevice.device, &allocateInfo, &handle);
-
-	if (result != VK_SUCCESS)
-	{
-		return null_resource;
-	}
+	CHECK_OP(vkAllocateCommandBuffers(vkdevice.device, &allocateInfo, &handle))
 
 	CommandBufferInfo info{
 		.name = lib::format("<command_buffer:{}>:{}", index, commandPool->info().name.c_str())

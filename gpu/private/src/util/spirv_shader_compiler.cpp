@@ -1,6 +1,6 @@
 #include <spirv_reflect.h>
 #include <shaderc/shaderc.hpp>
-#include "util/shader_compiler.h"
+#include "util/shader_compiler.hpp"
 
 namespace gpu
 {
@@ -8,7 +8,7 @@ namespace util
 {
 auto ShaderCompileInfo::add_macro_definition(std::string_view key) -> void
 {
-	if (defines.capacity() == defines.sso_size())
+	if (defines.capacity() == defines.insitu_capacity())
 	{
 		defines.reserve((uint32)1_KiB);
 	}
@@ -19,7 +19,7 @@ auto ShaderCompileInfo::add_macro_definition(std::string_view key) -> void
 
 auto ShaderCompileInfo::add_macro_definition(std::string_view key, std::string_view value) -> void
 {
-	if (defines.capacity() == defines.sso_size())
+	if (defines.capacity() == defines.insitu_capacity())
 	{
 		defines.reserve((uint32)1_KiB);
 	}
@@ -36,7 +36,7 @@ auto ShaderCompileInfo::add_macro_definition(std::string_view key, std::string_v
 
 auto ShaderCompileInfo::add_macro_definition(std::string_view key, uint32 value) -> void
 {
-	if (defines.capacity() == defines.sso_size())
+	if (defines.capacity() == defines.insitu_capacity())
 	{
 		defines.reserve((uint32)1_KiB);
 	}
@@ -354,13 +354,12 @@ auto ShaderCompiler::compile_shader(ShaderCompileInfo const& info) -> Compilatio
 
 auto ShaderCompiler::get_compiled_shader_info(std::string_view name) const -> std::optional<CompiledShaderInfo>
 {
-	auto result = m_shader_compilations.at(name);
-	if (!result.is_null())
+	if (auto result = m_shader_compilations.at(name); result)
 	{
-		auto&& compiledUnit = result->second;
+		auto&& compiledUnit = result.value()->second;
 
 		CompiledShaderInfo compiledInfo{
-			.name = result->first,
+			.name = result.value()->first,
 			.type = compiledUnit.type,
 			.entryPoint = compiledUnit.entryPoint,
 			.binaries = std::span{ compiledUnit.binaries.data(), compiledUnit.binaries.size() },
