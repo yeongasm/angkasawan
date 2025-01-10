@@ -11,6 +11,8 @@
 #include <functional>
 #include <compare>
 
+#include "concepts.hpp"
+
 using int8		= char;
 using int16		= short;
 using int32		= int;

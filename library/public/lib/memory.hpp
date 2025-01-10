@@ -36,12 +36,22 @@ LIB_API constexpr bool		is_64bit_aligned(void* pointer);
 class memory_resource : non_copyable_non_movable
 {
 public:
-	memory_resource() = default;
-	virtual ~memory_resource() {};
+	virtual ~memory_resource() noexcept = default;
 
-	auto allocate(size_t size, size_t alignment = alignof(std::max_align_t)) -> void*;
-	auto deallocate(void* p, size_t bytes, size_t alignment = alignof(std::max_align_t)) -> void;
-	auto is_equal(memory_resource const& other) -> bool;
+	auto allocate(size_t size, size_t alignment = alignof(std::max_align_t)) -> void*
+	{
+		return do_allocate(size, alignment);
+	}
+
+	auto deallocate(void* p, size_t bytes, size_t alignment = alignof(std::max_align_t)) -> void
+	{
+		return do_deallocate(p, bytes, alignment);
+	}
+
+	auto is_equal(memory_resource const& other) -> bool
+	{
+		return do_is_equal(other);
+	}
 
 private:
 	virtual auto do_allocate(size_t size, size_t alignment) -> void* = 0;
@@ -52,12 +62,12 @@ private:
 class default_memory_resource : public memory_resource
 {
 private:
-	virtual auto do_allocate(size_t size, size_t alignment) -> void* override;
-	virtual auto do_deallocate(void* p, size_t bytes, size_t alignment) -> void override;
-	virtual auto do_is_equal(memory_resource const& other) -> bool override;
+	LIB_API virtual auto do_allocate(size_t size, size_t alignment) -> void* override;
+	LIB_API virtual auto do_deallocate(void* p, size_t bytes, size_t alignment) -> void override;
+	LIB_API virtual auto do_is_equal(memory_resource const& other) -> bool override;
 };
 
-auto get_default_resource() noexcept -> memory_resource*;
+LIB_API auto get_default_resource() noexcept -> memory_resource*;
 
 template <typename T>
 concept can_allocate_memory = requires (T allocator)
@@ -197,7 +207,7 @@ protected:
 	struct memory_header
 	{
 		memory_resource* pAllocator;
-		size_t			bytesAllocated;
+		size_t bytesAllocated;
 	};
 
 	/**

@@ -122,21 +122,6 @@ private:
 	}
 };
 
-auto memory_resource::allocate(size_t size, size_t alignment) -> void*
-{
-	return do_allocate(size, alignment);
-}
-
-auto memory_resource::deallocate(void* p, size_t bytes, size_t alignment) -> void
-{
-	do_deallocate(p, bytes, alignment);
-}
-
-auto memory_resource::is_equal(memory_resource const& other) -> bool
-{
-	return do_is_equal(other);
-}
-
 auto default_memory_resource::do_allocate(size_t size, size_t alignment) -> void*
 {
 	memory memory = system_memory::allocate(size, alignment);

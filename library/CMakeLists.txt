@@ -43,9 +43,9 @@ set(
 	"private/memory.cpp"
 )
 
-add_library(lib STATIC ${source_list})
+add_library(lib SHARED ${source_list})
 target_compile_features(lib PUBLIC cxx_std_23)
-target_compile_definitions(lib PRIVATE "LIBRARY_EXPORT")
+target_compile_definitions(lib PRIVATE "LIBRARY_SHARED_LIB" "LIBRARY_EXPORT")
 
 target_sources(
 	lib

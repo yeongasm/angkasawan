@@ -33,25 +33,18 @@ private:
 
 	struct GeometryRenderInfo
 	{
-		//Geometry const* pGeometry;
 		render::Mesh* mesh;
 		uint32 baseColor;
 	};
 
 	struct PushConstant
 	{
-		//uint64 vertexBufferPtr;
-		//uint64 modelTransformPtr;
-		//uint64 cameraTransformPtr;
-
 		gpu::device_address position;
 		gpu::device_address uv;
 		gpu::device_address modelTransformPtr;
 		gpu::device_address cameraTransformPtr;
 		uint32 baseColorMapIndex;
 	};
-
-	//GeometryCache m_geometryCache = {};
 
 	gpu::sampler m_normalSampler = {};
 	gpu::image m_depthBuffer = {};
@@ -65,12 +58,12 @@ private:
 	lib::array<GeometryRenderInfo> m_renderInfo = {};
 
 	gpu::buffer m_sponzaTransform = {};
+	gpu::buffer m_defaultUV = {};
 	std::array<gpu::buffer, 2> m_cameraProjView = {};
 
 	gpu::pipeline m_pipeline = {};
 	core::filewatcher::file_watch_id m_pipelineShaderCodeWatchId = {};
 
-	//root_geometry_handle m_sponza = {};
 	uint32 m_currentFrame = {};
 
 	auto render() -> void;

@@ -277,33 +277,6 @@ auto ModelDemoApp::start(
 		.size = sizeof(uint8) * 4
 	});
 
-	//GeometryInputLayout layout = { .inputs = GeometryInput::Position | GeometryInput::TexCoord, .interleaved = true };
-
-	//m_sponza = m_geometryCache.upload_gltf(m_gpu->upload_heap(), sponzaImporter, layout);
-
-	//Geometry const* sponzaMesh = m_geometryCache.geometry_from(m_sponza);
-
-	//for (uint32 i = 0, renderInfoIndex = 0; i < sponzaMeshCount; ++i)
-	//{
-	//	auto result = sponzaImporter.mesh_at(i);
-
-	//	if (!result.has_value())
-	//	{
-	//		continue;
-	//	}
-
-	//	// Skip decals for now ...
-	//	if (result.value().material_info().alphaMode != gltf::AlphaMode::Opaque)
-	//	{
-	//		continue;
-	//	}
-
-	//	m_renderInfo[static_cast<size_t>(renderInfoIndex)].pGeometry = sponzaMesh;
-
-	//	++renderInfoIndex;
-	//	sponzaMesh = sponzaMesh->next;
-	//}
-
 	m_sponzaTransform = gpu::Buffer::from(
 		m_gpu->device(),
 		{
@@ -314,8 +287,21 @@ auto ModelDemoApp::start(
 		}
 	);
 
+	m_defaultUV = gpu::Buffer::from(
+		m_gpu->device(),
+		{
+			.name = "default UV ",
+			.size = sizeof(glm::vec2),
+			.bufferUsage = gpu::BufferUsage::Storage | gpu::BufferUsage::Transfer_Dst,
+			.memoryUsage = gpu::MemoryUsage::Can_Alias | gpu::MemoryUsage::Best_Fit
+		}
+	);
+
 	glm::mat4 transform = glm::scale(glm::mat4{ 1.f }, glm::vec3{ 1.f, 1.f, 1.f });
 	m_gpu->upload_heap().upload_data_to_buffer({ .dst = m_sponzaTransform, .data = &transform, .size = sizeof(glm::mat4) });
+
+	glm::vec2 uv{ 0.f, 0.f };
+	m_gpu->upload_heap().upload_data_to_buffer({ .dst = m_defaultUV, .data = &uv, .size = sizeof(glm::vec2) });
 
 	render::FenceInfo fenceInfo = m_gpu->upload_heap().send_to_gpu();
 
@@ -380,16 +366,12 @@ auto ModelDemoApp::render() -> void
 
 	m_gpu->device().clear_garbage();
 
-	//auto const sponzaVb = m_geometryCache.vertex_buffer_of(m_sponza);
-	//auto const sponzaIb = m_geometryCache.index_buffer_of(m_sponza);
-
 	auto cmd = m_gpu->command_queue().next_free_command_buffer();
 	auto&& swapchainImage = m_swapchain->acquire_next_image();
 
 	auto& projViewBuffer = m_cameraProjView[m_currentFrame];
 
 	PushConstant pc{
-		//.vertexBufferPtr = sponzaVb->gpu_address(),
 		.modelTransformPtr = m_sponzaTransform->gpu_address(),
 		.cameraTransformPtr = projViewBuffer->gpu_address()
 	};
@@ -454,10 +436,7 @@ auto ModelDemoApp::render() -> void
 	});
 	cmd->bind_pipeline(*m_pipeline);
 
-	//cmd->bind_index_buffer({
-	//	.buffer = *sponzaIb,
-	//	.indexType = gpu::IndexType::Uint_32
-	//});
+	uint32 drawCount = 0;
 
 	for (GeometryRenderInfo const& renderInfo : m_renderInfo)
 	{
@@ -469,7 +448,12 @@ auto ModelDemoApp::render() -> void
 
 		pc.position = renderInfo.mesh->position;
 		pc.uv = renderInfo.mesh->uv;
-		//pc.baseColorMapIndex = renderInfo.baseColor;
+		pc.baseColorMapIndex = renderInfo.baseColor;
+
+		if ((renderInfo.mesh->attributes & render::VertexAttribute::TexCoord) == render::VertexAttribute::None)
+		{
+			pc.uv = m_defaultUV->gpu_address();
+		}
 
 		cmd->bind_push_constant({
 			.data = &pc,
@@ -477,17 +461,13 @@ auto ModelDemoApp::render() -> void
 			.shaderStage = gpu::ShaderStage::All
 		});
 
-		//cmd->draw_indexed({
-		//	.indexCount = renderInfo.pGeometry->indices.count,
-		//	.firstIndex = renderInfo.pGeometry->indices.offset,
-		//	.vertexOffset = renderInfo.pGeometry->vertices.offset
-		//});
-
-		cmd->draw_indexed({
-			.indexCount = renderInfo.mesh->info.indices.count,
-			.firstIndex = renderInfo.mesh->info.indices.offset,
-			.vertexOffset = renderInfo.mesh->info.vertices.offset
-		});
+		if (std::cmp_less(drawCount, 27))
+		{
+			cmd->draw_indexed({
+				.indexCount = renderInfo.mesh->info.vertices.count
+			});
+			++drawCount;
+		}
 	}
 
 	cmd->end_rendering();
@@ -893,7 +873,7 @@ auto ModelDemoApp::unpack_sponza() -> void
 
 		m_gpu->upload_heap().upload_data_to_buffer({
 			.dst = mesh.buffer,
-			.dstOffset = mesh.info.indices.offset * sizeof(float32),
+			.dstOffset = mesh.info.indices.byteOffset,
 			.data = data.indices.data(),
 			.size = data.indices.size_bytes()
 		});

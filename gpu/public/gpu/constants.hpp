@@ -25,7 +25,7 @@ inline constexpr uint32 BUFFER_DEVICE_ADDRESS_BINDING = 4;
 inline constexpr uint32 STORAGE_BUFFER_BINDING = 5;
 inline constexpr uint32 UNIFORM_BUFFER_BINDING = 6;
 
-#if DEBUG
+#if _DEBUG
 inline constexpr uint32 ENABLE_DEBUG_RESOURCE_NAMES = 1;
 #else
 inline constexpr uint32 ENABLE_DEBUG_RESOURCE_NAMES = 0;

@@ -20,6 +20,11 @@ get_filename_component(
     BASE_DIR "${CMAKE_BINARY_DIR}"
 )
 set(CPM_SOURCE_CACHE "${DEP_PATH}")
+
+if (MSVC)
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:DebugDLL>")
+endif()
+
 message("CPM_SOURCE_CACHE: ${CPM_SOURCE_CACHE}")
 
 check_ipo_supported(RESULT result OUTPUT output)
