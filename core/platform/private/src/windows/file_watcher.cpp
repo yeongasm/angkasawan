@@ -4,7 +4,7 @@
 
 #include "fmt/format.h"
 
-#include "platform_header.h"
+#include "platform_header.hpp"
 #include "lib/memory.hpp"
 #include "lib/set.hpp"
 #include "lib/map.hpp"

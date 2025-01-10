@@ -85,7 +85,21 @@
         "xfacet": "cpp",
         "xlocinfo": "cpp",
         "xtr1common": "cpp",
-        "xtree": "cpp"
-    }
-    // "editor.fontFamily": "Cascadia Mono SemiBold"
+        "xtree": "cpp",
+        "bitset": "cpp",
+        "cfenv": "cpp",
+        "complex": "cpp",
+        "coroutine": "cpp",
+        "future": "cpp",
+        "stack": "cpp",
+        "stdfloat": "cpp",
+        "typeindex": "cpp"
+    },
+    "editor.smoothScrolling": true,
+    "editor.cursorBlinking": "smooth",
+    "editor.cursorSmoothCaretAnimation": "on",
+    "workbench.list.smoothScrolling": true,
+    "terminal.integrated.smoothScrolling": true,
+    "terminal.integrated.cursorBlinking": true,
+    "editor.fontFamily": "Cascadia Mono"
 }

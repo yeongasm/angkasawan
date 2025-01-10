@@ -79,11 +79,11 @@ auto Buffer::is_transient() const -> bool
 	return self.allocationBlock->aliased();
 }
 
-auto Buffer::gpu_address() const -> uint64
+auto Buffer::gpu_address() const -> DeviceAddress
 {
 	auto const& self = to_impl(*this);
 
-	return self.address;
+	return DeviceAddress{ self.address };
 }
 
 auto Buffer::bind(BufferBindInfo const& info) const -> BufferBindInfo

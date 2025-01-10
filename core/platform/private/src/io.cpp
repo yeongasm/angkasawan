@@ -142,49 +142,49 @@ auto IOContext::configuration() const -> Configuration
 
 auto IOContext::key_pressed(IOKey key) -> bool
 {
-	auto index = static_cast<std::underlying_type_t<IOKey>>(key);
+	auto index = std::to_underlying(key);
 	return m_keyboard.state[index] == IOState::Pressed;
 }
 
 auto IOContext::key_double_tap(IOKey key) -> bool
 {
-	auto index = static_cast<std::underlying_type_t<IOKey>>(key);
+	auto index = std::to_underlying(key);
 	return m_keyboard.state[index] == IOState::Repeat;
 }
 
 auto IOContext::key_held(IOKey key) -> bool
 {
-	auto index = static_cast<std::underlying_type_t<IOKey>>(key);
+	auto index = std::to_underlying(key);
 	return m_keyboard.state[index] == IOState::Held;
 }
 
 auto IOContext::key_released(IOKey key) -> bool
 {
-	auto index = static_cast<std::underlying_type_t<IOKey>>(key);
+	auto index = std::to_underlying(key);
 	return m_keyboard.state[index] == IOState::Released;
 }
 
 auto IOContext::mouse_clicked(IOMouseButton button) -> bool
 {
-	auto index = static_cast<std::underlying_type_t<IOMouseButton>>(button);
+	auto index = std::to_underlying(button);
 	return m_mouse.state[index] == IOState::Pressed;
 }
 
 auto IOContext::mouse_double_clicked(IOMouseButton button) -> bool
 {
-	auto index = static_cast<std::underlying_type_t<IOMouseButton>>(button);
+	auto index = std::to_underlying(button);
 	return m_mouse.state[index] == IOState::Repeat;
 }
 
 auto IOContext::mouse_held(IOMouseButton button) -> bool
 {
-	auto index = static_cast<std::underlying_type_t<IOMouseButton>>(button);
+	auto index = std::to_underlying(button);
 	return m_mouse.state[index] == IOState::Held;
 }
 
 auto IOContext::mouse_released(IOMouseButton button) -> bool
 {
-	auto index = static_cast<std::underlying_type_t<IOMouseButton>>(button);
+	auto index = std::to_underlying(button);
 	return m_mouse.state[index] == IOState::Released;
 }
 
@@ -200,7 +200,7 @@ auto IOContext::mouse_drag_delta(IOMouseButton button) -> Point
 	{
 		return Point{ 0, 0 };
 	}
-	auto index = static_cast<std::underlying_type_t<IOMouseButton>>(button);
+	auto index = std::to_underlying(button);
 	return Point{
 		m_mouse.pos.x - m_mouse.clickPos[index].x,
 		m_mouse.pos.y - m_mouse.clickPos[index].y
@@ -214,7 +214,7 @@ auto IOContext::mouse_position() -> Point
 
 auto IOContext::mouse_click_position(IOMouseButton button) -> Point
 {
-	auto button_index = static_cast<std::underlying_type_t<IOMouseButton>>(button);
+	auto button_index = std::to_underlying(button);
 	return m_mouse.clickPos[button_index];
 }
 

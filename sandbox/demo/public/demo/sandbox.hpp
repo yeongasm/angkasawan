@@ -1,6 +1,5 @@
 #include "core.platform/application.hpp"
 #include "model_demo_app.hpp"
-#include "graphics_processing_unit.hpp"
 
 namespace sandbox
 {
@@ -16,7 +15,7 @@ public:
 	auto stop() -> void;
 private:
 	core::Ref<core::platform::Window> m_rootWindow;
-	std::unique_ptr<GraphicsProcessingUnit> m_gpu;
+	std::unique_ptr<render::AsyncDevice> m_gpu;
 	ModelDemoApp m_applet;
 	bool m_isRunning;
 

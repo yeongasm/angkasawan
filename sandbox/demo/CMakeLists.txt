@@ -4,9 +4,6 @@ include(${CMAKE_SOURCE_DIR}/cmake/CPM.cmake)
 set(
 	demo_header_files
 	"public/demo/sandbox.hpp"
-	"public/demo/graphics_processing_unit.hpp"
-	"public/demo/command_queue.hpp"
-	"public/demo/upload_heap.hpp"
 	"private/include/camera.hpp"
 	"private/include/geometry_cache.hpp"
 	"private/include/image_importer.hpp"
@@ -19,12 +16,9 @@ set(
 	demo_source_files
 	"private/src/camera.cpp"
 	"private/src/geometry_cache.cpp"
-	"private/src/graphics_processing_unit.cpp"
 	"private/src/image_importer.cpp"
 	"private/src/model_importer.cpp"
 	"private/src/sandbox.cpp"
-	"private/src/command_queue.cpp"
-	"private/src/upload_heap.cpp"
 	"private/src/model_demo_app.cpp"
 	"main.cpp"
 )
@@ -47,7 +41,7 @@ set_target_properties(
 if (MSVC)
 	string(REPLACE "/GR" "/GR-" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 	string(REPLACE "/EHsc" "/EHs-c-" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-	set(SUBSYSTEM_LINKER_OPTIONS "${CMAKE_EXE_LINKER_FLAGS} /SUBSYSTEM:WINDOWS /ENTRY:mainCRTStartup")
+	target_link_options(sandbox.demo PRIVATE /SUBSYSTEM:CONSOLE /ENTRY:mainCRTStartup)
 	target_compile_options(sandbox.demo PRIVATE /permissive-)
 else()
 	set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} -fno-rtti -fno-exceptions)
@@ -61,7 +55,7 @@ target_include_directories(
 )
 
 target_link_libraries(sandbox.demo PRIVATE glm imgui cgltf ktx)
-target_link_libraries(sandbox.demo PUBLIC gpu core.platform)
+target_link_libraries(sandbox.demo PUBLIC gpu core.platform core.serialization render)
 target_compile_definitions(sandbox.demo PUBLIC GLM_FORCE_DEPTH_ZERO_TO_ONE)
 
 set_target_properties(sandbox.demo PROPERTIES FOLDER sandbox)

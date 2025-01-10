@@ -1,13 +1,12 @@
 #pragma once
-#ifndef SANDBOX_UPLOAD_HEAP_H
-#define SANDBOX_UPLOAD_HEAP_H
+#ifndef RENDER_UPLOAD_HEAP_HPP
+#define RENDER_UPLOAD_HEAP_HPP
 
 #include "lib/handle.hpp"
 #include "lib/paged_array.hpp"
-#include "gpu/gpu.hpp"
 #include "command_queue.hpp"
 
-namespace sandbox
+namespace render
 {
 struct HeapBlock
 {
@@ -182,4 +181,4 @@ private:
 };
 }
 
-#endif // !SANDBOX_UPLOAD_HEAP_H
+#endif // !RENDER_UPLOAD_HEAP_HPP

@@ -3,14 +3,14 @@ include(${CMAKE_SOURCE_DIR}/cmake/CPM.cmake)
 
 CPMAddPackage(
 	NAME fmt
-	GIT_TAG 10.1.1
+	GIT_TAG 11.1.1
 	GIT_REPOSITORY https://github.com/fmtlib/fmt.git
 )
 set_target_properties(fmt PROPERTIES FOLDER thirdparty)
-target_compile_features(fmt PUBLIC cxx_std_20)
+target_compile_features(fmt PUBLIC cxx_std_23)
 
 if (MSVC)
-	target_compile_options(fmt PUBLIC /wd4541)
+	target_compile_options(fmt PUBLIC /wd4541 /wd4702)
 else()
 	target_compile_options(fmt PUBLIC -Wno-rtti)
 endif()

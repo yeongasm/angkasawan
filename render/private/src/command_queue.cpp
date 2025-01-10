@@ -1,7 +1,6 @@
-#include <fmt/std.h>
 #include "command_queue.hpp"
 
-namespace sandbox
+namespace render
 {
 SubmissionGroup::SubmissionGroup(Queue& queue, Queue::SubmissionData& data) :
 	m_queue{ queue },

@@ -230,7 +230,7 @@ auto Device::clear_garbage() -> void
 			break;
 		}
 
-		uint32 const typeId = static_cast<std::underlying_type_t<vk::ResourceType>>(zombie.resourceType);
+		uint32 const typeId = std::to_underlying(zombie.resourceType);
 
 		(self.*resourceDestroyFn[typeId])(zombie.resourceId);
 
@@ -247,7 +247,7 @@ auto Device::from(DeviceInitInfo const& info) -> std::expected<std::unique_ptr<D
 		auto& deleter = vkdevice.get_deleter();
 		deleter(vkdevice.release());
 
-		return std::unexpected{ "GPU device creation failed" };
+		return std::unexpected{ "Failed to create GPU device." };
 	}
 
 	return std::unique_ptr<Device>{ std::move(vkdevice) };
@@ -732,7 +732,7 @@ auto DeviceImpl::choose_physical_device() -> bool
 		);
 	}
 
-	auto preferredDeviceIndex = static_cast<std::underlying_type_t<DeviceType>>(m_initInfo.preferredDevice);
+	auto preferredDeviceIndex = std::to_underlying(m_initInfo.preferredDevice);
 	if (deviceTable[preferredDeviceIndex].count)
 	{
 		gpu = deviceTable[preferredDeviceIndex].devices[0];
@@ -1943,7 +1943,7 @@ auto translate_format(Format format) -> VkFormat
 		VK_FORMAT_PVRTC2_2BPP_SRGB_BLOCK_IMG,
 		VK_FORMAT_PVRTC2_4BPP_SRGB_BLOCK_IMG
 	};
-	return formats[static_cast<std::underlying_type_t<Format>>(format)];
+	return formats[std::to_underlying(format)];
 }
 
 auto translate_texel_filter(TexelFilter filter) -> VkFilter
@@ -2637,7 +2637,7 @@ auto to_error_message(VkResult result) -> std::string_view
 	case VK_ERROR_FORMAT_NOT_SUPPORTED:
 		return "VK_ERROR_FORMAT_NOT_SUPPORTED - A requested format is not supported on this device";
 	case VK_ERROR_FRAGMENTED_POOL:
-		return "VK_ERROR_FRAGMENTED_POOL - A pool allocation has failed due to fragmentation of the pool’s memory";
+		return "VK_ERROR_FRAGMENTED_POOL - A pool allocation has failed due to fragmentation of the poolï¿½s memory";
 	case VK_ERROR_UNKNOWN:
 		return "VK_ERROR_UNKNOWN - An unknown error has occurred; either the application has provided invalid input, or an implementation failure has occurred";
 	case VK_ERROR_OUT_OF_POOL_MEMORY:
@@ -2669,7 +2669,7 @@ auto to_error_message(VkResult result) -> std::string_view
 	case VK_ERROR_NOT_PERMITTED_KHR:
 		return "VK_ERROR_NOT_PERMITTED_KHR - The driver implementation has denied a request to acquire a priority above the default priority (VK_QUEUE_GLOBAL_PRIORITY_MEDIUM_EXT) because the application does not have sufficient privileges";
 	case VK_ERROR_FULL_SCREEN_EXCLUSIVE_MODE_LOST_EXT:
-		return "VK_ERROR_FULL_SCREEN_EXCLUSIVE_MODE_LOST_EXT - An operation on a swapchain created with VK_FULL_SCREEN_EXCLUSIVE_APPLICATION_CONTROLLED_EXT failed as it did not have exclusive full-screen access. This may occur due to implementation-dependent reasons, outside of the application’s control";
+		return "VK_ERROR_FULL_SCREEN_EXCLUSIVE_MODE_LOST_EXT - An operation on a swapchain created with VK_FULL_SCREEN_EXCLUSIVE_APPLICATION_CONTROLLED_EXT failed as it did not have exclusive full-screen access. This may occur due to implementation-dependent reasons, outside of the applicationï¿½s control";
 	case VK_THREAD_IDLE_KHR:
 		return "VK_THREAD_IDLE_KHR - A deferred operation is not complete but there is currently no work for this thread to do at the time of this call";
 	case VK_THREAD_DONE_KHR:

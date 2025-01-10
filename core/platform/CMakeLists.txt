@@ -2,17 +2,17 @@ include(${CMAKE_SOURCE_DIR}/cmake/Util.cmake)
 
 set(
 	header_list
-	"public/inl/core.platform/application.hpp"
-	"public/inl/core.platform/platform_api.h"
-	"public/inl/core.platform/cursor.hpp"
-	"public/inl/core.platform/event_queue.hpp"
-	"public/inl/core.platform/file_watcher.hpp"
-	"public/inl/core.platform/io_enums.hpp"
-	"public/inl/core.platform/io.hpp"
-	"public/inl/core.platform/platform_minimal.hpp"
-	"public/inl/core.platform/performance_counter.hpp"
-	"public/inl/core.platform/windowing.hpp"
-	"private/inl/platform_header.h"
+	"public/core.platform/application.hpp"
+	"public/core.platform/platform_api.h"
+	"public/core.platform/cursor.hpp"
+	"public/core.platform/event_queue.hpp"
+	"public/core.platform/file_watcher.hpp"
+	"public/core.platform/io_enums.hpp"
+	"public/core.platform/io.hpp"
+	"public/core.platform/platform_minimal.hpp"
+	"public/core.platform/performance_counter.hpp"
+	"public/core.platform/windowing.hpp"
+	"public/core.platform/platform_header.hpp"
 )
 
 set(
@@ -34,9 +34,8 @@ add_library(core.platform STATIC ${header_list} ${source_list})
 if (MSVC)
 target_compile_options(core.platform PUBLIC /wd4530)
 endif()
-target_compile_features(core.platform PUBLIC cxx_std_20)
+target_compile_features(core.platform PUBLIC cxx_std_23)
 target_compile_definitions(core.platform PRIVATE "PLATFORM_EXPORT")
-target_compile_definitions(core.platform PRIVATE SIMDJSON_EXCEPTIONS=OFF $<$<CONFIG:Debug>:SIMDJSON_DEVELOPMENT_CHECKS=1>)
 target_compile_definitions(core.platform PUBLIC $<$<PLATFORM_ID:Windows>:PLATFORM_OS_WINDOWS> $<$<PLATFORM_ID:Darwin>:PLATFORM_OS_APPLE> $<$<PLATFORM_ID:Linux>:PLATFORM_OS_LINUX>)
 target_compile_definitions(core.platform PUBLIC "UNICODE" "_UNICODE")
 
@@ -48,7 +47,7 @@ target_sources(
 
 if (MSVC)
 	string(REPLACE "/GR" "/GR-" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-	string(REPLACE "/EHsc" "/EHs-c-" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+	string(REPLACE "/EHsc" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 	target_compile_options(core.platform PRIVATE /permissive-)
 else()
 	set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} -fno-rtti -fno-exceptions)
@@ -56,9 +55,9 @@ endif()
 
 target_include_directories(
 	core.platform
-	PUBLIC "public/inl"
-	PRIVATE "public/inl/core.platform"
-	PRIVATE "private/inl"
+	PUBLIC "public/"
+	PRIVATE "public/core.platform"
+	PRIVATE "private/include"
 )
 target_link_libraries(core.platform PUBLIC lib)
 set_target_properties(core.platform PROPERTIES FOLDER core)

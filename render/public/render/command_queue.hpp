@@ -1,11 +1,11 @@
 #pragma once
-#ifndef SANDBOX_SUBMISSION_QUEUE
-#define SANDBOX_SUBMISSION_QUEUE
+#ifndef RENDER_COMMAND_QUEUE_HPP
+#define RENDER_COMMAND_QUEUE_HPP
 
 #include <thread>
 #include "gpu/gpu.hpp"
 
-namespace sandbox
+namespace render
 {
 struct Queue
 {
@@ -87,4 +87,4 @@ private:
 };
 }
 
-#endif // !SANDBOX_SUBMISSION_QUEUE
+#endif // !RENDER_COMMAND_QUEUE_HPP

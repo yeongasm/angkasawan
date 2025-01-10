@@ -35,6 +35,6 @@ if (imgui_ADDED)
         ${imgui_source_files}
 	)
 
-    target_compile_features(imgui PUBLIC cxx_std_20)
+    target_compile_features(imgui PUBLIC cxx_std_23)
     set_target_properties(imgui PROPERTIES FOLDER thirdparty)
 endif()

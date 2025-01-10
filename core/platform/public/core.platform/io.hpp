@@ -22,11 +22,11 @@ namespace platform
 * This way, users can have more control over the handling logic for each input.
 */
 
-constexpr auto MAX_IO_MOUSE_BUTTONS		= static_cast<std::underlying_type_t<IOMouseButton>>(IOMouseButton::Max);
-constexpr auto MAX_IO_STATES			= static_cast<std::underlying_type_t<IOState>>(IOState::Max);
-constexpr auto MAX_IO_KEYS				= static_cast<std::underlying_type_t<IOKey>>(IOKey::Max);
-constexpr auto MAX_IO_CURSOR_TYPES		= static_cast<std::underlying_type_t<IOCursorType>>(IOConfiguration::Max);
-constexpr auto MAX_IO_CONFIGURATIONS	= static_cast<std::underlying_type_t<IOConfiguration>>(IOConfiguration::Max);
+constexpr auto MAX_IO_MOUSE_BUTTONS		= std::to_underlying(IOMouseButton::Max);
+constexpr auto MAX_IO_STATES			= std::to_underlying(IOState::Max);
+constexpr auto MAX_IO_KEYS				= std::to_underlying(IOKey::Max);
+constexpr auto MAX_IO_CURSOR_TYPES		= std::to_underlying(IOConfiguration::Max);
+constexpr auto MAX_IO_CONFIGURATIONS	= std::to_underlying(IOConfiguration::Max);
 /**
 * @brief All values are in seconds.
 */

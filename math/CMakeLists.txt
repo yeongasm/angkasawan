@@ -9,7 +9,7 @@ set(
 )
 
 add_library(Math INTERFACE ${source_list})
-target_compile_features(Math INTERFACE cxx_std_20)
+target_compile_features(Math INTERFACE cxx_std_23)
 
 target_include_directories(
 	Math 

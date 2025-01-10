@@ -4,9 +4,9 @@
 
 #include "core.platform/file_watcher.hpp"
 #include "core.platform/application.hpp"
-#include "graphics_processing_unit.hpp"
-#include "geometry_cache.hpp"
 #include "camera.hpp"
+#include "render/render.hpp"
+//#include "geometry_cache.hpp"
 
 namespace sandbox
 {
@@ -19,7 +19,7 @@ public:
 	auto start(
 		core::platform::Application& application,
 		core::Ref<core::platform::Window> rootWindow,
-		GraphicsProcessingUnit& gpu
+		render::AsyncDevice& gpu
 	) -> bool;
 
 	auto run() -> void;
@@ -27,25 +27,31 @@ public:
 
 private:
 	core::platform::Application* m_app = {};
-	GraphicsProcessingUnit* m_gpu = {};
+	render::AsyncDevice* m_gpu = {};
 	core::Ref<core::platform::Window> m_rootWindowRef = {};
 	gpu::swapchain m_swapchain = {};
 
 	struct GeometryRenderInfo
 	{
-		Geometry const* pGeometry;
+		//Geometry const* pGeometry;
+		render::Mesh* mesh;
 		uint32 baseColor;
 	};
 
 	struct PushConstant
 	{
-		uint64 vertexBufferPtr;
-		uint64 modelTransformPtr;
-		uint64 cameraTransformPtr;
+		//uint64 vertexBufferPtr;
+		//uint64 modelTransformPtr;
+		//uint64 cameraTransformPtr;
+
+		gpu::device_address position;
+		gpu::device_address uv;
+		gpu::device_address modelTransformPtr;
+		gpu::device_address cameraTransformPtr;
 		uint32 baseColorMapIndex;
 	};
 
-	GeometryCache m_geometryCache = {};
+	//GeometryCache m_geometryCache = {};
 
 	gpu::sampler m_normalSampler = {};
 	gpu::image m_depthBuffer = {};
@@ -55,6 +61,7 @@ private:
 	CameraState m_cameraState = {};
 
 	lib::array<std::pair<gpu::image, uint32>> m_sponzaTextures = {};
+	lib::array<render::Mesh> m_meshes = {};
 	lib::array<GeometryRenderInfo> m_renderInfo = {};
 
 	gpu::buffer m_sponzaTransform = {};
@@ -63,7 +70,7 @@ private:
 	gpu::pipeline m_pipeline = {};
 	core::filewatcher::file_watch_id m_pipelineShaderCodeWatchId = {};
 
-	root_geometry_handle m_sponza = {};
+	//root_geometry_handle m_sponza = {};
 	uint32 m_currentFrame = {};
 
 	auto render() -> void;
@@ -75,6 +82,8 @@ private:
 	auto update_camera_state(float32 dt) -> void;
 	auto update_camera_on_mouse_events(float32 dt) -> void;
 	auto update_camera_on_keyboard_events(float32 dt) -> void;
+
+	auto unpack_sponza() -> void;
 };
 }
 

@@ -1,7 +1,7 @@
 #include <numeric>
 #include "upload_heap.hpp"
 
-namespace sandbox
+namespace render
 {
 auto HeapBlock::remaining_capacity() const -> size_t
 {
@@ -96,7 +96,7 @@ auto UploadHeap::request_heaps(size_t size) -> std::span<HeapBlock>
 		heapPool.heaps.reserve(MAX_UPLOAD_HEAP_PER_POOL);
 	}
 
-	if (std::cmp_equal(heapPool.current, MAX_UPLOAD_HEAP_PER_POOL - 1u) &&
+	if (std::cmp_greater_equal(heapPool.current, MAX_UPLOAD_HEAP_PER_POOL - 1u) &&
 		size > heapPool.remaining_capacity())
 	{
 		return std::span<HeapBlock>{};
@@ -124,10 +124,21 @@ auto UploadHeap::request_heaps(size_t size) -> std::span<HeapBlock>
 	{
 		++heapPool.current;
 
+		// If all of the heap blocks in the pool are full, return an empty span to force a gpu submit.
+		//if (std::cmp_greater_equal(heapPool.current, MAX_UPLOAD_HEAP_PER_POOL - 1u))
+		//{
+		//	return std::span<HeapBlock>{};
+		//}
+
 		currentHeap = &heapPool.current_heap();
 	}
 
 	auto const heapSpanRange = std::min(numHeapsRequired, static_cast<size_t>(MAX_UPLOAD_HEAP_PER_POOL) - heapPool.current);
+
+	if (std::cmp_greater(heapSpanRange, 1))
+	{
+		heapPool.current += heapSpanRange - 1ull;
+	}
 
 	return std::span{ currentHeap, heapSpanRange };
 }
@@ -204,6 +215,7 @@ auto UploadHeap::upload_data_to_buffer(BufferDataUploadInfo&& info) -> upload_id
 	auto& bufferUploadPool = next_buffer_upload_info_pool();
 
 	std::byte const* data = static_cast<std::byte*>(info.data);
+	size_t const originalUploadSize = info.size;
 	size_t remainingSizeToUpload = info.size;
 
 	while (!std::cmp_equal(remainingSizeToUpload, 0))
@@ -231,7 +243,7 @@ auto UploadHeap::upload_data_to_buffer(BufferDataUploadInfo&& info) -> upload_id
 				writeSize = remainingSizeToUpload;
 			}
 
-			if (heapBlock.remaining_capacity() < info.size)
+			if (heapBlock.remaining_capacity() < remainingSizeToUpload)
 			{
 				writeSize = heapBlock.remaining_capacity();
 			}
@@ -247,7 +259,8 @@ auto UploadHeap::upload_data_to_buffer(BufferDataUploadInfo&& info) -> upload_id
 					.src = *heapBlock.buffer,
 					.dst = *info.dst,
 					.srcOffset = writtenByteOffset,
-					.dstOffset = info.dstOffset + (i * HEAP_BLOCK_SIZE),
+					//.dstOffset = info.dstOffset + (i * HEAP_BLOCK_SIZE),
+					.dstOffset = info.dstOffset + (originalUploadSize - remainingSizeToUpload),
 					.size = writeSize,
 				},
 				.owningQueue = info.srcQueue,
@@ -572,5 +585,4 @@ auto UploadHeap::next_buffer_upload_info_pool() const -> InfoPool<BufferUploadIn
 {
 	return m_bufferUploadInfo[m_nextPool];
 }
-
 }

@@ -3,7 +3,9 @@
 #define LIB_STRING_HPP
 
 #include <string_view>
+#include <iterator>
 #include <fmt/format.h>
+#include <fmt/std.h>
 #include "array.hpp"
 
 namespace lib
@@ -730,6 +732,7 @@ public:
     using const_pointer = typename super::const_pointer;
 
     constexpr basic_hash_string_view() : super{}, m_hash{} {};
+	constexpr basic_hash_string_view(std::nullptr_t) : super{}, m_hash{} {};
     constexpr basic_hash_string_view(basic_hash_string_view const& rhs) = default;
     constexpr basic_hash_string_view(const_pointer str) :
         super{ str }

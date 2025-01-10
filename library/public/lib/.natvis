@@ -26,7 +26,7 @@
     <Expand>
       <Item Name="[length]">m_len</Item>
       <Item Name="[capacity]">m_capacity</Item>
-      <Item Name="[allocator]">m_box.allocator</Item>
+      <Item Name="[allocator]">(allocator_type*)&amp;m_box</Item>
       <ArrayItems>
         <Size>m_len</Size>
         <ValuePointer>m_box.data</ValuePointer>
@@ -54,7 +54,7 @@
       <Item Name="[buckets_remaining]">m_capacity - m_len</Item>
       <Item Name="[max_load_factor]">m_maxLoadFactor</Item>
       <Item Name="[current_load_factor]">(float)m_len / (float)m_capacity</Item>
-      <Item Name="[allocator]">m_box.allocator</Item>
+      <Item Name="[allocator]">(allocator_type*)&amp;m_box</Item>
       <CustomListItems MaxItemsPerView="100" ExcludeView="Test">
         <Variable Name="i" InitialValue="0"/>
         <Size>m_len</Size>
@@ -76,7 +76,7 @@
       <Item Name="[buckets_remaining]">m_capacity - m_len</Item>
       <Item Name="[max_load_factor]">m_maxLoadFactor</Item>
       <Item Name="[current_load_factor]">load_factor()</Item>
-      <Item Name="[allocator]">m_box.allocator</Item>
+      <Item Name="[allocator]">(allocator_type*)&amp;m_box</Item>
       <CustomListItems MaxItemsPerView="100" ExcludeView="Test">
         <Variable Name="i" InitialValue="0"/>
         <Size>m_len</Size>

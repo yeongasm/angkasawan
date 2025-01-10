@@ -495,13 +495,13 @@ auto Mesh::topology() const -> Topology
 
 auto Mesh::attribute_info(VertexAttribute attribute) const -> AttributeInfo
 {
-	auto const i = static_cast<std::underlying_type_t<VertexAttribute>>(attribute);
+	auto const i = std::to_underlying(attribute);
 	return m_data.attributes[i].info;
 }
 
 auto Mesh::has_attribute(VertexAttribute attribute) const -> bool
 {
-	auto const i = static_cast<std::underlying_type_t<VertexAttribute>>(attribute);
+	auto const i = std::to_underlying(attribute);
 	return m_data.attributes[i].accessor != nullptr;
 }
 
@@ -511,7 +511,7 @@ auto Mesh::read_float_data(VertexAttribute attribute, size_t index, float32* out
 	// Pretend EXT_meshopt_compression doesn't exist at the moment.
 	//
 
-	auto const i = static_cast<std::underlying_type_t<VertexAttribute>>(attribute);
+	auto const i = std::to_underlying(attribute);
 	Attribute& attrib = m_data.attributes[i];
 
 	if (!(attrib.accessor && attrib.accessor->buffer_view))
@@ -535,7 +535,7 @@ auto Mesh::unpack_vertex_data(VertexAttribute attribute, std::span<float32> floa
 	// Pretend EXT_meshopt_compression doesn't exist at the moment.
 	//
 
-	auto const i = static_cast<std::underlying_type_t<VertexAttribute>>(attribute);
+	auto const i = std::to_underlying(attribute);
 	Attribute& attrib = m_data.attributes[i - 1];
 
 	if (!(attrib.accessor && attrib.accessor->buffer_view))
@@ -746,6 +746,5 @@ auto Importer::ok() const -> bool
 {
 	return m_cgltf_ptr != nullptr && std::cmp_not_equal(num_meshes(), 0);
 }
-
 }
 }

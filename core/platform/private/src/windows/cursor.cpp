@@ -1,4 +1,4 @@
-#include "platform_header.h"
+#include "platform_header.hpp"
 #include "cursor.hpp"
 
 namespace core

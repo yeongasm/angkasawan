@@ -5,7 +5,7 @@
 #include "model_importer.hpp"
 #include "image_importer.hpp"
 
-#include <iostream>
+#include "core.serialization/file.hpp"
 
 namespace sandbox
 {
@@ -34,7 +34,7 @@ inline auto open_file(std::filesystem::path path) -> lib::string
 auto ModelDemoApp::start(
 	core::platform::Application& application,
 	core::Ref<core::platform::Window> rootWindow,
-	GraphicsProcessingUnit& gpu
+	render::AsyncDevice& gpu
 ) -> bool
 {
 	m_app = &application;
@@ -80,6 +80,8 @@ auto ModelDemoApp::start(
 	m_camera.frameWidth = swapchainWidth;
 	m_camera.frameHeight = swapchainHeight;
 
+	// TODO(afiq):
+	// Check if the shader binary exist and if it doesn't compile from source.
 	auto make_uber_pipeline = [&](core::filewatcher::FileActionInfo const& fileAction) -> void
 	{
 		if (fileAction.action == core::filewatcher::FileAction::Modified)
@@ -228,15 +230,13 @@ auto ModelDemoApp::start(
 
 		gltf::MaterialInfo const& material = mesh.material_info();
 
-		// Skip decals for now ...
-		if (material.alphaMode != gltf::AlphaMode::Opaque)
-		{
-			continue;
-		}
+		 //Skip decals for now ...
+		 //if (material.alphaMode != gltf::AlphaMode::Opaque)
+		 //{
+		 //	continue;
+		 //}
 
-		using img_type_t = std::underlying_type_t<gltf::ImageType>;
-
-		auto const textureInfo = material.imageInfos[static_cast<img_type_t>(gltf::ImageType::Base_Color)];
+		auto const textureInfo = material.imageInfos[std::to_underlying(gltf::ImageType::Base_Color)];
 
 		if (textureInfo)
 		{
@@ -266,6 +266,9 @@ auto ModelDemoApp::start(
 		}
 	}
 
+	// For now, this function has to happen after the operation above.
+	unpack_sponza();
+
 	uint8 theColorWhite[4] = { 255, 255, 255, 255 };
 
 	m_gpu->upload_heap().upload_data_to_image({
@@ -274,32 +277,32 @@ auto ModelDemoApp::start(
 		.size = sizeof(uint8) * 4
 	});
 
-	GeometryInputLayout layout = { .inputs = GeometryInput::Position | GeometryInput::TexCoord, .interleaved = true };
+	//GeometryInputLayout layout = { .inputs = GeometryInput::Position | GeometryInput::TexCoord, .interleaved = true };
 
-	m_sponza = m_geometryCache.upload_gltf(m_gpu->upload_heap(), sponzaImporter, layout);
+	//m_sponza = m_geometryCache.upload_gltf(m_gpu->upload_heap(), sponzaImporter, layout);
 
-	Geometry const* sponzaMesh = m_geometryCache.geometry_from(m_sponza);
+	//Geometry const* sponzaMesh = m_geometryCache.geometry_from(m_sponza);
 
-	for (uint32 i = 0, renderInfoIndex = 0; i < sponzaMeshCount; ++i)
-	{
-		auto result = sponzaImporter.mesh_at(i);
+	//for (uint32 i = 0, renderInfoIndex = 0; i < sponzaMeshCount; ++i)
+	//{
+	//	auto result = sponzaImporter.mesh_at(i);
 
-		if (!result.has_value())
-		{
-			continue;
-		}
+	//	if (!result.has_value())
+	//	{
+	//		continue;
+	//	}
 
-		// Skip decals for now ...
-		if (result.value().material_info().alphaMode != gltf::AlphaMode::Opaque)
-		{
-			continue;
-		}
+	//	// Skip decals for now ...
+	//	if (result.value().material_info().alphaMode != gltf::AlphaMode::Opaque)
+	//	{
+	//		continue;
+	//	}
 
-		m_renderInfo[static_cast<size_t>(renderInfoIndex)].pGeometry = sponzaMesh;
+	//	m_renderInfo[static_cast<size_t>(renderInfoIndex)].pGeometry = sponzaMesh;
 
-		++renderInfoIndex;
-		sponzaMesh = sponzaMesh->next;
-	}
+	//	++renderInfoIndex;
+	//	sponzaMesh = sponzaMesh->next;
+	//}
 
 	m_sponzaTransform = gpu::Buffer::from(
 		m_gpu->device(),
@@ -314,7 +317,7 @@ auto ModelDemoApp::start(
 	glm::mat4 transform = glm::scale(glm::mat4{ 1.f }, glm::vec3{ 1.f, 1.f, 1.f });
 	m_gpu->upload_heap().upload_data_to_buffer({ .dst = m_sponzaTransform, .data = &transform, .size = sizeof(glm::mat4) });
 
-	FenceInfo fenceInfo = m_gpu->upload_heap().send_to_gpu();
+	render::FenceInfo fenceInfo = m_gpu->upload_heap().send_to_gpu();
 
 	{
 		// Acquire resources ...
@@ -377,8 +380,8 @@ auto ModelDemoApp::render() -> void
 
 	m_gpu->device().clear_garbage();
 
-	auto const sponzaVb = m_geometryCache.vertex_buffer_of(m_sponza);
-	auto const sponzaIb = m_geometryCache.index_buffer_of(m_sponza);
+	//auto const sponzaVb = m_geometryCache.vertex_buffer_of(m_sponza);
+	//auto const sponzaIb = m_geometryCache.index_buffer_of(m_sponza);
 
 	auto cmd = m_gpu->command_queue().next_free_command_buffer();
 	auto&& swapchainImage = m_swapchain->acquire_next_image();
@@ -386,7 +389,7 @@ auto ModelDemoApp::render() -> void
 	auto& projViewBuffer = m_cameraProjView[m_currentFrame];
 
 	PushConstant pc{
-		.vertexBufferPtr = sponzaVb->gpu_address(),
+		//.vertexBufferPtr = sponzaVb->gpu_address(),
 		.modelTransformPtr = m_sponzaTransform->gpu_address(),
 		.cameraTransformPtr = projViewBuffer->gpu_address()
 	};
@@ -451,14 +454,22 @@ auto ModelDemoApp::render() -> void
 	});
 	cmd->bind_pipeline(*m_pipeline);
 
-	cmd->bind_index_buffer({
-		.buffer = *sponzaIb,
-		.indexType = gpu::IndexType::Uint_32
-	});
+	//cmd->bind_index_buffer({
+	//	.buffer = *sponzaIb,
+	//	.indexType = gpu::IndexType::Uint_32
+	//});
 
 	for (GeometryRenderInfo const& renderInfo : m_renderInfo)
 	{
-		pc.baseColorMapIndex = renderInfo.baseColor;
+		cmd->bind_index_buffer({
+			.buffer = *renderInfo.mesh->buffer,
+			.offset = renderInfo.mesh->info.indices.byteOffset,
+			.indexType = gpu::IndexType::Uint_32
+		});
+
+		pc.position = renderInfo.mesh->position;
+		pc.uv = renderInfo.mesh->uv;
+		//pc.baseColorMapIndex = renderInfo.baseColor;
 
 		cmd->bind_push_constant({
 			.data = &pc,
@@ -466,12 +477,17 @@ auto ModelDemoApp::render() -> void
 			.shaderStage = gpu::ShaderStage::All
 		});
 
-		cmd->draw_indexed({
-			.indexCount = renderInfo.pGeometry->indices.count,
-			.firstIndex = renderInfo.pGeometry->indices.offset,
-			.vertexOffset = renderInfo.pGeometry->vertices.offset
-		});
+		//cmd->draw_indexed({
+		//	.indexCount = renderInfo.pGeometry->indices.count,
+		//	.firstIndex = renderInfo.pGeometry->indices.offset,
+		//	.vertexOffset = renderInfo.pGeometry->vertices.offset
+		//});
 
+		cmd->draw_indexed({
+			.indexCount = renderInfo.mesh->info.indices.count,
+			.firstIndex = renderInfo.mesh->info.indices.offset,
+			.vertexOffset = renderInfo.mesh->info.vertices.offset
+		});
 	}
 
 	cmd->end_rendering();
@@ -776,6 +792,113 @@ auto ModelDemoApp::update_camera_on_keyboard_events(float32 dt) -> void
 	{
 		m_camera.translate(RIGHT, dt);
 		m_cameraState.dirty = true;
+	}
+}
+
+auto ModelDemoApp::unpack_sponza() -> void
+{
+	core::sbf::File sponzaSbf{ "data/demo/models/sponza.sbf" };
+
+	if (!sponzaSbf.is_open())
+	{
+		return;
+	}
+
+	render::MeshSbfPack meshPack{ sponzaSbf };
+
+	m_meshes.reserve(static_cast<size_t>(meshPack.mesh_count()));
+
+	for (size_t i = 0; auto const& [metadata, data] : meshPack)
+	{
+		auto& mesh = m_meshes.emplace_back();
+
+		size_t const totalSizeBytesRequired = static_cast<size_t>(metadata.vertices.sizeBytes + metadata.indices.sizeBytes);
+
+		// Keep track of the mesh's attributes from the pack file.
+		mesh.attributes = metadata.attributes;
+
+		// Store mesh vertices information.
+		mesh.info.vertices.count 	= metadata.vertices.count;
+		mesh.info.vertices.size 	= metadata.vertices.sizeBytes;
+
+		// Store mesh indices information.
+		mesh.info.indices.count = metadata.indices.count;
+		mesh.info.indices.size 	= metadata.indices.sizeBytes;
+
+		mesh.buffer = gpu::Buffer::from(
+			m_gpu->device(), 
+			{
+				.name = lib::format("<mesh>:data/demo/models/sponza:{}", i),
+				.size = totalSizeBytesRequired,
+				.bufferUsage = gpu::BufferUsage::Transfer_Dst | gpu::BufferUsage::Vertex | gpu::BufferUsage::Index,
+				.memoryUsage = gpu::MemoryUsage::Can_Alias | gpu::MemoryUsage::Best_Fit
+			}
+		);
+
+		// Vertex data will always be stored first so that's why it's 0.
+		mesh.info.vertices.offset = 0u;
+
+		uint32 const normalDataExist 	= static_cast<uint32>((mesh.attributes & render::VertexAttribute::Normal) != render::VertexAttribute::None);
+		uint32 const uvDataExist 		= static_cast<uint32>((mesh.attributes & render::VertexAttribute::TexCoord) != render::VertexAttribute::None);
+
+		// Our project requires that a mesh contain position, normal and uv data.
+		// However, occassionally, some meshes will not contain some of these attributes and the sbf file does not store the offsets to each of these attributes.
+		// A single flag is used to determine the type of attributes that exist for the mesh in the sbf file.
+		uint32 const posCount 		= metadata.vertices.count * render::AttribInfo<render::VertexAttribute::Position>::componentCount;
+		uint32 const normalCount 	= normalDataExist * metadata.vertices.count * render::AttribInfo<render::VertexAttribute::Normal>::componentCount;
+		uint32 const uvCount 		= uvDataExist * metadata.vertices.count * render::AttribInfo<render::VertexAttribute::TexCoord>::componentCount;
+
+		std::span<float32> const posRange{ &data.vertices[0], posCount };
+		std::span<float32> const normalRange{ &data.vertices[normalDataExist * posCount], normalCount };
+		std::span<float32> const uvRange{ &data.vertices[uvDataExist * (posCount + normalCount)], uvCount };
+
+		// Index data will always be stored after vertex data.
+		mesh.info.indices.byteOffset = (posCount + normalCount + uvCount) * sizeof(float32);
+
+		// Upload vertex data.
+		// Position.
+		m_gpu->upload_heap().upload_data_to_buffer({
+			.dst = mesh.buffer,
+			.data = posRange.data(),
+			.size = posRange.size_bytes()
+		});
+
+		mesh.position = mesh.buffer->gpu_address();
+
+		// Normal. If exist.
+		if (!normalRange.empty())
+		{
+			m_gpu->upload_heap().upload_data_to_buffer({
+				.dst = mesh.buffer,
+				.dstOffset = posCount * sizeof(float32),
+				.data = normalRange.data(),
+				.size = normalRange.size_bytes()
+			});
+
+			mesh.normal = mesh.buffer->gpu_address() + (posCount * sizeof(float32));
+		}
+
+		// TexCoord. If exist.
+		if (!uvRange.empty())
+		{
+			m_gpu->upload_heap().upload_data_to_buffer({
+				.dst = mesh.buffer,
+				.dstOffset = (posCount + normalCount) * sizeof(float32),
+				.data = uvRange.data(),
+				.size = uvRange.size_bytes()
+			});
+
+			mesh.uv = mesh.buffer->gpu_address() + ((posCount + normalCount) * sizeof(float32));
+		}
+
+		m_gpu->upload_heap().upload_data_to_buffer({
+			.dst = mesh.buffer,
+			.dstOffset = mesh.info.indices.offset * sizeof(float32),
+			.data = data.indices.data(),
+			.size = data.indices.size_bytes()
+		});
+
+		m_renderInfo[i++].mesh = &mesh;
 	}
 }
 }

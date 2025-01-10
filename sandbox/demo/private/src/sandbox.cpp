@@ -64,7 +64,7 @@ SandboxApp::SandboxApp([[maybe_unused]] int argc, [[maybe_unused]] char** argv) 
 
 	// Create GPU interface.
 	{
-		auto&& result = GraphicsProcessingUnit::from({
+		auto&& result = render::AsyncDevice::from({
 			.name = "Main GPU Device",
 			.appName = "AngkasawanRenderer",
 			.appVersion = { 0, 1, 0, 0 },
@@ -76,7 +76,7 @@ SandboxApp::SandboxApp([[maybe_unused]] int argc, [[maybe_unused]] char** argv) 
 				.swapchainImageCount = 2
 			},
 			.shadingLanguage = gpu::ShaderLang::GLSL,
-			.validation = false,
+			.validation = true,
 			.callback = [](
 				[[maybe_unused]] gpu::ErrorSeverity severity,
 				[[maybe_unused]] literal_t message

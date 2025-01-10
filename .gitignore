@@ -32,7 +32,6 @@ bld/
 [Bb]in/
 [Oo]bj/
 [Ll]og/
-[Tt]ools/
 
 # Visual Studio 2015/2017 cache/options directory
 .vs/
@@ -348,4 +347,3 @@ healthchecksdb
 
 # Tokei Ignore file
 .tokeignore
-/sandbox/serialization

@@ -1,2 +1,2 @@
 add_subdirectory(demo)
-# add_subdirectory(serialization)
+add_subdirectory(serialization)

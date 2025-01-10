@@ -103,10 +103,10 @@ public:
 		return emplace(std::move(ele));
 	}
 
-	std::pair<index, element_type&> request()
-	{
-		return get_slot();
-	}
+	//std::pair<index, element_type&> request()
+	//{
+	//	return get_slot();
+	//}
 
 	void erase(index idx)
 	{
@@ -135,10 +135,10 @@ public:
 		}
 	}
 
-	size_t page_count() const
-	{
-		return m_current;
-	}
+	//size_t page_count() const
+	//{
+	//	return m_current;
+	//}
 
 	//index index_of(element_type const* ele) const
 	//{

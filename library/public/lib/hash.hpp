@@ -475,7 +475,7 @@ private:
 	{
 		// Swap actual data.
 		// We do a memcopy to avoid weird funny logic that users might implement for their move assignment operator
-		if constexpr (std::is_trivial_v<type>)
+		if constexpr (std::is_standard_layout_v<type> && std::is_trivially_copyable_v<type>)
 		{
 			mutable_type tmp{};
 			mutable_type& data = *reinterpret_cast<mutable_type*>(&m_box->data[bucket]);

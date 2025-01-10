@@ -263,19 +263,32 @@ public:
 	}
 
 	constexpr array(size_t length, allocator_type const& allocator = allocator_type{}) :
-		array{ allocator }
+		array(allocator)
 	{
 		_grow(length);
 	}
 
-	constexpr array(std::initializer_list<value_type> const& list) :
-		array{}
+	constexpr array(size_t count, value_type const& value, allocator_type const& allocator = allocator_type{}) :
+		array(allocator)
+	{
+		assign(count, value);
+	}
+
+	template <typename input_iterator>
+	constexpr array(input_iterator first, input_iterator last, allocator_type const& allocator = allocator_type{}) :
+		array(allocator)
+	{
+		assign(first, last);
+	}
+
+	constexpr array(std::initializer_list<value_type> list, allocator_type const& allocator = allocator_type{}) :
+		array(allocator)
 	{
 		append(list);
 	}
 
 	constexpr array(array const& other) :
-		array{ std::allocator_traits<allocator_type>::select_on_container_copy_construction(other.m_box) }
+		array(std::allocator_traits<allocator_type>::select_on_container_copy_construction(other.m_box))
 	{
 		_deep_copy(other);
 	}
@@ -698,7 +711,7 @@ private:
 
 		if (m_len)
 		{
-			if constexpr (std::is_trivial_v<value_type> && std::is_trivially_move_assignable_v<value_type>)
+			if constexpr (std::is_standard_layout_v<value_type> && std::is_trivially_move_assignable_v<value_type>)
 			{
 				std::memcpy(temp, m_box.data, m_len * sizeof(value_type));
 			}
@@ -844,7 +857,7 @@ private:
 
 		m_len = other.size();
 
-		if constexpr (std::is_trivial_v<value_type> && std::is_trivially_copyable_v<value_type>)
+		if constexpr (std::is_standard_layout_v<value_type> && std::is_trivially_copyable_v<value_type>)
 		{
 			std::memcpy(m_box.data, other.m_box.data, sizeof(value_type) * other.size());
 		}

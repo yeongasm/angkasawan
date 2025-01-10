@@ -293,7 +293,7 @@ auto to_string(Format format) -> std::string_view
 		"Pvrtc2_2Bpp_Srgb_Block_Img",
 		"Pvrtc2_4Bpp_Srgb_Block_Img"
 	};
-	return std::string_view{ imageFormatStr[static_cast<std::underlying_type_t<Format>>(format)] };
+	return std::string_view{ imageFormatStr[std::to_underlying(format)] };
 }
 
 auto to_string(ColorSpace colorSpace) -> std::string_view
@@ -316,6 +316,6 @@ auto to_string(ColorSpace colorSpace) -> std::string_view
 		"Extended_Srgb_Non_Linear",
 		"Display_Native_Amd"
 	};
-	return std::string_view{ colorSpaceStr[static_cast<std::underlying_type_t<ColorSpace>>(colorSpace)] };
+	return std::string_view{ colorSpaceStr[std::to_underlying(colorSpace)] };
 }
 }

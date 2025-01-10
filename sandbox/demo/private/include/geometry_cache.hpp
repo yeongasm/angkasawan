@@ -7,7 +7,7 @@
 #include "lib/handle.hpp"
 #include "lib/bitset.hpp"
 #include "model_importer.hpp"
-#include "upload_heap.hpp"
+#include "render/render.hpp"
 
 namespace sandbox
 {
@@ -117,7 +117,7 @@ public:
 	/**
 	 * Uploads the model from the GLTF file to the GPU. 
 	 */
-	auto upload_gltf(UploadHeap& uploadHeap, gltf::Importer const& importer, GeometryInputLayout const& inputLayout) -> root_geometry_handle;
+	auto upload_gltf(render::UploadHeap& uploadHeap, gltf::Importer const& importer, GeometryInputLayout const& inputLayout) -> root_geometry_handle;
 	//auto stage_geometries_for_upload(StageGeometryInfo&& info) -> GeometryCacheUploadResult;
 	auto geometry_from(root_geometry_handle handle) -> Geometry const*;
 	auto geometry_info(root_geometry_handle handle) -> GeometryInfo;
@@ -132,10 +132,10 @@ private:
 	auto input_element_count(GeometryInput input) -> uint32;
 	auto input_size_bytes(GeometryInput input) -> size_t;
 	auto layout_size_bytes(GeometryInputLayout const& layout) -> size_t;
-	auto gltf_unpack_interleaved(UploadHeap& uploadHeap, gltf::Importer const& importer, root_geometry_handle geometryHandle, size_t verticesSizeBytes, size_t indicesSizeBytes) -> void;
-	auto gltf_unpack_non_interleaved(UploadHeap& uploadHeap, gltf::Importer const& importer, root_geometry_handle geometryHandle, size_t verticesSizeBytes, size_t indicesSizeBytes) -> void;
+	auto gltf_unpack_interleaved(render::UploadHeap& uploadHeap, gltf::Importer const& importer, root_geometry_handle geometryHandle, size_t verticesSizeBytes, size_t indicesSizeBytes) -> void;
+	auto gltf_unpack_non_interleaved(render::UploadHeap& uploadHeap, gltf::Importer const& importer, root_geometry_handle geometryHandle, size_t verticesSizeBytes, size_t indicesSizeBytes) -> void;
 
-	auto upload_heap_blocks(UploadHeap& uploadHeap, std::span<HeapBlock> heapBlocks, size_t initialWriteOffset, gpu::buffer const& buffer, size_t dstOffset) -> size_t;
+	auto upload_heap_blocks(render::UploadHeap& uploadHeap, std::span<render::HeapBlock> heapBlocks, size_t initialWriteOffset, gpu::buffer const& buffer, size_t dstOffset) -> size_t;
 };
 }
 

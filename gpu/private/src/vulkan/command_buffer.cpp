@@ -269,10 +269,8 @@ auto CommandBuffer::bind_vertex_buffer(BindVertexBufferInfo const& info) -> void
 	auto const& self = to_impl(*this);
 	auto const& buf = to_impl(info.buffer);
 
-	using buffer_usage_t = std::underlying_type_t<BufferUsage>;
-
-	buffer_usage_t const usage = static_cast<buffer_usage_t>(info.buffer.info().bufferUsage);
-	buffer_usage_t constexpr VERTEX_BUFFER_USAGE = static_cast<buffer_usage_t>(BufferUsage::Vertex);
+	auto const usage = std::to_underlying(info.buffer.info().bufferUsage);
+	auto constexpr VERTEX_BUFFER_USAGE = std::to_underlying(BufferUsage::Vertex);
 
 	if (usage & VERTEX_BUFFER_USAGE)
 	{
@@ -292,10 +290,8 @@ auto CommandBuffer::bind_index_buffer(BindIndexBufferInfo const& info) -> void
 	auto const& self = to_impl(*this);
 	auto const& buf = to_impl(info.buffer);
 
-	using buffer_usage_t = std::underlying_type_t<BufferUsage>;
-
-	buffer_usage_t const usage = static_cast<buffer_usage_t>(info.buffer.info().bufferUsage);
-	buffer_usage_t constexpr INDEX_BUFFER_USAGE = static_cast<buffer_usage_t>(BufferUsage::Index);
+	auto const usage = std::to_underlying(info.buffer.info().bufferUsage);
+	auto constexpr INDEX_BUFFER_USAGE = std::to_underlying(BufferUsage::Index);
 
 	if (usage & INDEX_BUFFER_USAGE)
 	{

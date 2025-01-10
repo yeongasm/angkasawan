@@ -6,6 +6,7 @@
 #include <expected>
 #include <atomic>
 
+#include "lib/handle.hpp"
 #include "lib/paged_array.hpp"
 
 #include "common.hpp"
@@ -122,6 +123,8 @@ private:
 	uint64				m_id		= std::numeric_limits<uint64>::max();
 	resource_type*		m_resource	= nullptr;
 };
+
+using DeviceAddress = uint64;
 
 struct BufferBindInfo
 {
@@ -301,7 +304,7 @@ public:
 	auto clear() const -> void;
 	auto is_host_visible() const -> bool;
 	auto is_transient() const -> bool;
-	auto gpu_address() const -> uint64;
+	auto gpu_address() const -> DeviceAddress;
 	auto bind(BufferBindInfo const& info) const -> BufferBindInfo;
 
 	template <typename T>
@@ -885,6 +888,8 @@ using shader		= Resource<Shader>;
 using pipeline		= Resource<Pipeline>;
 using command_pool	= Resource<CommandPool>;
 using command_buffer = Resource<CommandBuffer>;
+
+using device_address = DeviceAddress;
 
 class Device
 {

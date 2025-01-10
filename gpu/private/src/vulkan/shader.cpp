@@ -52,9 +52,7 @@ auto Shader::from(Device& device, CompiledShaderInfo const& compiledShaderInfo) 
 	vkshader.handle = handle;
 	vkshader.stage = vk::translate_shader_stage(compiledShaderInfo.type);
 
-	using shader_index_t = std::underlying_type_t<ShaderType>;
-
-	vkshader.m_info.name.format("<shader:{}>:{}", shaderTypes[static_cast<shader_index_t>(compiledShaderInfo.type)].data(), compiledShaderInfo.path);
+	vkshader.m_info.name.format("<shader:{}>:{}", shaderTypes[std::to_underlying(compiledShaderInfo.type)].data(), compiledShaderInfo.path);
 
 	vkshader.m_info.type = compiledShaderInfo.type;
 	vkshader.m_info.entryPoint = compiledShaderInfo.entryPoint;

@@ -20,11 +20,9 @@ auto translate_geometry_input_to_cgltf_importer_input_type(GeometryInput input) 
 	}
 }
 
-auto GeometryCache::upload_gltf(UploadHeap& uploadHeap, gltf::Importer const& importer, GeometryInputLayout const& layout) -> root_geometry_handle
+auto GeometryCache::upload_gltf(render::UploadHeap& uploadHeap, gltf::Importer const& importer, GeometryInputLayout const& layout) -> root_geometry_handle
 {
-	using attrib_t = std::underlying_type_t<gltf::VertexAttribute>;
-
-	auto const MAX_ATTRIBUTES = static_cast<attrib_t>(gltf::VertexAttribute::Max);
+	auto const MAX_ATTRIBUTES = std::to_underlying(gltf::VertexAttribute::Max);
 
 	uint32 const meshCount = importer.num_meshes();
 
@@ -256,12 +254,11 @@ auto GeometryCache::layout_size_bytes(GeometryInputLayout const& layout) -> size
 	return total;
 }
 
-auto GeometryCache::gltf_unpack_interleaved(UploadHeap& uploadHeap, gltf::Importer const& importer, root_geometry_handle geometryHandle, size_t verticesSizeBytes, size_t indicesSizeBytes) -> void
+auto GeometryCache::gltf_unpack_interleaved(render::UploadHeap& uploadHeap, gltf::Importer const& importer, root_geometry_handle geometryHandle, size_t verticesSizeBytes, size_t indicesSizeBytes) -> void
 {
-	using attrib_t = std::underlying_type_t<gltf::VertexAttribute>;
 	using geometry_index = decltype(m_geometries)::index;
 
-	auto const MAX_ATTRIBUTES = static_cast<attrib_t>(gltf::VertexAttribute::Max);
+	auto constexpr MAX_ATTRIBUTES = std::to_underlying(gltf::VertexAttribute::Max);
 
 	// We never use the 4th component, it's just there so that the compiler can auto vectorize.
 	constexpr float32 VERTEX_MULTIPLIER[4] = { 1.f, 1.f, -1.f, 0.f };
@@ -301,7 +298,7 @@ auto GeometryCache::gltf_unpack_interleaved(UploadHeap& uploadHeap, gltf::Import
 
 		for (uint32 j = 0; j < geometry->vertices.count; ++j)
 		{
-			for (attrib_t k = 0; k < MAX_ATTRIBUTES; ++k)
+			for (auto k = 0; k < MAX_ATTRIBUTES; ++k)
 			{
 				auto const gltfAttribEnum = static_cast<gltf::VertexAttribute>(k);
 				auto const geoInputEnum = static_cast<GeometryInput>(1 << k);
@@ -437,12 +434,11 @@ auto GeometryCache::gltf_unpack_interleaved(UploadHeap& uploadHeap, gltf::Import
 	upload_heap_blocks(uploadHeap, ibHeapSpan, initialHeapWriteOffset, ib, ibOffset);
 }
 
-auto GeometryCache::gltf_unpack_non_interleaved(UploadHeap& uploadHeap, gltf::Importer const& importer, root_geometry_handle geometryHandle, size_t verticesSizeBytes, size_t indicesSizeBytes) -> void
+auto GeometryCache::gltf_unpack_non_interleaved(render::UploadHeap& uploadHeap, gltf::Importer const& importer, root_geometry_handle geometryHandle, size_t verticesSizeBytes, size_t indicesSizeBytes) -> void
 {
-	using attrib_t = std::underlying_type_t<gltf::VertexAttribute>;
 	using geometry_index = decltype(m_geometries)::index;
 
-	auto const MAX_ATTRIBUTES = static_cast<attrib_t>(gltf::VertexAttribute::Max);
+	auto constexpr MAX_ATTRIBUTES = std::to_underlying(gltf::VertexAttribute::Max);
 
 	constexpr float32 VERTEX_MULTIPLIER[4] = { 1.f, 1.f, -1.f, 0.f };
 
@@ -479,7 +475,7 @@ auto GeometryCache::gltf_unpack_non_interleaved(UploadHeap& uploadHeap, gltf::Im
 
 		geometry->vertices.offset = vbIndexOffset;
 
-		for (attrib_t j = 0; j < MAX_ATTRIBUTES; ++j)
+		for (auto j = 0; j < MAX_ATTRIBUTES; ++j)
 		{
 			auto const gltfAttribEnum = static_cast<gltf::VertexAttribute>(j);
 			auto const geoInputEnum = static_cast<GeometryInput>(1 << j);
@@ -642,9 +638,9 @@ auto GeometryCache::gltf_unpack_non_interleaved(UploadHeap& uploadHeap, gltf::Im
 	}
 }
 
-auto GeometryCache::upload_heap_blocks(UploadHeap& uploadHeap, std::span<HeapBlock> heapBlocks, size_t initialWriteOffset, gpu::buffer const& buffer, size_t dstOffset) -> size_t
+auto GeometryCache::upload_heap_blocks(render::UploadHeap& uploadHeap, std::span<render::HeapBlock> heapBlocks, size_t initialWriteOffset, gpu::buffer const& buffer, size_t dstOffset) -> size_t
 {
-	for (HeapBlock& heapBlock : heapBlocks)
+	for (render::HeapBlock& heapBlock : heapBlocks)
 	{
 		size_t const writtenSize = heapBlock.byteOffset - initialWriteOffset;
 

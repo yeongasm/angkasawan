@@ -2,6 +2,7 @@
 #ifndef LIB_BIT_MASK_HPP
 #define LIB_BIT_MASK_HPP
 
+#include <utility>
 #include "concepts.hpp"
 
 template <lib::bit_mask T>
@@ -9,8 +10,7 @@ constexpr auto operator| (T a, T b) -> T
 {
 	if constexpr (std::is_enum_v<T>)
 	{
-		using underlying_type = std::underlying_type_t<T>;
-		return static_cast<T>(static_cast<underlying_type>(a) | static_cast<underlying_type>(b));
+		return static_cast<T>(std::to_underlying(a) | std::to_underlying(b));
 	}
 	else
 	{
@@ -23,8 +23,7 @@ constexpr auto operator& (T a, T b) -> T
 {
 	if constexpr (std::is_enum_v<T>)
 	{
-		using underlying_type = std::underlying_type_t<T>;
-		return static_cast<T>(static_cast<underlying_type>(a) & static_cast<underlying_type>(b));
+		return static_cast<T>(std::to_underlying(a) & std::to_underlying(b));
 	}
 	else
 	{
@@ -37,8 +36,7 @@ constexpr auto operator^ (T a, T b) -> T
 {
 	if constexpr (std::is_enum_v<T>)
 	{
-		using underlying_type = std::underlying_type_t<T>;
-		return static_cast<T>(static_cast<underlying_type>(a) ^ static_cast<underlying_type>(b));
+		return static_cast<T>(std::to_underlying(a) ^ std::to_underlying(b));
 	}
 	else
 	{
@@ -51,8 +49,7 @@ constexpr auto operator|= (T& a, T b) -> T&
 {
 	if constexpr (std::is_enum_v<T>)
 	{
-		using underlying_type = std::underlying_type_t<T>;
-		return a = static_cast<T>(static_cast<underlying_type>(a) | static_cast<underlying_type>(b));
+		return a = static_cast<T>(std::to_underlying(a) | std::to_underlying(b));
 	}
 	else
 	{
@@ -65,8 +62,7 @@ constexpr auto operator&= (T& a, T b) -> T&
 {
 	if constexpr (std::is_enum_v<T>)
 	{
-		using underlying_type = std::underlying_type_t<T>;
-		return a = static_cast<T>(static_cast<underlying_type>(a) & static_cast<underlying_type>(b));
+		return a = static_cast<T>(std::to_underlying(a) & std::to_underlying(b));
 	}
 	else
 	{
@@ -79,8 +75,7 @@ constexpr auto operator^= (T& a, T b) -> T&
 {
 	if constexpr (std::is_enum_v<T>)
 	{
-		using underlying_type = std::underlying_type_t<T>;
-		return a = static_cast<T>(static_cast<underlying_type>(a) ^ static_cast<underlying_type>(b));
+		return a = static_cast<T>(std::to_underlying(a) ^ std::to_underlying(b));
 	}
 	else
 	{
