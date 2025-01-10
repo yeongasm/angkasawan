@@ -167,6 +167,7 @@ auto MeshifyJob::_unpack_mesh_vertex_data(uint32 i, core::sbf::Buffer& buffer, g
 
 	auto&& [header, meshObj] = m_unpackedMeshes[static_cast<size_t>(i)];
 
+	size_t const numVertices = static_cast<size_t>(mesh.num_vertices());
 	header.meshInfo.vertices.count = mesh.num_vertices();
 
 	size_t const bufferByteOffset = buffer.byte_offset();
@@ -185,25 +186,30 @@ auto MeshifyJob::_unpack_mesh_vertex_data(uint32 i, core::sbf::Buffer& buffer, g
 		{
 			auto const attribInfo = mesh.attribute_info(gltfAttribEnum);
 
-			size_t const totalComponentCount = attribInfo.numVertices * attribInfo.componentCountForType;
+			size_t const componentCountForType	= attribInfo.componentCountForType;
+			[[maybe_unused]] size_t const totalComponentCount	= attribInfo.numVertices * attribInfo.componentCountForType;
 
 			header.meshInfo.attributes |= vertexAttrib;
 			header.meshInfo.vertices.sizeBytes += static_cast<uint32>(attribInfo.totalSizeBytes);
 
+			size_t fetchedComponentCount = {};
 			float32 data[4] = {};
 
-			for (size_t k = 0; k < totalComponentCount; k += attribInfo.componentCountForType)
+			for (size_t k = 0; k < numVertices; ++k)
 			{
-				mesh.read_float_data(gltfAttribEnum, k, data, attribInfo.componentCountForType);
+				mesh.read_float_data(gltfAttribEnum, k, data, componentCountForType);
 
-				for (uint32 l = 0; l < attribInfo.componentCountForType; ++l)
+				for (uint32 l = 0; l < componentCountForType; ++l)
 				{
 					data[l] *= VERTEX_MULTIPLIER[l];
 				}
 
 				// Write to the buffer.
-				buffer.write(&data, sizeof(float32) * attribInfo.componentCountForType);
+				buffer.write(&data, sizeof(float32) * componentCountForType);
+				fetchedComponentCount += componentCountForType;
 			}
+
+			ASSERTION(fetchedComponentCount == totalComponentCount);
 		}
 	}
 

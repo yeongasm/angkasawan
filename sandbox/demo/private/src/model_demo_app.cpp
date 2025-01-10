@@ -212,59 +212,59 @@ auto ModelDemoApp::start(
 
 	m_defaultWhiteTexture->bind({ .sampler = m_normalSampler, .index = 0u });
 
-	gltf::Importer sponzaImporter{ "data/demo/models/sponza_updated/compressed/scene.gltf" };
+	//gltf::Importer sponzaImporter{ "data/demo/models/sponza_updated/compressed/scene.gltf" };
 
-	uint32 const sponzaMeshCount = sponzaImporter.num_meshes();
-	uint32 imageCount = 1;
+	//uint32 const sponzaMeshCount = sponzaImporter.num_meshes();
+	//uint32 imageCount = 1;
 
-	for (uint32 i = 0; i < sponzaMeshCount; ++i)
-	{
-		auto result = sponzaImporter.mesh_at(i);
+	//for (uint32 i = 0; i < sponzaMeshCount; ++i)
+	//{
+	//	auto result = sponzaImporter.mesh_at(i);
 
-		if (!result.has_value())
-		{
-			continue;
-		}
+	//	if (!result.has_value())
+	//	{
+	//		continue;
+	//	}
 
-		auto mesh = result.value();
+	//	auto mesh = result.value();
 
-		gltf::MaterialInfo const& material = mesh.material_info();
+	//	gltf::MaterialInfo const& material = mesh.material_info();
 
-		 //Skip decals for now ...
-		 //if (material.alphaMode != gltf::AlphaMode::Opaque)
-		 //{
-		 //	continue;
-		 //}
+	//	 //Skip decals for now ...
+	//	 //if (material.alphaMode != gltf::AlphaMode::Opaque)
+	//	 //{
+	//	 //	continue;
+	//	 //}
 
-		auto const textureInfo = material.imageInfos[std::to_underlying(gltf::ImageType::Base_Color)];
+	//	auto const textureInfo = material.imageInfos[std::to_underlying(gltf::ImageType::Base_Color)];
 
-		if (textureInfo)
-		{
-			ImageImporter importer{ {.name = lib::format("mesh:{}, base color", i), .uri = textureInfo->uri } };
+	//	if (textureInfo)
+	//	{
+	//		ImageImporter importer{ {.name = lib::format("mesh:{}, base color", i), .uri = textureInfo->uri } };
 
-			auto&& baseColorMapInfo = importer.image_info();
-			baseColorMapInfo.mipLevel = 1;
+	//		auto&& baseColorMapInfo = importer.image_info();
+	//		baseColorMapInfo.mipLevel = 1;
 
-			auto& baseColorImage = m_sponzaTextures.emplace_back(gpu::Image::from(m_gpu->device(), std::move(baseColorMapInfo)), imageCount);
+	//		auto& baseColorImage = m_sponzaTextures.emplace_back(gpu::Image::from(m_gpu->device(), std::move(baseColorMapInfo)), imageCount);
 
-			m_gpu->upload_heap().upload_data_to_image({
-				.image = baseColorImage.first,
-				.data = importer.data(0).data(),
-				.size = importer.data(0).size_bytes(),
-				.mipLevel = 0
-			});
+	//		m_gpu->upload_heap().upload_data_to_image({
+	//			.image = baseColorImage.first,
+	//			.data = importer.data(0).data(),
+	//			.size = importer.data(0).size_bytes(),
+	//			.mipLevel = 0
+	//		});
 
-			baseColorImage.first->bind({ .sampler = m_normalSampler, .index = imageCount });
+	//		baseColorImage.first->bind({ .sampler = m_normalSampler, .index = imageCount });
 
-			m_renderInfo.emplace_back(nullptr, imageCount);
+	//		m_renderInfo.emplace_back(nullptr, imageCount);
 
-			++imageCount;
-		}
-		else
-		{
-			m_renderInfo.emplace_back(nullptr, 0u);
-		}
-	}
+	//		++imageCount;
+	//	}
+	//	else
+	//	{
+	//		m_renderInfo.emplace_back(nullptr, 0u);
+	//	}
+	//}
 
 	// For now, this function has to happen after the operation above.
 	unpack_sponza();
@@ -436,8 +436,6 @@ auto ModelDemoApp::render() -> void
 	});
 	cmd->bind_pipeline(*m_pipeline);
 
-	uint32 drawCount = 0;
-
 	for (GeometryRenderInfo const& renderInfo : m_renderInfo)
 	{
 		cmd->bind_index_buffer({
@@ -461,13 +459,9 @@ auto ModelDemoApp::render() -> void
 			.shaderStage = gpu::ShaderStage::All
 		});
 
-		if (std::cmp_less(drawCount, 27))
-		{
-			cmd->draw_indexed({
-				.indexCount = renderInfo.mesh->info.vertices.count
-			});
-			++drawCount;
-		}
+		cmd->draw_indexed({
+			.indexCount = renderInfo.mesh->info.indices.count
+		});
 	}
 
 	cmd->end_rendering();
@@ -878,7 +872,9 @@ auto ModelDemoApp::unpack_sponza() -> void
 			.size = data.indices.size_bytes()
 		});
 
-		m_renderInfo[i++].mesh = &mesh;
+		//m_renderInfo[i++].mesh = &mesh;
+
+		m_renderInfo.emplace_back(&mesh, 0u);
 	}
 }
 }
