@@ -5,9 +5,6 @@ set(
 	demo_header_files
 	"public/demo/sandbox.hpp"
 	"private/include/camera.hpp"
-	"private/include/geometry_cache.hpp"
-	"private/include/image_importer.hpp"
-	"private/include/model_importer.hpp"
 	"private/include/applet.hpp"
 	"private/include/model_demo_app.hpp"
 )
@@ -15,9 +12,6 @@ set(
 set(
 	demo_source_files
 	"private/src/camera.cpp"
-	"private/src/geometry_cache.cpp"
-	"private/src/image_importer.cpp"
-	"private/src/model_importer.cpp"
 	"private/src/sandbox.cpp"
 	"private/src/model_demo_app.cpp"
 	"main.cpp"
@@ -54,7 +48,7 @@ target_include_directories(
 	PRIVATE "private/include"
 )
 
-target_link_libraries(sandbox.demo PRIVATE glm imgui cgltf ktx)
+target_link_libraries(sandbox.demo PRIVATE glm imgui cgltf ktx glaze::glaze)
 target_link_libraries(sandbox.demo PUBLIC gpu core.platform core.serialization render)
 target_compile_definitions(sandbox.demo PUBLIC GLM_FORCE_DEPTH_ZERO_TO_ONE)
 

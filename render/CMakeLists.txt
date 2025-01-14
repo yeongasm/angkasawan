@@ -14,6 +14,7 @@ set(
 	render_source_files
 	"private/src/async_device.cpp"
 	"private/src/command_queue.cpp"
+	"private/src/material.cpp"
 	"private/src/mesh.cpp"
 	"private/src/upload_heap.cpp"
 )

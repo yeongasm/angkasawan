@@ -1,2 +1,3 @@
 add_subdirectory(platform)
 add_subdirectory(cmdline)
+add_subdirectory(serialization)

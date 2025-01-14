@@ -3,13 +3,14 @@
 #include "core.cmdline/cmdline.hpp"
 
 #include "meshify_job.hpp"
+#include "imagify_job.hpp"
 
 namespace makesbf
 {
-lib::map<std::filesystem::path, MakeSbf::JobType> const MakeSbf::EXTENSION_TASK_MAP{ 
-	{ ".gltf",	MakeSbf::JobType::Gltf_To_Mesh }, 
-	{ ".glb",	MakeSbf::JobType::Gltf_To_Mesh },
-	{ ".ktx2",	MakeSbf::JobType::Ktx2_To_Image }
+lib::map<std::filesystem::path, JobType> const MakeSbf::EXTENSION_TASK_MAP{ 
+	{ ".gltf",	JobType::Gltf_To_Mesh }, 
+	{ ".glb",	JobType::Gltf_To_Mesh },
+	{ ".ktx2",	JobType::Ktx2_To_Image }
 };
 
 MakeSbf::MakeSbf([[maybe_unused]] int argc, char** argv) :
@@ -32,9 +33,45 @@ auto MakeSbf::mise_en_place(int argc, char** argv) -> bool
 		return false;
 	}
 
-	output.remove_filename();
+	add_job(std::move(input), std::move(output), std::move(filename));
 
-	if (!std::filesystem::exists(output))
+	return true;
+}
+
+auto MakeSbf::cook() -> void
+{
+	/**
+	* NOTE(afiq):
+	* Once we have our coroutine-based task scheduler, use that.
+	*/
+	while (!m_jobDescription.empty())
+	{
+		auto const& description = m_jobDescription.front();
+
+		switch (description.jobType)
+		{
+		case JobType::Gltf_To_Mesh:
+			_translate_gltf_to_sbf(description);
+			break;
+		case JobType::Ktx2_To_Image:
+			_translate_ktx2_to_sbf(description);
+		default:
+			break;
+		}
+
+		m_jobDescription.pop();
+	}
+}
+
+auto MakeSbf::add_job(std::filesystem::path&& input, std::filesystem::path&& output, std::filesystem::path&& filename) -> void
+{
+	if (!filename.empty())
+	{
+		output.remove_filename();
+	}
+
+	if (std::filesystem::is_directory(output) && 
+		!std::filesystem::exists(output))
 	{
 		std::filesystem::create_directory(output);
 	}
@@ -58,66 +95,24 @@ auto MakeSbf::mise_en_place(int argc, char** argv) -> bool
 
 			std::filesystem::path const outFilename = path.stem().append(".sbf");
 
-			MakeSbfJobDescription jobDescription{
-				.input = path,
-				.jobType = EXTENSION_TASK_MAP.at(ext).value()->second
-			};
-
-			if (!output.empty())
-			{
-				jobDescription.output = output / outFilename;
-			}
-			else
-			{
-				jobDescription.output = input.parent_path() / outFilename;
-			}
-
-			m_jobDescription.push_back(std::move(jobDescription));
+			m_jobDescription.emplace(
+				path,
+				(!output.empty()) ? output / outFilename : input.parent_path() / outFilename,
+				EXTENSION_TASK_MAP.at(ext).value()->second
+			);
 		}
 	}
 	else
 	{
 		if (auto exist = EXTENSION_TASK_MAP.at(extension); exist)
 		{
-			MakeSbfJobDescription jobDescription{
-				.input = input,
-				.jobType = EXTENSION_TASK_MAP.at(extension).value()->second
-			};
-
 			auto const outFilename = (filename.empty()) ? input.filename().replace_extension(".sbf").string() : filename.replace_extension(".sbf");
 
-			if (!output.empty())
-			{
-				jobDescription.output = output / outFilename;
-			}
-			else
-			{
-				jobDescription.output = input.parent_path() / outFilename;
-			}
-
-			m_jobDescription.push_back(std::move(jobDescription));
-		}
-	}
-
-	return true;
-}
-
-auto MakeSbf::cook() -> void
-{
-	/**
-	* NOTE(afiq):
-	* Once we have our coroutine-based task scheduler, use that.
-	*/
-	for (auto const& description : m_jobDescription)
-	{
-		switch (description.jobType)
-		{
-		case JobType::Gltf_To_Mesh:
-			_translate_gltf_to_sbf(description);
-			break;
-		case JobType::Ktx2_To_Image:
-		default:
-			break;
+			m_jobDescription.emplace(
+				std::move(input),
+				(!output.empty()) ? output.remove_filename() / outFilename : input.parent_path() / outFilename,
+				EXTENSION_TASK_MAP.at(extension).value()->second
+			);
 		}
 	}
 }
@@ -130,7 +125,7 @@ auto MakeSbf::_translate_gltf_to_sbf(MakeSbfJobDescription const& description) -
 		.attributes = render::VertexAttribute::Position | render::VertexAttribute::Normal | render::VertexAttribute::TexCoord
 	};
 
-	MeshifyJob job{ info };
+	MeshifyJob job{ *this, info };
 
 	if (auto result = job.execute(); result)
 	{
@@ -138,4 +133,18 @@ auto MakeSbf::_translate_gltf_to_sbf(MakeSbfJobDescription const& description) -
 	}
 }
 
+auto MakeSbf::_translate_ktx2_to_sbf(MakeSbfJobDescription const& description) -> void
+{
+	ImagifyJobInfo info{
+		.input = description.input,
+		.output = description.output,
+	};
+
+	ImagifyJob job{ *this, info };
+
+	if (auto result = job.execute(); result)
+	{
+		fmt::print("[Error]{}\n", result.value());
+	}
+}
 }

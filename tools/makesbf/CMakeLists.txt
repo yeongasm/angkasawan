@@ -7,6 +7,7 @@ set(
 	"public/makesbf/gltf_importer.hpp"
 	"public/makesbf/makesbf.hpp"
 	"public/makesbf/meshify_job.hpp"
+	"public/makesbf/imagify_job.hpp"
 )
 
 set(
@@ -14,6 +15,7 @@ set(
 	"private/src/image_importer.cpp"
 	"private/src/gltf_importer.cpp"
 	"private/src/meshify_job.cpp"
+	"private/src/imagify_job.cpp"
 	"private/src/makesbf.cpp"
 	"main.cpp"
 )

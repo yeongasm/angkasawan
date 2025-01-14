@@ -1,11 +1,22 @@
 #include <fstream>
-
+#include <glaze/glaze.hpp>
+#include "core.serialization/file.hpp"
 #include "gpu/util/shader_compiler.hpp"
 #include "model_demo_app.hpp"
-#include "model_importer.hpp"
-#include "image_importer.hpp"
 
-#include "core.serialization/file.hpp"
+template <>
+struct glz::meta<render::material::ImageType>
+{
+	using enum render::material::ImageType;
+	static constexpr auto value = glz::enumerate(Base_Color, Metallic_Roughness, Normal, Occlusion, Emissive);
+};
+
+template <>
+struct glz::meta<render::material::AlphaMode>
+{
+	using enum render::material::AlphaMode;
+	static constexpr auto value = glz::enumerate(Opaque, Mask, Blend);
+};
 
 namespace sandbox
 {
@@ -112,7 +123,7 @@ auto ModelDemoApp::start(
 			{
 				compileInfo.add_macro_definition("VERTEX_SHADER");
 
-				if (auto result = shaderCompiler.compile_shader(compileInfo); result.ok())
+				if (auto result = shaderCompiler.compile_shader(compileInfo); result)
 				{
 					vs = gpu::Shader::from(m_gpu->device(), result.compiled_shader_info().value());
 				}
@@ -212,62 +223,15 @@ auto ModelDemoApp::start(
 
 	m_defaultWhiteTexture->bind({ .sampler = m_normalSampler, .index = 0u });
 
-	//gltf::Importer sponzaImporter{ "data/demo/models/sponza_updated/compressed/scene.gltf" };
-
-	//uint32 const sponzaMeshCount = sponzaImporter.num_meshes();
-	//uint32 imageCount = 1;
-
-	//for (uint32 i = 0; i < sponzaMeshCount; ++i)
-	//{
-	//	auto result = sponzaImporter.mesh_at(i);
-
-	//	if (!result.has_value())
-	//	{
-	//		continue;
-	//	}
-
-	//	auto mesh = result.value();
-
-	//	gltf::MaterialInfo const& material = mesh.material_info();
-
-	//	 //Skip decals for now ...
-	//	 //if (material.alphaMode != gltf::AlphaMode::Opaque)
-	//	 //{
-	//	 //	continue;
-	//	 //}
-
-	//	auto const textureInfo = material.imageInfos[std::to_underlying(gltf::ImageType::Base_Color)];
-
-	//	if (textureInfo)
-	//	{
-	//		ImageImporter importer{ {.name = lib::format("mesh:{}, base color", i), .uri = textureInfo->uri } };
-
-	//		auto&& baseColorMapInfo = importer.image_info();
-	//		baseColorMapInfo.mipLevel = 1;
-
-	//		auto& baseColorImage = m_sponzaTextures.emplace_back(gpu::Image::from(m_gpu->device(), std::move(baseColorMapInfo)), imageCount);
-
-	//		m_gpu->upload_heap().upload_data_to_image({
-	//			.image = baseColorImage.first,
-	//			.data = importer.data(0).data(),
-	//			.size = importer.data(0).size_bytes(),
-	//			.mipLevel = 0
-	//		});
-
-	//		baseColorImage.first->bind({ .sampler = m_normalSampler, .index = imageCount });
-
-	//		m_renderInfo.emplace_back(nullptr, imageCount);
-
-	//		++imageCount;
-	//	}
-	//	else
-	//	{
-	//		m_renderInfo.emplace_back(nullptr, 0u);
-	//	}
-	//}
+	render::material::util::MaterialJSON materialRep{};
+	if (auto ec = glz::read_file_json(materialRep, "data/demo/models/sponza/sponza.material.json", std::string{}); ec)
+	{
+		fmt::print("Could not load material representation for sponza.sbf. {}\n", ec.custom_error_message);
+	}
 
 	// For now, this function has to happen after the operation above.
 	unpack_sponza();
+	unpack_materials(materialRep);
 
 	uint8 theColorWhite[4] = { 255, 255, 255, 255 };
 
@@ -290,7 +254,7 @@ auto ModelDemoApp::start(
 	m_defaultUV = gpu::Buffer::from(
 		m_gpu->device(),
 		{
-			.name = "default UV ",
+			.name = "default UV",
 			.size = sizeof(glm::vec2),
 			.bufferUsage = gpu::BufferUsage::Storage | gpu::BufferUsage::Transfer_Dst,
 			.memoryUsage = gpu::MemoryUsage::Can_Alias | gpu::MemoryUsage::Best_Fit
@@ -311,10 +275,10 @@ auto ModelDemoApp::start(
 
 		cmd->begin();
 
-		for (auto&& texture : m_sponzaTextures)
+		for (auto&& image : m_images)
 		{
 			cmd->pipeline_image_barrier({
-				.image = *texture.first,
+				.image = *image.image,
 				.dstAccess = gpu::access::TRANSFER_WRITE,
 				.oldLayout = gpu::ImageLayout::Transfer_Dst,
 				.newLayout = gpu::ImageLayout::Shader_Read_Only,
@@ -436,7 +400,7 @@ auto ModelDemoApp::render() -> void
 	});
 	cmd->bind_pipeline(*m_pipeline);
 
-	for (GeometryRenderInfo const& renderInfo : m_renderInfo)
+	for (MeshRenderInfo const& renderInfo : m_renderInfo)
 	{
 		cmd->bind_index_buffer({
 			.buffer = *renderInfo.mesh->buffer,
@@ -446,7 +410,11 @@ auto ModelDemoApp::render() -> void
 
 		pc.position = renderInfo.mesh->position;
 		pc.uv = renderInfo.mesh->uv;
-		pc.baseColorMapIndex = renderInfo.baseColor;
+
+		if (auto exist = renderInfo.material.image_for(render::material::ImageType::Base_Color); exist)
+		{
+			pc.baseColorMapIndex = (*exist)->binding;
+		}
 
 		if ((renderInfo.mesh->attributes & render::VertexAttribute::TexCoord) == render::VertexAttribute::None)
 		{
@@ -771,7 +739,7 @@ auto ModelDemoApp::update_camera_on_keyboard_events(float32 dt) -> void
 
 auto ModelDemoApp::unpack_sponza() -> void
 {
-	core::sbf::File sponzaSbf{ "data/demo/models/sponza.sbf" };
+	core::sbf::File sponzaSbf{ "data/demo/models/sponza/sponza.sbf" };
 
 	if (!sponzaSbf.is_open())
 	{
@@ -872,9 +840,83 @@ auto ModelDemoApp::unpack_sponza() -> void
 			.size = data.indices.size_bytes()
 		});
 
-		//m_renderInfo[i++].mesh = &mesh;
+		m_renderInfo.emplace_back(&mesh);
+	}
+}
 
-		m_renderInfo.emplace_back(&mesh, 0u);
+auto ModelDemoApp::unpack_materials(render::material::util::MaterialJSON const& materialRep) -> void
+{
+	if (materialRep.materials.empty())
+	{
+		return;
+	}
+
+	m_images.reserve(materialRep.numImages);
+	m_images.emplace_back(m_defaultWhiteTexture, m_normalSampler, render::material::ImageType::Base_Color, 1u, 0u);
+
+	std::filesystem::path input{ "data/demo/models/sponza/" };
+
+	for (size_t i = 0; auto const& material : materialRep.materials)
+	{
+		size_t const imageStoredOffset = m_images.size();
+
+		for (auto const& image : material.images)
+		{
+			if (image.type != render::material::ImageType::Base_Color)
+			{
+				continue;
+			}
+
+			input /= image.uri.c_str();
+
+			core::sbf::File const img{ input };
+
+			if (!img.is_open())
+			{
+				fmt::print("Could not load image asset - {}\n", input);
+
+				continue;
+			}
+
+			render::ImageSbfPack imageSbf{ img };
+
+			auto& texture = m_images.emplace_back(
+				gpu::Image::from(m_gpu->device(), {
+					.name		= lib::format("sponza_{}", std::string_view{ image.uri.c_str(), image.uri.size() }),
+					.type		= imageSbf.type(),
+					.format		= imageSbf.format(),
+					.imageUsage = gpu::ImageUsage::Transfer_Dst | gpu::ImageUsage::Sampled,
+					.dimension	= imageSbf.dimension(),
+					.mipLevel	= 1u
+				}),
+				m_normalSampler, 
+				image.type, 
+				1u,
+				static_cast<uint32>(i) + 1u
+			);
+
+			texture.image->bind({ .sampler = m_normalSampler, .index = texture.binding });
+
+			auto mipRange = imageSbf.data(0);
+
+			m_gpu->upload_heap().upload_data_to_image({
+				.image		= texture.image,
+				.data		= mipRange.data(),
+				.size		= mipRange.size_bytes(),
+				.mipLevel	= 0
+			});
+
+			input.remove_filename();
+		}
+
+		if (imageStoredOffset == m_images.size())
+		{
+			m_renderInfo[i++].material.images = std::span{ &m_images[0], 1ull };
+		}
+		else
+		{
+			m_renderInfo[i++].material.images = std::span{ &m_images[imageStoredOffset], 1ull };
+		}
 	}
 }
 }

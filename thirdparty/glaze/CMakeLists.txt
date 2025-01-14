@@ -3,7 +3,7 @@ include(${CMAKE_SOURCE_DIR}/cmake/CPM.cmake)
 
 CPMAddPackage(
 	NAME glaze
-	GIT_TAG v4.0.3
+	GIT_TAG v4.3.0
 	GIT_REPOSITORY https://github.com/stephenberry/glaze.git
 	GIT_SHALLOW TRUE
 )

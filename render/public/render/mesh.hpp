@@ -21,6 +21,16 @@ enum class VertexAttribute : uint8
 	All			= Position | Normal | Tangent | Color | TexCoord
 };
 
+enum class Topology
+{
+	Points,
+	Lines,
+	Line_Strip,
+	Triangles,
+	Triangle_Strip,
+	Triangle_Fan
+};
+
 template <VertexAttribute>
 struct AttribInfo
 {
@@ -49,11 +59,8 @@ struct AttribInfo<VertexAttribute::All>
 	static constexpr uint32 componentSizeBytes = componentCount * sizeof(float32);
 };
 
-struct MeshViewGroupHeader
-{
-	core::sbf::SbfDataDescriptor descriptor = { .tag = 'GVM' };
-	uint32 meshCount;
-};
+inline static constexpr uint32 SBF_MESH_VIEW_GROUP_HEADER_TAG	= 'GHSM';	// MSHG - Mesh Group
+inline static constexpr uint32 SBF_MESH_VIEW_HEADER_TAG			= 'HSEM';	// MESH - Mesh
 
 struct MeshViewInfo
 {
@@ -65,11 +72,18 @@ struct MeshViewInfo
 	MeshViewDataInfo vertices;
 	MeshViewDataInfo indices;
 	VertexAttribute attributes;
+	Topology topology;
 };
 
-struct MeshViewHeader
+struct SbfMeshViewGroupHeader
 {
-	core::sbf::SbfDataDescriptor descriptor = { .tag = 'VM' };
+	core::sbf::SbfDataDescriptor descriptor = { .tag = SBF_MESH_VIEW_GROUP_HEADER_TAG };
+	uint32 meshCount;
+};
+
+struct SbfMeshViewHeader
+{
+	core::sbf::SbfDataDescriptor descriptor = { .tag = SBF_MESH_VIEW_HEADER_TAG };
 	MeshViewInfo meshInfo;
 };
 
@@ -122,6 +136,7 @@ struct Mesh
 	gpu::device_address normal;
 	gpu::device_address uv;
 	VertexAttribute attributes;
+	Topology topology;
 };
 
 class MeshSbfPack : public lib::non_copyable_non_movable

@@ -76,7 +76,7 @@ SandboxApp::SandboxApp([[maybe_unused]] int argc, [[maybe_unused]] char** argv) 
 				.swapchainImageCount = 2
 			},
 			.shadingLanguage = gpu::ShaderLang::GLSL,
-			.validation = true,
+			.validation = false,
 			.callback = [](
 				[[maybe_unused]] gpu::ErrorSeverity severity,
 				[[maybe_unused]] literal_t message

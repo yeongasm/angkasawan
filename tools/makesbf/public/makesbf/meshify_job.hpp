@@ -1,12 +1,11 @@
 #pragma once
-#ifndef MAKESBF_JOBS_HPP
-#define MAKESBF_JOBS_HPP
+#ifndef MAKESBF_MESHIFY_JOB_HPP
+#define MAKESBF_MESHIFY_JOB_HPP
 
 #include <filesystem>
 
-#include "lib/string.hpp"
 #include "core.serialization/write_stream.hpp"
-#include "render/mesh.hpp"
+#include "render/render.hpp"
 
 #include "gltf_importer.hpp"
 
@@ -21,6 +20,8 @@ struct MeshifyJobInfo
 	render::VertexAttribute attributes;
 };
 
+class MakeSbf;
+
 /**
 * Future plans:
 * 1. Pre-validate the existence of the file by checking in runtime if the file exists.
@@ -28,29 +29,33 @@ struct MeshifyJobInfo
 class MeshifyJob
 {
 public:
-	MeshifyJob(MeshifyJobInfo const& info);
+	MeshifyJob(MakeSbf& tool, MeshifyJobInfo const& info);
 
 	auto execute() -> std::optional<std::string_view>;
 	auto job_info() const -> MeshifyJobInfo const&;
-
 private:
+
 	struct MeshInfo
 	{
-		render::MeshViewHeader header;
+		render::SbfMeshViewHeader header;
 		render::MeshView data;
 	};
 
+	MakeSbf& m_tool;
 	MeshifyJobInfo m_info;
-	lib::allocator<std::byte> m_allocator;
 	lib::array<MeshInfo> m_unpackedMeshes;
+	render::material::util::MaterialJSON m_materials;
 
 	auto _calculate_num_meshes_and_total_size_bytes(gltf::Importer const& model) const -> std::pair<size_t, size_t>;
 	auto _convert_gltf_to_ours(core::sbf::Buffer& buffer, gltf::Importer const& model) -> void;
 	auto _unpack_mesh_vertex_data(uint32 i, core::sbf::Buffer& buffer, gltf::Mesh const& mesh) -> void;
 	auto _unpack_mesh_index_data(uint32 i, core::sbf::Buffer& buffer, gltf::Mesh const& mesh) -> void;
 
+	auto _unpack_materials(gltf::Importer const& model) -> void;
+	auto _output_material_json() -> void;
+
 	static auto _attribute_element_count(render::VertexAttribute attrib) -> uint32;
 };
 }
 
-#endif // !MAKESBF_JOBS_HPP
+#endif // !MAKESBF_MESHIFY_JOB_HPP

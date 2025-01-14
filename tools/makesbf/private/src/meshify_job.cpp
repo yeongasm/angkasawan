@@ -1,13 +1,38 @@
+#include <glaze/glaze.hpp>
+#include "cgltf.h"
 #include "meshify_job.hpp"
-#include "gltf_importer.hpp"
+#include "makesbf.hpp"
+
+/**
+* TODO(afiq):
+* 1. Get rid of GltfImporter and use cgltf in here directly.
+*/
+
+template <>
+struct glz::meta<render::material::ImageType>
+{
+	using enum render::material::ImageType;
+	static constexpr auto value = glz::enumerate(Base_Color, Metallic_Roughness, Normal, Occlusion, Emissive);
+};
+
+template <>
+struct glz::meta<render::material::AlphaMode>
+{
+	using enum render::material::AlphaMode;
+	static constexpr auto value = glz::enumerate(Opaque, Mask, Blend);
+};
+
+static_assert(glz::detail::reflectable<render::material::util::ImageToImageTypePair>, "Could not serialize ImageToImageTypePair to JSON");
+static_assert(glz::detail::reflectable<render::material::util::MaterialRepresentation>, "Could not serialize MaterialRepresentation to JSON");
 
 namespace makesbf
 {
-MeshifyJob::MeshifyJob(MeshifyJobInfo const& info) :
-	m_info{ std::move(info) },
-	m_allocator{ info.allocator }
-{
-}
+MeshifyJob::MeshifyJob(MakeSbf& makeSbf, MeshifyJobInfo const& info) :
+	m_tool{ makeSbf },
+	m_info{ info },
+	m_unpackedMeshes{},
+	m_materials{}
+{}
 
 auto MeshifyJob::execute() -> std::optional<std::string_view>
 {
@@ -26,13 +51,13 @@ auto MeshifyJob::execute() -> std::optional<std::string_view>
 
 	core::sbf::BufferInfo const bufferInfo{ .blockCapacity = requiredSize };
 
-	core::sbf::Buffer scratchBuffer{ bufferInfo, *m_allocator.resource() };
+	core::sbf::Buffer scratchBuffer{ bufferInfo, *m_info.allocator.resource() };
 
 	_convert_gltf_to_ours(scratchBuffer, model);
 
 	core::sbf::WriteStream stream{ m_info.output };
 
-	render::MeshViewGroupHeader meshGroupHeader{};
+	render::SbfMeshViewGroupHeader meshGroupHeader{};
 
 	for (auto const& mesh : m_unpackedMeshes)
 	{
@@ -41,7 +66,7 @@ auto MeshifyJob::execute() -> std::optional<std::string_view>
 			continue;
 		}
 		++meshGroupHeader.meshCount;
-		meshGroupHeader.descriptor.sizeBytes += static_cast<uint32>(sizeof(render::MeshViewHeader)) + mesh.header.meshInfo.vertices.sizeBytes + mesh.header.meshInfo.indices.sizeBytes;
+		meshGroupHeader.descriptor.sizeBytes += static_cast<uint32>(sizeof(render::SbfMeshViewHeader)) + mesh.header.meshInfo.vertices.sizeBytes + mesh.header.meshInfo.indices.sizeBytes;
 	}
 
 	stream.write(core::sbf::SbfFileHeader{});
@@ -64,6 +89,9 @@ auto MeshifyJob::execute() -> std::optional<std::string_view>
 		++i;
 	}
 
+	_unpack_materials(model);
+	_output_material_json();
+
 	return std::nullopt;
 }
 
@@ -75,7 +103,7 @@ auto MeshifyJob::job_info() const -> MeshifyJobInfo const&
 auto MeshifyJob::_calculate_num_meshes_and_total_size_bytes(gltf::Importer const& model) const -> std::pair<size_t, size_t>
 {
 	size_t numMeshes = 0;
-	size_t totalSizeBytes = sizeof(core::sbf::SbfFileHeader) + sizeof(render::MeshViewGroupHeader);
+	size_t totalSizeBytes = sizeof(core::sbf::SbfFileHeader) + sizeof(render::SbfMeshViewGroupHeader);
 
 	auto constexpr MAX_ATTRIBUTES = std::to_underlying(gltf::VertexAttribute::Max);
 
@@ -90,12 +118,12 @@ auto MeshifyJob::_calculate_num_meshes_and_total_size_bytes(gltf::Importer const
 		auto mesh = *meshExist;
 
 		++numMeshes;
-		totalSizeBytes += sizeof(render::MeshViewHeader);
+		totalSizeBytes += sizeof(render::SbfMeshViewHeader);
 
 		for (auto j = 0; j < MAX_ATTRIBUTES; ++j)
 		{
-			auto const gltfAttribEnum = static_cast<gltf::VertexAttribute>(j);
-			auto const vertexAttribute = static_cast<render::VertexAttribute>(1 << j);
+			auto const gltfAttribEnum	= static_cast<gltf::VertexAttribute>(j);
+			auto const vertexAttribute	= static_cast<render::VertexAttribute>(1 << j);
 
 			if ((m_info.attributes & vertexAttribute) == render::VertexAttribute::None)
 			{
@@ -168,7 +196,9 @@ auto MeshifyJob::_unpack_mesh_vertex_data(uint32 i, core::sbf::Buffer& buffer, g
 	auto&& [header, meshObj] = m_unpackedMeshes[static_cast<size_t>(i)];
 
 	size_t const numVertices = static_cast<size_t>(mesh.num_vertices());
+
 	header.meshInfo.vertices.count = mesh.num_vertices();
+	header.meshInfo.topology = mesh.topology();
 
 	size_t const bufferByteOffset = buffer.byte_offset();
 
@@ -239,12 +269,77 @@ auto MeshifyJob::_unpack_mesh_index_data(uint32 i, core::sbf::Buffer& buffer, gl
 		buffer.write(index);
 	}
 
-	//auto range = buffer.reserve_for<uint32>(mesh.num_indices());
-	//mesh.unpack_index_data(range);
-
 	if (ptr != nullptr)
 	{
 		meshObj.indices = std::span{ ptr, static_cast<size_t>(numIndices) };
+	}
+}
+
+auto MeshifyJob::_unpack_materials(gltf::Importer const& model) -> void
+{
+	uint32 const meshCount = model.num_meshes();
+
+	for (uint32 i = 0; i < meshCount; ++i)
+	{
+		auto const meshExist = model.mesh_at(i);
+
+		if (!meshExist)
+		{
+			continue;
+		}
+
+		auto const mesh = *meshExist;
+		auto const materialInfo = mesh.material_info();
+
+		// rep i.e representation.
+		auto& rep = m_materials.materials.emplace_back();
+
+		std::memcpy(rep.multipliers.baseColor.data(), materialInfo.baseColorFactor, sizeof(float32) * 4);
+
+		rep.multipliers.metallic = materialInfo.metallicFactor;
+		rep.multipliers.roughness = materialInfo.roughnessFactor;
+
+		std::memcpy(rep.emissive.factor.data(), materialInfo.emmissiveFactor, sizeof(float32) * 3);
+
+		rep.emissive.strength = materialInfo.emmissiveStrength;
+
+		rep.alphaMode = materialInfo.alphaMode;
+		rep.alphaCutoff = materialInfo.alphaCutoff;
+		rep.unlit = materialInfo.unlit;
+
+		for (uint32 j = 0; j < std::size(materialInfo.imageInfos); ++j)
+		{
+			if (materialInfo.imageInfos[j] == nullptr)
+			{
+				continue;
+			}
+
+			gltf::ImageInfo const& imageInfo = *materialInfo.imageInfos[j];
+			auto type = static_cast<render::material::ImageType>(j);
+
+			std::filesystem::path input{ imageInfo.uri };
+			std::filesystem::path output{ m_info.output.parent_path() / input.filename().replace_extension(".sbf") };
+
+			rep.images.emplace_back(output.filename().string(), type);
+
+			++m_materials.numImages;
+
+			m_tool.add_job(std::move(input), std::move(output), {});
+		}
+	}
+}
+
+auto MeshifyJob::_output_material_json() -> void
+{
+	m_materials.mesh = m_info.output.filename().string();
+
+	std::string json;
+
+	if (auto result = glz::write<glz::opts{ .prettify = true }> (m_materials, json); !result)
+	{
+		core::sbf::WriteStream jsonStream{ m_info.output.parent_path() / m_info.output.filename().replace_extension(".material.json") };
+
+		jsonStream.write(std::span{ json.begin(), json.end() });
 	}
 }
 }

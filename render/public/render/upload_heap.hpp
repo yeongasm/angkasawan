@@ -46,7 +46,7 @@ struct BufferHeapBlockUploadInfo
 struct ImageDataUploadInfo
 {
 	gpu::image image;
-	void* data;
+	void const* data;
 	size_t size;
 	uint32 mipLevel = 0;
 	gpu::DeviceQueue srcQueue = gpu::DeviceQueue::None;

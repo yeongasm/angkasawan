@@ -17,20 +17,7 @@ namespace core
 {
 namespace sbf
 {
-/**
-* Our file format would be similar to GLTF.
-* We have:
-* a) "description"/"directory" that contains the details of the asset we're storing & byte offset to the data.
-* b) Binary data for the stored asset.
-* 
-* Each individual piece of data (including the "description"/"directory") would have it's own stream header.
-* 
-* Extension for "description"/"directory" file -> Streamable Description Format .sdf
-* Extension for binary file? -> Streamable Binary File .sbf
-* 
-* A single sbf file uniquely describes a singly type of asset.
-* 
-*/
+inline static constexpr uint32 SBF_HEADER_TAG = 'FBS.';
 
 struct SbfVersion
 {
@@ -43,7 +30,7 @@ struct SbfVersion
 */
 struct SbfFileHeader
 {
-	uint32 const magic = 'FBS.';
+	uint32 const magic = SBF_HEADER_TAG;
 	SbfVersion const version = { .major = SBF_VERSION_MAJOR, .minor = SBF_VERSION_MINOR };		// Version of the file.
 };
 

@@ -2,11 +2,18 @@
 #define MESHIFY_MESHIFY_HPP
 
 #include <filesystem>
+#include <queue>
 #include "lib/string.hpp"
 #include "lib/map.hpp"
 
 namespace makesbf
 {
+enum class JobType
+{
+	Gltf_To_Mesh,
+	Ktx2_To_Image
+};
+
 class MakeSbf
 {
 public:
@@ -15,13 +22,8 @@ public:
 	auto mise_en_place(int argc, char** argv) -> bool;
 	auto cook() -> void;
 
+	auto add_job(std::filesystem::path&& input, std::filesystem::path&& output, std::filesystem::path&& filename) -> void;
 private:
-	enum class JobType
-	{
-		Gltf_To_Mesh,
-		Ktx2_To_Image
-	};
-
 	static const lib::map<std::filesystem::path, JobType> EXTENSION_TASK_MAP;
 
 	struct MakeSbfJobDescription
@@ -31,10 +33,11 @@ private:
 		JobType jobType;
 	};
 
-	lib::array<MakeSbfJobDescription> m_jobDescription;
+	std::queue<MakeSbfJobDescription> m_jobDescription;
 	std::filesystem::path m_baseDirectory;
 
 	auto _translate_gltf_to_sbf(MakeSbfJobDescription const& description) -> void;
+	auto _translate_ktx2_to_sbf(MakeSbfJobDescription const& description) -> void;
 };
 
 }

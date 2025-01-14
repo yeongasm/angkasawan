@@ -3,6 +3,7 @@
 #define MESHIFY_MODEL_IMPORTER_HPP
 
 #include <filesystem>
+#include "render/render.hpp"
 #include "lib/array.hpp"
 #include "lib/string.hpp"
 
@@ -10,29 +11,12 @@ namespace makesbf
 {
 namespace gltf
 {
-enum class ImageType
-{
-	Base_Color,
-	Metallic_Roughness,
-	Normal,
-	Occlusion,
-	Emissive,
-	Max
-};
-
-enum class AlphaMode
-{
-	Opaque,
-	Mask,
-	Blend
-};
-
 struct ImageInfo
 {
 	std::wstring_view uri;
 	uint8 const* data;
 	size_t size;
-	ImageType type;
+	render::material::ImageType type;
 };
 
 /**
@@ -49,19 +33,9 @@ struct MaterialInfo
 	float32 roughnessFactor = 0.f;
 	float32 emmissiveFactor[3] = {};
 	float32 emmissiveStrength = 0.f;
-	AlphaMode alphaMode = {};
+	render::material::AlphaMode alphaMode = {};
 	float32 alphaCutoff = 0.f;
 	bool unlit = true;
-};
-
-enum class Topology
-{
-	Points,
-	Lines,
-	Line_Strip,
-	Triangles,
-	Triangle_Strip,
-	Triangle_Fan
 };
 
 enum class VertexAttribute
@@ -106,7 +80,7 @@ struct MeshInfo
 	uint32 numVertices;
 	struct cgltf_accessor* indices;
 	MaterialInfo* material;
-	Topology topology;
+	render::Topology topology;
 };
 
 class Mesh
@@ -116,7 +90,7 @@ public:
 	auto num_indices() const -> uint32;
 	auto vertices_size_bytes() const -> size_t;
 	auto indices_size_bytes(bool alwaysUint32 = true) const -> size_t;
-	auto topology() const -> Topology;
+	auto topology() const -> render::Topology;
 	auto attribute_info(VertexAttribute attribute) const -> AttributeInfo;
 	auto has_attribute(VertexAttribute attribute) const -> bool;
 	auto read_uint_data(size_t index) const -> uint32;

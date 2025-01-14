@@ -2,24 +2,23 @@
 #include "image_importer.hpp"
 #include "ktx.h"
 
-namespace makesmf
+namespace makesbf
 {
-ImageImporter::ImageImporter(ImageImportInfo&& info) :
+ImageImporter::ImageImporter(std::filesystem::path const& uri) :
 	m_path{},
-	m_storage{},
-	m_img_data{},
-	m_mip_infos{},
-	m_image_info{}
+	m_imageHandle{},
+	m_mipInfos{},
+	m_imageInfo{}
 {
-	open(std::move(info));
+	open(uri);
 }
 
 ImageImporter::~ImageImporter()
 {
-	close(true);
+	close();
 }
 
-auto ImageImporter::open(ImageImportInfo&& info) -> bool
+auto ImageImporter::open(std::filesystem::path const& uri) -> bool
 {
 	if (is_open())
 	{
@@ -29,27 +28,20 @@ auto ImageImporter::open(ImageImportInfo&& info) -> bool
 
 	ktxTexture2* texture = nullptr;
 
-	if (!info.uri.empty())
+	if (uri.empty())
 	{
-		m_path = std::filesystem::absolute(info.uri);
-
-		auto narrowPath = m_path.string();
-
-		KTX_error_code result = ktxTexture2_CreateFromNamedFile(narrowPath.c_str(), KTX_TEXTURE_CREATE_LOAD_IMAGE_DATA_BIT, &texture);
-
-		if (!texture || result != KTX_SUCCESS)
-		{ 
-			return false; 
-		}
+		return false;
 	}
-	else if (info.data != nullptr && info.size)
-	{
-		KTX_error_code result = ktxTexture2_CreateFromMemory(info.data, info.size, KTX_TEXTURE_CREATE_LOAD_IMAGE_DATA_BIT, &texture);
 
-		if (!texture || result != KTX_SUCCESS)
-		{
-			return false;
-		}
+	m_path = std::filesystem::absolute(uri);
+
+	auto narrowPath = m_path.string();
+
+	KTX_error_code result = ktxTexture2_CreateFromNamedFile(narrowPath.c_str(), KTX_TEXTURE_CREATE_LOAD_IMAGE_DATA_BIT, &texture);
+
+	if (!texture || result != KTX_SUCCESS)
+	{ 
+		return false; 
 	}
 
 	if (ktxTexture2_NeedsTranscoding(texture))
@@ -60,95 +52,68 @@ auto ImageImporter::open(ImageImportInfo&& info) -> bool
 	switch (texture->numDimensions)
 	{
 	case 1:
-		m_image_info.type = gpu::ImageType::Image_1D;
+		m_imageInfo.type = gpu::ImageType::Image_1D;
 		break;
 	case 3:
-		m_image_info.type = gpu::ImageType::Image_3D;
+		m_imageInfo.type = gpu::ImageType::Image_3D;
 		break;
 	case 2:
 	default:
-		m_image_info.type = gpu::ImageType::Image_2D;
+		m_imageInfo.type = gpu::ImageType::Image_2D;
 		break;
 	}
 
-	m_image_info.name = std::move(info.name);
-	m_image_info.format = static_cast<gpu::Format>(texture->vkFormat);
-	m_image_info.imageUsage = gpu::ImageUsage::Transfer_Dst | gpu::ImageUsage::Sampled;
-	m_image_info.dimension.width = texture->baseWidth;
-	m_image_info.dimension.height = texture->baseHeight;
-	m_image_info.dimension.depth = texture->baseDepth;
-	m_image_info.mipLevel = texture->numLevels;
+	m_imageInfo.format = static_cast<gpu::Format>(texture->vkFormat);
+	m_imageInfo.imageUsage = gpu::ImageUsage::Transfer_Dst | gpu::ImageUsage::Sampled;
+	m_imageInfo.dimension.width = texture->baseWidth;
+	m_imageInfo.dimension.height = texture->baseHeight;
+	m_imageInfo.dimension.depth = texture->baseDepth;
+	m_imageInfo.mipLevel = texture->numLevels;
 
-	size_t const numMipLevels = static_cast<size_t>(m_image_info.mipLevel);
-	size_t const mipOffsetInfoSize = sizeof(MipInfo) * numMipLevels;
-	size_t const totalReservedSize = mipOffsetInfoSize + texture->dataSize;
+	m_mipInfos.reserve(static_cast<size_t>(m_imageInfo.mipLevel));
 
-	m_storage.resize(totalReservedSize);
-
-	size_t totalMipSize = 0;
-	m_mip_infos = std::span{ reinterpret_cast<MipInfo*>(m_storage.data()), numMipLevels };
-	uint8* data = m_storage.data() + mipOffsetInfoSize;
-
-	for (uint32 mipLevel = 0; mipLevel < m_image_info.mipLevel; ++mipLevel)
+	for (uint32 mipLevel = 0; mipLevel < m_imageInfo.mipLevel; ++mipLevel)
 	{
-		ktxTexture_GetImageOffset(reinterpret_cast<ktxTexture*>(texture), mipLevel, 0, 0, &m_mip_infos[mipLevel].offset);
-		m_mip_infos[mipLevel].size = ktxTexture_GetImageSize(reinterpret_cast<ktxTexture*>(texture), mipLevel);
-		totalMipSize += m_mip_infos[mipLevel].size;
+		size_t offset = {};
+
+		ktxTexture_GetImageOffset(reinterpret_cast<ktxTexture*>(texture), mipLevel, 0, 0, &offset);
+		size_t const size = ktxTexture_GetImageSize(reinterpret_cast<ktxTexture*>(texture), mipLevel);
+		
+		ASSERTION(std::cmp_not_equal(size, 0));
+
+		m_mipInfos.emplace_back(offset, size);
 	}
 
-	ASSERTION(totalMipSize == texture->dataSize && "You done messed up A.ARON");
-
-	lib::memcopy(data, texture->pData, texture->dataSize);
-
-	m_img_data = std::span{ data, texture->dataSize };
-
-	ktxTexture_Destroy(reinterpret_cast<ktxTexture*>(texture));
+	m_imageHandle = texture;
 
 	return true;
 }
 
 auto ImageImporter::is_open() const -> bool
 {
-	return std::cmp_not_equal(m_storage.size(), 0);
+	return m_imageHandle != nullptr;
 }
 
-auto ImageImporter::close(bool release) -> void
+auto ImageImporter::close() -> void
 {
-	if (release)
-	{
-		m_storage.release();
-	}
-	else
-	{
-		m_storage.clear();
-	}
-	m_path.~path();
-	lib::memset(&m_image_info, 0, sizeof(gpu::ImageInfo));
+	ktxTexture_Destroy(static_cast<ktxTexture*>(m_imageHandle));
 }
 
 auto ImageImporter::size_bytes() const -> size_t
 {
-	return m_img_data.size_bytes();
+	return static_cast<ktxTexture2*>(m_imageHandle)->dataSize;
 }
 
 auto ImageImporter::image_info() const -> gpu::ImageInfo
 {
-	return m_image_info;
+	return m_imageInfo;
 }
 
 auto ImageImporter::data(uint32 mipLevel) -> std::span<uint8>
 {
-	size_t offset = 0;
-	size_t size = m_img_data.size_bytes();
+	ktxTexture2* texture = static_cast<ktxTexture2*>(m_imageHandle);
+	MipInfo const& mipInfo = m_mipInfos[mipLevel];
 
-	if (!std::cmp_equal(mipLevel, -1))
-	{
-		mipLevel = std::clamp(mipLevel, 0u, static_cast<uint32>(m_mip_infos.size()) - 1u);
-		MipInfo const& mipInfo = m_mip_infos[mipLevel];
-		offset = mipInfo.offset;
-		size = mipInfo.size;
-	}
-
-	return std::span{ &m_img_data[offset], size};
+	return std::span{ texture->pData + mipInfo.offset, mipInfo.sizeBytes };
 }
 }

@@ -28,23 +28,23 @@ struct CgltfDecodedData
 	size_t numMaterialNameChars;
 };
 
-auto translate_topology(cgltf_primitive_type topology) -> Topology
+auto translate_topology(cgltf_primitive_type topology) -> render::Topology
 {
 	switch (topology)
 	{
 	case cgltf_primitive_type_points:
-		return Topology::Points;
+		return render::Topology::Points;
 	case cgltf_primitive_type_lines:
-		return Topology::Lines;
+		return render::Topology::Lines;
 	case cgltf_primitive_type_line_strip:
-		return Topology::Line_Strip;
+		return render::Topology::Line_Strip;
 	case cgltf_primitive_type_triangle_strip:
-		return Topology::Triangle_Strip;
+		return render::Topology::Triangle_Strip;
 	case cgltf_primitive_type_triangle_fan:
-		return Topology::Triangle_Fan;
+		return render::Topology::Triangle_Fan;
 	case cgltf_primitive_type_triangles:
 	default:
-		return Topology::Triangles;
+		return render::Topology::Triangles;
 	}
 }
 
@@ -72,17 +72,17 @@ auto translate_type(cgltf_type type) -> DataType
 	}
 }
 
-auto translate_alpha_mode(cgltf_alpha_mode mode) -> AlphaMode
+auto translate_alpha_mode(cgltf_alpha_mode mode) -> render::material::AlphaMode
 {
 	switch (mode)
 	{
 	case cgltf_alpha_mode_mask:
-		return AlphaMode::Mask;
+		return render::material::AlphaMode::Mask;
 	case cgltf_alpha_mode_blend:
-		return AlphaMode::Blend;
+		return render::material::AlphaMode::Blend;
 	case cgltf_alpha_mode_opaque:
 	default:
-		return AlphaMode::Opaque;
+		return render::material::AlphaMode::Opaque;
 	}
 }
 
@@ -378,36 +378,36 @@ auto store_material_data(
 		if (baseColorTexture)
 		{
 			size_t const tidx = static_cast<size_t>(baseColorTexture - data->textures);
-			imageSpan[tidx].type = ImageType::Base_Color;
-			info.imageInfos[(int32)ImageType::Base_Color] = &imageSpan[tidx];
+			imageSpan[tidx].type = render::material::ImageType::Base_Color;
+			info.imageInfos[(int32)render::material::ImageType::Base_Color] = &imageSpan[tidx];
 		}
 
 		if (metallicRoughnessTexture)
 		{
 			size_t const tidx = static_cast<size_t>(metallicRoughnessTexture - data->textures);
-			imageSpan[tidx].type = ImageType::Metallic_Roughness;
-			info.imageInfos[(int32)ImageType::Metallic_Roughness] = &imageSpan[tidx];
+			imageSpan[tidx].type = render::material::ImageType::Metallic_Roughness;
+			info.imageInfos[(int32)render::material::ImageType::Metallic_Roughness] = &imageSpan[tidx];
 		}
 
 		if (normalTexture)
 		{
 			size_t const tidx = static_cast<size_t>(normalTexture - data->textures);
-			imageSpan[tidx].type = ImageType::Normal;
-			info.imageInfos[(int32)ImageType::Normal] = &imageSpan[tidx];
+			imageSpan[tidx].type = render::material::ImageType::Normal;
+			info.imageInfos[(int32)render::material::ImageType::Normal] = &imageSpan[tidx];
 		}
 
 		if (occlusionTexture)
 		{
 			size_t const tidx = static_cast<size_t>(occlusionTexture - data->textures);
-			imageSpan[tidx].type = ImageType::Occlusion;
-			info.imageInfos[(int32)ImageType::Occlusion] = &imageSpan[tidx];
+			imageSpan[tidx].type = render::material::ImageType::Occlusion;
+			info.imageInfos[(int32)render::material::ImageType::Occlusion] = &imageSpan[tidx];
 		}
 
 		if (emissiveTexture)
 		{
 			size_t const tidx = static_cast<size_t>(emissiveTexture - data->textures);
-			imageSpan[tidx].type = ImageType::Emissive;
-			info.imageInfos[(int32)ImageType::Emissive] = &imageSpan[tidx];
+			imageSpan[tidx].type = render::material::ImageType::Emissive;
+			info.imageInfos[(int32)render::material::ImageType::Emissive] = &imageSpan[tidx];
 		}
 
 		// Store factors.
@@ -488,7 +488,7 @@ auto Mesh::indices_size_bytes(bool alwaysUint32) const -> size_t
 	return m_data.indices->count * byteSize;
 }
 
-auto Mesh::topology() const -> Topology
+auto Mesh::topology() const -> render::Topology
 {
 	return m_data.topology;
 }

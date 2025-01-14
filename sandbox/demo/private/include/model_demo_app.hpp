@@ -6,7 +6,6 @@
 #include "core.platform/application.hpp"
 #include "camera.hpp"
 #include "render/render.hpp"
-//#include "geometry_cache.hpp"
 
 namespace sandbox
 {
@@ -31,10 +30,10 @@ private:
 	core::Ref<core::platform::Window> m_rootWindowRef = {};
 	gpu::swapchain m_swapchain = {};
 
-	struct GeometryRenderInfo
+	struct MeshRenderInfo
 	{
 		render::Mesh* mesh;
-		uint32 baseColor;
+		render::Material material;
 	};
 
 	struct PushConstant
@@ -53,9 +52,9 @@ private:
 	Camera m_camera = {};
 	CameraState m_cameraState = {};
 
-	lib::array<std::pair<gpu::image, uint32>> m_sponzaTextures = {};
+	lib::array<render::Image> m_images = {};
 	lib::array<render::Mesh> m_meshes = {};
-	lib::array<GeometryRenderInfo> m_renderInfo = {};
+	lib::array<MeshRenderInfo> m_renderInfo = {};
 
 	gpu::buffer m_sponzaTransform = {};
 	gpu::buffer m_defaultUV = {};
@@ -77,6 +76,7 @@ private:
 	auto update_camera_on_keyboard_events(float32 dt) -> void;
 
 	auto unpack_sponza() -> void;
+	auto unpack_materials(render::material::util::MaterialJSON const& materialRep) -> void;
 };
 }
 
