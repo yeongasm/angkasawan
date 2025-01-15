@@ -2,7 +2,6 @@
 #ifndef PLATFORM_INPUT_IO_H
 #define PLATFORM_INPUT_IO_H
 
-#include <array>
 #include "lib/bitset.hpp"
 #include "lib/set_once.hpp"
 #include "platform_minimal.hpp"

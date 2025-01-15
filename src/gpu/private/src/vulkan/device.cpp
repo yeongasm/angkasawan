@@ -342,7 +342,6 @@ auto DeviceImpl::initialize(DeviceInitInfo const& info) -> bool
 		.name = m_initInfo.name,
 		.type = deviceTypeMap[properties.deviceType],
 		.api = API::Vulkan,
-		.shaderLang = m_initInfo.shadingLanguage,
 		.vendorID = properties.vendorID,
 		.deviceID = properties.deviceID,
 		.deviceName = properties.deviceName,
@@ -620,7 +619,7 @@ auto DeviceImpl::create_vulkan_instance() -> bool
 	lib::array<literal_t> extensions;
 	extensions.emplace_back(VK_KHR_SURFACE_EXTENSION_NAME);
 
-#if WIN32
+#ifdef WIN32
 	extensions.emplace_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
 #endif
 
@@ -719,16 +718,16 @@ auto DeviceImpl::choose_physical_device() -> bool
 		std::sort(
 			std::begin(entry.devices),
 			std::begin(entry.devices) + entry.count,
-			[score_device, this](VkPhysicalDevice& a, VkPhysicalDevice& b) -> bool
-		{
-			if (a == VK_NULL_HANDLE || b == VK_NULL_HANDLE)
+			[score_device](VkPhysicalDevice& a, VkPhysicalDevice& b) -> bool
 			{
-				return false;
+				if (a == VK_NULL_HANDLE || b == VK_NULL_HANDLE)
+				{
+					return false;
+				}
+				uint32 aScore = score_device(a);
+				uint32 bScore = score_device(b);
+				return aScore > bScore;
 			}
-			uint32 aScore = score_device(a);
-			uint32 bScore = score_device(b);
-			return aScore > bScore;
-		}
 		);
 	}
 

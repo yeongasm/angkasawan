@@ -65,14 +65,14 @@ public:
 
 	constexpr basic_string() :
 		m_box{},
-		m_capacity{ _m_msb_bit_flag | _m_sso_max },
-		m_len{ 0 }
+		m_len{ 0 },
+		m_capacity{ _m_msb_bit_flag | _m_sso_max }
 	{}
 
 	constexpr basic_string(allocator_type const& allocator) :
 		m_box{ stored_type{}, allocator},
-		m_capacity{ _m_msb_bit_flag | _m_sso_max },
-		m_len{ 0 }
+		m_len{ 0 },
+		m_capacity{ _m_msb_bit_flag | _m_sso_max }
 	{}
 
 	constexpr ~basic_string()
@@ -132,8 +132,8 @@ public:
 
 	constexpr basic_string(basic_string&& other) :
 		m_box{ std::exchange(other.m_box, {}) },
-		m_capacity{ std::exchange(other.m_capacity, other._m_msb_bit_flag | other._m_sso_max) },
-		m_len{ std::exchange(other.m_len, {}) }
+		m_len{ std::exchange(other.m_len, {}) },
+		m_capacity{ std::exchange(other.m_capacity, other._m_msb_bit_flag | other._m_sso_max) }
 	{}
 
 	/**

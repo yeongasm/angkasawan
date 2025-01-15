@@ -127,7 +127,6 @@ public:
 	}
 
 protected:
-	friend typename array_type;
 
 	constexpr void verify_offset_is_in_range([[maybe_unused]] difference_type const offset) const noexcept
 	{
@@ -253,8 +252,8 @@ public:
 		m_box{}, m_len{}, m_capacity{}
 	{}
 
-	constexpr array(allocator_type const& allocator) :
-		m_box{ nullptr, allocator }, m_len{}, m_capacity{}
+	constexpr array(allocator_type const& in_allocator) :
+		m_box{ nullptr, in_allocator }, m_len{}, m_capacity{}
 	{}
 
 	constexpr ~array()
@@ -262,27 +261,27 @@ public:
 		release();
 	}
 
-	constexpr array(size_t length, allocator_type const& allocator = allocator_type{}) :
-		array(allocator)
+	constexpr array(size_t length, allocator_type const& in_allocator = allocator_type{}) :
+		array(in_allocator)
 	{
 		_grow(length);
 	}
 
-	constexpr array(size_t count, value_type const& value, allocator_type const& allocator = allocator_type{}) :
-		array(allocator)
+	constexpr array(size_t count, value_type const& value, allocator_type const& in_allocator = allocator_type{}) :
+		array(in_allocator)
 	{
 		assign(count, value);
 	}
 
 	template <typename input_iterator>
-	constexpr array(input_iterator first, input_iterator last, allocator_type const& allocator = allocator_type{}) :
-		array(allocator)
+	constexpr array(input_iterator first, input_iterator last, allocator_type const& in_allocator = allocator_type{}) :
+		array(in_allocator)
 	{
 		assign(first, last);
 	}
 
-	constexpr array(std::initializer_list<value_type> list, allocator_type const& allocator = allocator_type{}) :
-		array(allocator)
+	constexpr array(std::initializer_list<value_type> list, allocator_type const& in_allocator = allocator_type{}) :
+		array(in_allocator)
 	{
 		append(list);
 	}
@@ -841,7 +840,7 @@ private:
 		iterator copy = pos;
 		while (count)
 		{
-			new (pos.m_data) value_type{ std::forward<Args>(args)... };
+			new (pos.data()) value_type{ std::forward<Args>(args)... };
 			++pos;
 			--count;
 		}

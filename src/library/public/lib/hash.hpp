@@ -1,4 +1,5 @@
 #pragma once
+#include <limits>
 #ifndef LIB_HPPASH_HPP
 #define LIB_HPPASH_HPP
 
@@ -156,8 +157,8 @@ public:
 		m_maxLoadFactor{ default_load_factor::value }
 	{}
 
-	constexpr hash_container_base(allocator_type const& allocator) :
-		m_box{ stored_type{}, allocator }, 
+	constexpr hash_container_base(allocator_type const& in_allocator) :
+		m_box{ stored_type{}, in_allocator }, 
 		m_len{}, 
 		m_capacity{},
 		m_maxLoadFactor{ default_load_factor::value }
@@ -165,8 +166,8 @@ public:
 
 	constexpr ~hash_container_base() { release(); }
 
-	constexpr hash_container_base(size_t length, allocator_type const& allocator = allocator_type{}) :
-		hash_container_base{ allocator }
+	constexpr hash_container_base(size_t length, allocator_type const& in_allocator = allocator_type{}) :
+		hash_container_base{ in_allocator }
 	{
 		_reserve(length);
 	}
@@ -184,8 +185,8 @@ public:
 		m_maxLoadFactor{ std::exchange(other.m_maxLoadFactor, default_load_factor::value) }
 	{}
 
-	constexpr hash_container_base(std::initializer_list<type> const& initializer, allocator_type const& allocator = allocator_type{}) :
-		hash_container_base{ allocator }
+	constexpr hash_container_base(std::initializer_list<type> const& initializer, allocator_type const& in_allocator = allocator_type{}) :
+		hash_container_base{ in_allocator }
 	{
 		for (type const& pair : initializer)
 		{
@@ -452,7 +453,7 @@ private:
 
 		m_len = other.m_len;
 
-		size_t count = m_len;
+		[[maybe_unused]] size_t count = m_len;
 
 		bucket_info* bucketInfo		= m_box->metadata->pBucketInfo;
 		bucket_info* rhsBucketInfo	= other.m_box->metadata->pBucketInfo;
@@ -585,7 +586,7 @@ private:
 	constexpr bucket_value_type _previous_bucket(bucket_value_type current) const
 	{
 		bucket_value_type bucket = current - 1;
-		if (bucket == -1)
+		if (bucket == std::numeric_limits<bucket_value_type>::max())
 		{
 			bucket = m_capacity - 1;
 		}

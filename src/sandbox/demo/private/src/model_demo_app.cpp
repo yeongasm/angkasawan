@@ -133,8 +133,6 @@ auto ModelDemoApp::start(
 				return;
 			}
 
-			auto compiledInfo = shaderCompiler.get_compiled_shader_info(vs->info().name.c_str());
-
 			m_pipeline = gpu::Pipeline::from(
 				m_gpu->device(),
 				{
@@ -551,7 +549,6 @@ auto ModelDemoApp::update_camera_state(float32 dt) -> void
 auto ModelDemoApp::update_camera_on_mouse_events(float32 dt) -> void
 {
 	core::Point const pos = m_app->mouse_position();
-	core::Point const windowPos = m_rootWindowRef->info().pos;
 
 	/**
 	* "dragging" acts a multiplier to the computed delta that is set to 1 when the mouse is dragging.

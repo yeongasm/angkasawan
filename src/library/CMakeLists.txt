@@ -44,6 +44,9 @@ set(
 )
 
 add_library(lib SHARED ${source_list})
+
+warnings_as_errors(lib)
+
 target_compile_features(lib PUBLIC cxx_std_23)
 target_compile_definitions(lib PRIVATE "LIBRARY_SHARED_LIB" "LIBRARY_EXPORT")
 
@@ -61,7 +64,7 @@ if (MSVC)
 	target_compile_definitions(lib PUBLIC "MSVC_COMPILER")
 	target_compile_options(lib PRIVATE /permissive-)
 else()
-	set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} -fno-rtti -fno-exceptions)
+	target_compile_options(lib PRIVATE -fno-rtti -fno-exceptions)
 endif()
 
 target_include_directories(
@@ -80,4 +83,3 @@ target_link_libraries(lib PUBLIC fmt)
 #         ${EXECUTABLE_DIR}
 # )
 assign_source_group(${source_list} ${win_source_list})
-warnings_as_errors(lib)

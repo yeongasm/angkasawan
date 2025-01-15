@@ -39,11 +39,6 @@ enum class API
 	Vulkan
 };
 
-enum class ShaderLang
-{
-	GLSL
-};
-
 enum class ErrorSeverity
 {
 	Verbose,

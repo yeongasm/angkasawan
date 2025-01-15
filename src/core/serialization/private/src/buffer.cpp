@@ -192,8 +192,8 @@ auto MonotonicBuffer::free() -> void
 
 auto MonotonicBuffer::_try_allocate_new_block() -> bool
 {
-	if ((m_head == nullptr) && (m_tail == nullptr) || 
-		(m_tail != nullptr) && std::cmp_equal(m_tail->buffer.byte_offset() - m_tail->buffer.capacity(), 0))
+	if (((m_head == nullptr) && (m_tail == nullptr)) || 
+		((m_tail != nullptr) && std::cmp_equal(m_tail->buffer.byte_offset() - m_tail->buffer.capacity(), 0)))
 	{
 		if (!_allocate_new_block())
 		{

@@ -21,6 +21,9 @@ set(
 )
 
 add_executable(makesbf ${makesbf_header_files} ${makesbf_source_files})
+
+warnings_as_errors(makesbf)
+
 target_compile_features(makesbf PUBLIC cxx_std_23)
 target_compile_definitions(makesbf PRIVATE $<$<CONFIG:Debug>:DEBUG> $<$<CONFIG:Release>:RELEASE> $<$<CONFIG:RelWithDebInfo>:RELEASE_WDEBUG>)
 
@@ -33,7 +36,7 @@ if (MSVC)
 	string(REPLACE "/EHsc" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 	target_compile_options(makesbf PRIVATE /permissive- /GR-)
 else()
-	set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} -fno-rtti -fno-exceptions)
+	target_compile_options(makesbf PRIVATE -fno-rtti -fno-exceptions)
 endif()
 
 target_include_directories(
@@ -47,4 +50,3 @@ target_link_libraries(makesbf PRIVATE ktx cgltf render glaze::glaze core.cmdline
 set_target_properties(makesbf PROPERTIES FOLDER tools)
 
 assign_source_group(${makesbf_header_files} ${makesbf_source_files})
-warnings_as_errors(makesbf)

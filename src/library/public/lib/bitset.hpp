@@ -1,4 +1,6 @@
 #pragma once
+#include <cstring>
+#include <utility>
 #ifndef LIB_BITSET_HPP
 #define LIB_BITSET_HPP
 
@@ -44,7 +46,7 @@ public:
 	{
 		if (this != &rhs)
 		{
-			memcopy(m_data, rhs.m_data, sizeof(value_type) * (_word + 1));
+			std::memcpy(m_data, rhs.m_data, sizeof(value_type) * (_word + 1));
 		}
 		return *this;
 	}
@@ -53,7 +55,7 @@ public:
 	{
 		if (this != &rhs)
 		{
-			memmove(m_data, rhs.m_data, sizeof(value_type) * (_word + 1));
+			std::memmove(m_data, rhs.m_data, sizeof(value_type) * (_word + 1));
 			new (&rhs) bitset{};
 		}
 		return *this;
@@ -67,21 +69,21 @@ public:
 	constexpr bitset& set(bit_type position, bool value = true)
 	{
 		const value_type pos = static_cast<value_type>(position);
-		ASSERTION(pos <= Bits && "Position supplied exceeded the number of bits!");
+		ASSERTION(std::cmp_less_equal(pos, Bits) && "Position supplied exceeded the number of bits!");
 		return set_internal(pos, value);
 	}
 
 	constexpr bitset& reset(bit_type position)
 	{
 		const value_type pos = static_cast<value_type>(position);
-		ASSERTION(pos <= Bits && "Position supplied exceeded the number of bits!");
+		ASSERTION(std::cmp_less_equal(pos, Bits) && "Position supplied exceeded the number of bits!");
 		return set_internal(pos, false);
 	}
 
 	constexpr bool has(bit_type position) const
 	{
 		const value_type pos = static_cast<value_type>(position);
-		ASSERTION(pos <= Bits && "Position supplied exceeded the number of bits!");
+		ASSERTION(std::cmp_less_equal(pos, Bits) && "Position supplied exceeded the number of bits!");
 		return (m_data[pos / _bitsPerWord] & (value_type{1} << pos % _bitsPerWord)) != 0;
 	}
 

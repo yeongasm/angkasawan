@@ -31,9 +31,13 @@ set(
 )
 
 add_library(core.platform STATIC ${header_list} ${source_list})
+
+warnings_as_errors(core.platform)
+
 if (MSVC)
-target_compile_options(core.platform PUBLIC /wd4530)
+	target_compile_options(core.platform PUBLIC /wd4530)
 endif()
+
 target_compile_features(core.platform PUBLIC cxx_std_23)
 target_compile_definitions(core.platform PRIVATE "PLATFORM_EXPORT")
 target_compile_definitions(core.platform PUBLIC $<$<PLATFORM_ID:Windows>:PLATFORM_OS_WINDOWS> $<$<PLATFORM_ID:Darwin>:PLATFORM_OS_APPLE> $<$<PLATFORM_ID:Linux>:PLATFORM_OS_LINUX>)
@@ -50,7 +54,7 @@ if (MSVC)
 	string(REPLACE "/EHsc" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 	target_compile_options(core.platform PRIVATE /permissive-)
 else()
-	set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} -fno-rtti -fno-exceptions)
+	target_compile_options(core.platform PRIVATE -fno-rtti -fno-exceptions -Wno-nested-anon-types -Wno-missing-designated-field-initializers)
 endif()
 
 target_include_directories(
@@ -62,4 +66,3 @@ target_include_directories(
 target_link_libraries(core.platform PUBLIC lib)
 set_target_properties(core.platform PROPERTIES FOLDER core)
 assign_source_group(${header_list} ${source_list} $<$<PLATFORM_ID:Windows>:${win_source_list}>)
-warnings_as_errors(core.platform)

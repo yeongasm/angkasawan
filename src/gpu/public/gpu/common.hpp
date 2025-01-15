@@ -120,7 +120,6 @@ struct DeviceInfo
 	std::string_view name;
 	DeviceType type;
 	API api;
-	ShaderLang shaderLang;
 	std::string_view vendor;
 	uint32 vendorID;
 	uint32 deviceID;
@@ -145,7 +144,6 @@ struct DeviceInitInfo
 	Version	engineVersion;
 	DeviceType preferredDevice;
 	DeviceConfig config;
-	ShaderLang shadingLanguage;
 	/**
 	* \brief Validation layer feature toggle.
 	*/

@@ -42,13 +42,13 @@ private:
 
 public:
 
-	using super::hash_container_base;
+	using super::super;
 	using super::operator=;
 	using super::invalid_bucket_v;
 
-	constexpr bool contains(key_type const& key) const
+	constexpr bool contains(key_type const& in_key) const
 	{
-		return super::_get_impl(key) != super::invalid_bucket_v;
+		return super::_get_impl(in_key) != invalid_bucket_v;
 	}
 
 	constexpr void clear()
@@ -74,14 +74,14 @@ public:
 		return super::_emplace_internal(std::forward<Args>(args)...);
 	}
 
-	constexpr bool erase(key_type const& key)
+	constexpr bool erase(key_type const& in_key)
 	{
-		return super::_remove_impl(key);
+		return super::_remove_impl(in_key);
 	}
 
-	constexpr bucket_value_type bucket(key_type const& key) const
+	constexpr bucket_value_type bucket(key_type const& in_key) const
 	{
-		return super::_get_impl(key);
+		return super::_get_impl(in_key);
 	}
 
 	constexpr type& element_at_bucket(bucket_value_type bucket) const

@@ -380,7 +380,7 @@ auto ShaderCompiler::add_macro_definition(std::string_view key, std::string_view
 {
 	auto k = m_string_pool.append(key);
 	auto v = m_string_pool.append(value);
-	m_macro_definitions.try_insert(k, k);
+	m_macro_definitions.try_insert(k, v);
 }
 
 auto ShaderCompiler::add_macro_definition(std::string_view key, uint32 value) -> void

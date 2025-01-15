@@ -378,4 +378,4 @@ constexpr auto make_box(T&& obj, allocator<std::decay_t<T>> const& allocator_ = 
 }
 }
 
-#endif LIB_MEMORY_HPP
+#endif // !LIB_MEMORY_HPP

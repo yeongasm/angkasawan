@@ -23,6 +23,9 @@ set(
 )
 
 add_library(core.serialization STATIC ${serialization_header_files} ${serialization_source_files} ${windows_serialization_source_files})
+
+warnings_as_errors(core.serialization)
+
 target_compile_features(core.serialization PUBLIC cxx_std_23)
 
 if (MSVC)
@@ -30,7 +33,7 @@ if (MSVC)
 	string(REPLACE "/EHsc" "/EHs-c-" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 	target_compile_options(core.serialization PRIVATE /permissive-)
 else()
-	set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} -fno-rtti -fno-exceptions)
+	target_compile_options(core.serialization PRIVATE -fno-rtti -fno-exceptions)
 endif()
 
 target_include_directories(
@@ -44,4 +47,3 @@ target_link_libraries(core.serialization PUBLIC lib core.platform)
 set_target_properties(core.serialization PROPERTIES FOLDER core)
 
 assign_source_group(${serialization_header_files} ${serialization_source_files} ${windows_serialization_source_files})
-warnings_as_errors(core.serialization)

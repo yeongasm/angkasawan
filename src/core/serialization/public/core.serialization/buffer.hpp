@@ -86,7 +86,7 @@ public:
 
 		T* ptr = reinterpret_cast<T*>(m_data + m_writtenBytes);
 
-		return (byteOffsetAfterWrite < m_info.blockCapacity) ? std::span{ ptr, count } : std::span{};
+		return (byteOffsetAfterWrite < m_info.blockCapacity) ? std::span{ ptr, count } : std::span<T>{};
 	}
 
 	auto data() -> void_pointer;

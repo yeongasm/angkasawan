@@ -18,6 +18,9 @@ set(
 add_library(gpu STATIC ${gpu_rhi_header_files} ${gpu_rhi_source_files})	
 
 target_compile_features(gpu PUBLIC cxx_std_23)
+
+warnings_as_errors(gpu)
+
 target_compile_definitions(gpu PRIVATE "GPU_EXPORT")
 target_compile_definitions(gpu PRIVATE $<$<PLATFORM_ID:Windows>:PLATFORM_OS_WINDOWS> $<$<PLATFORM_ID:Darwin>:PLATFORM_OS_APPLE> $<$<PLATFORM_ID:Linux>:PLATFORM_OS_LINUX>)
 
@@ -71,12 +74,19 @@ if (USE_VULKAN)
 	)
 	set_target_properties(volk PROPERTIES FOLDER thirdparty)
 
+	set(VMA_STATIC_VULKAN_FUNCTIONS OFF)
+	set(VMA_DYNAMIC_VULKAN_FUNCTIONS ON)
+
 	CPMAddPackage(
 		NAME vma
 		GIT_TAG v3.0.1
 		GIT_REPOSITORY https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
 	)
 	set_target_properties(VulkanMemoryAllocator PROPERTIES FOLDER thirdparty)
+
+	if (NOT MSVC)
+		target_compile_options(VulkanMemoryAllocator PRIVATE -Wno-unused-variable -Wno-missing-field-initializers)
+	endif()
 
 	# import shaderc from the VulkanSDK.
 	add_library(shaderc UNKNOWN IMPORTED)
@@ -111,10 +121,17 @@ endif()
 if (MSVC)
 	string(REPLACE "/GR" "/GR-" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 	string(REPLACE "/EHsc" "/EHs-c-" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-	target_compile_options(gpu PRIVATE /permissive-)
+	target_compile_options(gpu PRIVATE /wd4530)
+	target_compile_options(gpu PRIVATE /permissive- /wd4530)
 else()
-	set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} -fno-rtti -fno-exceptions)
+	target_compile_options(
+		gpu 
+		PRIVATE 
+		-fno-rtti 
+		-fno-exceptions 
+		-Wno-missing-field-initializers 
+		-Wno-nullability-extension 
+		-Wno-nullability-completeness 
+		-Wno-language-extension-token
+	)
 endif()
-
-warnings_as_errors(gpu)
-target_compile_options(gpu PRIVATE /wd4530)

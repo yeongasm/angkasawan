@@ -51,34 +51,34 @@ public:
 	using const_iterator	= typename super::const_iterator;
 	using bucket_value_type	= super::bucket_value_type;
 
-	using super::hash_container_base;
+	using super::super;
 	using super::operator=;
 	using super::invalid_bucket_v;
 
 	template <typename K>
-	constexpr value_type& operator[](K&& key) requires std::same_as<std::decay_t<K>, key_type>
+	constexpr value_type& operator[](K&& in_key) requires std::same_as<std::decay_t<K>, key_type>
 	{
-		bucket_value_type bucket = super::_get_impl(key);
-		if (bucket == super::invalid_bucket_v)
+		bucket_value_type bucket = super::_get_impl(in_key);
+		if (bucket == invalid_bucket_v)
 		{
-			bucket = super::_emplace_internal(std::forward<K>(key), value_type{});
+			bucket = super::_emplace_internal(std::forward<K>(in_key), value_type{});
 		}
 		return super::_data()[bucket].second;
 	}
 
-	constexpr bool contains(key_type const& key) const
+	constexpr bool contains(key_type const& in_key) const
 	{
-		return super::_get_impl(key) != super::invalid_bucket_v;
+		return super::_get_impl(in_key) != invalid_bucket_v;
 	}
 
 	/**
 	* Returns an optional with a Ref to the stored type.
 	* If the key does not exist, a std::nullopt is returned instead.
 	*/
-	constexpr std::optional<ref<type>> at(key_type const& key) const
+	constexpr std::optional<ref<type>> at(key_type const& in_key) const
 	{
-		const bucket_value_type bucket = super::_get_impl(key);
-		return (bucket != super::invalid_bucket_v) ? std::optional{ ref<type>{ super::_data()[bucket] } } : std::nullopt;
+		const bucket_value_type bucket = super::_get_impl(in_key);
+		return (bucket != invalid_bucket_v) ? std::optional{ ref<type>{ super::_data()[bucket] } } : std::nullopt;
 	}
 
 	constexpr void clear()
@@ -112,11 +112,11 @@ public:
 	* Returns std::nullopt if the key already exist.
 	*/
 	template <typename... Args>
-	constexpr std::pair<type&, bool> try_emplace(const key_type& key, Args&&... args)
+	constexpr std::pair<type&, bool> try_emplace(const key_type& in_key, Args&&... args)
 	{
-		if (contains(key))
+		if (contains(in_key))
 		{
-			return std::pair{ at(key) , false};
+			return std::pair{ at(in_key) , false};
 		}
 		const bucket_value_type bucket = super::_emplace_internal(std::forward<Args>(args)...);
 		return std::pair{ super::_data()[bucket], true };
@@ -129,24 +129,24 @@ public:
 	}
 
 	template <typename... Args>
-	constexpr std::optional<bucket_value_type> try_insert(const key_type& key, Args&&... args)
+	constexpr std::optional<bucket_value_type> try_insert(const key_type& in_key, Args&&... args)
 	{
-		if (contains(key))
+		if (contains(in_key))
 		{
 			return std::nullopt;
 		}
-		const bucket_value_type bucket = super::_emplace_internal(key, std::forward<Args>(args)...);
+		const bucket_value_type bucket = super::_emplace_internal(in_key, std::forward<Args>(args)...);
 		return std::make_optional<bucket_value_type>(bucket);
 	}
 
-	constexpr bool erase(key_type const& key)
+	constexpr bool erase(key_type const& in_key)
 	{
-		return super::_remove_impl(key);
+		return super::_remove_impl(in_key);
 	}
 
-	constexpr bucket_value_type bucket(key_type const& key) const
+	constexpr bucket_value_type bucket(key_type const& in_key) const
 	{
-		return super::_get_impl(key);
+		return super::_get_impl(in_key);
 	}
 
 	constexpr type& element_at_bucket(bucket_value_type bucket)

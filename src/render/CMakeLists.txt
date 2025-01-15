@@ -20,6 +20,9 @@ set(
 )
 
 add_library(render STATIC ${render_header_files} ${render_source_files})
+
+warnings_as_errors(render)
+
 target_compile_features(render PUBLIC cxx_std_23)
 
 if (MSVC)
@@ -27,7 +30,7 @@ if (MSVC)
 	string(REPLACE "/EHsc" "/EHs-c-" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 	target_compile_options(render PRIVATE /permissive-)
 else()
-	set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} -fno-rtti -fno-exceptions)
+	target_compile_options(render PRIVATE -fno-rtti -fno-exceptions -Wno-missing-designated-field-initializers)
 endif()
 
 target_include_directories(
@@ -40,4 +43,3 @@ target_include_directories(
 target_link_libraries(render PUBLIC core.platform gpu core.serialization)
 
 assign_source_group(${render_header_files} ${render_source_files})
-warnings_as_errors(render)

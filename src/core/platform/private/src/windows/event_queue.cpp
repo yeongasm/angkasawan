@@ -688,7 +688,6 @@ auto app_wnd_proc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) -> LRESULT
 
 auto EventQueue::peek_events() const -> void
 {
-	OSEvent e = {};
 	MSG msg{};
 	while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
 	{

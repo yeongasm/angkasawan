@@ -23,7 +23,14 @@ CPMAddPackage(
 	GIT_REPOSITORY https://github.com/g-truc/glm
 )
 
+if (NOT MSVC)
+	target_compile_options(glm INTERFACE -Wno-gnu-anonymous-struct)
+endif()
+
 add_executable(sandbox.demo ${demo_header_files} ${demo_source_files})
+
+warnings_as_errors(sandbox.demo)
+
 target_compile_features(sandbox.demo PUBLIC cxx_std_23)
 target_compile_definitions(sandbox.demo PRIVATE $<$<CONFIG:Debug>:DEBUG> $<$<CONFIG:Release>:RELEASE> $<$<CONFIG:RelWithDebInfo>:RELEASE_WDEBUG>)
 
@@ -38,7 +45,7 @@ if (MSVC)
 	target_link_options(sandbox.demo PRIVATE /SUBSYSTEM:CONSOLE /ENTRY:mainCRTStartup)
 	target_compile_options(sandbox.demo PRIVATE /permissive-)
 else()
-	set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} -fno-rtti -fno-exceptions)
+	target_compile_options(sandbox.demo PRIVATE -fno-rtti -fno-exceptions -Wno-nested-anon-types -Wno-missing-designated-field-initializers -Wno-missing-field-initializers)
 endif()
 
 target_include_directories(
@@ -48,7 +55,7 @@ target_include_directories(
 	PRIVATE "private/include"
 )
 
-target_link_libraries(sandbox.demo PRIVATE glm imgui cgltf ktx glaze::glaze)
+target_link_libraries(sandbox.demo PRIVATE glm glaze::glaze)
 target_link_libraries(sandbox.demo PUBLIC gpu core.platform core.serialization render)
 target_compile_definitions(sandbox.demo PUBLIC GLM_FORCE_DEPTH_ZERO_TO_ONE)
 
@@ -56,8 +63,7 @@ set_target_properties(sandbox.demo PROPERTIES FOLDER sandbox)
 
 add_custom_target(
 	data
-	${CMAKE_COMMAND} -E create_symlink ${CMAKE_SOURCE_DIR}/data ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${CMAKE_BUILD_TYPE}/data
+	${CMAKE_COMMAND} -E create_symlink ${CMAKE_SOURCE_DIR}/data ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/data
 )
 
 assign_source_group(${demo_header_files} ${demo_source_files})
-warnings_as_errors(sandbox.demo)
