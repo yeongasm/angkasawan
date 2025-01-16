@@ -121,8 +121,7 @@ endif()
 if (MSVC)
 	string(REPLACE "/GR" "/GR-" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 	string(REPLACE "/EHsc" "/EHs-c-" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-	target_compile_options(gpu PRIVATE /wd4530)
-	target_compile_options(gpu PRIVATE /permissive- /wd4530)
+	target_compile_options(gpu PRIVATE /permissive- /wd4530 /wd4530)
 else()
 	target_compile_options(
 		gpu 

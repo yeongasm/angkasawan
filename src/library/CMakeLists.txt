@@ -12,7 +12,7 @@ target_compile_features(fmt PUBLIC cxx_std_23)
 if (MSVC)
 	target_compile_options(fmt PUBLIC /wd4541 /wd4702)
 else()
-	target_compile_options(fmt PUBLIC -Wno-rtti)
+	target_compile_options(fmt PUBLIC -Wno-rtti -fno-exceptions)
 endif()
 
 
@@ -73,13 +73,4 @@ target_include_directories(
 )
 
 target_link_libraries(lib PUBLIC fmt)
-
-# add_custom_command(
-#     TARGET 
-# 		Library POST_BUILD
-#     COMMAND 
-# 		${CMAKE_COMMAND} -E copy
-#         $<TARGET_FILE_NAME:Library>
-#         ${EXECUTABLE_DIR}
-# )
 assign_source_group(${source_list} ${win_source_list})

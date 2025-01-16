@@ -85,6 +85,18 @@
                 "value": "x64",
                 "strategy": "external"
             }
+        },
+        {
+            "name": "windows-clang-x64-ninja-asan-ubsan",
+            "displayName": "windows-clang-x64-ninja-asan-ubsan",
+            "inherits": ["windows-base", "ninja-clang"],
+            "architecture": {
+                "value": "x64",
+                "strategy": "external"
+            },
+            "cacheVariables": {
+                "ENABLE_ASAN_AND_UBSAN": true
+            }
         }
     ],
     "buildPresets": [
@@ -141,6 +153,18 @@
             "displayName": "Ninja Clang x64 Release With Debug Info",
             "configurePreset": "windows-clang-x64-ninja",
             "configuration": "RelWithDenInfo"
+        },
+        {
+            "name": "ninja-clang-x64-debug-asan-ubsan",
+            "displayName": "Ninja Clang x64 Debug ASAN UBSAN",
+            "configurePreset": "windows-clang-x64-ninja-asan-ubsan",
+            "configuration": "Debug"
+        },
+        {
+            "name": "ninja-clang-x64-relwithdebinfo-asan-ubsan",
+            "displayName": "Ninja Clang x64 Release With Debug Info ASAN UBSAN",
+            "configurePreset": "windows-clang-x64-ninja-asan-ubsan",
+            "configuration": "RelWithDebInfo"
         }
     ]
 }

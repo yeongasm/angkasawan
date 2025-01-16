@@ -31,6 +31,10 @@ add_executable(sandbox.demo ${demo_header_files} ${demo_source_files})
 
 warnings_as_errors(sandbox.demo)
 
+if (ENABLE_ASAN_AND_UBSAN)
+	enable_asan_and_ubsan(sandbox.demo)
+endif()
+
 target_compile_features(sandbox.demo PUBLIC cxx_std_23)
 target_compile_definitions(sandbox.demo PRIVATE $<$<CONFIG:Debug>:DEBUG> $<$<CONFIG:Release>:RELEASE> $<$<CONFIG:RelWithDebInfo>:RELEASE_WDEBUG>)
 
