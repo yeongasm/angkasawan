@@ -3,6 +3,7 @@ include(${CMAKE_SOURCE_DIR}/cmake/Util.cmake)
 set(
 	render_header_files
     "public/render/async_device.hpp"
+    "public/render/gpu_ptr.hpp"
     "public/render/command_queue.hpp"
     "public/render/material.hpp"
     "public/render/mesh.hpp"

@@ -123,13 +123,7 @@ auto UploadHeap::request_heaps(size_t size) -> std::span<HeapBlock>
 	while (std::cmp_equal(currentHeap->remaining_capacity(), 0))
 	{
 		++heapPool.current;
-
-		// If all of the heap blocks in the pool are full, return an empty span to force a gpu submit.
-		//if (std::cmp_greater_equal(heapPool.current, MAX_UPLOAD_HEAP_PER_POOL - 1u))
-		//{
-		//	return std::span<HeapBlock>{};
-		//}
-
+		
 		currentHeap = &heapPool.current_heap();
 	}
 
@@ -193,6 +187,9 @@ auto UploadHeap::upload_data_to_image(ImageDataUploadInfo&& info) -> upload_id
 			.imageSubresource = {
 				.aspectFlags = info.aspectMask,
 				.mipLevel = info.mipLevel,
+				.levelCount = 1u,
+				.baseArrayLayer = 0u,
+				.layerCount = 1u
 			},
 			.imageOffset = {},
 			.imageExtent = {
@@ -259,7 +256,6 @@ auto UploadHeap::upload_data_to_buffer(BufferDataUploadInfo&& info) -> upload_id
 					.src = *heapBlock.buffer,
 					.dst = *info.dst,
 					.srcOffset = writtenByteOffset,
-					//.dstOffset = info.dstOffset + (i * HEAP_BLOCK_SIZE),
 					.dstOffset = info.dstOffset + (originalUploadSize - remainingSizeToUpload),
 					.size = writeSize,
 				},

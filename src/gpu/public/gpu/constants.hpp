@@ -641,6 +641,10 @@ enum class IndexType
 enum class MemoryUsage : uint32
 {
 	/**
+	* \brief Used strictly for flag checking.
+	*/
+	None = 0,
+	/**
 	* \brief Allocations with this usage flag will have it's own block.
 	*/
 	Dedicated = 1 << 0,
@@ -657,7 +661,7 @@ enum class MemoryUsage : uint32
 	*/
 	Host_Accessible = 1 << 3,
 	/**
-	* \brief When used with Host_Writable or Host_Accessible, a non host visible may be selected if it improves performance (unified memory, BAR, ReBAR).
+	* \brief When used with Host_Writable or Host_Accessible, a non host visible memory may be selected if it improves performance (unified memory, BAR, ReBAR).
 	*/
 	Host_Transferable = 1 << 4,
 	/**

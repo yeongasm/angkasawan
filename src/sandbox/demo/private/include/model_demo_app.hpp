@@ -25,6 +25,22 @@ public:
 	auto stop() -> void;
 
 private:
+	static inline constexpr gpu::ImageSubresource BASE_COLOR_SUBRESOURCE = { 
+		.aspectFlags = gpu::ImageAspect::Color,
+		.mipLevel = 0u,
+		.levelCount = 1u,
+		.baseArrayLayer = 0u,
+		.layerCount = 1u
+	};
+
+	static inline constexpr gpu::ImageSubresource DEPTH_SUBRESOURCE = {
+		.aspectFlags = gpu::ImageAspect::Depth,
+		.mipLevel = 0u,
+		.levelCount = 1u,
+		.baseArrayLayer = 0u,
+		.layerCount = 1u
+	};
+
 	core::platform::Application* m_app = {};
 	render::AsyncDevice* m_gpu = {};
 	core::Ref<core::platform::Window> m_rootWindowRef = {};
@@ -45,6 +61,12 @@ private:
 		uint32 baseColorMapIndex;
 	};
 
+	struct CameraProjectionView
+	{
+		glm::mat4 projection;
+		glm::mat4 view;
+	};
+
 	gpu::sampler m_normalSampler = {};
 	gpu::image m_depthBuffer = {};
 	gpu::image m_defaultWhiteTexture = {};
@@ -56,9 +78,9 @@ private:
 	lib::array<render::Mesh> m_meshes = {};
 	lib::array<MeshRenderInfo> m_renderInfo = {};
 
-	gpu::buffer m_sponzaTransform = {};
-	gpu::buffer m_defaultUV = {};
-	std::array<gpu::buffer, 2> m_cameraProjView = {};
+	render::GpuPtr<glm::mat4> m_sponzaTransform = {};
+	render::GpuPtr<glm::vec2> m_defaultUV = {};
+	render::GpuPtr<CameraProjectionView[2]> m_cameraProjView = {};
 
 	gpu::pipeline m_pipeline = {};
 	core::filewatcher::file_watch_id m_pipelineShaderCodeWatchId = {};

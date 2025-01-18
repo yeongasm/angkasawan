@@ -4,7 +4,6 @@
 
 #include <span>
 #include "lib/string.hpp"
-#include "lib/map.hpp"
 #include "lib/bit_mask.hpp"
 #include "constants.hpp"
 
@@ -12,12 +11,12 @@ namespace gpu
 {
 struct Viewport
 {
-	float32 x = 0.f;
-	float32 y = 0.f;
+	float32 x;
+	float32 y;
 	float32 width;
 	float32 height;
-	float32 minDepth = 0.f;
-	float32 maxDepth = 1.f;
+	float32 minDepth;
+	float32 maxDepth;
 };
 
 struct Depth
@@ -40,7 +39,7 @@ struct Offset3D
 };
 
 template <typename T>
-requires std::floating_point<T> || std::integral<T>
+requires (std::floating_point<T> || std::integral<T>)
 struct Color
 {
 	T r, g, b, a;
@@ -98,12 +97,12 @@ struct ClearValue
 
 struct DeviceConfig
 {
-	uint32 maxFramesInFlight = 2;
-	uint32 swapchainImageCount = 3;
-	uint32 maxBuffers = MAX_BUFFERS;
-	uint32 maxImages = MAX_IMAGES;
-	uint32 maxSamplers = MAX_SAMPLERS;
-	uint32 pushConstantMaxSize = UINT32_MAX; // Default is using whatever is set by the device.
+	uint32 maxFramesInFlight;
+	uint32 swapchainImageCount;
+	uint32 maxBuffers;
+	uint32 maxImages;
+	uint32 maxSamplers;
+	uint32 pushConstantMaxSize; // Default is using whatever is set by the device.
 };
 
 struct Version
@@ -165,13 +164,13 @@ struct VertexInputBinding
 
 struct ColorBlendInfo
 {
-	bool enable = true;
-	BlendFactor	srcColorBlendFactor = BlendFactor::One;
-	BlendFactor	dstColorBlendFactor = BlendFactor::Zero;
-	BlendOp	colorBlendOp = BlendOp::Add;
-	BlendFactor	srcAlphaBlendFactor = BlendFactor::One;
-	BlendFactor	dstAlphaBlendFactor = BlendFactor::Zero;
-	BlendOp	alphaBlendOp = BlendOp::Add;
+	bool enable;
+	BlendFactor	srcColorBlendFactor;
+	BlendFactor	dstColorBlendFactor;
+	BlendOp	colorBlendOp;
+	BlendFactor	srcAlphaBlendFactor;
+	BlendFactor	dstAlphaBlendFactor;
+	BlendOp	alphaBlendOp;
 };
 
 struct SurfaceInfo
@@ -224,8 +223,8 @@ struct BufferInfo
 	lib::string name;
 	size_t size;
 	BufferUsage	bufferUsage;
-	MemoryUsage memoryUsage = MemoryUsage::Can_Alias | MemoryUsage::Dedicated;
-	SharingMode sharingMode = SharingMode::Concurrent;
+	MemoryUsage memoryUsage;
+	SharingMode sharingMode;
 };
 
 struct ImageInfo
@@ -234,31 +233,31 @@ struct ImageInfo
 	ImageType type;
 	Format	format;
 	SampleCount	samples;
-	ImageTiling	tiling = ImageTiling::Optimal;
+	ImageTiling	tiling;
 	ImageUsage imageUsage;
-	MemoryUsage memoryUsage = MemoryUsage::Dedicated;
+	MemoryUsage memoryUsage;
 	Extent3D dimension;
 	ClearValue clearValue;
 	uint32 mipLevel;
-	SharingMode sharingMode = SharingMode::Exclusive;
+	SharingMode sharingMode;
 };
 
 struct SamplerInfo
 {
 	lib::string name;
-	TexelFilter minFilter = TexelFilter::Linear;
-	TexelFilter magFilter = TexelFilter::Linear;
-	MipmapMode mipmapMode = MipmapMode::Linear;
-	SamplerAddress addressModeU = SamplerAddress::Clamp_To_Edge;
-	SamplerAddress addressModeV = SamplerAddress::Clamp_To_Edge;
-	SamplerAddress addressModeW = SamplerAddress::Clamp_To_Edge;
-	float32 mipLodBias = 0.f;
-	float32 maxAnisotropy = 0.f;
-	CompareOp compareOp = CompareOp::Less;
-	float32 minLod = 0.f;
-	float32 maxLod = 1.f;
-	BorderColor borderColor = BorderColor::Float_Opaque_Black;
-	bool unnormalizedCoordinates = false;
+	TexelFilter minFilter;
+	TexelFilter magFilter;
+	MipmapMode mipmapMode;
+	SamplerAddress addressModeU;
+	SamplerAddress addressModeV;
+	SamplerAddress addressModeW;
+	float32 mipLodBias;
+	float32 maxAnisotropy;
+	CompareOp compareOp;
+	float32 minLod;
+	float32 maxLod;
+	BorderColor borderColor;
+	bool unnormalizedCoordinates;
 };
 
 struct CommandPoolInfo
@@ -274,21 +273,21 @@ struct CommandBufferInfo
 
 struct DepthTestInfo
 {
-	CompareOp depthTestCompareOp = CompareOp::Less;
-	float32 minDepthBounds = 0.f;
-	float32	maxDepthBounds = 1.f;
-	bool enableDepthBoundsTest = false;	// Allows pixels to be discarded if the currently-stored depth value is outside the range specified by minDepthBounds and maxDepthBounds.
-	bool enableDepthTest	= false;
-	bool enableDepthWrite = false;
+	CompareOp depthTestCompareOp;
+	float32 minDepthBounds;
+	float32	maxDepthBounds;
+	bool enableDepthBoundsTest;	// Allows pixels to be discarded if the currently-stored depth value is outside the range specified by minDepthBounds and maxDepthBounds.
+	bool enableDepthTest;
+	bool enableDepthWrite;
 };
 
 struct RasterizationStateInfo
 {
-	PolygonMode polygonalMode = PolygonMode::Fill;
-	CullingMode cullMode = CullingMode::Back;
-	FrontFace frontFace = FrontFace::Counter_Clockwise;
-	float32 lineWidth = 1.f;
-	bool enableDepthClamp = false;
+	PolygonMode polygonalMode;
+	CullingMode cullMode;
+	FrontFace frontFace;
+	float32 lineWidth;
+	bool enableDepthClamp;
 
 };
 
@@ -302,13 +301,13 @@ struct RasterPipelineInfo
 {
 	lib::string name;
 	lib::array<ColorAttachment> colorAttachments;
-	Format depthAttachmentFormat = Format::Undefined;
-	Format stencilAttachmentFormat = Format::Undefined;
+	Format depthAttachmentFormat;
+	Format stencilAttachmentFormat;
 	lib::array<VertexInputBinding> vertexInputBindings;
-	RasterizationStateInfo rasterization = {};
-	DepthTestInfo depthTest = {};
-	TopologyType topology = TopologyType::Triangle;
-	uint32 pushConstantSize = 128;
+	RasterizationStateInfo rasterization;
+	DepthTestInfo depthTest;
+	TopologyType topology;
+	uint32 pushConstantSize;
 };
 
 struct ComputePipelineInfo
@@ -325,7 +324,7 @@ struct SemaphoreInfo
 struct FenceInfo
 {
 	lib::string name;
-	uint64 initialValue = 0;
+	uint64 initialValue;
 };
 
 struct EventInfo
@@ -362,11 +361,11 @@ struct MemoryBlockInfo
 
 struct ImageSubresource
 {
-	ImageAspect	aspectFlags = ImageAspect::Color;
-	uint32 mipLevel = 0u;
-	uint32 levelCount = 1u;
-	uint32 baseArrayLayer = 0u;
-	uint32 layerCount = 1u;
+	ImageAspect	aspectFlags;
+	uint32 mipLevel;
+	uint32 levelCount;
+	uint32 baseArrayLayer;
+	uint32 layerCount;
 };
 
 struct FrameInfo
@@ -386,8 +385,8 @@ struct FrameInfo
 */
 struct Access
 {
-	PipelineStage stages = PipelineStage::None;
-	MemoryAccessType type = MemoryAccessType::None;
+	PipelineStage stages;
+	MemoryAccessType type;
 };
 
 namespace access

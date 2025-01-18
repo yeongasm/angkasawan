@@ -1,3 +1,4 @@
+#include "constants.hpp"
 #include "vulkan/vkgpu.hpp"
 
 namespace gpu
@@ -65,9 +66,9 @@ auto Buffer::clear() const -> void
 
 auto Buffer::is_host_visible() const -> bool
 {
-	uint32 const usageMask = static_cast<uint32>(m_info.memoryUsage);
-	uint32 const hostWritable = static_cast<uint32>(MemoryUsage::Host_Writable);
-	uint32 const hostAccessible = static_cast<uint32>(MemoryUsage::Host_Accessible);
+	auto usageMask 		= std::to_underlying(m_info.memoryUsage);
+	auto hostWritable 	= std::to_underlying(MemoryUsage::Host_Writable);
+	auto hostAccessible = std::to_underlying(MemoryUsage::Host_Accessible);
 
 	return (usageMask & hostWritable) || (usageMask & hostAccessible);
 }
@@ -131,6 +132,8 @@ auto Buffer::memory_requirement(Device& device, BufferInfo const& info) -> Memor
 
 auto Buffer::from(Device& device, BufferInfo&& info, Resource<MemoryBlock> memoryBlock) -> Resource<Buffer>
 {
+	ASSERTION(info.memoryUsage != MemoryUsage::None && "MemoryUsage cannot be 'None'");
+
 	auto&& vkdevice = to_device(device);
 
 	uint32 queueFamilyIndices[] = {

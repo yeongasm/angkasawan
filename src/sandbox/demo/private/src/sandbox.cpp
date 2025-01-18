@@ -1,13 +1,12 @@
-#include <fstream>
 #include <utility>
 #include "sandbox.hpp"
+#include "gpu/constants.hpp"
 #include "model_demo_app.hpp"
 
 #include "core.platform/file_watcher.hpp"
 
 namespace sandbox
 {
-
 SandboxApp::SandboxApp([[maybe_unused]] int argc, [[maybe_unused]] char** argv) :
 	m_rootWindow{},
 	m_gpu{},
@@ -73,7 +72,11 @@ SandboxApp::SandboxApp([[maybe_unused]] int argc, [[maybe_unused]] char** argv) 
 			.preferredDevice = gpu::DeviceType::Discrete_Gpu,
 			.config = {
 				.maxFramesInFlight = 2,
-				.swapchainImageCount = 2
+				.swapchainImageCount = 3,
+				.maxBuffers = gpu::MAX_BUFFERS,
+				.maxImages = gpu::MAX_IMAGES,
+				.maxSamplers = gpu::MAX_SAMPLERS,
+				.pushConstantMaxSize = std::numeric_limits<uint32>::max()
 			},
 			.validation = true,
 			.callback = [](
@@ -120,5 +123,4 @@ void SandboxApp::terminate()
 {
 	m_isRunning = false;
 }
-
 }

@@ -1,5 +1,6 @@
 #include <glaze/glaze.hpp>
 #include "core.serialization/file.hpp"
+#include "gpu/constants.hpp"
 #include "gpu/util/shader_compiler.hpp"
 #include "model_demo_app.hpp"
 
@@ -142,18 +143,34 @@ auto ModelDemoApp::start(
 				{
 					.name = "sponza uber pipeline",
 					.colorAttachments = {
-						{ .format = m_swapchain->image_format(), .blendInfo = { .enable = true } }
+						{ 
+							.format = m_swapchain->image_format(), 
+							.blendInfo = { 
+								.enable = true,
+								.srcColorBlendFactor = gpu::BlendFactor::One,
+								.dstColorBlendFactor = gpu::BlendFactor::Zero,
+								.colorBlendOp = gpu::BlendOp::Add,
+								.srcAlphaBlendFactor = gpu::BlendFactor::One,
+								.dstAlphaBlendFactor = gpu::BlendFactor::Zero,
+								.alphaBlendOp = gpu::BlendOp::Add
+							} 
+						}
 					},
 					.depthAttachmentFormat = gpu::Format::D32_Float,
 					.rasterization = {
+						.polygonalMode = gpu::PolygonMode::Fill,
 						.cullMode = gpu::CullingMode::Back,
 						.frontFace = gpu::FrontFace::Counter_Clockwise
 					},
 					.depthTest = {
 						.depthTestCompareOp = gpu::CompareOp::Less,
+						.minDepthBounds = 0.f,
+						.maxDepthBounds = 1.f,
+						.enableDepthBoundsTest = false,
 						.enableDepthTest = true,
 						.enableDepthWrite = true
 					},
+					.topology = gpu::TopologyType::Triangle,
 					.pushConstantSize = sizeof(PushConstant)
 				}
 			);
@@ -180,6 +197,7 @@ auto ModelDemoApp::start(
 		.minLod = 0.f,
 		.maxLod = 0.f,
 		.borderColor = gpu::BorderColor::Float_Transparent_Black,
+		.unnormalizedCoordinates = false
 	});
 
 	make_render_targets(swapchainInfo.dimension.width, swapchainInfo.dimension.height);
@@ -195,7 +213,8 @@ auto ModelDemoApp::start(
 			.width = 1,
 			.height = 1,
 		},
-		.mipLevel = 1
+		.mipLevel = 1,
+		.sharingMode = gpu::SharingMode::Exclusive
 	});
 
 	m_defaultWhiteTexture->bind({ .sampler = m_normalSampler, .index = 0u });
@@ -206,7 +225,6 @@ auto ModelDemoApp::start(
 		fmt::print("Could not load material representation for sponza.sbf. {}\n", ec.custom_error_message);
 	}
 
-	// For now, this function has to happen after the operation above.
 	unpack_sponza();
 	unpack_materials(materialRep);
 
@@ -218,31 +236,23 @@ auto ModelDemoApp::start(
 		.size = sizeof(uint8) * 4
 	});
 
-	m_sponzaTransform = gpu::Buffer::from(
+	m_sponzaTransform = render::GpuPtr<glm::mat4>::from(
 		m_gpu->device(),
 		{
 			.name = "sponza transform",
-			.size = sizeof(glm::mat4),
-			.bufferUsage = gpu::BufferUsage::Storage | gpu::BufferUsage::Transfer_Dst,
-			.memoryUsage = gpu::MemoryUsage::Can_Alias | gpu::MemoryUsage::Best_Fit
-		}
+			.bufferUsage = gpu::BufferUsage::Storage
+		},
+		glm::scale(glm::mat4{ 1.f }, glm::vec3{ 1.f, 1.f, 1.f })
 	);
 
-	m_defaultUV = gpu::Buffer::from(
-		m_gpu->device(),
+	m_defaultUV = render::GpuPtr<glm::vec2>::from(
+		m_gpu->upload_heap(),
 		{
-			.name = "default UV",
-			.size = sizeof(glm::vec2),
-			.bufferUsage = gpu::BufferUsage::Storage | gpu::BufferUsage::Transfer_Dst,
-			.memoryUsage = gpu::MemoryUsage::Can_Alias | gpu::MemoryUsage::Best_Fit
-		}
+			.name = "defult UV",
+			.bufferUsage = gpu::BufferUsage::Storage | gpu::BufferUsage::Transfer_Dst
+		},
+		0.f, 0.f
 	);
-
-	glm::mat4 transform = glm::scale(glm::mat4{ 1.f }, glm::vec3{ 1.f, 1.f, 1.f });
-	m_gpu->upload_heap().upload_data_to_buffer({ .dst = m_sponzaTransform, .data = &transform, .size = sizeof(glm::mat4) });
-
-	glm::vec2 uv{ 0.f, 0.f };
-	m_gpu->upload_heap().upload_data_to_buffer({ .dst = m_defaultUV, .data = &uv, .size = sizeof(glm::vec2) });
 
 	render::FenceInfo fenceInfo = m_gpu->upload_heap().send_to_gpu();
 
@@ -259,6 +269,7 @@ auto ModelDemoApp::start(
 				.dstAccess = gpu::access::TRANSFER_WRITE,
 				.oldLayout = gpu::ImageLayout::Transfer_Dst,
 				.newLayout = gpu::ImageLayout::Shader_Read_Only,
+				.subresource = BASE_COLOR_SUBRESOURCE,
 				.srcQueue = gpu::DeviceQueue::Transfer,
 				.dstQueue = gpu::DeviceQueue::Main
 			});
@@ -269,9 +280,7 @@ auto ModelDemoApp::start(
 			.srcAccess = gpu::access::TOP_OF_PIPE_NONE,
 			.oldLayout = gpu::ImageLayout::Undefined,
 			.newLayout = gpu::ImageLayout::Depth_Attachment,
-			.subresource = {
-				.aspectFlags = gpu::ImageAspect::Depth
-			}
+			.subresource = DEPTH_SUBRESOURCE
 		});
 
 		cmd->end();
@@ -310,11 +319,9 @@ auto ModelDemoApp::render() -> void
 	auto cmd = m_gpu->command_queue().next_free_command_buffer();
 	auto&& swapchainImage = m_swapchain->acquire_next_image();
 
-	auto& projViewBuffer = m_cameraProjView[m_currentFrame];
-
 	PushConstant pc{
-		.modelTransformPtr = m_sponzaTransform->gpu_address(),
-		.cameraTransformPtr = projViewBuffer->gpu_address()
+		.modelTransformPtr 	= m_sponzaTransform.address(),
+		.cameraTransformPtr = m_cameraProjView.address_at(m_currentFrame)
 	};
 
 	cmd->reset();
@@ -329,7 +336,8 @@ auto ModelDemoApp::render() -> void
 		.image = *swapchainImage,
 		.dstAccess = gpu::access::FRAGMENT_SHADER_READ,
 		.oldLayout = gpu::ImageLayout::Undefined,
-		.newLayout = gpu::ImageLayout::Color_Attachment
+		.newLayout = gpu::ImageLayout::Color_Attachment,
+		.subresource = BASE_COLOR_SUBRESOURCE
 	});
 
 	gpu::RenderAttachment swapchainImageAttachment{
@@ -395,7 +403,7 @@ auto ModelDemoApp::render() -> void
 
 		if ((renderInfo.mesh->attributes & render::VertexAttribute::TexCoord) == render::VertexAttribute::None)
 		{
-			pc.uv = m_defaultUV->gpu_address();
+			pc.uv = m_defaultUV.address();
 		}
 
 		cmd->bind_push_constant({
@@ -416,7 +424,8 @@ auto ModelDemoApp::render() -> void
 		.srcAccess = gpu::access::FRAGMENT_SHADER_WRITE,
 		.dstAccess = gpu::access::TRANSFER_READ,
 		.oldLayout = gpu::ImageLayout::Color_Attachment,
-		.newLayout = gpu::ImageLayout::Present_Src
+		.newLayout = gpu::ImageLayout::Present_Src,
+		.subresource = BASE_COLOR_SUBRESOURCE
 	});
 
 	cmd->end();
@@ -482,28 +491,17 @@ auto ModelDemoApp::make_render_targets(uint32 width, uint32 height) -> void
 
 auto ModelDemoApp::allocate_camera_buffers() -> void
 {
-	for (size_t i = 0; i < std::size(m_cameraProjView); ++i)
-	{
-		m_cameraProjView[i] = gpu::Buffer::from(
-			m_gpu->device(),
-			{
-				.name = lib::format("camera view proj {}", i),
-				.size = sizeof(glm::mat4) + sizeof(glm::mat4),
-				.bufferUsage = gpu::BufferUsage::Transfer_Dst | gpu::BufferUsage::Storage,
-				.memoryUsage = gpu::MemoryUsage::Can_Alias | gpu::MemoryUsage::Best_Fit
-			}
-		);
-	}
+	m_cameraProjView = render::GpuPtr<CameraProjectionView[2]>::from(
+		m_gpu->upload_heap(),
+		{
+			.name 			= "camera view proj",
+			.bufferUsage 	= gpu::BufferUsage::Storage
+		}
+	);
 }
 
 auto ModelDemoApp::update_camera_state(float32 dt) -> void
 {
-	struct CameraProjectionView
-	{
-		glm::mat4 projection;
-		glm::mat4 view;
-	} updateValue;
-
 	static bool firstRun[2] = { true, true };
 
 	auto const& swapchainDim = m_swapchain->info().dimension;
@@ -535,15 +533,10 @@ auto ModelDemoApp::update_camera_state(float32 dt) -> void
 
 	auto&& projViewBuffer = m_cameraProjView[m_currentFrame];
 
-	updateValue.projection = m_camera.projection;
-	updateValue.view = m_camera.view;
+	projViewBuffer.projection = m_camera.projection;
+	projViewBuffer.view = m_camera.view;
 
-	m_gpu->upload_heap().upload_data_to_buffer({
-		.dst = projViewBuffer,
-		.data = &updateValue,
-		.size = sizeof(CameraProjectionView),
-		.srcQueue = srcQueue
-	});
+	m_cameraProjView.commit(m_currentFrame, srcQueue);
 }
 
 auto ModelDemoApp::update_camera_on_mouse_events(float32 dt) -> void
@@ -858,12 +851,13 @@ auto ModelDemoApp::unpack_materials(render::material::util::MaterialJSON const& 
 
 			auto& texture = m_images.emplace_back(
 				gpu::Image::from(m_gpu->device(), {
-					.name		= lib::format("sponza_{}", std::string_view{ image.uri.c_str(), image.uri.size() }),
-					.type		= imageSbf.type(),
-					.format		= imageSbf.format(),
-					.imageUsage = gpu::ImageUsage::Transfer_Dst | gpu::ImageUsage::Sampled,
-					.dimension	= imageSbf.dimension(),
-					.mipLevel	= 1u
+					.name			= lib::format("sponza_{}", std::string_view{ image.uri.c_str(), image.uri.size() }),
+					.type			= imageSbf.type(),
+					.format			= imageSbf.format(),
+					.imageUsage 	= gpu::ImageUsage::Transfer_Dst | gpu::ImageUsage::Sampled,
+					.dimension		= imageSbf.dimension(),
+					.mipLevel		= 1u,
+					.sharingMode 	= gpu::SharingMode::Exclusive
 				}),
 				m_normalSampler, 
 				image.type, 

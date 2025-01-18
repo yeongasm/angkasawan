@@ -3,6 +3,7 @@
 #define RENDER_COMMAND_QUEUE_HPP
 
 #include <thread>
+#include "lib/map.hpp"
 #include "gpu/gpu.hpp"
 
 namespace render

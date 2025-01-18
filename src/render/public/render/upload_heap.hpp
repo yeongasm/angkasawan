@@ -3,7 +3,6 @@
 #define RENDER_UPLOAD_HEAP_HPP
 
 #include "lib/handle.hpp"
-#include "lib/paged_array.hpp"
 #include "command_queue.hpp"
 
 namespace render
