@@ -1,6 +1,5 @@
 #include <glaze/glaze.hpp>
 #include "core.serialization/file.hpp"
-#include "gpu/constants.hpp"
 #include "gpu/util/shader_compiler.hpp"
 #include "model_demo_app.hpp"
 
@@ -68,6 +67,8 @@ auto ModelDemoApp::start(
 	m_camera.zoomMultiplier = 1.f;
 	m_camera.frameWidth = swapchainWidth;
 	m_camera.frameHeight = swapchainHeight;
+
+	make_render_targets(swapchainInfo.dimension.width, swapchainInfo.dimension.height);
 
 	// TODO(afiq):
 	// Check if the shader binary exist and if it doesn't compile from source.
@@ -144,7 +145,7 @@ auto ModelDemoApp::start(
 					.name = "sponza uber pipeline",
 					.colorAttachments = {
 						{ 
-							.format = m_swapchain->image_format(), 
+							.format = m_baseColorAttachment->info().format, 
 							.blendInfo = { 
 								.enable = true,
 								.srcColorBlendFactor = gpu::BlendFactor::One,
@@ -154,6 +155,30 @@ auto ModelDemoApp::start(
 								.dstAlphaBlendFactor = gpu::BlendFactor::Zero,
 								.alphaBlendOp = gpu::BlendOp::Add
 							} 
+						},
+						{
+							.format = m_metallicRoughnessAttachment->info().format, 
+							.blendInfo = { 
+								.enable = true,
+								.srcColorBlendFactor = gpu::BlendFactor::One,
+								.dstColorBlendFactor = gpu::BlendFactor::Zero,
+								.colorBlendOp = gpu::BlendOp::Add,
+								.srcAlphaBlendFactor = gpu::BlendFactor::One,
+								.dstAlphaBlendFactor = gpu::BlendFactor::Zero,
+								.alphaBlendOp = gpu::BlendOp::Add
+							} 				
+						},
+						{
+							.format = m_normalAttachment->info().format, 
+							.blendInfo = { 
+								.enable = true,
+								.srcColorBlendFactor = gpu::BlendFactor::One,
+								.dstColorBlendFactor = gpu::BlendFactor::Zero,
+								.colorBlendOp = gpu::BlendOp::Add,
+								.srcAlphaBlendFactor = gpu::BlendFactor::One,
+								.dstAlphaBlendFactor = gpu::BlendFactor::Zero,
+								.alphaBlendOp = gpu::BlendOp::Add
+							} 				
 						}
 					},
 					.depthAttachmentFormat = gpu::Format::D32_Float,
@@ -200,8 +225,6 @@ auto ModelDemoApp::start(
 		.unnormalizedCoordinates = false
 	});
 
-	make_render_targets(swapchainInfo.dimension.width, swapchainInfo.dimension.height);
-
 	m_defaultWhiteTexture = gpu::Image::from(m_gpu->device(), {
 		.name = "default white texture",
 		.type = gpu::ImageType::Image_2D,
@@ -217,7 +240,39 @@ auto ModelDemoApp::start(
 		.sharingMode = gpu::SharingMode::Exclusive
 	});
 
+	m_defaultMetallicRoughnessMap = gpu::Image::from(m_gpu->device(), {
+		.name = "default metallic roughness map",
+		.type = gpu::ImageType::Image_2D,
+		.format = gpu::Format::R8G8_Unorm,
+		.samples = gpu::SampleCount::Sample_Count_1,
+		.tiling = gpu::ImageTiling::Optimal,
+		.imageUsage = gpu::ImageUsage::Transfer_Dst | gpu::ImageUsage::Sampled,
+		.dimension = {
+			.width = 1,
+			.height = 1,
+		},
+		.mipLevel = 1,
+		.sharingMode = gpu::SharingMode::Exclusive
+	});
+
+	m_defaultNormalMap = gpu::Image::from(m_gpu->device(), {
+		.name = "default normal map",
+		.type = gpu::ImageType::Image_2D,
+		.format = gpu::Format::B8G8R8A8_Srgb,
+		.samples = gpu::SampleCount::Sample_Count_1,
+		.tiling = gpu::ImageTiling::Optimal,
+		.imageUsage = gpu::ImageUsage::Transfer_Dst | gpu::ImageUsage::Sampled,
+		.dimension = {
+			.width = 1,
+			.height = 1,
+		},
+		.mipLevel = 1,
+		.sharingMode = gpu::SharingMode::Exclusive
+	});
+
 	m_defaultWhiteTexture->bind({ .sampler = m_normalSampler, .index = 0u });
+	m_defaultMetallicRoughnessMap->bind({ .sampler = m_normalSampler, .index = 1u });
+	m_defaultNormalMap->bind({ .sampler = m_normalSampler, .index = 2u });
 
 	render::material::util::MaterialJSON materialRep{};
 	if (auto ec = glz::read_file_json(materialRep, "data/demo/models/sponza/sponza.material.json", std::string{}); ec)
@@ -229,10 +284,24 @@ auto ModelDemoApp::start(
 	unpack_materials(materialRep);
 
 	uint8 theColorWhite[4] = { 255, 255, 255, 255 };
+	uint8 zeroMetallicRoughness[2] = { 0, 0 };
+	uint8 flatNormal[4] = { 255, 128, 128, 255 };
 
 	m_gpu->upload_heap().upload_data_to_image({
 		.image = m_defaultWhiteTexture,
 		.data = theColorWhite,
+		.size = sizeof(uint8) * 4
+	});
+
+	m_gpu->upload_heap().upload_data_to_image({
+		.image = m_defaultMetallicRoughnessMap,
+		.data = zeroMetallicRoughness,
+		.size = sizeof(uint8) * 2	
+	});
+
+	m_gpu->upload_heap().upload_data_to_image({
+		.image = m_defaultNormalMap,
+		.data = flatNormal,
 		.size = sizeof(uint8) * 4
 	});
 
@@ -243,15 +312,6 @@ auto ModelDemoApp::start(
 			.bufferUsage = gpu::BufferUsage::Storage
 		},
 		glm::scale(glm::mat4{ 1.f }, glm::vec3{ 1.f, 1.f, 1.f })
-	);
-
-	m_defaultUV = render::GpuPtr<glm::vec2>::from(
-		m_gpu->upload_heap(),
-		{
-			.name = "defult UV",
-			.bufferUsage = gpu::BufferUsage::Storage | gpu::BufferUsage::Transfer_Dst
-		},
-		0.f, 0.f
 	);
 
 	render::FenceInfo fenceInfo = m_gpu->upload_heap().send_to_gpu();
@@ -281,6 +341,30 @@ auto ModelDemoApp::start(
 			.oldLayout = gpu::ImageLayout::Undefined,
 			.newLayout = gpu::ImageLayout::Depth_Attachment,
 			.subresource = DEPTH_SUBRESOURCE
+		});
+
+		cmd->pipeline_image_barrier({
+			.image = *m_baseColorAttachment,
+			.srcAccess = gpu::access::TOP_OF_PIPE_NONE,
+			.oldLayout = gpu::ImageLayout::Undefined,
+			.newLayout = gpu::ImageLayout::Color_Attachment,
+			.subresource = BASE_COLOR_SUBRESOURCE
+		});
+
+		cmd->pipeline_image_barrier({
+			.image = *m_metallicRoughnessAttachment,
+			.srcAccess = gpu::access::TOP_OF_PIPE_NONE,
+			.oldLayout = gpu::ImageLayout::Undefined,
+			.newLayout = gpu::ImageLayout::Attachment,
+			.subresource = BASE_COLOR_SUBRESOURCE
+		});
+
+		cmd->pipeline_image_barrier({
+			.image = *m_normalAttachment,
+			.srcAccess = gpu::access::TOP_OF_PIPE_NONE,
+			.oldLayout = gpu::ImageLayout::Undefined,
+			.newLayout = gpu::ImageLayout::Color_Attachment,
+			.subresource = BASE_COLOR_SUBRESOURCE
 		});
 
 		cmd->end();
@@ -319,11 +403,6 @@ auto ModelDemoApp::render() -> void
 	auto cmd = m_gpu->command_queue().next_free_command_buffer();
 	auto&& swapchainImage = m_swapchain->acquire_next_image();
 
-	PushConstant pc{
-		.modelTransformPtr 	= m_sponzaTransform.address(),
-		.cameraTransformPtr = m_cameraProjView.address_at(m_currentFrame)
-	};
-
 	cmd->reset();
 	cmd->begin();
 
@@ -334,18 +413,11 @@ auto ModelDemoApp::render() -> void
 
 	cmd->pipeline_image_barrier({
 		.image = *swapchainImage,
-		.dstAccess = gpu::access::FRAGMENT_SHADER_READ,
+		.dstAccess = gpu::access::TRANSFER_WRITE,
 		.oldLayout = gpu::ImageLayout::Undefined,
-		.newLayout = gpu::ImageLayout::Color_Attachment,
+		.newLayout = gpu::ImageLayout::Transfer_Dst,
 		.subresource = BASE_COLOR_SUBRESOURCE
 	});
-
-	gpu::RenderAttachment swapchainImageAttachment{
-		.image = swapchainImage,
-		.imageLayout = gpu::ImageLayout::Color_Attachment,
-		.loadOp = gpu::AttachmentLoadOp::Clear,
-		.storeOp = gpu::AttachmentStoreOp::Store
-	};
 
 	gpu::RenderAttachment depthAttachment{
 		.image = m_depthBuffer,
@@ -355,7 +427,7 @@ auto ModelDemoApp::render() -> void
 	};
 
 	gpu::RenderingInfo renderingInfo{
-		.colorAttachments = std::span{ &swapchainImageAttachment, 1 },
+		.colorAttachments = std::span{ m_renderAttachments.data(), m_renderAttachments.size() },
 		.depthAttachment = &depthAttachment,
 		.renderArea = {
 			.extent = {
@@ -393,18 +465,11 @@ auto ModelDemoApp::render() -> void
 			.indexType = gpu::IndexType::Uint_32
 		});
 
-		pc.position = renderInfo.mesh->position;
-		pc.uv = renderInfo.mesh->uv;
-
-		if (auto exist = renderInfo.material.image_for(render::material::ImageType::Base_Color); exist)
-		{
-			pc.baseColorMapIndex = (*exist)->binding;
-		}
-
-		if ((renderInfo.mesh->attributes & render::VertexAttribute::TexCoord) == render::VertexAttribute::None)
-		{
-			pc.uv = m_defaultUV.address();
-		}
+		PushConstant pc{
+			.cameraProjView		= m_cameraProjView.address_at(m_currentFrame),
+			.objectTransform 	= m_sponzaTransform.address(),
+			.renderInfo 		= renderInfo.info.address()
+		};
 
 		cmd->bind_push_constant({
 			.data = &pc,
@@ -420,10 +485,36 @@ auto ModelDemoApp::render() -> void
 	cmd->end_rendering();
 
 	cmd->pipeline_image_barrier({
-		.image = *swapchainImage,
+		.image = *m_baseColorAttachment,
 		.srcAccess = gpu::access::FRAGMENT_SHADER_WRITE,
 		.dstAccess = gpu::access::TRANSFER_READ,
 		.oldLayout = gpu::ImageLayout::Color_Attachment,
+		.newLayout = gpu::ImageLayout::Transfer_Src,
+		.subresource = BASE_COLOR_SUBRESOURCE
+	});
+
+	cmd->copy_image_to_image({
+		.src = *m_baseColorAttachment,
+		.dst = *swapchainImage,
+		.srcSubresource = BASE_COLOR_SUBRESOURCE,
+		.dstSubresource = BASE_COLOR_SUBRESOURCE,
+		.extent = swapchainImage->info().dimension
+	});
+
+	cmd->pipeline_image_barrier({
+		.image = *m_baseColorAttachment,
+		.srcAccess = gpu::access::TRANSFER_READ,
+		.dstAccess = gpu::access::FRAGMENT_SHADER_WRITE,
+		.oldLayout = gpu::ImageLayout::Transfer_Src,
+		.newLayout = gpu::ImageLayout::Color_Attachment,
+		.subresource = BASE_COLOR_SUBRESOURCE
+	});
+
+	cmd->pipeline_image_barrier({
+		.image = *swapchainImage,
+		.srcAccess = gpu::access::TRANSFER_WRITE,
+		.dstAccess = gpu::access::TRANSFER_READ,
+		.oldLayout = gpu::ImageLayout::Transfer_Dst,
 		.newLayout = gpu::ImageLayout::Present_Src,
 		.subresource = BASE_COLOR_SUBRESOURCE
 	});
@@ -487,6 +578,69 @@ auto ModelDemoApp::make_render_targets(uint32 width, uint32 height) -> void
 		},
 		.mipLevel = 1
 	});
+
+	m_baseColorAttachment = gpu::Image::from(m_gpu->device(), {
+		.name = "albedo attachment",
+		.type = gpu::ImageType::Image_2D,
+		.format = gpu::Format::B8G8R8A8_Srgb,
+		.samples = gpu::SampleCount::Sample_Count_1,
+		.tiling = gpu::ImageTiling::Optimal,
+		.imageUsage = gpu::ImageUsage::Color_Attachment | gpu::ImageUsage::Sampled | gpu::ImageUsage::Transfer_Src,
+		.dimension = {
+			.width = width,
+			.height = height,
+		},
+		.mipLevel = 1
+	});
+
+	m_metallicRoughnessAttachment = gpu::Image::from(m_gpu->device(), {
+		.name = "metallic roughness attachment",
+		.type = gpu::ImageType::Image_2D,
+		.format = gpu::Format::R8G8_Unorm,
+		.samples = gpu::SampleCount::Sample_Count_1,
+		.tiling = gpu::ImageTiling::Optimal,
+		.imageUsage = gpu::ImageUsage::Color_Attachment | gpu::ImageUsage::Sampled,
+		.dimension = {
+			.width = width,
+			.height = height,
+		},
+		.mipLevel = 1
+	});
+
+	m_normalAttachment = gpu::Image::from(m_gpu->device(), {
+		.name = "normal attachment",
+		.type = gpu::ImageType::Image_2D,
+		.format = gpu::Format::B8G8R8A8_Srgb,
+		.samples = gpu::SampleCount::Sample_Count_1,
+		.tiling = gpu::ImageTiling::Optimal,
+		.imageUsage = gpu::ImageUsage::Color_Attachment | gpu::ImageUsage::Sampled,
+		.dimension = {
+			.width = width,
+			.height = height,
+		},
+		.mipLevel = 1
+	});
+
+	m_renderAttachments[0] = { 
+		.image = m_baseColorAttachment,
+		.imageLayout = gpu::ImageLayout::Color_Attachment,
+		.loadOp = gpu::AttachmentLoadOp::Clear,
+		.storeOp = gpu::AttachmentStoreOp::Store
+	};
+
+	m_renderAttachments[1] = { 
+		.image = m_metallicRoughnessAttachment,
+		.imageLayout = gpu::ImageLayout::Color_Attachment,
+		.loadOp = gpu::AttachmentLoadOp::Clear,
+		.storeOp = gpu::AttachmentStoreOp::Store
+	};
+
+	m_renderAttachments[2] = { 
+		.image = m_normalAttachment,
+		.imageLayout = gpu::ImageLayout::Color_Attachment,
+		.loadOp = gpu::AttachmentLoadOp::Clear,
+		.storeOp = gpu::AttachmentStoreOp::Store
+	};	
 }
 
 auto ModelDemoApp::allocate_camera_buffers() -> void
@@ -575,6 +729,13 @@ auto ModelDemoApp::update_camera_on_mouse_events(float32 dt) -> void
 	if (cursorInViewport && mouseWheelV != 0.f)
 	{
 		m_camera.zoom(mouseWheelV);
+		m_cameraState.dirty = true;
+	}
+	else if (cursorInViewport && 
+			m_app->mouse_held(core::IOMouseButton::Middle) &&
+			m_camera.fov != 45.f)
+	{
+		m_camera.zoom(45.f);
 		m_cameraState.dirty = true;
 	}
 
@@ -809,12 +970,32 @@ auto ModelDemoApp::unpack_sponza() -> void
 			.size = data.indices.size_bytes()
 		});
 
-		m_renderInfo.emplace_back(&mesh);
+		auto& meshRenderInfo = m_renderInfo.emplace_back(&mesh);
+
+		meshRenderInfo.info = render::GpuPtr<RenderableInfo>::from(
+			m_gpu->upload_heap(),
+			{
+				.name = lib::format("sponza render info:{}", i),
+				.bufferUsage = gpu::BufferUsage::Transfer_Dst | gpu::BufferUsage::Storage
+			},
+			mesh.position,
+			normalRange.empty() ? 0ull : mesh.normal,
+			uvRange.empty() ? 0ull : mesh.uv
+		);
+
+		meshRenderInfo.info->textures[0] = 0;
+		meshRenderInfo.info->textures[1] = 1;
+		meshRenderInfo.info->textures[2] = 2;
+		meshRenderInfo.info->hasUV = std::cmp_not_equal(uvCount, 0);
+
+		++i;
 	}
 }
 
 auto ModelDemoApp::unpack_materials(render::material::util::MaterialJSON const& materialRep) -> void
 {
+	using enum render::material::ImageType;
+
 	if (materialRep.materials.empty())
 	{
 		return;
@@ -822,20 +1003,21 @@ auto ModelDemoApp::unpack_materials(render::material::util::MaterialJSON const& 
 
 	m_images.reserve(materialRep.numImages);
 	m_images.emplace_back(m_defaultWhiteTexture, m_normalSampler, render::material::ImageType::Base_Color, 1u, 0u);
+	m_images.emplace_back(m_defaultMetallicRoughnessMap, m_normalSampler, render::material::ImageType::Metallic_Roughness, 1u, 1u);
+	m_images.emplace_back(m_defaultNormalMap, m_normalSampler, render::material::ImageType::Normal, 1u, 2u);
 
 	std::filesystem::path input{ "data/demo/models/sponza/" };
 
 	for (size_t i = 0; auto const& material : materialRep.materials)
 	{
+		auto& renderInfo = m_renderInfo[i];
+
 		size_t const imageStoredOffset = m_images.size();
+
+		size_t imageCount = {};
 
 		for (auto const& image : material.images)
 		{
-			if (image.type != render::material::ImageType::Base_Color)
-			{
-				continue;
-			}
-
 			input /= image.uri.c_str();
 
 			core::sbf::File const img{ input };
@@ -862,7 +1044,7 @@ auto ModelDemoApp::unpack_materials(render::material::util::MaterialJSON const& 
 				m_normalSampler, 
 				image.type, 
 				1u,
-				static_cast<uint32>(i) + 1u
+				static_cast<uint32>(imageStoredOffset) + static_cast<uint32>(imageCount)
 			);
 
 			texture.image->bind({ .sampler = m_normalSampler, .index = texture.binding });
@@ -877,16 +1059,24 @@ auto ModelDemoApp::unpack_materials(render::material::util::MaterialJSON const& 
 			});
 
 			input.remove_filename();
+			
+			renderInfo.info->textures[std::to_underlying(image.type)] = texture.binding;
+
+			++imageCount;
 		}
 
 		if (imageStoredOffset == m_images.size())
 		{
-			m_renderInfo[i++].material.images = std::span{ &m_images[0], 1ull };
+			renderInfo.material.images = std::span{ &m_images[0], 3 };
 		}
 		else
 		{
-			m_renderInfo[i++].material.images = std::span{ &m_images[imageStoredOffset], 1ull };
+			renderInfo.material.images = std::span{ &m_images[imageStoredOffset], imageCount };
 		}
+
+		renderInfo.info.commit();
+
+		++i;
 	}
 }
 }

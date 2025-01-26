@@ -46,19 +46,27 @@ private:
 	core::Ref<core::platform::Window> m_rootWindowRef = {};
 	gpu::swapchain m_swapchain = {};
 
+	struct RenderableInfo
+	{
+		gpu::device_address position;
+		gpu::device_address normal;
+		gpu::device_address uv;
+		uint32 textures[3];
+		uint32 hasUV;
+	};
+
 	struct MeshRenderInfo
 	{
 		render::Mesh* mesh;
 		render::Material material;
+		render::GpuPtr<RenderableInfo> info;
 	};
 
 	struct PushConstant
 	{
-		gpu::device_address position;
-		gpu::device_address uv;
-		gpu::device_address modelTransformPtr;
-		gpu::device_address cameraTransformPtr;
-		uint32 baseColorMapIndex;
+		gpu::device_address cameraProjView;
+		gpu::device_address objectTransform;
+		gpu::device_address renderInfo;
 	};
 
 	struct CameraProjectionView
@@ -68,8 +76,16 @@ private:
 	};
 
 	gpu::sampler m_normalSampler = {};
+
 	gpu::image m_depthBuffer = {};
 	gpu::image m_defaultWhiteTexture = {};
+	gpu::image m_defaultMetallicRoughnessMap = {};
+	gpu::image m_defaultNormalMap = {};
+
+	std::array<gpu::RenderAttachment, 3> m_renderAttachments = {};
+	gpu::image m_baseColorAttachment = {};
+	gpu::image m_metallicRoughnessAttachment = {};
+	gpu::image m_normalAttachment = {};
 	
 	Camera m_camera = {};
 	CameraState m_cameraState = {};
@@ -79,7 +95,6 @@ private:
 	lib::array<MeshRenderInfo> m_renderInfo = {};
 
 	render::GpuPtr<glm::mat4> m_sponzaTransform = {};
-	render::GpuPtr<glm::vec2> m_defaultUV = {};
 	render::GpuPtr<CameraProjectionView[2]> m_cameraProjView = {};
 
 	gpu::pipeline m_pipeline = {};

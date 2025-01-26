@@ -30,24 +30,6 @@ void memzero(void* dst, size_t size)
 	std::memset(dst, 0, size);
 }
 
-constexpr size_t is_power_of_two(size_t num)
-{
-	return (num > 0) & ((num & (num - 1)) == 0);
-}
-
-constexpr size_t pad_address(const uintptr_t address, const size_t alignment)
-{
-	const size_t multiplier = (address / alignment) + 1;
-	const uintptr_t alignedAddress = multiplier * alignment;
-	return static_cast<size_t>(alignedAddress - address);
-}
-
-constexpr bool is_64bit_aligned(void* pointer)
-{
-	uintptr_t address = std::bit_cast<uintptr_t>(pointer);
-	return (address & 0x7) == 0;
-}
-
 struct memory
 {
 	void*	pointer;

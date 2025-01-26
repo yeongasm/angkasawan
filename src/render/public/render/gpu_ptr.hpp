@@ -62,7 +62,7 @@ struct GpuDataContainer : public lib::non_copyable
 
 struct GpuPtrInfo
 {
-    std::string_view name;
+    lib::string name;
     gpu::BufferUsage bufferUsage;
 };
 
@@ -100,7 +100,7 @@ public:
     }
 
     template <typename Self>
-    auto operator->(this Self&& self) -> decltype(auto)
+    auto operator->(this Self&& self) -> auto
     {
         using enum gpu::MemoryUsage;
 
@@ -109,9 +109,9 @@ public:
         if (((memoryUsage & Host_Writable) == None) && 
             ((memoryUsage & Host_Transferable) == None))
         {
-            return &std::forward<Self>(self).localData->data;
+            return &std::forward<std::remove_reference_t<Self>>(self).localData->data;
         }
-        return std::forward_like<Self>(static_cast<pointer>(self.storage->data()));
+        return std::forward_like<std::remove_reference_t<Self>>(static_cast<pointer>(self.storage->data()));
     }
 
     /**
@@ -144,14 +144,14 @@ public:
 
     template <typename... Args>
     requires (std::is_constructible_v<value_type, Args...>)
-    static auto from(gpu::Device& device, GpuPtrInfo const& info, Args&&... args) -> GpuPtr<value_type>
+    static auto from(gpu::Device& device, GpuPtrInfo&& info, Args&&... args) -> GpuPtr<value_type>
     {
         using enum gpu::MemoryUsage;
 
         auto buffer = gpu::Buffer::from(
             device, 
             {
-                .name = info.name,
+                .name = std::move(info.name),
                 .size = sizeof(value_type),
                 .bufferUsage = info.bufferUsage,
                 .memoryUsage = Best_Fit | Host_Writable | Host_Transferable,
@@ -171,7 +171,7 @@ public:
 
     template <typename... Args>
     requires (std::is_constructible_v<value_type, Args...>)
-    static auto from(UploadHeap& uploadHeap, GpuPtrInfo const& info, Args&&... args) -> GpuPtr<value_type>
+    static auto from(UploadHeap& uploadHeap, GpuPtrInfo&& info, Args&&... args) -> GpuPtr<value_type>
     {
         using enum gpu::MemoryUsage;
         using enum gpu::BufferUsage;
@@ -186,7 +186,7 @@ public:
         auto buffer = gpu::Buffer::from(
             uploadHeap.device(),
             {
-                .name = info.name,
+                .name = std::move(info.name),
                 .size = sizeof(value_type),
                 .bufferUsage = busage,
                 .memoryUsage = Best_Fit,
@@ -297,14 +297,14 @@ public:
         (... && std::is_convertible_v<Args, T>)
         && std::is_constructible_v<type, Args...>
     )
-    static auto from(gpu::Device& device, GpuPtrInfo const& info, Args&&... args) -> GpuPtr<type>
+    static auto from(gpu::Device& device, GpuPtrInfo&& info, Args&&... args) -> GpuPtr<type>
     {
         using enum gpu::MemoryUsage;
 
         auto buffer = gpu::Buffer::from(
             device, 
             {
-                .name = info.name,
+                .name = std::move(info.name),
                 .size = sizeof(type),
                 .bufferUsage = info.bufferUsage,
                 .memoryUsage = Best_Fit | Host_Writable | Host_Transferable,
@@ -328,7 +328,7 @@ public:
         (... && std::is_convertible_v<Args, T>)
         && std::is_constructible_v<type, Args...>
     )
-    static auto from(UploadHeap& uploadHeap, GpuPtrInfo const& info, Args&&... args) -> GpuPtr<type>
+    static auto from(UploadHeap& uploadHeap, GpuPtrInfo&& info, Args&&... args) -> GpuPtr<type>
     {
         using enum gpu::MemoryUsage;
         using enum gpu::BufferUsage;
@@ -343,7 +343,7 @@ public:
         auto buffer = gpu::Buffer::from(
             uploadHeap.device(),
             {
-                .name = info.name,
+                .name = std::move(info.name),
                 .size = sizeof(type),
                 .bufferUsage = busage,
                 .memoryUsage = Best_Fit,

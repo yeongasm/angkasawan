@@ -40,7 +40,6 @@ endif()
 
 target_compile_features(core.platform PUBLIC cxx_std_23)
 target_compile_definitions(core.platform PRIVATE "PLATFORM_EXPORT")
-target_compile_definitions(core.platform PUBLIC $<$<PLATFORM_ID:Windows>:PLATFORM_OS_WINDOWS> $<$<PLATFORM_ID:Darwin>:PLATFORM_OS_APPLE> $<$<PLATFORM_ID:Linux>:PLATFORM_OS_LINUX>)
 target_compile_definitions(core.platform PUBLIC "UNICODE" "_UNICODE")
 
 target_sources(

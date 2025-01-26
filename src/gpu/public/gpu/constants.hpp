@@ -25,7 +25,7 @@ inline constexpr uint32 BUFFER_DEVICE_ADDRESS_BINDING = 4;
 inline constexpr uint32 STORAGE_BUFFER_BINDING = 5;
 inline constexpr uint32 UNIFORM_BUFFER_BINDING = 6;
 
-#if _DEBUG
+#if DEBUG
 inline constexpr uint32 ENABLE_DEBUG_RESOURCE_NAMES = 1;
 #else
 inline constexpr uint32 ENABLE_DEBUG_RESOURCE_NAMES = 0;
@@ -439,6 +439,41 @@ enum class Format
 	Pvrtc1_4Bpp_Srgb_Block_Img,
 	Pvrtc2_2Bpp_Srgb_Block_Img,
 	Pvrtc2_4Bpp_Srgb_Block_Img
+};
+
+enum class FormatFeature
+{
+	Sampled_Image = 0x00000001,
+	Storage_Image = 0x00000002,
+	Storage_Image_Atomic = 0x00000004,
+	Uniform_Texel_Buffer = 0x00000008,
+	Storage_Texel_Buffer = 0x00000010,
+	Storage_Texel_Buffer_Atomic = 0x00000020,
+	Vertex_Buffer = 0x00000040,
+	Color_Attachment = 0x00000080,
+	Color_Attachment_Blend = 0x00000100,
+	Depth_Stencil_Attachment = 0x00000200,
+	Blit_Src = 0x00000400,
+	Blit_Dst = 0x00000800,
+	Sampled_Image_Filter_Linear = 0x00001000,
+	Transfer_Src = 0x00004000,
+	Transfer_Dst = 0x00008000,
+	Midpoint_Chroma_Samples = 0x00020000,
+	Sampled_Image_Ycbr_Converstion_Linear_Filter = 0x00040000,
+	Sampled_Image_Ycbr_Conversion_Separate_Reconstruction_Filter = 0x00080000,
+	Sampled_Image_Ycbr_Conversion_Separate_Reconstruction_Explicit = 0x00100000,
+	Sampled_Image_Ycbr_Conversion_Separate_Reconstruction_Explicit_Forceable = 0x00200000,
+	Disjoint = 0x00400000,
+	Cosited_Chroma_Samples = 0x00800000,
+	Sampled_Image_Filter_MinMax = 0x00010000,
+	Video_Decode_Output = 0x02000000,
+	VideO_Decode_Dpb = 0x04000000,
+	Acceleration_Structure_Vertex_Buffer_Bit = 0x20000000,
+	Sampled_Image_Filter_Cubic = 0x00002000,
+	Fragment_Density_Map = 0x01000000,
+	Fragment_Shading_Rate_Attachment = 0x40000000,
+	Video_Encode_Input = 0x08000000,
+	VideO_Encode_Dpb = 0x10000000
 };
 
 enum class ColorSpace

@@ -150,59 +150,101 @@ auto UploadHeap::send_to_gpu(bool waitIdle) -> FenceInfo
 
 auto UploadHeap::upload_data_to_image(ImageDataUploadInfo&& info) -> upload_id
 {
-	// For images, support to break uploads into smaller sized chunks is non-existent
-	// mainly because images with optimal layout can't be treated as a linear sequence of bytes.
+	// TODO(afiq):
+	// Look at the problem from a different angle.
+	// Instead of calculating the offset on the fly, we determine how many "quadrants" to break the image into.
+	// Each "quadrant"'s offset and extent would then be pre-calculated before the actual upload.
+	// SO -> https://stackoverflow.com/questions/46501832/vulkan-vkbufferimagecopy-for-partial-transfer
+
 	auto const& imageInfo = info.image->info();
+
+	auto recursive_upload_lambda_in_quadrants = [&info, &imageInfo, this](size_t const sizeToUpload, int32 x, int32 y, uint32 width, uint32 height, auto callback) -> void
+	{
+		if (std::cmp_greater(sizeToUpload, HEAP_BLOCK_SIZE))
+		{
+			auto const uploadSizePerQuadrant = sizeToUpload / 4ull;
+
+			auto const quadrantHeight = height / 4;
+
+			(*callback)(uploadSizePerQuadrant, x, y + (quadrantHeight * 0u), width, quadrantHeight, callback);
+			(*callback)(uploadSizePerQuadrant, x, y + (quadrantHeight * 1u), width, quadrantHeight, callback);
+			(*callback)(uploadSizePerQuadrant, x, y + (quadrantHeight * 2u), width, quadrantHeight, callback);
+			(*callback)(uploadSizePerQuadrant, x, y + (quadrantHeight * 3u), width, quadrantHeight, callback);
+
+			return;
+		}
+
+		auto& imgUploadPool = next_image_upload_info_pool();
+		auto heapBlock = next_available_heap(sizeToUpload);
+
+		if (heapBlock == nullptr ||
+			std::cmp_greater_equal(imgUploadPool.uploads.size(), MAX_UPLOADS_PER_POOL))
+		{
+			upload_to_gpu(true);
+
+			reset_next_pool();
+
+			heapBlock = next_available_heap(sizeToUpload);
+		}
+
+		auto const blockInfo = gpu::format_texel_info(imageInfo.format);
+
+		auto const writtenByteOffset = [](size_t byteOffset, size_t texelAlignment) -> size_t
+		{
+			if (lib::is_power_of_two(texelAlignment) &&
+				std::cmp_equal(byteOffset & (texelAlignment - 1ull), 0))
+			{
+				return byteOffset;
+			}
+			else if (std::cmp_equal(byteOffset % texelAlignment, 0))
+			{
+				return byteOffset;
+			}
+			
+			return byteOffset + lib::pad_address(byteOffset, texelAlignment);
+		}(heapBlock->byteOffset, blockInfo.size);
+
+		auto dataSpan = std::span{ static_cast<std::byte const*>(info.data), info.size };
+
+		auto const byteOffset = imageInfo.dimension.width * y + x;
+
+		heapBlock->buffer->write(&dataSpan[byteOffset], sizeToUpload, writtenByteOffset);
+
+		heapBlock->byteOffset += sizeToUpload + (writtenByteOffset - heapBlock->byteOffset);
+
+		ImageUploadInfo uploadInfo{
+			.copyInfo = {
+				.src = *heapBlock->buffer,
+				.dst = *info.image,
+				.bufferOffset = writtenByteOffset,
+				.dstImageLayout = gpu::ImageLayout::Transfer_Dst,
+				.imageSubresource = {
+					.aspectFlags = info.aspectMask,
+					.mipLevel = info.mipLevel,
+					.levelCount = 1u,
+					.baseArrayLayer = 0u,
+					.layerCount = 1u
+				},
+				.imageOffset = { .x = x, .y = y },
+				.imageExtent = {
+					.width 	= width  >> info.mipLevel,
+					.height = height >> info.mipLevel,
+					.depth 	= 1u
+				}
+			},
+			.owningQueue = info.srcQueue,
+			.dstQueue = info.dstQueue
+		};
+
+		imgUploadPool.uploads.push_back(std::move(uploadInfo));
+	};
 
 	if (info.mipLevel > imageInfo.mipLevel)
 	{
 		return upload_id{};
 	}
 
-	auto& imgUploadPool = next_image_upload_info_pool();
-	
-	auto heapBlock = next_available_heap(info.size);
-
-	if (heapBlock == nullptr ||
-		std::cmp_greater_equal(imgUploadPool.uploads.size(), MAX_UPLOADS_PER_POOL))
-	{
-		upload_to_gpu(true);
-
-		reset_next_pool();
-
-		heapBlock = next_available_heap(info.size);
-	}
-
-	auto const writtenByteOffset = heapBlock->byteOffset;
-
-	heapBlock->buffer->write(info.data, info.size, writtenByteOffset);
-
-	heapBlock->byteOffset += info.size;
-
-	ImageUploadInfo uploadInfo{
-		.copyInfo = {
-			.src = *heapBlock->buffer,
-			.dst = *info.image,
-			.bufferOffset = writtenByteOffset,
-			.imageSubresource = {
-				.aspectFlags = info.aspectMask,
-				.mipLevel = info.mipLevel,
-				.levelCount = 1u,
-				.baseArrayLayer = 0u,
-				.layerCount = 1u
-			},
-			.imageOffset = {},
-			.imageExtent = {
-				.width = imageInfo.dimension.width >> info.mipLevel,
-				.height = imageInfo.dimension.height >> info.mipLevel,
-				.depth = 1u
-			}
-		},
-		.owningQueue = info.srcQueue,
-		.dstQueue = info.dstQueue
-	};
-
-	imgUploadPool.uploads.push_back(std::move(uploadInfo));
+	recursive_upload_lambda_in_quadrants(info.size, 0, 0, imageInfo.dimension.width, imageInfo.dimension.height, &recursive_upload_lambda_in_quadrants);
 
 	return upload_id{ m_cpuUploadTimeline + 1 };
 }
@@ -542,6 +584,7 @@ auto UploadHeap::next_available_heap(size_t size) -> HeapBlock*
 
 	// Get the first heap that can fit.
 	size_t const numAvailableHeaps = heapPool.heaps.size();
+
 	// HeapPool.current is only incremented when the current heap it's referencing has no more capacity to hold data.
 	// Hence the reason why we start indexing from HeapPool.current.
 	for (size_t i = heapPool.current; i < numAvailableHeaps; ++i)

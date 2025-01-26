@@ -9,6 +9,7 @@ set(
     "public/render/mesh.hpp"
     "public/render/render.hpp"
     "public/render/upload_heap.hpp"
+    "public/render/work_graph.hpp"
 )
 
 set(
@@ -18,6 +19,7 @@ set(
 	"private/src/material.cpp"
 	"private/src/mesh.cpp"
 	"private/src/upload_heap.cpp"
+	"private/src/work_graph.cpp"
 )
 
 add_library(render STATIC ${render_header_files} ${render_source_files})

@@ -268,7 +268,7 @@ auto Swapchain::from(Device& device, SwapchainInfo&& info, Resource<Swapchain> p
 	{
 		VkSurfaceKHR handle = VK_NULL_HANDLE;
 
-#ifdef PLATFORM_OS_WINDOWS
+#ifdef _WIN64
 		VkWin32SurfaceCreateInfoKHR surfaceCreateInfo{
 			.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR,
 			.hinstance = static_cast<HINSTANCE>(surfaceInfo.instance),
@@ -281,7 +281,7 @@ auto Swapchain::from(Device& device, SwapchainInfo&& info, Resource<Swapchain> p
 		{
 			return nullptr;
 		}
-#elif PLATFORM_OS_LINUX
+#elif __linux__
 #endif
 
 		auto&& [id, vksurface] = vkdevice.gpuResourcePool.surfaces.emplace();

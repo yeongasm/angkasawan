@@ -25,10 +25,6 @@ if (MSVC)
     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
 endif()
 
-#if (WIN32 AND ENABLE_ASAN_AND_UBSAN)
-#    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MT")
-#endif()
-
 message("CPM_SOURCE_CACHE: ${CPM_SOURCE_CACHE}")
 
 check_ipo_supported(RESULT result OUTPUT output)

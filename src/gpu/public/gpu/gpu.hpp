@@ -6,7 +6,6 @@
 #include <expected>
 #include <atomic>
 
-#include "lib/handle.hpp"
 #include "lib/paged_array.hpp"
 
 #include "common.hpp"
@@ -699,6 +698,8 @@ struct BufferImageCopyInfo
 	Buffer& src;
 	Image& dst;
 	size_t bufferOffset;
+	uint32 bufferRowLength;
+	uint32 bufferImageHeight;
 	ImageLayout dstImageLayout = ImageLayout::Transfer_Dst;
 	ImageSubresource imageSubresource = {};
 	Offset3D imageOffset = {};

@@ -43,12 +43,14 @@ set(
 	"private/memory.cpp"
 )
 
-add_library(lib SHARED ${source_list})
+add_library(lib STATIC ${source_list})
 
 warnings_as_errors(lib)
 
+get_target_property(LIB_TARGET_TYPE lib TYPE)
+
 target_compile_features(lib PUBLIC cxx_std_23)
-target_compile_definitions(lib PRIVATE "LIBRARY_SHARED_LIB" "LIBRARY_EXPORT")
+target_compile_definitions(lib PUBLIC $<$<CONFIG:Debug>:DEBUG> $<$<CONFIG:Release>:RELEASE> $<$<CONFIG:RelWithDebInfo>:RELEASE_WDEBUG> PRIVATE $<$<STREQUAL:${LIB_TARGET_TYPE},"SHARED_LIBRARY">:"LIBRARY_SHARED_LIB;LIBRARY_EXPORT">)
 
 target_sources(
 	lib
@@ -61,7 +63,7 @@ target_sources(
 if (MSVC)
 	string(REPLACE "/GR" "/GR-" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 	string(REPLACE "/EHsc" "/EHs-c-" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-	target_compile_definitions(lib PUBLIC "MSVC_COMPILER")
+	target_compile_definitions(lib PUBLIC "MSVC")
 	target_compile_options(lib PRIVATE /permissive-)
 else()
 	target_compile_options(lib PRIVATE -fno-rtti -fno-exceptions)

@@ -22,7 +22,7 @@ target_compile_features(gpu PUBLIC cxx_std_23)
 warnings_as_errors(gpu)
 
 target_compile_definitions(gpu PRIVATE "GPU_EXPORT")
-target_compile_definitions(gpu PRIVATE $<$<PLATFORM_ID:Windows>:PLATFORM_OS_WINDOWS> $<$<PLATFORM_ID:Darwin>:PLATFORM_OS_APPLE> $<$<PLATFORM_ID:Linux>:PLATFORM_OS_LINUX>)
+target_compile_definitions(gpu PRIVATE $<$<CONFIG:Debug>:DEBUG> $<$<CONFIG:Release>:RELEASE> $<$<CONFIG:RelWithDebInfo>:RELEASE_WDEBUG>)
 
 target_link_libraries(gpu PUBLIC lib)
 assign_source_group(${gpu_rhi_header_files} ${gpu_rhi_source_files})
@@ -69,7 +69,7 @@ if (USE_VULKAN)
 
 	CPMAddPackage(
 		NAME volk
-		GIT_TAG sdk-1.3.224.1
+		GIT_TAG 1.4.304
 		GIT_REPOSITORY https://github.com/zeux/volk.git
 	)
 	set_target_properties(volk PROPERTIES FOLDER thirdparty)
@@ -79,13 +79,13 @@ if (USE_VULKAN)
 
 	CPMAddPackage(
 		NAME vma
-		GIT_TAG v3.0.1
+		GIT_TAG v3.2.0
 		GIT_REPOSITORY https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
 	)
 	set_target_properties(VulkanMemoryAllocator PROPERTIES FOLDER thirdparty)
 
 	if (NOT MSVC)
-		target_compile_options(VulkanMemoryAllocator PRIVATE -Wno-unused-variable -Wno-missing-field-initializers)
+		target_compile_options(VulkanMemoryAllocator INTERFACE -Wno-unused-variable -Wno-missing-field-initializers)
 	endif()
 
 	# import shaderc from the VulkanSDK.

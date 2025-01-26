@@ -15,6 +15,13 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debug_util_messenger_callback(
 	[[maybe_unused]] const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
 	[[maybe_unused]] void* pUserData)
 {
+	if (pCallbackData && 
+		(pCallbackData->messageIdNumber == 0x675DC32EU ||
+		pCallbackData->messageIdNumber == 0x00000000U))
+	{
+		return VK_FALSE;
+	}
+
 	auto translate_message_severity = [](VkDebugUtilsMessageSeverityFlagBitsEXT flag) -> gpu::ErrorSeverity
 	{
 		switch (flag)
@@ -36,7 +43,7 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debug_util_messenger_callback(
 
 	pInfo->callback(sv, pCallbackData->pMessage);
 
-	return VK_TRUE;
+	return VK_FALSE;
 }
 
 VkDebugUtilsMessengerCreateInfoEXT populate_debug_messenger(void* data)
@@ -636,12 +643,47 @@ auto DeviceImpl::create_vulkan_instance() -> bool
 	};
 
 	literal_t layers[] = { "VK_LAYER_LUNARG_monitor", "VK_LAYER_KHRONOS_validation" };
+
+	VkBool32 activate = true;
+
+	auto debugUtil = populate_debug_messenger(const_cast<DeviceInitInfo*>(&m_initInfo));
+
+	VkLayerSettingEXT validationLayerSync = {
+		.pLayerName = "VK_LAYER_KHRONOS_validation",
+        .pSettingName = "syncval_shader_accesses_heuristic",
+        .type = VK_LAYER_SETTING_TYPE_BOOL32_EXT,
+        .valueCount = 1u,
+        .pValues = &activate		
+	};
+
+	VkLayerSettingsCreateInfoEXT const validationLayerSettings = {
+        .sType = VK_STRUCTURE_TYPE_LAYER_SETTINGS_CREATE_INFO_EXT,
+        .pNext = &debugUtil,
+        .settingCount = 1u,
+        .pSettings = &validationLayerSync
+	};
+
+	VkValidationFeatureEnableEXT const validationFeatures[] =
+    {
+        VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT,
+        VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT
+    };
+
+	VkValidationFeaturesEXT validationInfo = {
+        .sType = VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT,
+        .pNext = &validationLayerSettings,
+        .enabledValidationFeatureCount = static_cast<uint32_t>(std::size(validationFeatures)),
+        .pEnabledValidationFeatures = validationFeatures,
+        .disabledValidationFeatureCount = 0U,
+        .pDisabledValidationFeatures = nullptr
+    };
+
 	if (m_initInfo.validation)
 	{
+		instanceInfo.pNext = &validationInfo;
 		instanceInfo.enabledLayerCount = 2;
 		instanceInfo.ppEnabledLayerNames = layers;
-		auto debugUtil = populate_debug_messenger(const_cast<DeviceInitInfo*>(&m_initInfo));
-		instanceInfo.pNext = &debugUtil;
+		instanceInfo.pNext = &validationInfo;
 	}
 
 	return vkCreateInstance(&instanceInfo, nullptr, &instance) == VK_SUCCESS;

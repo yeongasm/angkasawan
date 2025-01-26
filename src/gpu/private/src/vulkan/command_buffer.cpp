@@ -805,8 +805,8 @@ auto CommandBuffer::copy_buffer_to_image(BufferImageCopyInfo const& info) -> voi
 
 	VkBufferImageCopy imageCopy{
 		.bufferOffset = info.bufferOffset,
-		.bufferRowLength = 0u,
-		.bufferImageHeight = 0u,
+		.bufferRowLength = info.bufferRowLength,
+		.bufferImageHeight = info.bufferImageHeight,
 		.imageSubresource = {
 			.aspectMask = imageAspect,
 			.mipLevel = info.imageSubresource.mipLevel,

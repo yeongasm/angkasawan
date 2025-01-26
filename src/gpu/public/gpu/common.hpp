@@ -346,6 +346,13 @@ struct MemoryBlockInfo
 	MemoryUsage usage;
 };
 
+struct FormatTexelInfo
+{
+	size_t size; // In bytes.
+	Extent3D blockDimension;
+	uint32 texelPerBlock;
+};
+
 /**
 * https://registry.khronos.org/vulkan/specs/1.3-extensions/html/vkspec.html#VkPipeline
 * The Vulkan specification states that,
@@ -494,6 +501,7 @@ auto is_depth_format(Format format) -> bool;
 auto is_stencil_format(Format format) -> bool;
 auto to_string(Format format) -> std::string_view;
 auto to_string(ColorSpace colorSpace) -> std::string_view;
+auto format_texel_info(Format format) -> FormatTexelInfo;
 }
 
 #endif // !GPU_COMMON_H

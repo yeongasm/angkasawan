@@ -29,9 +29,23 @@ void memswap(T* a, T* b)
 	memcopy(b, &temp, sizeof(T));
 }
 
-LIB_API constexpr size_t	is_power_of_two(size_t num);
-LIB_API constexpr size_t	pad_address(const uintptr_t address, const size_t alignment);
-LIB_API constexpr bool		is_64bit_aligned(void* pointer);
+constexpr auto is_power_of_two(size_t num) -> bool
+{
+	return (num > 0) & ((num & (num - 1)) == 0);
+};
+
+constexpr auto pad_address(const uintptr_t address, const size_t alignment) -> uintptr_t
+{
+	const size_t multiplier = (address / alignment) + 1;
+	const uintptr_t alignedAddress = multiplier * alignment;
+	return static_cast<uintptr_t>(alignedAddress - address);
+};
+
+constexpr auto is_64bit_aligned(void* pointer) -> bool
+{
+	uintptr_t address = std::bit_cast<uintptr_t>(pointer);
+	return (address & 0x7) == 0;
+};
 
 class memory_resource : non_copyable_non_movable
 {

@@ -78,11 +78,11 @@ auto MakeSbf::add_job(std::filesystem::path&& input, std::filesystem::path&& out
 
 	std::filesystem::path const extension = input.extension();
 
-	if ((input.has_filename() && input.stem() == L"*") || 
+	if ((input.has_filename() && input.stem() == L"*") ||
 		std::filesystem::is_directory(input))
 	{
 		input.remove_filename();
-		
+
 		for (auto const& dir : std::filesystem::directory_iterator{ input })
 		{
 			auto const& path = dir.path();
@@ -93,7 +93,7 @@ auto MakeSbf::add_job(std::filesystem::path&& input, std::filesystem::path&& out
 				continue;
 			}
 
-			std::filesystem::path const outFilename = path.stem().append(".sbf");
+			std::filesystem::path const outFilename = path.stem().replace_extension(".sbf");
 
 			m_jobDescription.emplace(
 				path,

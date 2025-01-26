@@ -242,7 +242,7 @@ struct WindowsFileWatcherContext
 			bool const currentFileSizeNonZero = currentFileSize != 0;
 			bool const fileSizeNotTheSame = fileContext.lastFileSize != currentFileSize;
 
-			if (modifiedTimeLargerThan && currentFileSizeNonZero && fileSizeNotTheSame)
+			if (modifiedTimeLargerThan && (currentFileSizeNonZero || fileSizeNotTheSame))
 			{
 				dir.watchedFiles[*callbackKey].callback(actionInfo);
 
