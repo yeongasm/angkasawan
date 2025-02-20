@@ -72,7 +72,7 @@ auto CommandPool::from(Device& device, CommandPoolInfo&& info) -> Resource<Comma
 	vkcommandpool->handle = handle;
 	vkcommandpool->m_info = std::move(info);
 
-	if constexpr (ENABLE_DEBUG_RESOURCE_NAMES)
+	if constexpr (ENABLE_GPU_RESOURCE_DEBUG_NAMES)
 	{
 		vkdevice.setup_debug_name(*vkcommandpool);
 	}

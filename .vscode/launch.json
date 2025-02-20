@@ -6,7 +6,7 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${command:cmake.launchTargetPath}",
-            "args": [],
+            "args": ["-gpuvl", "-gpudbgname"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
@@ -15,7 +15,8 @@
             },
             "windows": {
                 "type": "cppvsdbg",
-                "console": "externalTerminal"
+                // "console": "externalTerminal"
+                "console": "integratedTerminal"
             }
         }
     ]

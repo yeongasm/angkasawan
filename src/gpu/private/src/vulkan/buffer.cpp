@@ -213,7 +213,7 @@ auto Buffer::from(Device& device, BufferInfo&& info, Resource<MemoryBlock> memor
 	vkbuffer.allocationBlock = memoryBlock;
 	vkbuffer.m_info = std::move(info);
 
-	if constexpr (ENABLE_DEBUG_RESOURCE_NAMES)
+	if constexpr (ENABLE_GPU_RESOURCE_DEBUG_NAMES)
 	{
 		vkdevice.setup_debug_name(vkbuffer);
 	}

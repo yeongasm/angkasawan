@@ -20,6 +20,9 @@ struct type_wrapper
 
 using void_type = type_wrapper<void>;
 
+template <typename T>
+using type = type_wrapper<T>;
+
 template <typename... T>
 struct type_tuple;
 

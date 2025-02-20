@@ -428,7 +428,7 @@ auto Swapchain::from(Device& device, SwapchainInfo&& info, Resource<Swapchain> p
 
 	vkswapchain.m_images = Image::from(vkswapchain);
 
-	if constexpr (ENABLE_DEBUG_RESOURCE_NAMES)
+	if constexpr (ENABLE_GPU_RESOURCE_DEBUG_NAMES)
 	{
 		vkdevice.setup_debug_name(vkswapchain);
 	}

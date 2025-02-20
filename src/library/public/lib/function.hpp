@@ -286,7 +286,7 @@ struct vtable
 		auto boxptr = fn::detail::data<box_type>(emplace_insitu{}, accessor);
 		if (boxptr == nullptr)
 		{
-			using box_allocator = typename std::allocator_traits<allocator_type>::template rebind_alloc<box_type>;;
+			using box_allocator = typename std::allocator_traits<allocator_type>::template rebind_alloc<box_type>;
 
 			box_allocator boxAllocator{ box.resource() };
 

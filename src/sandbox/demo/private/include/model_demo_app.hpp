@@ -5,6 +5,7 @@
 #include "core.platform/file_watcher.hpp"
 #include "core.platform/application.hpp"
 #include "camera.hpp"
+#include "gpu/shader_compiler.hpp"
 #include "render/render.hpp"
 
 namespace sandbox
@@ -43,6 +44,7 @@ private:
 
 	core::platform::Application* m_app = {};
 	render::AsyncDevice* m_gpu = {};
+	std::unique_ptr<gpu::util::ShaderCompiler> m_shaderCompiler = {};
 	core::Ref<core::platform::Window> m_rootWindowRef = {};
 	gpu::swapchain m_swapchain = {};
 
@@ -52,6 +54,7 @@ private:
 		gpu::device_address normal;
 		gpu::device_address uv;
 		uint32 textures[3];
+		uint32 sampler;
 		uint32 hasUV;
 	};
 
@@ -83,6 +86,7 @@ private:
 	gpu::image m_defaultNormalMap = {};
 
 	std::array<gpu::RenderAttachment, 3> m_renderAttachments = {};
+	gpu::image m_renderablePosAttachment = {};
 	gpu::image m_baseColorAttachment = {};
 	gpu::image m_metallicRoughnessAttachment = {};
 	gpu::image m_normalAttachment = {};

@@ -4,11 +4,11 @@
 
 #include <span>
 #include <array>
+#include "type.hpp"
 #include "array.hpp"
 
 namespace lib
 {
-
 template <typename T, uint16 PAGE_SIZE>
 class paged_array
 {
@@ -275,6 +275,118 @@ private:
 		return std::pair<index, element_type&>{ idx, *element };
 	}
 };
+
+#if 0
+template <
+	typename allocator
+>
+struct paged_array_config
+{
+	type_wrapper<allocator> allocator_type;
+	uint16 page_size;
+};
+
+template <typename T, paged_array_config config = { .allocator_type = type<allocator<T>>, .page_size = 4_KiB / sizeof(std::decay_t<T>) }>
+class paged_array
+{
+public:
+	using value_type = T;
+	using allocator_type = typename decltype(config.allocator_type)::type;
+	using size_type = size_t;
+	using difference_type = size_t;
+	using reference = value_type&;
+	using const_reference = value_type const&;
+	using pointer = value_type*;
+	using const_pointer = value_type const*;
+private:
+	struct empty_node
+	{
+		empty_node* next;
+	}
+
+	using empty_node_pointer_type = empty_node*;
+
+	union stored_type
+	{
+		value_type 	object;
+		empty_node 	emptynode;
+
+		stored_type() :
+			emptynode{}
+		{}
+	};
+
+	struct page
+	{
+		stored_type* 			data;
+		std::atomic_uint32_t* 	skipfield;
+		std::atomic_uint32_t* 	version;
+		empty_node_pointer_type freelist;
+		page* 					previous;
+		page* 					next;
+		size_type 				size;
+	};
+
+	using page_pointer_type = page*;
+
+	allocator_type m_allocator;
+	page_pointer_type m_head, m_current;
+	size_t m_size;	// size here refers to the number of pages that have been allocated.
+
+	auto allocate_new_page() -> page_pointer_type
+	{
+		using page_allocator = std::allocator_traits<allocator_type>::template rebind_alloc<page>;
+		page_allocator allocator{ m_allocator.resource() };
+
+		return std::allocator_traits<page_allocator>::allocate(allocator, sizeof(page));
+	}
+
+	auto allocate_and_construct_new_page() -> page_pointer_type
+	{
+		using stored_type_allocator = std::allocator_traits<allocator_type>::template rebind_alloc<stored_type>;
+		using atomic_uint32_allocator = std::allocator_traits<allocator_type>::template rebind_alloc<std::atomic_uint32_t>;
+
+		auto pg = allocate_new_page();
+
+		ASSERTION(pg && "Could not allocate new page");
+		
+		if (pg)
+		{
+			std::construct_at(pg);
+
+			{
+				stored_type_allocator allocator{ m_allocator.resource() };
+				pg->data = std::allocator_traits<stored_type_allocator>::allocate(allocator, config.page_size);
+			}
+
+			{
+				atomic_uint32_allocator allocator{ m_allocator.resource() };
+				pg->skipfield = std::allocator_traits<atomic_uint32_allocator>::allocate(allocator, config.page_size);
+				pg->version = std::allocator_traits<atomic_uint32_allocator>::allocate(allocator, config.page_size)
+			}
+
+			empty_node dummyFreelistHead;
+			empty_node_pointer_type freelistTail = &dummyFreelistHead;
+
+			for (size_t i = 0; i < config.page_size; ++i)
+			{
+				std::construct_at(&pg->data[i]);
+				std::construct_at(&pg->skipfield[i]);
+				std::construct_at(&pg->version[i]);
+
+				freelistTail->next = &pg->data[i].emptynode;
+				freelistTail = freelistTail->next;
+			}
+
+			pg->freelist = dummyFreelistHead->next;
+			pg->size = 0;
+		}
+
+		return pg;
+	}
+};
+
+#endif
 
 }
 

@@ -4,6 +4,7 @@
 
 #include <filesystem>
 #include <string_view>
+#include <span>
 
 #include "lib/bit_mask.hpp"
 #include "lib/string.hpp"

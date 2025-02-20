@@ -101,5 +101,9 @@
     "workbench.list.smoothScrolling": true,
     "terminal.integrated.smoothScrolling": true,
     "terminal.integrated.cursorBlinking": true,
-    "editor.fontFamily": "Cascadia Mono"
+    "editor.fontFamily": "Cascadia Mono",
+    "cmake.debugConfig": {
+        "console": "integratedTerminal",
+        "cwd": "${workspaceFolder}/build/${command:cmake.activeConfigurePresetName}/bin"
+    }
 }

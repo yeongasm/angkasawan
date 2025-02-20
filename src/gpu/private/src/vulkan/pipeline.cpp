@@ -246,7 +246,7 @@ auto Pipeline::from(Device& device, RasterPipelineShaderInfo const& pipelineShad
 
 	rasterPipeline.m_info = std::move(info);
 
-	if constexpr (ENABLE_DEBUG_RESOURCE_NAMES)
+	if constexpr (ENABLE_GPU_RESOURCE_DEBUG_NAMES)
 	{
 		vkdevice.setup_debug_name(vkpipeline);
 	}
@@ -299,7 +299,7 @@ auto Pipeline::from(Device& device, Resource<Shader>& computeShader, ComputePipe
 
 	computePipeline.m_info = std::move(info);
 
-	if constexpr (ENABLE_DEBUG_RESOURCE_NAMES)
+	if constexpr (ENABLE_GPU_RESOURCE_DEBUG_NAMES)
 	{
 		vkdevice.setup_debug_name(vkpipeline);
 	}

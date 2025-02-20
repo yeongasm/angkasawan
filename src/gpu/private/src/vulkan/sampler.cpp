@@ -109,7 +109,7 @@ auto Sampler::from(Device& device, SamplerInfo&& info) -> Resource<Sampler>
 	// Cache the sampler's state permutation for obvious reasons...
 	vkdevice.gpuResourcePool.samplerCache[packed] = id.to_uint64();
 
-	if constexpr (ENABLE_DEBUG_RESOURCE_NAMES)
+	if constexpr (ENABLE_GPU_RESOURCE_DEBUG_NAMES)
 	{
 		vkdevice.setup_debug_name(vksampler);
 	}

@@ -1,21 +1,20 @@
 #include <utility>
+#include "sandbox_settings.hpp"
 #include "sandbox.hpp"
 #include "gpu/constants.hpp"
 #include "model_demo_app.hpp"
 
 #include "core.platform/file_watcher.hpp"
+#include "core.cmdline/cmdline.hpp"
 
 namespace sandbox
 {
-SandboxApp::SandboxApp([[maybe_unused]] int argc, [[maybe_unused]] char** argv) :
+SandboxApp::SandboxApp([[maybe_unused]] int32 argc, [[maybe_unused]] char** argv) :
 	m_rootWindow{},
 	m_gpu{},
 	m_applet{},
 	m_isRunning{true}
 {
-	// TODO(afiq):
-	// Parse command line arguments.
-
 	core::platform::IOContext::update_configuration({
 		.keyDoubleTapTime			= 0.25f,
 		.keyMinDurationForHold		= 0.5f,
@@ -78,7 +77,6 @@ SandboxApp::SandboxApp([[maybe_unused]] int argc, [[maybe_unused]] char** argv) 
 				.maxSamplers = gpu::MAX_SAMPLERS,
 				.pushConstantMaxSize = std::numeric_limits<uint32>::max()
 			},
-			.validation = true,
 			.callback = [](
 				[[maybe_unused]] gpu::ErrorSeverity severity,
 				[[maybe_unused]] literal_t message
@@ -119,7 +117,7 @@ auto SandboxApp::stop() -> void
 	core::platform::WindowContext::destroy_windows();
 }
 
-void SandboxApp::terminate()
+auto SandboxApp::terminate() -> void
 {
 	m_isRunning = false;
 }

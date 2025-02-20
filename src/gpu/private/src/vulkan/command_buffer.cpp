@@ -1149,7 +1149,7 @@ auto CommandBuffer::from(Resource<CommandPool>& commandPool) -> Resource<Command
 	vkcmdbuffer.m_info = std::move(info);
 	vkcmdbuffer.m_commandPool = commandPool;
 
-	if constexpr (ENABLE_DEBUG_RESOURCE_NAMES)
+	if constexpr (ENABLE_GPU_RESOURCE_DEBUG_NAMES)
 	{
 		vkdevice.setup_debug_name(vkcmdbuffer);
 	}

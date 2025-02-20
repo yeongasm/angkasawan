@@ -52,12 +52,12 @@ auto Shader::from(Device& device, CompiledShaderInfo const& compiledShaderInfo) 
 	vkshader.handle = handle;
 	vkshader.stage = vk::translate_shader_stage(compiledShaderInfo.type);
 
-	vkshader.m_info.name.format("<shader:{}>:{}", shaderTypes[std::to_underlying(compiledShaderInfo.type)].data(), compiledShaderInfo.path);
+	vkshader.m_info.name.format("<shader:{}>:{}", shaderTypes[std::to_underlying(compiledShaderInfo.type)].data(), compiledShaderInfo.name);
 
 	vkshader.m_info.type = compiledShaderInfo.type;
 	vkshader.m_info.entryPoint = compiledShaderInfo.entryPoint;
 
-	if constexpr (ENABLE_DEBUG_RESOURCE_NAMES)
+	if constexpr (ENABLE_GPU_RESOURCE_DEBUG_NAMES)
 	{
 		vkdevice.setup_debug_name(vkshader);
 	}

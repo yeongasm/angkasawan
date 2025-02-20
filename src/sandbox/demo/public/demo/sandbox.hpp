@@ -6,7 +6,7 @@ namespace sandbox
 class SandboxApp final : public core::platform::Application
 {
 public:
-	SandboxApp(int argc, char** argv);
+	SandboxApp(int32 argc, char** argv);
 	~SandboxApp() = default;
 
 	NOCOPYANDMOVE(SandboxApp)

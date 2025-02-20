@@ -144,10 +144,6 @@ struct DeviceInitInfo
 	DeviceType preferredDevice;
 	DeviceConfig config;
 	/**
-	* \brief Validation layer feature toggle.
-	*/
-	bool validation;
-	/**
 	* \brief Callback function that is passed into the vulkan validation layer; should the feature be used.
 	*/
 	std::function<void(ErrorSeverity, literal_t)> callback;
@@ -203,12 +199,10 @@ struct ShaderAttribute
 */
 struct CompiledShaderInfo
 {
-	std::string_view name;
-	std::string_view path;
 	ShaderType type;
+	std::string_view name;
 	std::string_view entryPoint;
 	std::span<uint32> binaries;
-	std::span<ShaderAttribute> vertexInputAttributes;
 };
 
 struct ShaderInfo

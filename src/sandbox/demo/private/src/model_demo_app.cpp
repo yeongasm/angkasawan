@@ -1,7 +1,13 @@
+#include <filesystem>
+#include <glaze/concepts/container_concepts.hpp>
 #include <glaze/glaze.hpp>
 #include "core.serialization/file.hpp"
-#include "gpu/util/shader_compiler.hpp"
 #include "model_demo_app.hpp"
+
+// TODO(Afiq):
+// 1. Check if shader is already compiled.
+// 2. Check for local shader binary cache.
+// 3. If either 1) or 2) exists and the timestamp of the shader from 1) matches the timestamp of the shader, ignore the compilation request.
 
 template <>
 struct glz::meta<render::material::ImageType>
@@ -28,6 +34,17 @@ auto ModelDemoApp::start(
 	m_app = &application;
 	m_gpu = &gpu;
 	m_rootWindowRef = rootWindow;
+
+	// NOTE(afiq):
+	// I hate this, think of a better way to handle the shader compiler.
+	if (auto result = gpu::util::ShaderCompiler::create(); !result)
+	{
+		return false;
+	}
+	else 
+	{
+		m_shaderCompiler = std::move(result.value());
+	}
 
 	// Create swapchain for root window.
 	{
@@ -70,19 +87,19 @@ auto ModelDemoApp::start(
 
 	make_render_targets(swapchainInfo.dimension.width, swapchainInfo.dimension.height);
 
+	fmt::print("Working directory: {}", std::filesystem::current_path());
+
 	// TODO(afiq):
 	// Check if the shader binary exist and if it doesn't compile from source.
 	auto make_uber_pipeline = [&](core::filewatcher::FileActionInfo const& fileAction) -> void
 	{
 		if (fileAction.action == core::filewatcher::FileAction::Modified)
 		{
-			gpu::util::ShaderCompiler shaderCompiler{};
-
-			shaderCompiler.add_macro_definition("STORAGE_IMAGE_BINDING", gpu::STORAGE_IMAGE_BINDING);
-			shaderCompiler.add_macro_definition("COMBINED_IMAGE_SAMPLER_BINDING", gpu::COMBINED_IMAGE_SAMPLER_BINDING);
-			shaderCompiler.add_macro_definition("SAMPLED_IMAGE_BINDING", gpu::SAMPLED_IMAGE_BINDING);
-			shaderCompiler.add_macro_definition("SAMPLER_BINDING", gpu::SAMPLER_BINDING);
-			shaderCompiler.add_macro_definition("BUFFER_DEVICE_ADDRESS_BINDING", gpu::BUFFER_DEVICE_ADDRESS_BINDING);
+			m_shaderCompiler->add_macro_definition("STORAGE_IMAGE_BINDING", gpu::STORAGE_IMAGE_BINDING);
+			m_shaderCompiler->add_macro_definition("SAMPLED_IMAGE_BINDING", gpu::SAMPLED_IMAGE_BINDING);
+			m_shaderCompiler->add_macro_definition("SAMPLER_BINDING", gpu::SAMPLER_BINDING);
+			m_shaderCompiler->add_macro_definition("BUFFER_DEVICE_ADDRESS_BINDING", gpu::BUFFER_DEVICE_ADDRESS_BINDING);
+			m_shaderCompiler->add_macro_definition("STORAGE_BUFFER_BINDING", gpu::STORAGE_BUFFER_BINDING);
 
 			core::sbf::File const sourceCode({ .path = fileAction.path, .shareMode = core::sbf::FileShareMode::Shared_Read, .map = true });
 			
@@ -95,38 +112,34 @@ auto ModelDemoApp::start(
 			gpu::shader vs, ps;
 
 			gpu::util::ShaderCompileInfo compileInfo{
-				.name = "sponza vertex shader",
-				.path = "data/demo/shaders/model.glsl",
+				.name = "data/demo/shaders/model.slang",
 				.type = gpu::ShaderType::Vertex,
+				.entryPoint = "main_vertex",
 				.sourceCode = std::string_view{ static_cast<char const*>(sourceCode.data()), sourceCode.size() }
 			};
 
 			{
-				compileInfo.add_macro_definition("VERTEX_SHADER");
-
-				if (auto result = shaderCompiler.compile_shader(compileInfo); result)
+				if (auto result = m_shaderCompiler->compile(compileInfo); result)
 				{
-					vs = gpu::Shader::from(m_gpu->device(), result.compiled_shader_info().value());
+					vs = gpu::Shader::from(m_gpu->device(), result->compiled_info());
 				}
 				else
 				{
-					fmt::print("{}", result.error_msg().data());
+					fmt::print("{}", result.error().c_str());
 				}
 			}
 
 			{
-				compileInfo.name = "sponza pixel shader",
 				compileInfo.type = gpu::ShaderType::Pixel;
-				compileInfo.clear_macro_definitions();
-				compileInfo.add_macro_definition("FRAGMENT_SHADER");
+				compileInfo.entryPoint = "main_fragment";
 
-				if (auto result = shaderCompiler.compile_shader(compileInfo); result.ok())
+				if (auto result = m_shaderCompiler->compile(compileInfo); result)
 				{
-					ps = gpu::Shader::from(m_gpu->device(), result.compiled_shader_info().value());
+					ps = gpu::Shader::from(m_gpu->device(), result->compiled_info());
 				}
 				else
 				{
-					fmt::print("{}", result.error_msg().data());
+					fmt::print("{}", result.error().data());
 				}
 			}
 
@@ -202,9 +215,9 @@ auto ModelDemoApp::start(
 		}
 	};
 
-	m_pipelineShaderCodeWatchId = core::filewatcher::watch({ .path = "data/demo/shaders/model.glsl", .callback = make_uber_pipeline });
+	m_pipelineShaderCodeWatchId = core::filewatcher::watch({ .path = "data/demo/shaders/model.slang", .callback = make_uber_pipeline });
 
-	make_uber_pipeline({ .path = "data/demo/shaders/model.glsl", .action = core::filewatcher::FileAction::Modified });
+	make_uber_pipeline({ .path = "data/demo/shaders/model.slang", .action = core::filewatcher::FileAction::Modified });
 
 	allocate_camera_buffers();
 
@@ -270,9 +283,10 @@ auto ModelDemoApp::start(
 		.sharingMode = gpu::SharingMode::Exclusive
 	});
 
-	m_defaultWhiteTexture->bind({ .sampler = m_normalSampler, .index = 0u });
-	m_defaultMetallicRoughnessMap->bind({ .sampler = m_normalSampler, .index = 1u });
-	m_defaultNormalMap->bind({ .sampler = m_normalSampler, .index = 2u });
+	m_defaultWhiteTexture->bind({ .index = 0u });
+	m_defaultMetallicRoughnessMap->bind({ .index = 1u });
+	m_defaultNormalMap->bind({ .index = 2u });
+	m_normalSampler->bind({ .index = 0u });
 
 	render::material::util::MaterialJSON materialRep{};
 	if (auto ec = glz::read_file_json(materialRep, "data/demo/models/sponza/sponza.material.json", std::string{}); ec)
@@ -986,6 +1000,7 @@ auto ModelDemoApp::unpack_sponza() -> void
 		meshRenderInfo.info->textures[0] = 0;
 		meshRenderInfo.info->textures[1] = 1;
 		meshRenderInfo.info->textures[2] = 2;
+		meshRenderInfo.info->sampler = 0;
 		meshRenderInfo.info->hasUV = std::cmp_not_equal(uvCount, 0);
 
 		++i;
@@ -1047,7 +1062,7 @@ auto ModelDemoApp::unpack_materials(render::material::util::MaterialJSON const& 
 				static_cast<uint32>(imageStoredOffset) + static_cast<uint32>(imageCount)
 			);
 
-			texture.image->bind({ .sampler = m_normalSampler, .index = texture.binding });
+			texture.image->bind({ .index = texture.binding });
 
 			auto mipRange = imageSbf.data(0);
 

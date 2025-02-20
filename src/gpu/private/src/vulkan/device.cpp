@@ -389,7 +389,7 @@ auto DeviceImpl::terminate() -> void
 	vmaDestroyAllocator(allocator);
 	vkDestroyDevice(device, nullptr);
 
-	if (m_initInfo.validation)
+	if constexpr (ENABLE_GPU_VALIDATION_LAYER)
 	{
 		vkDestroyDebugUtilsMessengerEXT(instance, debugger, nullptr);
 	}
@@ -630,7 +630,7 @@ auto DeviceImpl::create_vulkan_instance() -> bool
 	extensions.emplace_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
 #endif
 
-	if (m_initInfo.validation)
+	if constexpr (ENABLE_GPU_VALIDATION_LAYER)
 	{
 		extensions.emplace_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 	}
@@ -644,42 +644,42 @@ auto DeviceImpl::create_vulkan_instance() -> bool
 
 	literal_t layers[] = { "VK_LAYER_LUNARG_monitor", "VK_LAYER_KHRONOS_validation" };
 
-	VkBool32 activate = true;
-
-	auto debugUtil = populate_debug_messenger(const_cast<DeviceInitInfo*>(&m_initInfo));
-
-	VkLayerSettingEXT validationLayerSync = {
-		.pLayerName = "VK_LAYER_KHRONOS_validation",
-        .pSettingName = "syncval_shader_accesses_heuristic",
-        .type = VK_LAYER_SETTING_TYPE_BOOL32_EXT,
-        .valueCount = 1u,
-        .pValues = &activate		
-	};
-
-	VkLayerSettingsCreateInfoEXT const validationLayerSettings = {
-        .sType = VK_STRUCTURE_TYPE_LAYER_SETTINGS_CREATE_INFO_EXT,
-        .pNext = &debugUtil,
-        .settingCount = 1u,
-        .pSettings = &validationLayerSync
-	};
-
-	VkValidationFeatureEnableEXT const validationFeatures[] =
-    {
-        VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT,
-        VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT
-    };
-
-	VkValidationFeaturesEXT validationInfo = {
-        .sType = VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT,
-        .pNext = &validationLayerSettings,
-        .enabledValidationFeatureCount = static_cast<uint32_t>(std::size(validationFeatures)),
-        .pEnabledValidationFeatures = validationFeatures,
-        .disabledValidationFeatureCount = 0U,
-        .pDisabledValidationFeatures = nullptr
-    };
-
-	if (m_initInfo.validation)
+	if constexpr (ENABLE_GPU_VALIDATION_LAYER)
 	{
+		VkBool32 activate = true;
+
+		auto debugUtil = populate_debug_messenger(const_cast<DeviceInitInfo*>(&m_initInfo));
+
+		VkLayerSettingEXT validationLayerSync = {
+			.pLayerName = "VK_LAYER_KHRONOS_validation",
+			.pSettingName = "syncval_shader_accesses_heuristic",
+			.type = VK_LAYER_SETTING_TYPE_BOOL32_EXT,
+			.valueCount = 1u,
+			.pValues = &activate		
+		};
+
+		VkLayerSettingsCreateInfoEXT const validationLayerSettings = {
+			.sType = VK_STRUCTURE_TYPE_LAYER_SETTINGS_CREATE_INFO_EXT,
+			.pNext = &debugUtil,
+			.settingCount = 1u,
+			.pSettings = &validationLayerSync
+		};
+
+		VkValidationFeatureEnableEXT const validationFeatures[] =
+		{
+			VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT,
+			VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT
+		};
+
+		VkValidationFeaturesEXT validationInfo = {
+			.sType = VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT,
+			.pNext = &validationLayerSettings,
+			.enabledValidationFeatureCount = static_cast<uint32_t>(std::size(validationFeatures)),
+			.pEnabledValidationFeatures = validationFeatures,
+			.disabledValidationFeatureCount = 0U,
+			.pDisabledValidationFeatures = nullptr
+		};
+
 		instanceInfo.pNext = &validationInfo;
 		instanceInfo.enabledLayerCount = 2;
 		instanceInfo.ppEnabledLayerNames = layers;
@@ -691,7 +691,7 @@ auto DeviceImpl::create_vulkan_instance() -> bool
 
 auto DeviceImpl::create_debug_messenger() -> bool
 {
-	if (m_initInfo.validation)
+	if constexpr (ENABLE_GPU_VALIDATION_LAYER)
 	{
 		auto debugUtilInfo = populate_debug_messenger(const_cast<DeviceInitInfo*>(&m_initInfo));
 		return vkCreateDebugUtilsMessengerEXT(instance, &debugUtilInfo, nullptr, &debugger) == VK_SUCCESS;
@@ -1107,8 +1107,9 @@ auto DeviceImpl::initialize_descriptor_cache() -> bool
 		}
 	}
 
-
-	if constexpr (ENABLE_DEBUG_RESOURCE_NAMES)
+	// We cannot set debug names without enabling validation layers in Vulkan.
+	// If there is a way, I do not know how yet.
+	if constexpr (ENABLE_GPU_RESOURCE_DEBUG_NAMES)
 	{
 		VkDebugUtilsObjectNameInfoEXT debugObjectNameInfo{
 			.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
@@ -1140,7 +1141,7 @@ auto DeviceImpl::initialize_descriptor_cache() -> bool
 			vkSetDebugUtilsObjectNameEXT(device, &debugObjectNameInfo);
 
 			layoutName.clear();
-		}
+		}	
 	}
 
 	return true;

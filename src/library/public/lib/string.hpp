@@ -1,4 +1,5 @@
 #pragma once
+#include <type_traits>
 #ifndef LIB_STRING_HPP
 #define LIB_STRING_HPP
 
@@ -7,6 +8,7 @@
 #include <fmt/format.h>
 #include <fmt/std.h>
 #include "array.hpp"
+#include "concepts.hpp"
 
 namespace lib
 {
@@ -172,16 +174,10 @@ public:
 		return *this;
 	}
 
-
-	friend auto operator== (basic_string const& lhs, basic_string const& rhs) -> bool
+    template <typename T>
+	friend auto operator== (basic_string const& lhs, T&& rhs) -> bool requires (std::same_as<std::decay_t<T>, basic_string> || std::same_as<std::decay_t<T>, std::basic_string_view<typename basic_string::value_type>>)
 	{
 		return lhs._compare(rhs);
-	}
-
-
-	friend auto operator== (basic_string const& s, const_pointer str) -> bool
-	{
-		return s._compare(str);
 	}
 
 	/**
@@ -508,60 +504,67 @@ private:
 		m_box->ptr = ptr;
     }
 
+    template <typename StringLike>
+    constexpr bool _compare_internal(StringLike const& rhs) const
+    {
+        if (m_len != std::size(rhs))
+        {
+            return false;
+        }
+
+        return std::char_traits<value_type>::compare(_data() ,std::data(rhs), m_len) == 0;
+    }
+
     /**
     * compares to see if the strings are the same.
     * Returns true if they are the same.
     */
-    constexpr bool _compare(basic_string const& rhs) const
+    template <typename StringLike>
+    constexpr bool _compare(StringLike const& rhs) const
     {
-        // If the object is being compared with itself, then it definitely will always be the same.
-        if (this != &rhs)
+        using decayed_string_like_t = std::decay_t<StringLike>;
+
+        static_assert(std::same_as<value_type, typename StringLike::value_type>, "Attempting to compare strings of different value types");
+
+        if constexpr (std::same_as<basic_string, decayed_string_like_t>)
         {
-            // If the length of both strings are not the same, then they definitely will not be the same.
-            if (m_len != rhs.m_len)
+            if (this != std::addressof(rhs))
             {
-                return false;
+                return _compare_internal(rhs);
             }
 
-            value_type const* ptr = _data();
-            value_type const* rhsPointer = rhs._data();
-
-            // If the length are the same, we have to check if the contents of the string matches one another.
-            for (size_type i = 0; i < m_len; i++)
-            {
-                if (ptr[i] != rhsPointer[i])
-                {
-                    return false;
-                }
-            }
+            return true;
         }
-        return true;
+        else 
+        {
+            return _compare_internal(rhs);
+        }
     }
 
 
-    constexpr bool _compare(const_pointer str) const
-    {
-        const_pointer ptr = _data();
+    // constexpr bool _compare(const_pointer str) const
+    // {
+    //     const_pointer ptr = _data();
 
-        if (ptr != str)
-        {
-            size_type length = static_cast<size_type>(strlen(str));
+    //     if (ptr != str)
+    //     {
+    //         size_type length = static_cast<size_type>(strlen(str));
 
-            if (m_len != length)
-            {
-                return false;
-            }
+    //         if (m_len != length)
+    //         {
+    //             return false;
+    //         }
 
-            for (size_type i = 0; i < m_len; i++)
-            {
-                if (ptr[i] != str[i])
-                {
-                    return false;
-                }
-            }
-        }
-        return true;
-    }
+    //         for (size_type i = 0; i < m_len; i++)
+    //         {
+    //             if (ptr[i] != str[i])
+    //             {
+    //                 return false;
+    //             }
+    //         }
+    //     }
+    //     return true;
+    // }
 
 	constexpr auto _deep_copy(basic_string const& other) -> void
 	{

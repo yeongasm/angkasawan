@@ -235,7 +235,7 @@ auto Image::from(Device& device, ImageInfo&& info, Resource<MemoryBlock> memoryB
 
 	vkCreateImageView(vkdevice.device, &imgViewInfo, nullptr, &vkimage.imageView);
 
-	if constexpr (ENABLE_DEBUG_RESOURCE_NAMES)
+	if constexpr (ENABLE_GPU_RESOURCE_DEBUG_NAMES)
 	{
 		vkdevice.setup_debug_name(vkimage);
 	}
@@ -293,7 +293,7 @@ auto Image::from(Swapchain& swapchain) -> lib::array<Resource<Image>>
 			.dimension = {
 				.width = swapchainInfo.dimension.width,
 				.height = swapchainInfo.dimension.height,
-				.depth = 0u
+				.depth = 1u
 			},
 			.clearValue = {
 				.color = {
@@ -314,7 +314,7 @@ auto Image::from(Swapchain& swapchain) -> lib::array<Resource<Image>>
 		vkimage.imageView = vkImageViewHandles[i];
 		vkimage.m_info = std::move(imageInfo);
 
-		if constexpr (ENABLE_DEBUG_RESOURCE_NAMES)
+		if constexpr (ENABLE_GPU_RESOURCE_DEBUG_NAMES)
 		{
 			vkdevice.setup_debug_name(vkimage);
 		}

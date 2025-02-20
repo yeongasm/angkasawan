@@ -2,8 +2,6 @@
 //#include <strsafe.h>
 #include "write_stream.hpp"
 
-#include "lib/string.hpp"
-
 namespace core
 {
 namespace sbf

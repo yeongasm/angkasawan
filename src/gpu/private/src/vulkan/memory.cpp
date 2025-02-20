@@ -78,7 +78,7 @@ auto MemoryBlock::from(Device& device, MemoryBlockAllocateInfo&& info) -> Resour
 	vkmemory.m_info.name = std::move(info.name);
 	vkmemory.m_info.usage = info.memoryRequirement.usage;
 
-	if constexpr (ENABLE_DEBUG_RESOURCE_NAMES)
+	if constexpr (ENABLE_GPU_RESOURCE_DEBUG_NAMES)
 	{
 		vkdevice.setup_debug_name(vkmemory);
 	}

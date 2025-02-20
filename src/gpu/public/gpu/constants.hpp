@@ -25,13 +25,15 @@ inline constexpr uint32 BUFFER_DEVICE_ADDRESS_BINDING = 4;
 inline constexpr uint32 STORAGE_BUFFER_BINDING = 5;
 inline constexpr uint32 UNIFORM_BUFFER_BINDING = 6;
 
-#if DEBUG
-inline constexpr uint32 ENABLE_DEBUG_RESOURCE_NAMES = 1;
-#else
-inline constexpr uint32 ENABLE_DEBUG_RESOURCE_NAMES = 0;
+#ifndef ENABLE_GPU_VALIDATION_LAYER
+#define ENABLE_GPU_VALIDATION_LAYER 0
 #endif
 
-// debug utilities.
+#ifdef RELEASE
+inline constexpr bool ENABLE_GPU_RESOURCE_DEBUG_NAMES = false;
+#else
+inline constexpr bool ENABLE_GPU_RESOURCE_DEBUG_NAMES = ENABLE_GPU_VALIDATION_LAYER && true;
+#endif
 
 // Enums and flags.
 enum class API

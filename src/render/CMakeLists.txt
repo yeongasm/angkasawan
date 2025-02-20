@@ -10,6 +10,7 @@ set(
     "public/render/render.hpp"
     "public/render/upload_heap.hpp"
     "public/render/work_graph.hpp"
+    "public/render/pipeline_cache.hpp"
 )
 
 set(
@@ -20,6 +21,7 @@ set(
 	"private/src/mesh.cpp"
 	"private/src/upload_heap.cpp"
 	"private/src/work_graph.cpp"
+	"private/src/pipeline_cache.cpp"
 )
 
 add_library(render STATIC ${render_header_files} ${render_source_files})

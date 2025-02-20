@@ -17,7 +17,11 @@ template <typename T>
 concept is_pointer = std::is_pointer_v<T>;
 
 template <typename T>
-concept is_char_type = std::same_as<T, char> || std::same_as<T, wchar_t>;
+concept is_char_type = std::same_as<T, char> 
+    or std::same_as<T, wchar_t>
+    or std::same_as<T, char8_t>
+    or std::same_as<T, char16_t>
+    or std::same_as<T, char32_t>;
 
 template <typename T>
 concept is_bit_compatible = std::is_enum_v<T> || std::is_integral_v<T>;

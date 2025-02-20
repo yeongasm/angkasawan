@@ -2,14 +2,16 @@
 #ifndef LIB_ARRAY_HPP
 #define LIB_ARRAY_HPP
 
-#include <span>
-#include <vector>
 #include "memory.hpp"
 #include "utility.hpp"
 
 namespace lib
 {
-
+/**
+* TODO(afiq):
+* [ ] Make this compatible with std::span. Look into the requirements of contiguous_range and sized_range.
+* Refer to this link https://en.cppreference.com/w/cpp/container/span/span, constructor (7).
+*/
 template <typename array_type>
 class array_const_iterator
 {
@@ -138,6 +140,10 @@ protected:
 	array_type const*   m_container;
 };
 
+/**
+* TODO(afiq):
+* [ ] Tidy up implementation.
+*/
 template <typename array_type>
 class array_iterator : public array_const_iterator<array_type>
 {
@@ -615,7 +621,7 @@ public:
 		size_t const count = m_len - index;
 
 		_destruct(index, index + 1);
-		_shift_forward(&m_box[index + 1], &m_box[index], count);
+		_shift_forward(&m_box.data[index + 1], &m_box.data[index], count);
 
 		--m_len;
 
@@ -629,7 +635,7 @@ public:
 		size_t const count = m_len - to;
 
 		_destruct(from, to);
-		_shift_forward(&m_box[to], &m_box[to + 1], count);
+		_shift_forward(&m_box.data[to], &m_box.data[to + 1], count);
 
 		m_len -= (to - from);
 

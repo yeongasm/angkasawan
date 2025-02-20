@@ -59,7 +59,10 @@ public:
 		m_id{ rhs.m_id },
 		m_resource{ rhs.m_resource }
 	{
-		m_resource->reference();
+		if (m_resource)
+		{
+			m_resource->reference();
+		}
 	}
 
 	Resource& operator=(Resource const& rhs)
@@ -72,7 +75,10 @@ public:
 			m_id = rhs.m_id;
 			m_resource = rhs.m_resource;
 
-			m_resource->reference();
+			if (m_resource)
+			{
+				m_resource->reference();
+			}
 		}
 		return *this;
 	}

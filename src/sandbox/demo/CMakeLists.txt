@@ -60,7 +60,7 @@ target_include_directories(
 )
 
 target_link_libraries(sandbox.demo PRIVATE glm glaze::glaze)
-target_link_libraries(sandbox.demo PUBLIC gpu core.platform core.serialization render)
+target_link_libraries(sandbox.demo PUBLIC core.platform core.serialization core.cmdline render)
 target_compile_definitions(sandbox.demo PUBLIC GLM_FORCE_DEPTH_ZERO_TO_ONE)
 
 set_target_properties(sandbox.demo PROPERTIES FOLDER sandbox)

@@ -1,5 +1,4 @@
 #include "lib/bit_mask.hpp"
-
 #include "cmdline.hpp"
 
 namespace core

@@ -41,7 +41,7 @@ auto Semaphore::from(Device& device, SemaphoreInfo&& info) -> Resource<Semaphore
 	vksemaphore.handle = handle;
 	vksemaphore.m_info = std::move(info);
 
-	if constexpr (ENABLE_DEBUG_RESOURCE_NAMES)
+	if constexpr (ENABLE_GPU_RESOURCE_DEBUG_NAMES)
 	{
 		vkdevice.setup_debug_name(vksemaphore);
 	}
@@ -188,7 +188,7 @@ auto Fence::from(Device& device, FenceInfo&& info) -> Resource<Fence>
 	vksemaphore.m_info = std::move(info);
 	vksemaphore.handle = handle;
 
-	if constexpr (ENABLE_DEBUG_RESOURCE_NAMES)
+	if constexpr (ENABLE_GPU_RESOURCE_DEBUG_NAMES)
 	{
 		vkdevice.setup_debug_name(vksemaphore);
 	}
@@ -275,7 +275,7 @@ auto Event::from(Device& device, EventInfo&& info) -> Resource<Event>
 	vkevent.handle = handle;
 	vkevent.m_info = std::move(info);
 
-	if constexpr (ENABLE_DEBUG_RESOURCE_NAMES)
+	if constexpr (ENABLE_GPU_RESOURCE_DEBUG_NAMES)
 	{
 		vkdevice.setup_debug_name(vkevent);
 	}
