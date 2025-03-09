@@ -5,20 +5,9 @@
 #include <variant>
 #include <expected>
 #include <atomic>
-
-#include "lib/paged_array.hpp"
+#include <array>
 
 #include "common.hpp"
-
-#define NOCOPYANDMOVE(Object)					\
-	Object(Object const&) = delete;				\
-	Object& operator=(Object const&) = delete;	\
-	Object(Object&&) = delete;					\
-	Object& operator=(Object&&) = delete;
-
-#define NOCOPY(Object)							\
-	Object(Object const&) = delete;				\
-	Object& operator=(Object const&) = delete;
 
 namespace gpu
 {
@@ -46,8 +35,7 @@ public:
 
 	Resource() = default;
 
-	Resource(uint64 id, resource_type& resource) :
-		m_id{ id },
+	Resource(resource_type& resource) : 
 		m_resource{ &resource }
 	{
 		m_resource->reference();
@@ -56,7 +44,6 @@ public:
 	~Resource() { destroy(); }
 
 	Resource(Resource const& rhs) :
-		m_id{ rhs.m_id },
 		m_resource{ rhs.m_resource }
 	{
 		if (m_resource)
@@ -72,7 +59,6 @@ public:
 			// If the current resource object already holds something, destroy it first before a reassignment.
 			destroy();
 
-			m_id = rhs.m_id;
 			m_resource = rhs.m_resource;
 
 			if (m_resource)
@@ -84,11 +70,8 @@ public:
 	}
 
 	Resource(Resource&& rhs) noexcept :
-		m_id{ std::move(rhs.m_id) },
-		m_resource{ std::move(rhs.m_resource) }
-	{
-		new (&rhs) Resource{};
-	}
+		m_resource{ std::exchange(rhs.m_resource, nullptr) }
+	{}
 
 	Resource& operator=(Resource&& rhs) noexcept
 	{
@@ -97,10 +80,7 @@ public:
 			// If the current resource object already holds something, destroy it first before a reassignment.
 			destroy();
 
-			m_id = std::move(rhs.m_id);
-			m_resource = std::move(rhs.m_resource);
-
-			new (&rhs) Resource{};
+			m_resource = std::exchange(rhs.m_resource, nullptr);
 		}
 		return *this;
 	}
@@ -117,16 +97,12 @@ public:
 		if (m_resource && 
 			std::cmp_equal(m_resource->dereference(), 0))
 		{
-			resource_type::destroy(*m_resource, m_id);
+			resource_type::destroy(*m_resource);
 		} 
 		m_resource = nullptr;
-		m_id = std::numeric_limits<uint64>::max();
 	}
-
-	auto id() const -> uint64 { return m_id; }
 private:
-	uint64				m_id		= std::numeric_limits<uint64>::max();
-	resource_type*		m_resource	= nullptr;
+	resource_type* m_resource = {};
 };
 
 using DeviceAddress = uint64;
@@ -138,31 +114,23 @@ struct BufferBindInfo
 	uint32 index;
 };
 
-struct ImageBindInfo
-{
-	Resource<Sampler> sampler;
-	uint32 index;
-};
-
 struct SamplerBindInfo
 {
 	uint32 index;
 };
 
-class RefCountedResource
+class RefCountedResource : public lib::non_copyable_non_movable
 {
 public:
 	RefCountedResource() = default;
 	~RefCountedResource() = default;
 
-	NOCOPYANDMOVE(RefCountedResource)
-
-	auto reference([[maybe_unused]] bool chain = false) -> void
+	auto reference() -> void
 	{
 		m_refCount.fetch_add(1, std::memory_order_relaxed);
 	}
 
-	auto dereference([[maybe_unused]] bool chain = false) -> uint64
+	auto dereference() -> uint64
 	{
 		return m_refCount.fetch_sub(1, std::memory_order_acq_rel) - 1;
 	}
@@ -196,12 +164,6 @@ protected:
 	Device* m_device = nullptr;
 };
 
-struct MemoryBlockAllocateInfo
-{
-	lib::string name;
-	MemoryRequirementInfo memoryRequirement;
-};
-
 class MemoryBlock : public DeviceResource
 {
 public:
@@ -217,7 +179,7 @@ public:
 protected:
 	friend class Resource<MemoryBlock>;
 
-	static auto destroy(MemoryBlock& resource, uint64 id) -> void;
+	static auto destroy(MemoryBlock& resource) -> void;
 
 	MemoryBlock(Device& device, bool aliased);
 
@@ -238,7 +200,7 @@ public:
 protected:
 	friend class Resource<Semaphore>;
 
-	static auto destroy(Semaphore& resource, uint64 id) -> void;
+	static auto destroy(Semaphore& resource) -> void;
 
 	Semaphore(Device& device);
 
@@ -264,7 +226,7 @@ public:
 protected:
 	friend class Resource<Fence>;
 
-	static auto destroy(Fence const& resource, uint64 id) -> void;
+	static auto destroy(Fence const& resource) -> void;
 
 	Fence(Device& device);
 
@@ -288,7 +250,7 @@ public:
 protected:
 	friend class Resource<Event>;
 
-	static auto destroy(Event const& resource, uint64 id) -> void;
+	static auto destroy(Event const& resource) -> void;
 
 	Event(Device& device);
 
@@ -330,11 +292,40 @@ public:
 protected:
 	friend class Resource<Buffer>;
 
-	static auto destroy(Buffer& resource, uint64 id) -> void;
+	static auto destroy(Buffer& resource) -> void;
 
 	Buffer(Device& device);
 
 	BufferInfo m_info;
+};
+
+class Sampler : public DeviceResource
+{
+public:
+	Sampler() = default;
+	~Sampler() = default;
+
+	auto info() const -> SamplerInfo const&;
+	auto valid() const -> bool;
+	auto info_packed() const -> uint64;
+	auto bind(SamplerBindInfo const& info) const -> SamplerBindInfo;
+
+	static auto from(Device& device, SamplerInfo&& info) -> Resource<Sampler>;
+protected:
+	friend class Resource<Sampler>;
+
+	static auto destroy(Sampler& resource) -> void;
+
+	Sampler(Device& device);
+
+	SamplerInfo m_info;
+	uint64 m_packedInfoBits;
+};
+
+struct ImageBindInfo
+{
+	Resource<Sampler> sampler;
+	uint32 index;
 };
 
 class Image : public DeviceResource
@@ -357,34 +348,11 @@ protected:
 	friend class Resource<Image>;
 	friend class Swapchain;
 
-	static auto destroy(Image& resource, uint64 id) -> void;
+	static auto destroy(Image& resource) -> void;
 
 	Image(Device& device);
 
 	ImageInfo m_info;
-};
-
-class Sampler : public DeviceResource
-{
-public:
-	Sampler() = default;
-	~Sampler() = default;
-
-	auto info() const -> SamplerInfo const&;
-	auto valid() const -> bool;
-	auto info_packed() const -> uint64;
-	auto bind(SamplerBindInfo const& info) const -> SamplerBindInfo;
-
-	static auto from(Device& device, SamplerInfo&& info) -> Resource<Sampler>;
-protected:
-	friend class Resource<Sampler>;
-
-	static auto destroy(Sampler& resource, uint64 id) -> void;
-
-	Sampler(Device& device);
-
-	SamplerInfo m_info;
-	uint64 m_packedInfoBits;
 };
 
 class Swapchain : public DeviceResource
@@ -423,7 +391,7 @@ public:
 protected:
 	friend class Resource<Swapchain>;
 
-	static auto destroy(Swapchain& resource, uint64 id) -> void;
+	static auto destroy(Swapchain& resource) -> void;
 
 	Swapchain(Device& device);
 
@@ -456,7 +424,7 @@ public:
 protected:
 	friend class Resource<Shader>;
 
-	static auto destroy(Shader& resource, uint64 id) -> void;
+	static auto destroy(Shader& resource) -> void;
 
 	Shader(Device& device);
 
@@ -516,7 +484,7 @@ public:
 protected:
 	friend class Resource<Pipeline>;
 
-	static auto destroy(Pipeline& resource, uint64 id) -> void;
+	static auto destroy(Pipeline& resource) -> void;
 
 	using PipelineVariant = std::variant<RasterPipeline, ComputePipeline>;
 
@@ -781,6 +749,27 @@ struct PresentInfo
 	std::span<Resource<Swapchain>> swapchains;
 };
 
+class CommandPool : public DeviceResource
+{
+public:
+	CommandPool() = default;
+	~CommandPool() = default;
+
+	auto info() const -> CommandPoolInfo const&;
+	auto valid() const -> bool;
+	auto reset() const -> void;
+
+	static auto from(Device& device, CommandPoolInfo&& info) -> Resource<CommandPool>;
+protected:
+	friend class Resource<CommandPool>;
+
+	static auto destroy(CommandPool& resource) -> void;
+
+	CommandPool(Device& device);
+
+	CommandPoolInfo	m_info;
+};
+
 class CommandBuffer : public DeviceResource
 {
 public:
@@ -854,34 +843,13 @@ protected:
 	 * Destroying a command buffer doesn't actually releases it from the command pool.
 	 * Rather, it is returned to the command pool for re-use.
 	 */
-	static auto destroy(CommandBuffer& resource, uint64 id) -> void;
+	static auto destroy(CommandBuffer& resource) -> void;
 
 	CommandBuffer(Device& device);
 
 	CommandBufferInfo m_info;
 	Resource<CommandPool> m_commandPool;
 	std::atomic_uint64_t m_recordingTimeline;
-};
-
-class CommandPool : public DeviceResource
-{
-public:
-	CommandPool() = default;
-	~CommandPool() = default;
-
-	auto info() const -> CommandPoolInfo const&;
-	auto valid() const -> bool;
-	auto reset() const -> void;
-
-	static auto from(Device& device, CommandPoolInfo&& info) -> Resource<CommandPool>;
-protected:
-	friend class Resource<CommandPool>;
-
-	static auto destroy(CommandPool& resource, uint64 id) -> void;
-
-	CommandPool(Device& device);
-
-	CommandPoolInfo	m_info;
 };
 
 using semaphore		= Resource<Semaphore>;
@@ -898,15 +866,13 @@ using command_buffer = Resource<CommandBuffer>;
 
 using device_address = DeviceAddress;
 
-class Device
+class Device : public lib::non_copyable_non_movable
 {
 public:
 	using cpu_timeline_t = std::atomic_uint64_t::value_type;
 
 	Device() = default;
 	~Device() = default;
-
-	NOCOPYANDMOVE(Device)
 
 	[[nodiscard]] auto info() const -> DeviceInfo const&;
 	[[nodiscard]] auto config() const -> DeviceConfig const&;

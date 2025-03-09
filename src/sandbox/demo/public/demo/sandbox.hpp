@@ -3,13 +3,11 @@
 
 namespace sandbox
 {
-class SandboxApp final : public core::platform::Application
+class SandboxApp final : public core::platform::Application, lib::non_copyable_non_movable
 {
 public:
 	SandboxApp(int32 argc, char** argv);
 	~SandboxApp() = default;
-
-	NOCOPYANDMOVE(SandboxApp)
 
 	auto run() -> void;
 	auto stop() -> void;

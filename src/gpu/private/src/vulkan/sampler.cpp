@@ -62,14 +62,11 @@ auto Sampler::from(Device& device, SamplerInfo&& info) -> Resource<Sampler>
 
 	if (vkdevice.gpuResourcePool.samplerCache.contains(packed))
 	{
-		using sampler_index = typename decltype(vkdevice.gpuResourcePool.samplers)::index;
+		auto cachedSampler = vkdevice.gpuResourcePool.samplerCache[packed];
 
-		auto const id = vkdevice.gpuResourcePool.samplerCache[packed];
-		auto&& cachedSampler = vkdevice.gpuResourcePool.samplers[sampler_index::from(id)];
+		cachedSampler->reference();
 
-		cachedSampler.reference();
-
-		return Resource<Sampler>{ id, cachedSampler };
+		return Resource<Sampler>{ *cachedSampler };
 	}
 
 	VkSamplerCreateInfo createInfo{
@@ -95,7 +92,9 @@ auto Sampler::from(Device& device, SamplerInfo&& info) -> Resource<Sampler>
 
 	CHECK_OP(vkCreateSampler(vkdevice.device, &createInfo, nullptr, &handle))
 
-	auto&& [id, vksampler] = vkdevice.gpuResourcePool.samplers.emplace(vkdevice);
+	auto it = vkdevice.gpuResourcePool.samplers.emplace(vkdevice);
+
+	auto&& vksampler = *it;
 
 	if (info.name.size())
 	{
@@ -107,28 +106,29 @@ auto Sampler::from(Device& device, SamplerInfo&& info) -> Resource<Sampler>
 	vksampler.m_info = std::move(info);
 
 	// Cache the sampler's state permutation for obvious reasons...
-	vkdevice.gpuResourcePool.samplerCache[packed] = id.to_uint64();
+	vkdevice.gpuResourcePool.samplerCache[packed] = &vksampler;
 
 	if constexpr (ENABLE_GPU_RESOURCE_DEBUG_NAMES)
 	{
 		vkdevice.setup_debug_name(vksampler);
 	}
 
-	return Resource<Sampler>{ id.to_uint64(), vksampler };
+	return Resource<Sampler>{ vksampler };
 }
 
-auto Sampler::destroy(Sampler& resource, uint64 id) -> void
+auto Sampler::destroy(Sampler& resource) -> void
 {
 	/*
 	 * At this point, the ref count on the resource is only 1 which means ONLY the resource has a reference to itself and can be safely deleted.
 	 */
 	auto&& vkdevice = to_device(resource.m_device);
+	auto&& vksampler = to_impl(resource);
 
 	std::lock_guard const lock{ vkdevice.gpuResourcePool.zombieMutex };
 
 	uint64 const cpuTimelineValue = vkdevice.cpu_timeline();
 
-	vkdevice.gpuResourcePool.zombies.emplace_back(cpuTimelineValue, id, vk::ResourceType::Sampler);
+	vkdevice.gpuResourcePool.zombies.emplace_back(cpuTimelineValue, &vksampler, vk::ResourceType::Sampler);
 }
 
 namespace vk

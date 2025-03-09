@@ -15,7 +15,7 @@ SandboxApp::SandboxApp([[maybe_unused]] int32 argc, [[maybe_unused]] char** argv
 	m_applet{},
 	m_isRunning{true}
 {
-	core::platform::IOContext::update_configuration({
+	IOContext::update_configuration({
 		.keyDoubleTapTime			= 0.25f,
 		.keyMinDurationForHold		= 0.5f,
 		.mouseDoubleClickTime		= 1.f,

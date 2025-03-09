@@ -120,12 +120,12 @@ public:
 	~allocator() = default;
 
 	allocator(allocator const& other) :
-		m_memoryResource{ other.m_memoryResource }
+		m_memoryResource{ other.resource() }
 	{}
 
 	template <typename U>
 	allocator(allocator<U> const& other) :
-		m_memoryResource{ other.m_memoryResource }
+		m_memoryResource{ other.resource() }
 	{}
 
 	allocator(memory_resource* resource) :
@@ -156,7 +156,8 @@ public:
 	template <typename U, typename... Args>
 	auto construct(U* p, Args&&... args) -> void
 	{
-		new (p) std::decay_t<U>{ std::forward<Args>(args)... };
+		// new (p) std::decay_t<U>{ std::forward<Args>(args)... };
+		std::construct_at(p, std::forward<Args>(args)...);
 	}
 
 	template <typename U>

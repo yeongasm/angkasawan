@@ -284,10 +284,11 @@ auto Swapchain::from(Device& device, SwapchainInfo&& info, Resource<Swapchain> p
 #elif __linux__
 #endif
 
-		auto&& [id, vksurface] = vkdevice.gpuResourcePool.surfaces.emplace();
+		auto it = vkdevice.gpuResourcePool.surfaces.emplace();
+
+		auto&& vksurface = *it;
 
 		vksurface.handle = handle;
-		vksurface.id = id;
 
 		uint32 count = 0;
 		vkGetPhysicalDeviceSurfaceFormatsKHR(vkdevice.gpu, handle, &count, nullptr);
@@ -384,7 +385,9 @@ auto Swapchain::from(Device& device, SwapchainInfo&& info, Resource<Swapchain> p
 
 	FenceInfo fenceInfo{ .initialValue = 0 };
 
-	auto&& [id, vkswapchain] = vkdevice.gpuResourcePool.swapchains.emplace(vkdevice);
+	auto it = vkdevice.gpuResourcePool.swapchains.emplace(vkdevice);
+
+	auto&& vkswapchain = *it;
 
 	vkswapchain.handle = handle;
 	vkswapchain.pSurface = pSurface;
@@ -433,15 +436,16 @@ auto Swapchain::from(Device& device, SwapchainInfo&& info, Resource<Swapchain> p
 		vkdevice.setup_debug_name(vkswapchain);
 	}
 
-	return Resource<Swapchain>{ id.to_uint64(), vkswapchain };
+	return Resource<Swapchain>{ vkswapchain };
 }
 
-auto Swapchain::destroy(Swapchain& resource, uint64 id) -> void
+auto Swapchain::destroy(Swapchain& resource) -> void
 {
 	/*
 	 * At this point, the ref count on the resource is only 1 which means ONLY the resource has a reference to itself and can be safely deleted.
 	 */
 	auto&& vkdevice = to_device(resource.m_device);
+	auto&& vkswapchain = to_impl(resource);
 
 	resource.m_gpuElapsedFrames.destroy();
 
@@ -464,7 +468,7 @@ auto Swapchain::destroy(Swapchain& resource, uint64 id) -> void
 
 	uint64 const cpuTimelineValue = vkdevice.cpu_timeline();
 
-	vkdevice.gpuResourcePool.zombies.emplace_back(cpuTimelineValue, id, vk::ResourceType::Swapchain);
+	vkdevice.gpuResourcePool.zombies.emplace_back(cpuTimelineValue, &vkswapchain, vk::ResourceType::Swapchain);
 }
 
 namespace vk

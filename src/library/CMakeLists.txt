@@ -1,6 +1,15 @@
 include(${CMAKE_SOURCE_DIR}/cmake/Util.cmake)
 include(${CMAKE_SOURCE_DIR}/cmake/CPM.cmake)
 
+# find_package(plf-colony)
+
+# find_path(PLF_COLONY_INCLUDE_DIRS "plf_colony.h")
+# add_library(plf_colony INTERFACE ${PLF_COLONY_INCLUDE_DIRS})
+
+# target_compile_features(plf_colony INTERFACE cxx_std_23)
+# target_include_directories(plf_colony INTERFACE ${PLF_COLONY_INCLUDE_DIRS})
+# set_target_properties(plf_colony PROPERTIES FOLDER thirdparty)
+
 CPMAddPackage(
 	NAME fmt
 	GIT_TAG 11.1.1
@@ -8,6 +17,24 @@ CPMAddPackage(
 )
 set_target_properties(fmt PROPERTIES FOLDER thirdparty)
 target_compile_features(fmt PUBLIC cxx_std_23)
+
+CPMAddPackage(
+	NAME plf_colony
+	GIT_TAG c4c1a2e7f4346faa5d16e89ba1b4fa8c3d976bd2
+	GIT_REPOSITORY https://github.com/mattreecebentley/plf_colony.git
+	DOWNLOAD_ONLY True
+)
+
+if (plf_colony_ADDED)
+	add_library(plf_colony INTERFACE ${plf_colony_SOURCE_DIR}/plf_colony.h)
+	target_include_directories(plf_colony INTERFACE ${plf_colony_SOURCE_DIR})
+	target_compile_features(plf_colony INTERFACE cxx_std_23)
+    set_target_properties(plf_colony PROPERTIES FOLDER thirdparty)
+
+	if (NOT MSVC)
+		target_compile_options(plf_colony INTERFACE -Wno-unused-parameter)
+	endif()
+endif()
 
 if (MSVC)
 	target_compile_options(fmt PUBLIC /wd4541 /wd4702)
@@ -74,5 +101,5 @@ target_include_directories(
 	PUBLIC "public"
 )
 
-target_link_libraries(lib PUBLIC fmt)
+target_link_libraries(lib PUBLIC fmt plf_colony)
 assign_source_group(${source_list} ${win_source_list})

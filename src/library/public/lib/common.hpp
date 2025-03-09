@@ -37,10 +37,14 @@ using wide_literal_t	= const wchar_t*;
 #define FLOAT_EPSILON	0.0001f
 #define DOUBLE_EPSILON	0.0001
 
+#define GET_MACRO(_1, _2, NAME, ...) NAME
+
 #if _DEBUG
-#define ASSERTION(expr)	assert(expr)
+#define ASSERT1(expr) assert(expr)
+#define ASSERT2(expr, msg) assert(expr && msg)
+#define ASSERTION(...)	GET_MACRO(__VA_ARGS__, ASSERT2, ASSERT1)(__VA_ARGS__)
 #else
-#define ASSERTION(expr)
+#define ASSERTION(...)
 #endif
 
 #if MSVC_COMPILER

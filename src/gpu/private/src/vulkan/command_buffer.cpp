@@ -1112,7 +1112,7 @@ auto CommandBuffer::from(Resource<CommandPool>& commandPool) -> Resource<Command
 			 {
 				 --cmdBufferPool.freeSlotCount;
 
-				 return Resource<CommandBuffer>{ static_cast<uint64>(index), allocatedCmdBuffer };
+				 return Resource<CommandBuffer>{ allocatedCmdBuffer };
 			 }
 
 			 ++iterations;
@@ -1154,10 +1154,10 @@ auto CommandBuffer::from(Resource<CommandPool>& commandPool) -> Resource<Command
 		vkdevice.setup_debug_name(vkcmdbuffer);
 	}
 
-	return Resource<CommandBuffer>{ static_cast<uint64>(index), vkcmdbuffer };
+	return Resource<CommandBuffer>{ vkcmdbuffer };
 }
 
-auto CommandBuffer::destroy(CommandBuffer& resource, uint64 id) -> void
+auto CommandBuffer::destroy(CommandBuffer& resource) -> void
 {
 	auto&& cmdBufferImpl = to_impl(resource);
 	auto&& cmdPoolImpl = to_impl(*resource.m_commandPool);
@@ -1167,7 +1167,7 @@ auto CommandBuffer::destroy(CommandBuffer& resource, uint64 id) -> void
 	if (&cmdBufferImpl >= cmdBufferPool.commandBuffers.data() &&
 		&cmdBufferImpl < cmdBufferPool.commandBuffers.data() + MAX_COMMAND_BUFFER_PER_POOL)
 	{
-		cmdBufferPool.freeSlots[cmdBufferPool.currentFreeSlot] = static_cast<size_t>(id);
+		cmdBufferPool.freeSlots[cmdBufferPool.currentFreeSlot] = static_cast<size_t>(&cmdBufferImpl - cmdBufferPool.commandBuffers.data());
 		++cmdBufferPool.freeSlotCount;
 		cmdBufferPool.currentFreeSlot = (cmdBufferPool.currentFreeSlot + 1) % MAX_COMMAND_BUFFER_PER_POOL;
 	}

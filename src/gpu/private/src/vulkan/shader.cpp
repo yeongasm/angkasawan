@@ -47,7 +47,9 @@ auto Shader::from(Device& device, CompiledShaderInfo const& compiledShaderInfo) 
 
 	CHECK_OP(vkCreateShaderModule(vkdevice.device, &shaderInfo, nullptr, &handle))
 
-	auto&& [id, vkshader] = vkdevice.gpuResourcePool.shaders.emplace(vkdevice);
+	auto it = vkdevice.gpuResourcePool.shaders.emplace(vkdevice);
+
+	auto&& vkshader = *it;
 
 	vkshader.handle = handle;
 	vkshader.stage = vk::translate_shader_stage(compiledShaderInfo.type);
@@ -62,21 +64,22 @@ auto Shader::from(Device& device, CompiledShaderInfo const& compiledShaderInfo) 
 		vkdevice.setup_debug_name(vkshader);
 	}
 
-	return Resource<Shader>{ id.to_uint64(), vkshader };
+	return Resource<Shader>{ vkshader };
 }
 
-auto Shader::destroy(Shader& resource, uint64 id) -> void
+auto Shader::destroy(Shader& resource) -> void
 {
 	/*
 	 * At this point, the ref count on the resource is only 1 which means ONLY the resource has a reference to itself and can be safely deleted.
 	 */
 	auto&& vkdevice = to_device(resource.m_device);
+	auto&& vkshader = to_impl(resource);
 
 	std::lock_guard const lock{ vkdevice.gpuResourcePool.zombieMutex };
 
 	uint64 const cpuTimelineValue = vkdevice.cpu_timeline();
 
-	vkdevice.gpuResourcePool.zombies.emplace_back(cpuTimelineValue, id, vk::ResourceType::Shader);
+	vkdevice.gpuResourcePool.zombies.emplace_back(cpuTimelineValue, &vkshader, vk::ResourceType::Shader);
 }
 
 namespace vk

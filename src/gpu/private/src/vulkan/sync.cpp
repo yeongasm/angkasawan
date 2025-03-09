@@ -31,7 +31,9 @@ auto Semaphore::from(Device& device, SemaphoreInfo&& info) -> Resource<Semaphore
 
 	CHECK_OP(vkCreateSemaphore(vkdevice.device, &semaphoreInfo, nullptr, &handle))
 
-	auto&& [id, vksemaphore] = vkdevice.gpuResourcePool.binarySemaphore.emplace(vkdevice);
+	auto it = vkdevice.gpuResourcePool.binarySemaphore.emplace(vkdevice);
+
+	auto&& vksemaphore = *it;
 
 	if (info.name.size())
 	{
@@ -46,18 +48,19 @@ auto Semaphore::from(Device& device, SemaphoreInfo&& info) -> Resource<Semaphore
 		vkdevice.setup_debug_name(vksemaphore);
 	}
 
-	return Resource<Semaphore>{ id.to_uint64(), vksemaphore };
+	return Resource<Semaphore>{ vksemaphore };
 }
 
-auto Semaphore::destroy(Semaphore& resource, uint64 id) -> void
+auto Semaphore::destroy(Semaphore& resource) -> void
 {
-	auto& vkdevice = to_device(resource.m_device);
+	auto&& vkdevice = to_device(resource.m_device);
+	auto&& vksemaphore = to_impl(resource);
 
 	std::lock_guard const lock{ vkdevice.gpuResourcePool.zombieMutex };
 
 	uint64 const cpuTimelineValue = vkdevice.cpu_timeline();
 
-	vkdevice.gpuResourcePool.zombies.emplace_back(cpuTimelineValue, id, vk::ResourceType::Semaphore);
+	vkdevice.gpuResourcePool.zombies.emplace_back(cpuTimelineValue, &vksemaphore, vk::ResourceType::Semaphore);
 }
 
 Fence::Fence(Device& device) :
@@ -178,7 +181,9 @@ auto Fence::from(Device& device, FenceInfo&& info) -> Resource<Fence>
 
 	CHECK_OP(vkCreateSemaphore(vkdevice.device, &semaphoreInfo, nullptr, &handle))
 
-	auto&& [id, vksemaphore] = vkdevice.gpuResourcePool.timelineSemaphore.emplace(vkdevice);
+	auto it = vkdevice.gpuResourcePool.timelineSemaphore.emplace(vkdevice);
+
+	auto&& vksemaphore = *it;
 
 	if (info.name.size())
 	{
@@ -193,18 +198,19 @@ auto Fence::from(Device& device, FenceInfo&& info) -> Resource<Fence>
 		vkdevice.setup_debug_name(vksemaphore);
 	}
 
-	return Resource<Fence>{ id.to_uint64(), vksemaphore };
+	return Resource<Fence>{ vksemaphore };
 }
 
-auto Fence::destroy(Fence const& resource, uint64 id) -> void
+auto Fence::destroy(Fence const& resource) -> void
 {
 	auto&& vkdevice = to_device(resource.m_device);
+	auto&& vksemaphore = to_impl(resource);
 
 	std::lock_guard const lock{ vkdevice.gpuResourcePool.zombieMutex };
 
 	uint64 const cpuTimelineValue = vkdevice.cpu_timeline();
 
-	vkdevice.gpuResourcePool.zombies.emplace_back(cpuTimelineValue, id, vk::ResourceType::Fence);
+	vkdevice.gpuResourcePool.zombies.emplace_back(cpuTimelineValue, &vksemaphore, vk::ResourceType::Fence);
 }
 
 Event::Event(Device& device) :
@@ -265,7 +271,9 @@ auto Event::from(Device& device, EventInfo&& info) -> Resource<Event>
 
 	CHECK_OP(vkCreateEvent(vkdevice.device, &eventInfo, nullptr, &handle))
 
-	auto&& [id, vkevent] = vkdevice.gpuResourcePool.events.emplace(vkdevice);
+	auto it = vkdevice.gpuResourcePool.events.emplace(vkdevice);
+
+	auto&& vkevent = *it;
 
 	if (info.name.size())
 	{
@@ -280,18 +288,19 @@ auto Event::from(Device& device, EventInfo&& info) -> Resource<Event>
 		vkdevice.setup_debug_name(vkevent);
 	}
 
-	return Resource<Event>{ id.to_uint64(), vkevent };
+	return Resource<Event>{ vkevent };
 }
 
-auto Event::destroy(Event const& resource, uint64 id) -> void
+auto Event::destroy(Event const& resource) -> void
 {
 	auto&& vkdevice = to_device(resource.m_device);
+	auto&& vkevent = to_impl(resource);
 
 	std::lock_guard const lock{ vkdevice.gpuResourcePool.zombieMutex };
 
 	uint64 const cpuTimelineValue = vkdevice.cpu_timeline();
 
-	vkdevice.gpuResourcePool.zombies.emplace_back(cpuTimelineValue, id, vk::ResourceType::Event);
+	vkdevice.gpuResourcePool.zombies.emplace_back(cpuTimelineValue, &vkevent, vk::ResourceType::Event);
 }
 
 namespace vk

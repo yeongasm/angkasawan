@@ -80,7 +80,10 @@ auto Window::from(WindowContext& ctx, WindowCreateInfo&& info) -> std::expected<
 		RegisterRawInputDevices(&device, 1, sizeof(device));
 	}
 
-	auto&& [id, window] = ctx.m_windows.emplace();
+	// auto&& [id, window] = ctx.m_windows.emplace();
+	auto it = ctx.m_windows.emplace();
+	
+	auto&& window = *it;
 
 	window.m_pContext = &ctx;
 	window.m_info.title = lib::wstring{ info.title.data(), info.title.size() };
@@ -93,9 +96,11 @@ auto Window::from(WindowContext& ctx, WindowCreateInfo&& info) -> std::expected<
 
 	window.reference();
 
-	PostMessage(hwnd, WM_USER + 0, std::bit_cast<WPARAM>(id.to_uint64()), std::bit_cast<LPARAM>(&window));
+	auto const id = reinterpret_cast<uintptr_t>(&window);
 
-	return Ref<Window>{ id.to_uint64(), window };
+	PostMessage(hwnd, WM_USER + 0, std::bit_cast<WPARAM>(id), std::bit_cast<LPARAM>(&window));
+
+	return Ref<Window>{ id, window };
 }
 
 auto Window::info() const -> WindowInfo const&
@@ -216,14 +221,13 @@ auto WindowContext::destroy_windows() -> void
 	{
 		for (uint64 zombie : m_zombies)
 		{
-			index idx{ index::from(zombie) };
-			Window* pWindow = m_windows.at(idx);
-			if (!pWindow)
+			auto const it = m_windows.get_iterator(reinterpret_cast<Window*>(zombie));
+			if (it < m_windows.begin() || it >= m_windows.end())
 			{
 				continue;
 			}
-			DestroyWindow(static_cast<HWND>(pWindow->info().nativeHandle));
-			m_windows.erase(idx);
+			DestroyWindow(static_cast<HWND>(it->info().nativeHandle));
+			m_windows.erase(it);
 		}
 		m_zombies.clear();
 	}

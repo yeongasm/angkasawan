@@ -187,15 +187,19 @@ auto Buffer::from(Device& device, BufferInfo&& info, Resource<MemoryBlock> memor
 
 		CHECK_OP(vmaCreateBuffer(vkdevice.allocator, &bufferInfo, &allocInfo, &handle, &allocation, &allocationInfo))
 
-		auto&& [memoryBlockId, vkmemoryblock] = vkdevice.gpuResourcePool.memoryBlocks.emplace(vkdevice, false);
+		auto it = vkdevice.gpuResourcePool.memoryBlocks.emplace(vkdevice, false);
+
+		auto&& vkmemoryblock = *it;
 
 		vkmemoryblock.handle = allocation;
 		vkmemoryblock.allocationInfo = std::move(allocationInfo);
 
-		new (&memoryBlock) Resource<MemoryBlock>{ memoryBlockId.to_uint64(), vkmemoryblock };
+		new (&memoryBlock) Resource<MemoryBlock>{ vkmemoryblock };
 	}
 
-	auto&& [id, vkbuffer] = vkdevice.gpuResourcePool.buffers.emplace(vkdevice);
+	auto it = vkdevice.gpuResourcePool.buffers.emplace(vkdevice);
+
+	auto&& vkbuffer = *it;
 
 	VkBufferDeviceAddressInfo addressInfo{
 		.sType	= VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO_EXT,
@@ -218,10 +222,10 @@ auto Buffer::from(Device& device, BufferInfo&& info, Resource<MemoryBlock> memor
 		vkdevice.setup_debug_name(vkbuffer);
 	}
 
-	return Resource<Buffer>{ id.to_uint64(), vkbuffer };
+	return Resource<Buffer>{ vkbuffer };
 }
 
-auto Buffer::destroy(Buffer& resource, uint64 id) -> void
+auto Buffer::destroy(Buffer& resource) -> void
 {
 	/*
 	* At this point, the ref count on the resource is only 1 which means ONLY the resource has a reference to itself and can be safely deleted.
@@ -238,7 +242,7 @@ auto Buffer::destroy(Buffer& resource, uint64 id) -> void
 
 	uint64 const cpuTimelineValue = vkdevice.cpu_timeline();
 
-	vkdevice.gpuResourcePool.zombies.emplace_back(cpuTimelineValue, id, vk::ResourceType::Buffer);
+	vkdevice.gpuResourcePool.zombies.emplace_back(cpuTimelineValue, &vkbuffer, vk::ResourceType::Buffer);
 }
 
 namespace vk

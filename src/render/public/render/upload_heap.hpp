@@ -61,12 +61,6 @@ struct FenceInfo
 	uint64 value;
 };
 
-struct HeapBlockRequestResult
-{
-	std::span<HeapBlock> heapBlocks;
-	bool overload;
-};
-
 /**
 * Uploads data to the specified device local buffer and images on the GPU via a pool of upload heaps.
 * 

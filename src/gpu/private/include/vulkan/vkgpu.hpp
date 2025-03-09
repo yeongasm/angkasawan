@@ -4,11 +4,10 @@
 
 #include <deque>
 #include <mutex>
+#include <array>
 
-#include "fmt/format.h"
+#include "lib/array.hpp"
 #include "lib/map.hpp"
-#include "lib/paged_array.hpp"
-#include "lib/handle.hpp"
 
 #include "vk.h"
 #include "gpu.hpp"
@@ -24,9 +23,6 @@ namespace gpu
 namespace vk
 {
 class DeviceImpl;
-
-template <typename T>
-using Pool = lib::paged_array<T, 16>;
 
 enum class ResourceType : uint32
 {
@@ -89,8 +85,6 @@ public:
 	VkEvent handle = VK_NULL_HANDLE;
 };
 
-//using allocation_id = lib::handle<struct VULKAN_VMA_ALLOCATION_ID, uint64, std::numeric_limits<uint64>::max()>;
-
 // https://gpuopen-librariesandsdks.github.io/VulkanMemoryAllocator/html/usage_patterns.html
 class BufferImpl : public Buffer
 {
@@ -126,13 +120,10 @@ public:
 
 struct Surface
 {
-	using surface_index = Pool<Surface>::index;
-
 	VkSurfaceKHR handle = VK_NULL_HANDLE;
 	lib::array<VkSurfaceFormatKHR> availableColorFormats = {};
 	VkSurfaceCapabilitiesKHR capabilities = {};
 	std::atomic_uint32_t refCount = {};
-	surface_index id;
 };
 
 class SwapchainImpl : public Swapchain
@@ -214,26 +205,25 @@ struct Zombie
 	using device_timeline_t = Device::cpu_timeline_t;
 	
 	device_timeline_t timeline;
-	uint64 resourceId;
+	void const* resource;
 	ResourceType resourceType;
 };
 
 struct ResourcePool
 {
-	Pool<SemaphoreImpl> binarySemaphore;
-	Pool<FenceImpl> timelineSemaphore;
-	Pool<EventImpl> events;
-	Pool<BufferImpl> buffers;
-	Pool<ImageImpl> images;
-	Pool<SamplerImpl> samplers;
-	lib::map<uint64, uint64> samplerCache;
-	Pool<Surface> surfaces;
-	Pool<SwapchainImpl> swapchains;
-	Pool<ShaderImpl> shaders;
-	Pool<PipelineImpl> pipelines;
-	Pool<MemoryBlockImpl> memoryBlocks;
-	
-	Pool<std::unique_ptr<CommandPoolImpl>> commandPools;
+	lib::hive<SemaphoreImpl> binarySemaphore;
+	lib::hive<FenceImpl> timelineSemaphore;
+	lib::hive<EventImpl> events;
+	lib::hive<BufferImpl> buffers;
+	lib::hive<ImageImpl> images;
+	lib::hive<SamplerImpl> samplers;
+	lib::map<uint64, SamplerImpl*> samplerCache;
+	lib::hive<Surface> surfaces;
+	lib::hive<SwapchainImpl> swapchains;
+	lib::hive<ShaderImpl> shaders;
+	lib::hive<PipelineImpl> pipelines;
+	lib::hive<MemoryBlockImpl> memoryBlocks;
+	lib::hive<CommandPoolImpl> commandPools;
 
 	std::deque<Zombie> zombies;
 	std::mutex zombieMutex;
@@ -318,17 +308,17 @@ public:
 
 	auto flush_submit_info_buffers() -> void;
 
-	auto destroy_memory_block(uint64 const id) -> void;
-	auto destroy_binary_semaphore(uint64 const id) -> void;
-	auto destroy_timeline_semaphore(uint64 const id) -> void;
-	auto destroy_event(uint64 const id) -> void;
-	auto destroy_buffer(uint64 const id) -> void;
-	auto destroy_image(uint64 const id) -> void;
-	auto destroy_sampler(uint64 const id) -> void;
-	auto destroy_swapchain(uint64 const id) -> void;
-	auto destroy_shader(uint64 const id) -> void;
-	auto destroy_pipeline(uint64 const id) -> void;
-	auto destroy_command_pool(uint64 const id) -> void;
+	auto destroy_memory_block(void const* resource) -> void;
+	auto destroy_binary_semaphore(void const* resource) -> void;
+	auto destroy_timeline_semaphore(void const* resource) -> void;
+	auto destroy_event(void const* resource) -> void;
+	auto destroy_buffer(void const* resource) -> void;
+	auto destroy_image(void const* resource) -> void;
+	auto destroy_sampler(void const* resource) -> void;
+	auto destroy_swapchain(void const* resource) -> void;
+	auto destroy_shader(void const* resource) -> void;
+	auto destroy_pipeline(void const* resource) -> void;
+	auto destroy_command_pool(void const* resource) -> void;
 
 	auto clear_descriptor_cache() -> void;
 	auto cleanup_resource_pool() -> void;

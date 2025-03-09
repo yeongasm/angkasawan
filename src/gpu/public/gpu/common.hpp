@@ -340,6 +340,12 @@ struct MemoryBlockInfo
 	MemoryUsage usage;
 };
 
+struct MemoryBlockAllocateInfo
+{
+	lib::string name;
+	MemoryRequirementInfo memoryRequirement;
+};
+
 struct FormatTexelInfo
 {
 	size_t size; // In bytes.

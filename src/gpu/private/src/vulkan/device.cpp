@@ -65,7 +65,7 @@ VkDebugUtilsMessengerCreateInfoEXT populate_debug_messenger(void* data)
 
 namespace gpu
 {
-using DestroyFuncPtr = void(vk::DeviceImpl::*)(uint64 const);
+using DestroyFuncPtr = void(vk::DeviceImpl::*)(void const*);
 
 constexpr DestroyFuncPtr resourceDestroyFn[] = {
 	&vk::DeviceImpl::destroy_memory_block,
@@ -239,7 +239,7 @@ auto Device::clear_garbage() -> void
 
 		uint32 const typeId = std::to_underlying(zombie.resourceType);
 
-		(self.*resourceDestroyFn[typeId])(zombie.resourceId);
+		(self.*resourceDestroyFn[typeId])(zombie.resource);
 
 		self.gpuResourcePool.zombies.pop_back();
 	}
@@ -1323,137 +1323,118 @@ auto DeviceImpl::flush_submit_info_buffers() -> void
 	presentImageIndices.clear();
 }
 
-auto DeviceImpl::destroy_memory_block(uint64 const id) -> void
+auto DeviceImpl::destroy_memory_block(void const* resource) -> void
 {
-	using memory_block_index = decltype(gpuResourcePool.memoryBlocks)::index;
+	auto memoryBlock = static_cast<MemoryBlockImpl const*>(resource);
+	auto it = gpuResourcePool.memoryBlocks.get_iterator(memoryBlock);
 
-	memory_block_index const index = memory_block_index::from(id);
-	MemoryBlockImpl& memoryBlock = gpuResourcePool.memoryBlocks[index];
+	vmaFreeMemory(allocator, memoryBlock->handle);
 
-	vmaFreeMemory(allocator, memoryBlock.handle);
-
-	gpuResourcePool.memoryBlocks.erase(index);
+	gpuResourcePool.memoryBlocks.erase(it);
 }
 
-auto DeviceImpl::destroy_binary_semaphore(uint64 const id) -> void
+auto DeviceImpl::destroy_binary_semaphore(void const* resource) -> void
 {
-	using semaphore_index = decltype(gpuResourcePool.binarySemaphore)::index;
+	auto semaphore = static_cast<SemaphoreImpl const*>(resource);
+	auto it = gpuResourcePool.binarySemaphore.get_iterator(semaphore);
 
-	semaphore_index const index = semaphore_index::from(id);
-	SemaphoreImpl& semaphore = gpuResourcePool.binarySemaphore[index];
+	vkDestroySemaphore(device, semaphore->handle, nullptr);
 
-	vkDestroySemaphore(device, semaphore.handle, nullptr);
-
-	gpuResourcePool.binarySemaphore.erase(index);
+	gpuResourcePool.binarySemaphore.erase(it);
 }
 
-auto DeviceImpl::destroy_timeline_semaphore(uint64 const id) -> void
+auto DeviceImpl::destroy_timeline_semaphore(void const* resource) -> void
 {
-	using semaphore_index = decltype(gpuResourcePool.timelineSemaphore)::index;
+	auto fence = static_cast<FenceImpl const*>(resource);
+	auto it = gpuResourcePool.timelineSemaphore.get_iterator(fence);
 
-	semaphore_index const index = semaphore_index::from(id);
-	FenceImpl& fence = gpuResourcePool.timelineSemaphore[index];
+	vkDestroySemaphore(device, fence->handle, nullptr);
 
-	vkDestroySemaphore(device, fence.handle, nullptr);
-
-	gpuResourcePool.timelineSemaphore.erase(index);
+	gpuResourcePool.timelineSemaphore.erase(it);
 }
 
-auto DeviceImpl::destroy_event(uint64 const id) -> void
+auto DeviceImpl::destroy_event(void const* resource) -> void
 {
-	using event_index = decltype(gpuResourcePool.events)::index;
+	auto event = static_cast<EventImpl const*>(resource);
+	auto it = gpuResourcePool.events.get_iterator(event);
 
-	event_index const index = event_index::from(id);
-	EventImpl& event = gpuResourcePool.events[index];
+	vkDestroyEvent(device, event->handle, nullptr);
 
-	vkDestroyEvent(device, event.handle, nullptr);
-
-	gpuResourcePool.events.erase(index);
+	gpuResourcePool.events.erase(it);
 }
 
-auto DeviceImpl::destroy_buffer(uint64 const id) -> void
+auto DeviceImpl::destroy_buffer(void const* resource) -> void
 {
-	using buffer_index = decltype(gpuResourcePool.buffers)::index;
-	using memory_block_index = decltype(gpuResourcePool.memoryBlocks)::index;
+	auto buffer = static_cast<BufferImpl const*>(resource);
+	auto it = gpuResourcePool.buffers.get_iterator(buffer);
 
-	buffer_index const index = buffer_index::from(id);
-	BufferImpl& buffer = gpuResourcePool.buffers[index];
-
-	memory_block_index const memoryBlockId = memory_block_index::from(buffer.allocationBlock.id());
-
-	MemoryBlockImpl& memoryBlock = gpuResourcePool.memoryBlocks[memoryBlockId];
-
-	if (!buffer.is_transient())
+	if (!buffer->is_transient())
 	{
-		vmaDestroyBuffer(allocator, buffer.handle, memoryBlock.handle);
+		auto block = static_cast<MemoryBlockImpl const*>(&(*buffer->allocationBlock));
+
+		auto memIt = gpuResourcePool.memoryBlocks.get_iterator(block);
+
+		vmaDestroyBuffer(allocator, buffer->handle, block->handle);
 		// Buffer owns the memory allocation and erases it from the resource pool.
-		gpuResourcePool.memoryBlocks.erase(memoryBlockId);
+		gpuResourcePool.memoryBlocks.erase(memIt);
 	}
 	else
 	{
-		vkDestroyBuffer(device, buffer.handle, nullptr);
+		vkDestroyBuffer(device, buffer->handle, nullptr);
 	}
 
-	gpuResourcePool.buffers.erase(index);
+	gpuResourcePool.buffers.erase(it);
 }
 
-auto DeviceImpl::destroy_image(uint64 const id) -> void
+auto DeviceImpl::destroy_image(void const* resource) -> void
 {
-	using image_index = decltype(gpuResourcePool.images)::index;
-	using memory_block_index = decltype(gpuResourcePool.memoryBlocks)::index;
+	auto image = static_cast<ImageImpl const*>(resource);
+	auto it = gpuResourcePool.images.get_iterator(image);
 
-	image_index const index = image_index::from(id);
-	ImageImpl& image = gpuResourcePool.images[index];
-
-	if (!image.is_transient())
+	if (!image->is_transient())
 	{
-		vkDestroyImageView(device, image.imageView, nullptr);
+		vkDestroyImageView(device, image->imageView, nullptr);
 
-		if (!image.is_swapchain_image())
+		if (!image->is_swapchain_image())
 		{
-			memory_block_index const memoryBlockId = memory_block_index::from(image.allocationBlock.id());
+			auto block = static_cast<MemoryBlockImpl const*>(&(*image->allocationBlock));
+			auto memIt = gpuResourcePool.memoryBlocks.get_iterator(block);
 
-			MemoryBlockImpl& memoryBlock = gpuResourcePool.memoryBlocks[memoryBlockId];
-
-			vmaDestroyImage(allocator, image.handle, memoryBlock.handle);
+			vmaDestroyImage(allocator, image->handle, block->handle);
 
 			// Image owns the memory allocation and erases it from the resource pool.
-			gpuResourcePool.memoryBlocks.erase(memoryBlockId);
+			gpuResourcePool.memoryBlocks.erase(memIt);
 		}
 	}
 	else
 	{
-		vkDestroyImageView(device, image.imageView, nullptr);
-		vkDestroyImage(device, image.handle, nullptr);
+		vkDestroyImageView(device, image->imageView, nullptr);
+		vkDestroyImage(device, image->handle, nullptr);
 	}
-	gpuResourcePool.images.erase(index);
+	gpuResourcePool.images.erase(it);
 }
 
-auto DeviceImpl::destroy_sampler(uint64 const id) -> void
+auto DeviceImpl::destroy_sampler(void const* resource) -> void
 {
-	using sampler_index = decltype(gpuResourcePool.samplers)::index;
+	auto sampler = static_cast<SamplerImpl const*>(resource);
+	auto it = gpuResourcePool.samplers.get_iterator(sampler);
 
-	sampler_index const index = sampler_index::from(id);
-	SamplerImpl& sampler = gpuResourcePool.samplers[index];
+	gpuResourcePool.samplerCache.erase(sampler->info_packed());
+	vkDestroySampler(device, sampler->handle, nullptr);
 
-	gpuResourcePool.samplerCache.erase(sampler.info_packed());
-	vkDestroySampler(device, sampler.handle, nullptr);
-
-	gpuResourcePool.samplers.erase(index);
+	gpuResourcePool.samplers.erase(it);
 }
 
-auto DeviceImpl::destroy_swapchain(uint64 const id) -> void
+auto DeviceImpl::destroy_swapchain(void const* resource) -> void
 {
-	using swapchain_index = decltype(gpuResourcePool.swapchains)::index;
+	auto swapchain = static_cast<SwapchainImpl const*>(resource);
+	auto it = gpuResourcePool.swapchains.get_iterator(swapchain);
 
-	swapchain_index const index = swapchain_index::from(id);
-	SwapchainImpl& swapchain = gpuResourcePool.swapchains[index];
+	Surface* pSurface = swapchain->pSurface;
 
-	Surface* pSurface = swapchain.pSurface;
+	vkDestroySwapchainKHR(device, swapchain->handle, nullptr);
 
-	vkDestroySwapchainKHR(device, swapchain.handle, nullptr);
-
-	gpuResourcePool.swapchains.erase(index);
+	gpuResourcePool.swapchains.erase(it);
 	
 	/**
 	* fetch_sub returns the previously held value of the atomic variable prior to the operation.
@@ -1461,42 +1442,38 @@ auto DeviceImpl::destroy_swapchain(uint64 const id) -> void
 	*/
 	if (pSurface->refCount.fetch_sub(1, std::memory_order_acq_rel) == 2)
 	{
+		auto surfaceIt = gpuResourcePool.surfaces.get_iterator(pSurface);
+
 		vkDestroySurfaceKHR(instance, pSurface->handle, nullptr);
-		gpuResourcePool.surfaces.erase(pSurface->id);
+		gpuResourcePool.surfaces.erase(surfaceIt);
 	}
 }
 
-auto DeviceImpl::destroy_shader(uint64 const id) -> void
+auto DeviceImpl::destroy_shader(void const* resource) -> void
 {
-	using shader_index = decltype(gpuResourcePool.shaders)::index;
+	auto shader = static_cast<ShaderImpl const*>(resource);
+	auto it = gpuResourcePool.shaders.get_iterator(shader);
 
-	shader_index const index = shader_index::from(id);
-	ShaderImpl& shader = gpuResourcePool.shaders[index];
+	vkDestroyShaderModule(device, shader->handle, nullptr);
 
-	vkDestroyShaderModule(device, shader.handle, nullptr);
-
-	gpuResourcePool.shaders.erase(index);
+	gpuResourcePool.shaders.erase(it);
 }
 
-auto DeviceImpl::destroy_pipeline(uint64 const id) -> void
+auto DeviceImpl::destroy_pipeline(void const* resource) -> void
 {
-	using pipeline_index = decltype(gpuResourcePool.pipelines)::index;
-
-	pipeline_index const index = pipeline_index::from(id);
-	PipelineImpl& pipeline = gpuResourcePool.pipelines[index];
+	auto pipeline = static_cast<PipelineImpl const*>(resource);
+	auto it = gpuResourcePool.pipelines.get_iterator(pipeline);
 
 	//vkDestroyPipelineLayout(device, pipeline.layout, nullptr);
-	vkDestroyPipeline(device, pipeline.handle, nullptr);
+	vkDestroyPipeline(device, pipeline->handle, nullptr);
 
-	gpuResourcePool.pipelines.erase(index);
+	gpuResourcePool.pipelines.erase(it);
 }
 
-auto DeviceImpl::destroy_command_pool(uint64 const id) -> void
+auto DeviceImpl::destroy_command_pool(void const* resource) -> void
 {
-	using command_pool_index = decltype(gpuResourcePool.commandPools)::index;
-
-	command_pool_index const index = command_pool_index::from(id);
-	std::unique_ptr<CommandPoolImpl>& cmdPool = gpuResourcePool.commandPools[index];
+	auto cmdPool = static_cast<CommandPoolImpl const*>(resource);
+	auto it = gpuResourcePool.commandPools.get_iterator(cmdPool);
 
 	std::array<VkCommandBuffer, MAX_COMMAND_BUFFER_PER_POOL> cmdBuffers;
 
@@ -1508,7 +1485,7 @@ auto DeviceImpl::destroy_command_pool(uint64 const id) -> void
 	vkFreeCommandBuffers(device, cmdPool->handle, cmdPool->commandBufferPool.commandBufferCount, cmdBuffers.data());
 	vkDestroyCommandPool(device, cmdPool->handle, nullptr);
 
-	gpuResourcePool.commandPools.erase(index);
+	gpuResourcePool.commandPools.erase(it);
 }
 
 auto DeviceImpl::clear_descriptor_cache() -> void

@@ -62,36 +62,39 @@ auto CommandPool::from(Device& device, CommandPoolInfo&& info) -> Resource<Comma
 
 	CHECK_OP(vkCreateCommandPool(vkdevice.device, &commandPoolInfo, nullptr, &handle))
 
-	auto&& [id, vkcommandpool] = vkdevice.gpuResourcePool.commandPools.emplace(std::make_unique<vk::CommandPoolImpl>(vkdevice));
+	auto it = vkdevice.gpuResourcePool.commandPools.emplace(vkdevice);
+
+	auto&& vkcommandpool = *it;
 
 	if (!info.name.empty())
 	{
 		info.name.format("<command_pool>:{}", info.name.c_str());
 	}
 
-	vkcommandpool->handle = handle;
-	vkcommandpool->m_info = std::move(info);
+	vkcommandpool.handle = handle;
+	vkcommandpool.m_info = std::move(info);
 
 	if constexpr (ENABLE_GPU_RESOURCE_DEBUG_NAMES)
 	{
-		vkdevice.setup_debug_name(*vkcommandpool);
+		vkdevice.setup_debug_name(vkcommandpool);
 	}
 
-	return Resource<CommandPool>{ id.to_uint64(), *vkcommandpool.get() };
+	return Resource<CommandPool>{ vkcommandpool };
 }
 
-auto CommandPool::destroy(CommandPool& resource, uint64 id) -> void
+auto CommandPool::destroy(CommandPool& resource) -> void
 {
 	/*
 	 * At this point, the ref count on the resource is only 1 which means ONLY the resource has a reference to itself and can be safely deleted.
 	 */
 	auto&& vkdevice = to_device(resource.m_device);
+	auto&& vkcommandpool = to_impl(resource);
 
 	std::lock_guard const lock{ vkdevice.gpuResourcePool.zombieMutex };
 
 	uint64 const cpuTimelineValue = vkdevice.cpu_timeline();
 
-	vkdevice.gpuResourcePool.zombies.emplace_back(cpuTimelineValue, id, vk::ResourceType::Command_Pool);
+	vkdevice.gpuResourcePool.zombies.emplace_back(cpuTimelineValue, &vkcommandpool, vk::ResourceType::Command_Pool);
 }
 
 namespace vk

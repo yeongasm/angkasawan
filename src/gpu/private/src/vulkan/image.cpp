@@ -178,15 +178,19 @@ auto Image::from(Device& device, ImageInfo&& info, Resource<MemoryBlock> memoryB
 
 		CHECK_OP(vmaCreateImage(vkdevice.allocator, &imgInfo, &allocInfo, &handle, &allocation, &allocationInfo))
 
-		auto&& [memoryBlockId, vkmemoryblock] = vkdevice.gpuResourcePool.memoryBlocks.emplace(vkdevice, false);
+		auto it = vkdevice.gpuResourcePool.memoryBlocks.emplace(vkdevice, false);
+
+		auto&& vkmemoryblock = *it;
 
 		vkmemoryblock.handle = allocation;
 		vkmemoryblock.allocationInfo = std::move(allocationInfo);
 
-		new (&memoryBlock) Resource<MemoryBlock>{ memoryBlockId.to_uint64(), vkmemoryblock };
+		new (&memoryBlock) Resource<MemoryBlock>{ vkmemoryblock };
 	}
 
-	auto&& [id, vkimage] = vkdevice.gpuResourcePool.images.emplace(vkdevice);
+	auto it = vkdevice.gpuResourcePool.images.emplace(vkdevice);
+
+	auto&& vkimage = *it;
 
 	if (!info.name.empty())
 	{
@@ -240,7 +244,7 @@ auto Image::from(Device& device, ImageInfo&& info, Resource<MemoryBlock> memoryB
 		vkdevice.setup_debug_name(vkimage);
 	}
 
-	return Resource<Image>{ id.to_uint64(), vkimage };
+	return Resource<Image>{ vkimage };
 }
 
 auto Image::from(Swapchain& swapchain) -> lib::array<Resource<Image>>
@@ -308,7 +312,9 @@ auto Image::from(Swapchain& swapchain) -> lib::array<Resource<Image>>
 			imageInfo.name = lib::format("<image>:{}_{}", swapchainInfo.name.c_str(), i);
 		}
 
-		auto&& [index, vkimage] = vkdevice.gpuResourcePool.images.emplace(vkdevice);
+		auto it = vkdevice.gpuResourcePool.images.emplace(vkdevice);
+
+		auto&& vkimage = *it;
 
 		vkimage.handle = vkImageHandles[i];
 		vkimage.imageView = vkImageViewHandles[i];
@@ -319,13 +325,13 @@ auto Image::from(Swapchain& swapchain) -> lib::array<Resource<Image>>
 			vkdevice.setup_debug_name(vkimage);
 		}
 
-		images.emplace_back(index.to_uint64(), vkimage);
+		images.emplace_back(vkimage);
 	}
 
 	return images;
 }
 
-auto Image::destroy(Image& resource, uint64 id) -> void
+auto Image::destroy(Image& resource) -> void
 {
 	/*
 	* At this point, the ref count on the resource is only 1 which means ONLY the resource has a reference to itself and can be safely deleted.
@@ -342,7 +348,7 @@ auto Image::destroy(Image& resource, uint64 id) -> void
 
 	uint64 const cpuTimelineValue = vkdevice.cpu_timeline();
 
-	vkdevice.gpuResourcePool.zombies.emplace_back(cpuTimelineValue, id, vk::ResourceType::Image);
+	vkdevice.gpuResourcePool.zombies.emplace_back(cpuTimelineValue, &vkimage, vk::ResourceType::Image);
 }
 
 namespace vk

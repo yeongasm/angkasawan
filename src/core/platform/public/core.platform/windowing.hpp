@@ -4,9 +4,10 @@
 
 #include <string_view>
 #include <expected>
+#include <array>
 #include "lib/string.hpp"
-#include "lib/paged_array.hpp"
-#include "lib/map.hpp"
+#include "lib/array.hpp"
+// #include "lib/paged_array.hpp"
 #include "lib/resource.hpp"
 #include "lib/function.hpp"
 #include "platform_minimal.hpp"
@@ -114,6 +115,9 @@ class Window : public lib::ref_counted
 {
 public:
 
+	Window() 	= default;
+	~Window() 	= default;
+
 	static auto from(WindowContext& ctx, WindowCreateInfo&& info) -> std::expected<Ref<Window>, std::string_view>;
 
 	auto info() const -> WindowInfo const&;
@@ -158,11 +162,9 @@ private:
 	friend class Window;
 	friend struct EventQueueHandler;
 
-	using index = lib::paged_array<Window, 4>::index;
-
-	lib::paged_array<Window, 4> m_windows = {};
-	lib::array<uint64>			m_zombies = {};
-	IOContext*					m_pIoContext = {};
+	lib::hive<Window> 	m_windows = {};
+	lib::array<uint64>	m_zombies = {};
+	IOContext*			m_pIoContext = {};
 };
 }
 }

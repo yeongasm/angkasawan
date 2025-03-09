@@ -2,6 +2,8 @@
 #ifndef LIB_ARRAY_HPP
 #define LIB_ARRAY_HPP
 
+#include <plf_colony.h>
+
 #include "memory.hpp"
 #include "utility.hpp"
 
@@ -132,8 +134,8 @@ protected:
 
 	constexpr void verify_offset_is_in_range([[maybe_unused]] difference_type const offset) const noexcept
 	{
-		ASSERTION(((m_data + offset) >= m_container->data()) && "Iterator exceeded past start range of the array.");
-		ASSERTION(((m_data + offset) <= m_container->data() + m_container->size()) && "Iterator exceeded past end range of the array.");
+		ASSERTION(((m_data + offset) >= m_container->data()), "Iterator exceeded past start range of the array.");
+		ASSERTION(((m_data + offset) <= m_container->data() + m_container->size()), "Iterator exceeded past end range of the array.");
 	}
 
 	ptr_t               m_data;
@@ -331,7 +333,7 @@ public:
 
 	constexpr value_type& operator[] (size_t index) const
 	{
-		ASSERTION(index < m_len && "The index specified exceeded the internal buffer size of the array!");
+		ASSERTION(index < m_len, "The index specified exceeded the internal buffer size of the array!");
 		return m_box.data[index];
 	}
 
@@ -426,7 +428,7 @@ public:
 	template <typename... Args>
 	constexpr iterator emplace(const_iterator pos, Args&&... args)
 	{
-		ASSERTION(pos >= cbegin() && pos <= cend() && "Iterator is not within the range of the array.");
+		ASSERTION(pos >= cbegin() && pos <= cend(), "Iterator is not within the range of the array.");
 
 		bool const insertAtEnd = pos == cend();
 		size_t const position = std::distance(cbegin(), pos);
@@ -485,7 +487,7 @@ public:
 
 	constexpr iterator insert(const_iterator pos, size_type count, value_type const& value)
 	{
-		ASSERTION(pos >= cbegin() && pos <= cend() && "Iterator is not within the range of the array.");
+		ASSERTION(pos >= cbegin() && pos <= cend(), "Iterator is not within the range of the array.");
 
 		bool const insertAtEnd = pos == cend();
 		size_t const position = std::distance(cbegin(), pos);
@@ -500,7 +502,7 @@ public:
 	template <typename InputIterator>
 	constexpr iterator insert(const_iterator pos, InputIterator first, InputIterator last)
 	{
-		ASSERTION(pos >= cbegin() && pos <= cend() && "Iterator is not within the range of the array.");
+		ASSERTION(pos >= cbegin() && pos <= cend(), "Iterator is not within the range of the array.");
 
 		bool const insertAtEnd = pos == cend();
 		size_t const position = std::distance(cbegin(), pos);
@@ -515,7 +517,7 @@ public:
 
 	constexpr iterator insert(const_iterator pos, std::initializer_list<value_type> list)
 	{
-		ASSERTION(pos >= cbegin() && pos <= cend() && "Iterator is not within the range of the array.");
+		ASSERTION(pos >= cbegin() && pos <= cend(), "Iterator is not within the range of the array.");
 
 		bool const insertAtEnd = pos == cend();
 		size_t const position = std::distance(cbegin(), pos);
@@ -881,6 +883,9 @@ private:
 	size_t m_len;
 	size_t m_capacity;
 };
+
+template <typename T>
+using hive = plf::colony<T, allocator<T>>;
 }
 
 #endif // !LIB_ARRAY_HPP

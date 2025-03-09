@@ -231,7 +231,9 @@ auto Pipeline::from(Device& device, RasterPipelineShaderInfo const& pipelineShad
 	// The only way this can fail is when we run out of host / device memory OR shader linkage has failed.
 	CHECK_OP(vkCreateGraphicsPipelines(vkdevice.device, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &handle))
 
-	auto&& [id, vkpipeline] = vkdevice.gpuResourcePool.pipelines.emplace(vkdevice);
+	auto it = vkdevice.gpuResourcePool.pipelines.emplace(vkdevice);
+
+	auto&& vkpipeline = *it;
 
 	if (!info.name.empty())
 	{
@@ -251,7 +253,7 @@ auto Pipeline::from(Device& device, RasterPipelineShaderInfo const& pipelineShad
 		vkdevice.setup_debug_name(vkpipeline);
 	}
 
-	return Resource<Pipeline>{ id.to_uint64(), vkpipeline };
+	return Resource<Pipeline>{ vkpipeline };
 }
 
 auto Pipeline::from(Device& device, Resource<Shader>& computeShader, ComputePipelineInfo&& info) -> Resource<Pipeline>
@@ -284,7 +286,9 @@ auto Pipeline::from(Device& device, Resource<Shader>& computeShader, ComputePipe
 
 	CHECK_OP(vkCreateComputePipelines(vkdevice.device, VK_NULL_HANDLE, 1u, &pipelineCreateInfo, nullptr, &handle))
 
-	auto&& [id, vkpipeline] = vkdevice.gpuResourcePool.pipelines.emplace(vkdevice);
+	auto it = vkdevice.gpuResourcePool.pipelines.emplace(vkdevice);
+
+	auto&& vkpipeline = *it;
 
 	if (!info.name.empty())
 	{
@@ -304,21 +308,22 @@ auto Pipeline::from(Device& device, Resource<Shader>& computeShader, ComputePipe
 		vkdevice.setup_debug_name(vkpipeline);
 	}
 
-	return Resource<Pipeline>{ id.to_uint64(), vkpipeline };
+	return Resource<Pipeline>{ vkpipeline };
 }
 
-auto Pipeline::destroy(Pipeline& resource, uint64 id) -> void
+auto Pipeline::destroy(Pipeline& resource) -> void
 {
 	/*
-	 * At this point, the ref count on the resource is only 1 which means ONLY the resource has a reference to itself and can be safely deleted.
-	 */
-	vk::DeviceImpl& vkdevice = *static_cast<vk::DeviceImpl*>(resource.m_device);
-
+	* At this point, the ref count on the resource is only 1 which means ONLY the resource has a reference to itself and can be safely deleted.
+	*/
+	auto&& vkdevice = to_device(resource.m_device);
+	auto&& vkpipeline = to_impl(resource);
+	
 	std::lock_guard const lock{ vkdevice.gpuResourcePool.zombieMutex };
 
 	uint64 const cpuTimelineValue = vkdevice.cpu_timeline();
 
-	vkdevice.gpuResourcePool.zombies.emplace_back(cpuTimelineValue, id, vk::ResourceType::Pipeline);
+	vkdevice.gpuResourcePool.zombies.emplace_back(cpuTimelineValue, &vkpipeline, vk::ResourceType::Pipeline);
 }
 
 namespace vk
