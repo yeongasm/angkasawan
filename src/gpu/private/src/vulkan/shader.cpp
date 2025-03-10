@@ -64,10 +64,10 @@ auto Shader::from(Device& device, CompiledShaderInfo const& compiledShaderInfo) 
 		vkdevice.setup_debug_name(vkshader);
 	}
 
-	return Resource<Shader>{ vkshader };
+	return Resource<Shader>{ vkshader, vk::to_id(it) };
 }
 
-auto Shader::destroy(Shader& resource) -> void
+auto Shader::destroy(Shader& resource, Id id) -> void
 {
 	/*
 	 * At this point, the ref count on the resource is only 1 which means ONLY the resource has a reference to itself and can be safely deleted.
@@ -79,7 +79,19 @@ auto Shader::destroy(Shader& resource) -> void
 
 	uint64 const cpuTimelineValue = vkdevice.cpu_timeline();
 
-	vkdevice.gpuResourcePool.zombies.emplace_back(cpuTimelineValue, &vkshader, vk::ResourceType::Shader);
+	vkdevice.gpuResourcePool.zombies.emplace_back(
+		cpuTimelineValue,
+		[&vkshader, id](vk::DeviceImpl& device) -> void
+		{
+			vkDestroyShaderModule(device.device, vkshader.handle, nullptr);
+
+			using iterator = typename lib::hive<vk::ShaderImpl>::iterator;
+
+			auto const it = vk::to_hive_it<iterator>(id);
+
+			device.gpuResourcePool.shaders.erase(it);
+		}
+	);
 }
 
 namespace vk

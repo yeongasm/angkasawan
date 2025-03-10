@@ -8,6 +8,7 @@
 
 #include "lib/array.hpp"
 #include "lib/map.hpp"
+#include "lib/function.hpp"
 
 #include "vk.h"
 #include "gpu.hpp"
@@ -22,22 +23,23 @@ namespace gpu
 {
 namespace vk
 {
-class DeviceImpl;
-
-enum class ResourceType : uint32
+template <typename T>
+auto to_hive_it(Id id) -> T
 {
-	Memory_Block,
-	Semaphore,
-	Fence,
-	Event,
-	Buffer,
-	Image,
-	Sampler,
-	Swapchain,
-	Shader,
-	Pipeline,
-	Command_Pool
+	T out;
+	std::memcpy(&out, &id, sizeof(T));
+	return out;
 };
+
+template <typename T>
+auto to_id(T it) -> Id
+{
+	Id id;
+	std::memcpy(&id, &it, sizeof(Id));
+	return id;
+}
+
+class DeviceImpl;
 
 static constexpr uint32 INVALID_QUEUE_FAMILY_INDEX = std::numeric_limits<uint32>::max();
 
@@ -132,7 +134,9 @@ public:
 	SwapchainImpl() = default;
 	SwapchainImpl(DeviceImpl& device);
 
-	Surface* pSurface = nullptr;
+	using surface_iterator = typename lib::hive<Surface>::iterator;
+	
+	surface_iterator surface = {};
 	VkSwapchainKHR handle = VK_NULL_HANDLE;
 	VkSurfaceFormatKHR surfaceColorFormat = {};
 };
@@ -203,21 +207,23 @@ public:
 struct Zombie
 {
 	using device_timeline_t = Device::cpu_timeline_t;
+	using destroy_fn = lib::function<void(DeviceImpl&), { .capacity = sizeof(Id) + sizeof(uintptr_t) }>;
 	
 	device_timeline_t timeline;
-	void const* resource;
-	ResourceType resourceType;
+	destroy_fn destroyFn;
 };
 
 struct ResourcePool
 {
+	using SamplerCache = lib::map<uint64, typename lib::hive<SamplerImpl>::iterator>;
+
 	lib::hive<SemaphoreImpl> binarySemaphore;
 	lib::hive<FenceImpl> timelineSemaphore;
 	lib::hive<EventImpl> events;
 	lib::hive<BufferImpl> buffers;
 	lib::hive<ImageImpl> images;
 	lib::hive<SamplerImpl> samplers;
-	lib::map<uint64, SamplerImpl*> samplerCache;
+	SamplerCache samplerCache;
 	lib::hive<Surface> surfaces;
 	lib::hive<SwapchainImpl> swapchains;
 	lib::hive<ShaderImpl> shaders;
@@ -307,19 +313,7 @@ public:
 	auto initialize_descriptor_cache() -> bool;
 
 	auto flush_submit_info_buffers() -> void;
-
-	auto destroy_memory_block(void const* resource) -> void;
-	auto destroy_binary_semaphore(void const* resource) -> void;
-	auto destroy_timeline_semaphore(void const* resource) -> void;
-	auto destroy_event(void const* resource) -> void;
-	auto destroy_buffer(void const* resource) -> void;
-	auto destroy_image(void const* resource) -> void;
-	auto destroy_sampler(void const* resource) -> void;
-	auto destroy_swapchain(void const* resource) -> void;
-	auto destroy_shader(void const* resource) -> void;
-	auto destroy_pipeline(void const* resource) -> void;
-	auto destroy_command_pool(void const* resource) -> void;
-
+	
 	auto clear_descriptor_cache() -> void;
 	auto cleanup_resource_pool() -> void;
 };

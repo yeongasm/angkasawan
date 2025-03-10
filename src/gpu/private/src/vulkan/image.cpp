@@ -185,7 +185,7 @@ auto Image::from(Device& device, ImageInfo&& info, Resource<MemoryBlock> memoryB
 		vkmemoryblock.handle = allocation;
 		vkmemoryblock.allocationInfo = std::move(allocationInfo);
 
-		new (&memoryBlock) Resource<MemoryBlock>{ vkmemoryblock };
+		new (&memoryBlock) Resource<MemoryBlock>{ vkmemoryblock, vk::to_id(it) };
 	}
 
 	auto it = vkdevice.gpuResourcePool.images.emplace(vkdevice);
@@ -244,7 +244,7 @@ auto Image::from(Device& device, ImageInfo&& info, Resource<MemoryBlock> memoryB
 		vkdevice.setup_debug_name(vkimage);
 	}
 
-	return Resource<Image>{ vkimage };
+	return Resource<Image>{ vkimage, vk::to_id(it) };
 }
 
 auto Image::from(Swapchain& swapchain) -> lib::array<Resource<Image>>
@@ -325,13 +325,13 @@ auto Image::from(Swapchain& swapchain) -> lib::array<Resource<Image>>
 			vkdevice.setup_debug_name(vkimage);
 		}
 
-		images.emplace_back(vkimage);
+		images.emplace_back(vkimage, vk::to_id(it));
 	}
 
 	return images;
 }
 
-auto Image::destroy(Image& resource) -> void
+auto Image::destroy(Image& resource, Id id) -> void
 {
 	/*
 	* At this point, the ref count on the resource is only 1 which means ONLY the resource has a reference to itself and can be safely deleted.
@@ -348,7 +348,38 @@ auto Image::destroy(Image& resource) -> void
 
 	uint64 const cpuTimelineValue = vkdevice.cpu_timeline();
 
-	vkdevice.gpuResourcePool.zombies.emplace_back(cpuTimelineValue, &vkimage, vk::ResourceType::Image);
+	vkdevice.gpuResourcePool.zombies.emplace_back(
+		cpuTimelineValue,
+		[&vkimage, id](vk::DeviceImpl& device) -> void
+		{
+			if (!vkimage.is_transient())
+			{
+				vkDestroyImageView(device.device, vkimage.imageView, nullptr);
+
+				if (!vkimage.is_swapchain_image())
+				{
+					using iterator = typename lib::hive<vk::MemoryBlockImpl>::iterator;
+
+					auto&& block = to_impl(*vkimage.allocationBlock);
+			
+					auto const it = vk::to_hive_it<iterator>(vkimage.allocationBlock.id());
+	
+					vmaDestroyImage(device.allocator, vkimage.handle, block.handle);
+
+					device.gpuResourcePool.memoryBlocks.erase(it);
+				}
+			}
+			else
+			{
+				vkDestroyImageView(device.device, vkimage.imageView, nullptr);
+				vkDestroyImage(device.device, vkimage.handle, nullptr);
+			}
+
+			using iterator = typename lib::hive<vk::ImageImpl>::iterator;
+
+			device.gpuResourcePool.images.erase(vk::to_hive_it<iterator>(id));
+		}
+	);
 }
 
 namespace vk

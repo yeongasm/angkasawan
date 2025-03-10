@@ -1,4 +1,5 @@
 #include "constants.hpp"
+#include "gpu.hpp"
 #include "vulkan/vkgpu.hpp"
 
 namespace gpu
@@ -194,7 +195,7 @@ auto Buffer::from(Device& device, BufferInfo&& info, Resource<MemoryBlock> memor
 		vkmemoryblock.handle = allocation;
 		vkmemoryblock.allocationInfo = std::move(allocationInfo);
 
-		new (&memoryBlock) Resource<MemoryBlock>{ vkmemoryblock };
+		new (&memoryBlock) Resource<MemoryBlock>{ vkmemoryblock, vk::to_id(it) };
 	}
 
 	auto it = vkdevice.gpuResourcePool.buffers.emplace(vkdevice);
@@ -222,10 +223,10 @@ auto Buffer::from(Device& device, BufferInfo&& info, Resource<MemoryBlock> memor
 		vkdevice.setup_debug_name(vkbuffer);
 	}
 
-	return Resource<Buffer>{ vkbuffer };
+	return Resource<Buffer>{ vkbuffer, vk::to_id(it) };
 }
 
-auto Buffer::destroy(Buffer& resource) -> void
+auto Buffer::destroy(Buffer& resource, Id id) -> void
 {
 	/*
 	* At this point, the ref count on the resource is only 1 which means ONLY the resource has a reference to itself and can be safely deleted.
@@ -241,8 +242,34 @@ auto Buffer::destroy(Buffer& resource) -> void
 	std::lock_guard const lock{ vkdevice.gpuResourcePool.zombieMutex };
 
 	uint64 const cpuTimelineValue = vkdevice.cpu_timeline();
+	
+	vkdevice.gpuResourcePool.zombies.emplace_back(
+		cpuTimelineValue,
+		[&vkbuffer, id](vk::DeviceImpl& device) -> void
+		{	
+			if (!vkbuffer.is_transient())
+			{
+				using iterator = typename lib::hive<vk::MemoryBlockImpl>::iterator;
 
-	vkdevice.gpuResourcePool.zombies.emplace_back(cpuTimelineValue, &vkbuffer, vk::ResourceType::Buffer);
+				auto&& block = to_impl(*vkbuffer.allocationBlock);
+			
+				auto const it = vk::to_hive_it<iterator>(vkbuffer.allocationBlock.id());
+
+				vmaDestroyBuffer(device.allocator, vkbuffer.handle, block.handle);
+				device.gpuResourcePool.memoryBlocks.erase(it);
+			}
+			else
+			{
+				vkDestroyBuffer(device.device, vkbuffer.handle, nullptr);
+			}
+
+			using iterator = typename lib::hive<vk::BufferImpl>::iterator;
+
+			auto const it = vk::to_hive_it<iterator>(id);
+
+			device.gpuResourcePool.buffers.erase(it);
+		}
+	);
 }
 
 namespace vk

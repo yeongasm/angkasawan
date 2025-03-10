@@ -62,11 +62,11 @@ auto Sampler::from(Device& device, SamplerInfo&& info) -> Resource<Sampler>
 
 	if (vkdevice.gpuResourcePool.samplerCache.contains(packed))
 	{
-		auto cachedSampler = vkdevice.gpuResourcePool.samplerCache[packed];
+		auto it = vkdevice.gpuResourcePool.samplerCache[packed];
 
-		cachedSampler->reference();
+		it->reference();
 
-		return Resource<Sampler>{ *cachedSampler };
+		return Resource<Sampler>{ *it, vk::to_id(it) };
 	}
 
 	VkSamplerCreateInfo createInfo{
@@ -106,17 +106,17 @@ auto Sampler::from(Device& device, SamplerInfo&& info) -> Resource<Sampler>
 	vksampler.m_info = std::move(info);
 
 	// Cache the sampler's state permutation for obvious reasons...
-	vkdevice.gpuResourcePool.samplerCache[packed] = &vksampler;
+	vkdevice.gpuResourcePool.samplerCache[packed] = it;
 
 	if constexpr (ENABLE_GPU_RESOURCE_DEBUG_NAMES)
 	{
 		vkdevice.setup_debug_name(vksampler);
 	}
 
-	return Resource<Sampler>{ vksampler };
+	return Resource<Sampler>{ vksampler, vk::to_id(it) };
 }
 
-auto Sampler::destroy(Sampler& resource) -> void
+auto Sampler::destroy(Sampler& resource, Id id) -> void
 {
 	/*
 	 * At this point, the ref count on the resource is only 1 which means ONLY the resource has a reference to itself and can be safely deleted.
@@ -128,7 +128,20 @@ auto Sampler::destroy(Sampler& resource) -> void
 
 	uint64 const cpuTimelineValue = vkdevice.cpu_timeline();
 
-	vkdevice.gpuResourcePool.zombies.emplace_back(cpuTimelineValue, &vksampler, vk::ResourceType::Sampler);
+	vkdevice.gpuResourcePool.zombies.emplace_back(
+		cpuTimelineValue,
+		[&vksampler, id](vk::DeviceImpl& device) -> void
+		{
+			using iterator = typename lib::hive<vk::SamplerImpl>::iterator;
+
+			device.gpuResourcePool.samplerCache.erase(vksampler.info_packed());
+			vkDestroySampler(device.device, vksampler.handle, nullptr);
+
+			auto const it = vk::to_hive_it<iterator>(id);
+
+			device.gpuResourcePool.samplers.erase(it);
+		}
+	);
 }
 
 namespace vk

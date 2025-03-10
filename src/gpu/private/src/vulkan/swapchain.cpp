@@ -154,7 +154,7 @@ auto Swapchain::resize(Extent2D dim) -> bool
 	auto&& self = to_impl(*this);
 	auto&& vkdevice = to_device(m_device);
 
-	auto&& surface = *self.pSurface;
+	auto&& surface = *self.surface;
 
 	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vkdevice.gpu, surface.handle, &surface.capabilities);
 
@@ -264,7 +264,7 @@ auto Swapchain::from(Device& device, SwapchainInfo&& info, Resource<Swapchain> p
 {
 	auto&& vkdevice = to_device(device);
 
-	auto create_surface = [&vkdevice](SurfaceInfo const& surfaceInfo) -> vk::Surface*
+	auto create_surface = [&vkdevice](SurfaceInfo const& surfaceInfo) -> vk::SwapchainImpl::surface_iterator
 	{
 		VkSurfaceKHR handle = VK_NULL_HANDLE;
 
@@ -279,7 +279,7 @@ auto Swapchain::from(Device& device, SwapchainInfo&& info, Resource<Swapchain> p
 
 		if (result != VK_SUCCESS)
 		{
-			return nullptr;
+			return {};
 		}
 #elif __linux__
 #endif
@@ -303,7 +303,7 @@ auto Swapchain::from(Device& device, SwapchainInfo&& info, Resource<Swapchain> p
 		*/
 		vksurface.refCount.fetch_add(1, std::memory_order_relaxed);
 
-		return &vksurface;
+		return it;
 	};
 
 	if (!info.surfaceInfo.instance || !info.surfaceInfo.window)
@@ -311,34 +311,34 @@ auto Swapchain::from(Device& device, SwapchainInfo&& info, Resource<Swapchain> p
 		return {};
 	}
 
-	vk::Surface* pSurface = nullptr;
+	vk::SwapchainImpl::surface_iterator surface = {};
 	vk::SwapchainImpl* pOldSwapchain = nullptr;
 
 	if (previousSwapchain.valid())
 	{
 		pOldSwapchain = &to_impl(*previousSwapchain);
-		pSurface = pOldSwapchain->pSurface;
+		surface = pOldSwapchain->surface;
 	}
 	else
 	{
-		pSurface = create_surface(info.surfaceInfo);
+		surface = create_surface(info.surfaceInfo);
 	}
 
-	pSurface->refCount.fetch_add(1, std::memory_order_relaxed);
+	surface->refCount.fetch_add(1, std::memory_order_relaxed);
 
-	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vkdevice.gpu, pSurface->handle, &pSurface->capabilities);
+	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vkdevice.gpu, surface->handle, &surface->capabilities);
 
 	VkExtent2D const extent{
-		.width	= std::min(info.dimension.width, pSurface->capabilities.currentExtent.width),
-		.height = std::min(info.dimension.height, pSurface->capabilities.currentExtent.height)
+		.width	= std::min(info.dimension.width, surface->capabilities.currentExtent.width),
+		.height = std::min(info.dimension.height, surface->capabilities.currentExtent.height)
 	};
-	uint32 imageCount{ std::min(std::max(info.imageCount, pSurface->capabilities.minImageCount), pSurface->capabilities.maxImageCount) };
+	uint32 imageCount{ std::min(std::max(info.imageCount, surface->capabilities.minImageCount), surface->capabilities.maxImageCount) };
 
 	VkImageUsageFlags imageUsage = vk::translate_image_usage_flags(info.imageUsage);
 	VkPresentModeKHR presentationMode = vk::translate_swapchain_presentation_mode(info.presentationMode);
 
 	bool foundPreferred = false;
-	VkSurfaceFormatKHR surfaceFormat = pSurface->availableColorFormats[0];
+	VkSurfaceFormatKHR surfaceFormat = surface->availableColorFormats[0];
 
 	for (Format format : info.surfaceInfo.preferredSurfaceFormats)
 	{
@@ -349,7 +349,7 @@ auto Swapchain::from(Device& device, SwapchainInfo&& info, Resource<Swapchain> p
 			break;
 		}
 
-		for (VkSurfaceFormatKHR colorFormat : pSurface->availableColorFormats)
+		for (VkSurfaceFormatKHR colorFormat : surface->availableColorFormats)
 		{
 			if (preferredFormat == colorFormat.format)
 			{
@@ -362,7 +362,7 @@ auto Swapchain::from(Device& device, SwapchainInfo&& info, Resource<Swapchain> p
 
 	VkSwapchainCreateInfoKHR swapchainCreateInfo{
 		.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
-		.surface = pSurface->handle,
+		.surface = surface->handle,
 		.minImageCount = imageCount,
 		.imageFormat = surfaceFormat.format,
 		.imageColorSpace = surfaceFormat.colorSpace,
@@ -390,7 +390,7 @@ auto Swapchain::from(Device& device, SwapchainInfo&& info, Resource<Swapchain> p
 	auto&& vkswapchain = *it;
 
 	vkswapchain.handle = handle;
-	vkswapchain.pSurface = pSurface;
+	vkswapchain.surface = surface;
 	vkswapchain.surfaceColorFormat = surfaceFormat;
 	vkswapchain.m_colorSpace = vk::vk_to_rhi_color_space(surfaceFormat.colorSpace);
 
@@ -436,10 +436,10 @@ auto Swapchain::from(Device& device, SwapchainInfo&& info, Resource<Swapchain> p
 		vkdevice.setup_debug_name(vkswapchain);
 	}
 
-	return Resource<Swapchain>{ vkswapchain };
+	return Resource<Swapchain>{ vkswapchain, vk::to_id(it) };
 }
 
-auto Swapchain::destroy(Swapchain& resource) -> void
+auto Swapchain::destroy(Swapchain& resource, Id id) -> void
 {
 	/*
 	 * At this point, the ref count on the resource is only 1 which means ONLY the resource has a reference to itself and can be safely deleted.
@@ -468,7 +468,31 @@ auto Swapchain::destroy(Swapchain& resource) -> void
 
 	uint64 const cpuTimelineValue = vkdevice.cpu_timeline();
 
-	vkdevice.gpuResourcePool.zombies.emplace_back(cpuTimelineValue, &vkswapchain, vk::ResourceType::Swapchain);
+	vkdevice.gpuResourcePool.zombies.emplace_back(
+		cpuTimelineValue,
+		[&vkswapchain, id](vk::DeviceImpl& device) -> void
+		{
+			using iterator = typename lib::hive<vk::SwapchainImpl>::iterator;
+
+			auto surface = vkswapchain.surface;
+
+			vkDestroySwapchainKHR(device.device, vkswapchain.handle, nullptr);
+		
+			auto const it = vk::to_hive_it<iterator>(id);
+
+			device.gpuResourcePool.swapchains.erase(it);
+			
+			/**
+			* fetch_sub returns the previously held value of the atomic variable prior to the operation.
+			* That means, if it returns 2, the current value of the atomic refCount is 1 and the only reference to the surface is itself.
+			*/
+			if (surface->refCount.fetch_sub(1, std::memory_order_acq_rel) == 2)
+			{
+				vkDestroySurfaceKHR(device.instance, surface->handle, nullptr);
+				device.gpuResourcePool.surfaces.erase(surface);
+			}
+		}
+	);
 }
 
 namespace vk

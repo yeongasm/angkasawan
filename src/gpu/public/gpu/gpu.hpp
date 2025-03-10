@@ -11,6 +11,21 @@
 
 namespace gpu
 {
+/*
+* This is just a typed erased plf_colony iterator.
+* The current implementation only stores 3 pointers.
+* a) Pointer to the group.
+* b) Pointer to the element in the group.
+* c) Poinmter to the skipfield.
+*/
+class Id
+{
+public:
+	auto clear() -> void { _id[0] = _id[1] = _id[2] = 0; }
+private:
+	[[maybe_unused]] std::array<uintptr_t, 3> _id;
+};
+
 class Semaphore;
 class Fence;
 class Buffer;
@@ -35,8 +50,9 @@ public:
 
 	Resource() = default;
 
-	Resource(resource_type& resource) : 
-		m_resource{ &resource }
+	Resource(resource_type& resource, Id id) : 
+		m_resource{ &resource },
+		m_id{ id }
 	{
 		m_resource->reference();
 	}
@@ -60,6 +76,7 @@ public:
 			destroy();
 
 			m_resource = rhs.m_resource;
+			m_id = rhs.m_id;
 
 			if (m_resource)
 			{
@@ -70,7 +87,8 @@ public:
 	}
 
 	Resource(Resource&& rhs) noexcept :
-		m_resource{ std::exchange(rhs.m_resource, nullptr) }
+		m_resource{ std::exchange(rhs.m_resource, nullptr) },
+		m_id{ std::exchange(rhs.m_id, {}) }
 	{}
 
 	Resource& operator=(Resource&& rhs) noexcept
@@ -81,6 +99,7 @@ public:
 			destroy();
 
 			m_resource = std::exchange(rhs.m_resource, nullptr);
+			m_id = std::exchange(rhs.m_id, {});
 		}
 		return *this;
 	}
@@ -88,6 +107,7 @@ public:
 	auto operator->() const -> pointer { return m_resource; }
 	auto operator*() const -> reference { return *m_resource; }
 
+	auto id() const -> Id { return m_id; };
 	auto valid() const -> bool { return m_resource != nullptr && m_resource->valid(); }
 
 	explicit operator bool() const { return valid(); }
@@ -97,12 +117,14 @@ public:
 		if (m_resource && 
 			std::cmp_equal(m_resource->dereference(), 0))
 		{
-			resource_type::destroy(*m_resource);
+			resource_type::destroy(*m_resource, m_id);
 		} 
 		m_resource = nullptr;
+		m_id.clear();
 	}
 private:
 	resource_type* m_resource = {};
+	Id m_id = {};
 };
 
 using DeviceAddress = uint64;
@@ -179,7 +201,7 @@ public:
 protected:
 	friend class Resource<MemoryBlock>;
 
-	static auto destroy(MemoryBlock& resource) -> void;
+	static auto destroy(MemoryBlock& resource, Id id) -> void;
 
 	MemoryBlock(Device& device, bool aliased);
 
@@ -200,7 +222,7 @@ public:
 protected:
 	friend class Resource<Semaphore>;
 
-	static auto destroy(Semaphore& resource) -> void;
+	static auto destroy(Semaphore& resource, Id id) -> void;
 
 	Semaphore(Device& device);
 
@@ -226,7 +248,7 @@ public:
 protected:
 	friend class Resource<Fence>;
 
-	static auto destroy(Fence const& resource) -> void;
+	static auto destroy(Fence const& resource, Id id) -> void;
 
 	Fence(Device& device);
 
@@ -250,7 +272,7 @@ public:
 protected:
 	friend class Resource<Event>;
 
-	static auto destroy(Event const& resource) -> void;
+	static auto destroy(Event const& resource, Id id) -> void;
 
 	Event(Device& device);
 
@@ -292,7 +314,7 @@ public:
 protected:
 	friend class Resource<Buffer>;
 
-	static auto destroy(Buffer& resource) -> void;
+	static auto destroy(Buffer& resource, Id id) -> void;
 
 	Buffer(Device& device);
 
@@ -314,7 +336,7 @@ public:
 protected:
 	friend class Resource<Sampler>;
 
-	static auto destroy(Sampler& resource) -> void;
+	static auto destroy(Sampler& resource, Id id) -> void;
 
 	Sampler(Device& device);
 
@@ -348,7 +370,7 @@ protected:
 	friend class Resource<Image>;
 	friend class Swapchain;
 
-	static auto destroy(Image& resource) -> void;
+	static auto destroy(Image& resource, Id id) -> void;
 
 	Image(Device& device);
 
@@ -391,7 +413,7 @@ public:
 protected:
 	friend class Resource<Swapchain>;
 
-	static auto destroy(Swapchain& resource) -> void;
+	static auto destroy(Swapchain& resource, Id id) -> void;
 
 	Swapchain(Device& device);
 
@@ -424,7 +446,7 @@ public:
 protected:
 	friend class Resource<Shader>;
 
-	static auto destroy(Shader& resource) -> void;
+	static auto destroy(Shader& resource, Id id) -> void;
 
 	Shader(Device& device);
 
@@ -484,7 +506,7 @@ public:
 protected:
 	friend class Resource<Pipeline>;
 
-	static auto destroy(Pipeline& resource) -> void;
+	static auto destroy(Pipeline& resource, Id id) -> void;
 
 	using PipelineVariant = std::variant<RasterPipeline, ComputePipeline>;
 
@@ -749,27 +771,6 @@ struct PresentInfo
 	std::span<Resource<Swapchain>> swapchains;
 };
 
-class CommandPool : public DeviceResource
-{
-public:
-	CommandPool() = default;
-	~CommandPool() = default;
-
-	auto info() const -> CommandPoolInfo const&;
-	auto valid() const -> bool;
-	auto reset() const -> void;
-
-	static auto from(Device& device, CommandPoolInfo&& info) -> Resource<CommandPool>;
-protected:
-	friend class Resource<CommandPool>;
-
-	static auto destroy(CommandPool& resource) -> void;
-
-	CommandPool(Device& device);
-
-	CommandPoolInfo	m_info;
-};
-
 class CommandBuffer : public DeviceResource
 {
 public:
@@ -843,13 +844,34 @@ protected:
 	 * Destroying a command buffer doesn't actually releases it from the command pool.
 	 * Rather, it is returned to the command pool for re-use.
 	 */
-	static auto destroy(CommandBuffer& resource) -> void;
+	static auto destroy(CommandBuffer& resource, Id id) -> void;
 
 	CommandBuffer(Device& device);
 
 	CommandBufferInfo m_info;
 	Resource<CommandPool> m_commandPool;
 	std::atomic_uint64_t m_recordingTimeline;
+};
+
+class CommandPool : public DeviceResource
+{
+public:
+	CommandPool() = default;
+	~CommandPool() = default;
+
+	auto info() const -> CommandPoolInfo const&;
+	auto valid() const -> bool;
+	auto reset() const -> void;
+
+	static auto from(Device& device, CommandPoolInfo&& info) -> Resource<CommandPool>;
+protected:
+	friend class Resource<CommandPool>;
+
+	static auto destroy(CommandPool& resource, Id id) -> void;
+
+	CommandPool(Device& device);
+
+	CommandPoolInfo	m_info;
 };
 
 using semaphore		= Resource<Semaphore>;

@@ -1112,7 +1112,7 @@ auto CommandBuffer::from(Resource<CommandPool>& commandPool) -> Resource<Command
 			 {
 				 --cmdBufferPool.freeSlotCount;
 
-				 return Resource<CommandBuffer>{ allocatedCmdBuffer };
+				 return Resource<CommandBuffer>{ allocatedCmdBuffer, {} };
 			 }
 
 			 ++iterations;
@@ -1154,10 +1154,10 @@ auto CommandBuffer::from(Resource<CommandPool>& commandPool) -> Resource<Command
 		vkdevice.setup_debug_name(vkcmdbuffer);
 	}
 
-	return Resource<CommandBuffer>{ vkcmdbuffer };
+	return Resource<CommandBuffer>{ vkcmdbuffer, {} };
 }
 
-auto CommandBuffer::destroy(CommandBuffer& resource) -> void
+auto CommandBuffer::destroy(CommandBuffer& resource, [[maybe_unused]] Id id) -> void
 {
 	auto&& cmdBufferImpl = to_impl(resource);
 	auto&& cmdPoolImpl = to_impl(*resource.m_commandPool);

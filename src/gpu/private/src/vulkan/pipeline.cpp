@@ -253,7 +253,7 @@ auto Pipeline::from(Device& device, RasterPipelineShaderInfo const& pipelineShad
 		vkdevice.setup_debug_name(vkpipeline);
 	}
 
-	return Resource<Pipeline>{ vkpipeline };
+	return Resource<Pipeline>{ vkpipeline, vk::to_id(it) };
 }
 
 auto Pipeline::from(Device& device, Resource<Shader>& computeShader, ComputePipelineInfo&& info) -> Resource<Pipeline>
@@ -308,10 +308,10 @@ auto Pipeline::from(Device& device, Resource<Shader>& computeShader, ComputePipe
 		vkdevice.setup_debug_name(vkpipeline);
 	}
 
-	return Resource<Pipeline>{ vkpipeline };
+	return Resource<Pipeline>{ vkpipeline, vk::to_id(it) };
 }
 
-auto Pipeline::destroy(Pipeline& resource) -> void
+auto Pipeline::destroy(Pipeline& resource, Id id) -> void
 {
 	/*
 	* At this point, the ref count on the resource is only 1 which means ONLY the resource has a reference to itself and can be safely deleted.
@@ -323,7 +323,19 @@ auto Pipeline::destroy(Pipeline& resource) -> void
 
 	uint64 const cpuTimelineValue = vkdevice.cpu_timeline();
 
-	vkdevice.gpuResourcePool.zombies.emplace_back(cpuTimelineValue, &vkpipeline, vk::ResourceType::Pipeline);
+	vkdevice.gpuResourcePool.zombies.emplace_back(
+		cpuTimelineValue,
+		[&vkpipeline, id](vk::DeviceImpl& device) -> void
+		{
+			using iterator = typename lib::hive<vk::PipelineImpl>::iterator;
+
+			vkDestroyPipeline(device.device, vkpipeline.handle, nullptr);
+
+			auto const it = vk::to_hive_it<iterator>(id);
+
+			device.gpuResourcePool.pipelines.erase(it);
+		}
+	);
 }
 
 namespace vk

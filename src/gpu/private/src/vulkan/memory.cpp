@@ -85,10 +85,10 @@ auto MemoryBlock::from(Device& device, MemoryBlockAllocateInfo&& info) -> Resour
 		vkdevice.setup_debug_name(vkmemory);
 	}
 
-	return Resource<MemoryBlock>{ vkmemory };
+	return Resource<MemoryBlock>{ vkmemory, vk::to_id(it) };
 }
 
-auto MemoryBlock::destroy(MemoryBlock& resource) -> void
+auto MemoryBlock::destroy(MemoryBlock& resource, Id id) -> void
 {
 	// Memory blocks that are not aliased are owned by the resource that references it and deallocation is done by the resource itself.
 	if (!resource.aliased())
@@ -103,7 +103,19 @@ auto MemoryBlock::destroy(MemoryBlock& resource) -> void
 
 	uint64 const cpuTimelineValue = vkdevice.cpu_timeline();
 
-	vkdevice.gpuResourcePool.zombies.emplace_back(cpuTimelineValue, &vkmemoryblock, vk::ResourceType::Memory_Block);
+	vkdevice.gpuResourcePool.zombies.emplace_back(
+		cpuTimelineValue,
+		[&vkmemoryblock, id](vk::DeviceImpl& device) -> void
+		{
+			using iterator = typename lib::hive<vk::MemoryBlockImpl>::iterator;
+
+			vmaFreeMemory(device.allocator, vkmemoryblock.handle);
+
+			auto const it = vk::to_hive_it<iterator>(id);
+
+			device.gpuResourcePool.memoryBlocks.erase(it);
+		}
+	);
 }
 
 namespace vk
