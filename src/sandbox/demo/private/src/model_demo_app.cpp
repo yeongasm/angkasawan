@@ -37,7 +37,7 @@ auto ModelDemoApp::start(
 
 	// NOTE(afiq):
 	// I hate this, think of a better way to handle the shader compiler.
-	if (auto result = gpu::util::ShaderCompiler::create(); !result)
+	if (auto result = gpu::ShaderCompiler::create(); !result)
 	{
 		return false;
 	}
@@ -111,8 +111,8 @@ auto ModelDemoApp::start(
 
 			gpu::shader vs, ps;
 
-			gpu::util::ShaderCompileInfo compileInfo{
-				.name = "data/demo/shaders/model.slang",
+			gpu::ShaderCompileInfo compileInfo{
+				.path = "data/demo/shaders/model.slang",
 				.type = gpu::ShaderType::Vertex,
 				.entryPoint = "main_vertex",
 				.sourceCode = std::string_view{ static_cast<char const*>(sourceCode.data()), sourceCode.size() }

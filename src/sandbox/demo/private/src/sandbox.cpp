@@ -63,26 +63,28 @@ SandboxApp::SandboxApp([[maybe_unused]] int32 argc, [[maybe_unused]] char** argv
 	// Create GPU interface.
 	{
 		auto&& result = render::AsyncDevice::from({
-			.name = "Main GPU Device",
-			.appName = "AngkasawanRenderer",
-			.appVersion = { 0, 1, 0, 0 },
-			.engineName = "AngkasawanRenderingEngine",
-			.engineVersion = { 0, 1, 0, 0 },
-			.preferredDevice = gpu::DeviceType::Discrete_Gpu,
-			.config = {
-				.maxFramesInFlight = 2,
-				.swapchainImageCount = 3,
-				.maxBuffers = gpu::MAX_BUFFERS,
-				.maxImages = gpu::MAX_IMAGES,
-				.maxSamplers = gpu::MAX_SAMPLERS,
-				.pushConstantMaxSize = std::numeric_limits<uint32>::max()
-			},
-			.callback = [](
-				[[maybe_unused]] gpu::ErrorSeverity severity,
-				[[maybe_unused]] literal_t message
-			) -> void
-			{
-				fmt::print("{}\n\n", message);
+			.deviceInfo = {
+				.name = "Main GPU Device",
+				.appName = "AngkasawanRenderer",
+				.appVersion = { 0, 1, 0, 0 },
+				.engineName = "AngkasawanRenderingEngine",
+				.engineVersion = { 0, 1, 0, 0 },
+				.preferredDevice = gpu::DeviceType::Discrete_Gpu,
+				.config = {
+					.maxFramesInFlight = 2,
+					.swapchainImageCount = 3,
+					.maxBuffers = gpu::MAX_BUFFERS,
+					.maxImages = gpu::MAX_IMAGES,
+					.maxSamplers = gpu::MAX_SAMPLERS,
+					.pushConstantMaxSize = std::numeric_limits<uint32>::max()
+				},
+				.callback = [](
+					[[maybe_unused]] gpu::ErrorSeverity severity,
+					[[maybe_unused]] literal_t message
+				) -> void
+				{
+					fmt::print("{}\n\n", message);
+				}
 			}
 		});
 		if (m_isRunning = result.has_value(); !result)

@@ -44,7 +44,7 @@ private:
 
 	core::platform::Application* m_app = {};
 	render::AsyncDevice* m_gpu = {};
-	std::unique_ptr<gpu::util::ShaderCompiler> m_shaderCompiler = {};
+	std::unique_ptr<gpu::ShaderCompiler> m_shaderCompiler = {};
 	core::Ref<core::platform::Window> m_rootWindowRef = {};
 	gpu::swapchain m_swapchain = {};
 

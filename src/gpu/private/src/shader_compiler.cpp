@@ -2,8 +2,6 @@
 
 namespace gpu
 {
-namespace util
-{
 auto ShaderCompileInfo::add_macro_definition(std::string_view key) -> void
 {
 	if (defines.capacity() == defines.insitu_capacity())
@@ -124,6 +122,5 @@ auto ShaderCompiler::remove_macro_definition(std::string_view key) -> void
 auto ShaderCompiler::clear_macro_definitions() -> void
 {
 	m_macroDefinitions.clear();
-}
 }
 }

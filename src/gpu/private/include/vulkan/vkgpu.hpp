@@ -217,19 +217,19 @@ struct ResourcePool
 {
 	using SamplerCache = lib::map<uint64, typename lib::hive<SamplerImpl>::iterator>;
 
-	lib::hive<SemaphoreImpl> binarySemaphore;
-	lib::hive<FenceImpl> timelineSemaphore;
-	lib::hive<EventImpl> events;
-	lib::hive<BufferImpl> buffers;
-	lib::hive<ImageImpl> images;
-	lib::hive<SamplerImpl> samplers;
+	lib::hive<SemaphoreImpl> binarySemaphore{ plf::limits{ 8, 64 } };
+	lib::hive<FenceImpl> timelineSemaphore{ plf::limits{ 8, 64 } };
+	lib::hive<EventImpl> events{ plf::limits{ 8, 64 } };
+	lib::hive<BufferImpl> buffers{ plf::limits{ 8, 64 } };
+	lib::hive<ImageImpl> images{ plf::limits{ 8, 64 } };
+	lib::hive<SamplerImpl> samplers{ plf::limits{ 8, 64 } };
 	SamplerCache samplerCache;
-	lib::hive<Surface> surfaces;
-	lib::hive<SwapchainImpl> swapchains;
-	lib::hive<ShaderImpl> shaders;
-	lib::hive<PipelineImpl> pipelines;
-	lib::hive<MemoryBlockImpl> memoryBlocks;
-	lib::hive<CommandPoolImpl> commandPools;
+	lib::hive<Surface> surfaces{ plf::limits{ 4, 8 } };
+	lib::hive<SwapchainImpl> swapchains{ plf::limits{ 4, 8 } };
+	lib::hive<ShaderImpl> shaders{ plf::limits{ 8, 64 } };
+	lib::hive<PipelineImpl> pipelines{ plf::limits{ 8, 64 } };
+	lib::hive<MemoryBlockImpl> memoryBlocks{ plf::limits{ 8, 64 } };
+	lib::hive<CommandPoolImpl> commandPools{ plf::limits{ 4, 16 } };
 
 	std::deque<Zombie> zombies;
 	std::mutex zombieMutex;

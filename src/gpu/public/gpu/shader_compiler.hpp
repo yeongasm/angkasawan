@@ -8,14 +8,9 @@
 
 namespace gpu
 {
-namespace util
-{
 struct ShaderCompileInfo
 {
-	/**
-	* \brief This should be the shader's path.
-	*/
-	std::string_view name;
+	std::string_view path;
 	ShaderType type;
 	/*
 	* Deprecated, don't use! Only here for legacy reasons and until glsl is removed.
@@ -54,7 +49,7 @@ struct ShaderCompilerBackend;
 struct ShaderCompiledUnit
 {
 	ShaderType type;
-	lib::string name;
+	lib::string path;
 	lib::string entryPoint;
 	lib::array<uint32> byteCode;
 
@@ -96,7 +91,6 @@ protected:
 	lib::array<lib::string> 			m_includeDirectories;
 	lib::map<lib::string, lib::string> 	m_macroDefinitions;
 };
-}
 }
 
 #endif // !GPU_SHADER_COMPILER_H

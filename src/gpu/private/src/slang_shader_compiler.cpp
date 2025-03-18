@@ -8,8 +8,6 @@
 
 namespace gpu
 {
-namespace util
-{
 struct SlangShaderCompiler : public ShaderCompiler
 {
     std::mutex sessionMutex;
@@ -96,11 +94,11 @@ struct SlangShaderCompiler : public ShaderCompiler
 
         int const tui = compileRequest->addTranslationUnit(SLANG_SOURCE_LANGUAGE_SLANG, "_angkasawan_shader_file");
 
-        compileRequest->addTranslationUnitSourceString(tui, info.name.data(), info.sourceCode.data());
+        compileRequest->addTranslationUnitSourceString(tui, info.path.data(), info.sourceCode.data());
 
         if (SLANG_FAILED(compileRequest->compile()))
         {
-            return std::unexpected{ lib::format("[ERROR][SLANG] {} - {}", info.name, compileRequest->getDiagnosticOutput()) };
+            return std::unexpected{ lib::format("[ERROR][SLANG] {} - {}", info.path, compileRequest->getDiagnosticOutput()) };
         }
 
         auto entryPointIndex = std::numeric_limits<uint32>::max();
@@ -121,7 +119,7 @@ struct SlangShaderCompiler : public ShaderCompiler
 
         if (entryPointIndex == std::numeric_limits<uint32>::max())
         {
-            return std::unexpected{ lib::format("[ERROR][SLANG] {} - Failed to find entry point '{}' in module.", info.name, info.entryPoint) };
+            return std::unexpected{ lib::format("[ERROR][SLANG] {} - Failed to find entry point '{}' in module.", info.path, info.entryPoint) };
         }
 
         Slang::ComPtr<slang::IBlob> spirvCode = {};
@@ -135,7 +133,7 @@ struct SlangShaderCompiler : public ShaderCompiler
 
         return ShaderCompiledUnit{
             .type       = info.type,
-            .name       = info.name,
+            .path       = info.path,
             .entryPoint = info.entryPoint, 
             .byteCode   = { begin, end } 
         };
@@ -157,6 +155,5 @@ auto ShaderCompiler::compile(ShaderCompileInfo const& info) -> std::expected<Sha
 {
     auto&& self = *static_cast<SlangShaderCompiler*>(this);
 	return self.do_compile(info);
-}
 }
 }
