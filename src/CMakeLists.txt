@@ -1,0 +1,7 @@
+add_subdirectory(library)
+add_subdirectory(core)
+add_subdirectory(gpu)
+add_subdirectory(render)
+add_subdirectory(sandbox)
+add_subdirectory(tools)
+add_subdirectory(thirdparty)

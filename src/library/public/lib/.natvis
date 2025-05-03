@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
+
+  <Type Name="lib::allocator_base::memory_header&lt;*&gt;">
+    <Expand>
+      <Item Name="[allocator]">allocator</Item>
+      <Item Name="[size]">size</Item>
+    </Expand>
+  </Type>
+  
+  <Type Name="lib::ref&lt;*&gt;">
+    <DisplayString>Ref referencing address {m_data}</DisplayString>
+    <Expand>
+      <Item Name="[reference]">m_data</Item>
+    </Expand>
+  </Type>
+
+  <Type Name="lib::allocator_memory_interface&lt;*&gt;">
+    <Expand>
+      <Item Name="[allocator]">m_allocator</Item>
+    </Expand>
+  </Type>
+
+  <Type Name="lib::array&lt;*&gt;">
+    <DisplayString>Array with {m_len} elements</DisplayString>
+    <Expand>
+      <Item Name="[length]">m_len</Item>
+      <Item Name="[capacity]">m_capacity</Item>
+      <Item Name="[allocator]">(allocator_type*)&amp;m_box</Item>
+      <ArrayItems>
+        <Size>m_len</Size>
+        <ValuePointer>m_box.data</ValuePointer>
+      </ArrayItems>
+    </Expand>
+  </Type>
+
+  <Type Name="lib::bitset&lt;*&gt;">
+    <DisplayString>Bitset with {$T2} bits</DisplayString>
+    <Expand>
+      <Item Name="[bits_per_word]">bitsPerWord</Item>
+      <Item Name="[words]">word + 1</Item>
+      <ArrayItems>
+        <Size>word + 1</Size>
+        <ValuePointer>m_data</ValuePointer>
+      </ArrayItems>
+    </Expand>
+  </Type>
+
+  <Type Name="lib::map&lt;*&gt;">
+    <DisplayString>Map with {m_len} elements</DisplayString>
+    <Expand>
+      <Item Name="[length]">m_len</Item>
+      <Item Name="[capacity]">m_capacity</Item>
+      <Item Name="[buckets_remaining]">m_capacity - m_len</Item>
+      <Item Name="[max_load_factor]">m_maxLoadFactor</Item>
+      <Item Name="[current_load_factor]">(float)m_len / (float)m_capacity</Item>
+      <Item Name="[allocator]">(allocator_type*)&amp;m_box</Item>
+      <CustomListItems MaxItemsPerView="100" ExcludeView="Test">
+        <Variable Name="i" InitialValue="0"/>
+        <Size>m_len</Size>
+        <Loop>
+          <If Condition="m_box.data.metadata->pBucketInfo[i].hash != 0">
+            <Item>m_box.data.data[i]</Item>
+          </If>
+          <Exec>++i</Exec>
+        </Loop>
+      </CustomListItems>
+    </Expand>
+  </Type>
+
+  <Type Name="lib::set&lt;*&gt;">
+    <DisplayString>Set with {m_len} elements</DisplayString>
+    <Expand>
+      <Item Name="[length]">m_len</Item>
+      <Item Name="[capacity]">m_capacity</Item>
+      <Item Name="[buckets_remaining]">m_capacity - m_len</Item>
+      <Item Name="[max_load_factor]">m_maxLoadFactor</Item>
+      <Item Name="[current_load_factor]">load_factor()</Item>
+      <Item Name="[allocator]">(allocator_type*)&amp;m_box</Item>
+      <CustomListItems MaxItemsPerView="100" ExcludeView="Test">
+        <Variable Name="i" InitialValue="0"/>
+        <Size>m_len</Size>
+        <Loop>
+          <If Condition="m_box.data.metadata->pBucketInfo[i].hash != 0">
+            <Item>m_box.data.data[i]</Item>
+          </If>
+          <Exec>++i</Exec>
+        </Loop>
+      </CustomListItems>
+    </Expand>
+  </Type>
+
+  <Type Name="lib::basic_string&lt;char,*&gt;">
+    <AlternativeType Name="lib::string"/>
+
+    <Intrinsic Name="__small_string" Expression="(m_capacity &amp; _m_msb_bit_flag) != 0"/>
+    <Intrinsic Name="__large_string" Expression="(m_capacity &amp; _m_msb_bit_flag) == 0"/>
+    
+    <DisplayString Condition="__small_string()">{m_box.data.buf,na}</DisplayString>
+    <DisplayString Condition="__large_string()">{m_box.data.ptr,na}</DisplayString>
+    <StringView Condition="__small_string()">m_box.data.buf,na</StringView>
+    <StringView Condition="__large_string()">m_box.data.ptr,na</StringView>
+    <Expand>
+      <Item Name="[length]">m_len</Item>
+      <Item Name="[capacity]">m_capacity</Item>
+      <Item Name="[is_small_string]">__small_string()</Item>
+      <ArrayItems>
+        <Size>m_len</Size>
+        <ValuePointer Condition="__small_string()">m_box.data.buf</ValuePointer>
+        <ValuePointer Condition="__large_string()">m_box.data.ptr</ValuePointer>
+      </ArrayItems>
+    </Expand>
+  </Type>
+
+  <Type Name="lib::basic_string&lt;wchar_t,*&gt;">
+    <AlternativeType Name="lib::wstring"/>
+
+    <Intrinsic Name="__small_string" Expression="(m_capacity &amp; _m_msb_bit_flag) != 0"/>
+    <Intrinsic Name="__large_string" Expression="(m_capacity &amp; _m_msb_bit_flag) == 0"/>
+
+    <DisplayString Condition="__small_string()">{m_box.data.buf,na}</DisplayString>
+    <DisplayString Condition="__large_string()">{m_box.data.ptr,na}</DisplayString>
+    <StringView Condition="__small_string()">m_box.data.buf,na</StringView>
+    <StringView Condition="__large_string()">m_box.data.ptr,na</StringView>
+    <Expand>
+      <Item Name="[length]">m_len</Item>
+      <Item Name="[capacity]">m_capacity</Item>
+      <Item Name="[is_small_string]">__small_string()</Item>
+      <ArrayItems>
+        <Size>m_len</Size>
+        <ValuePointer Condition="__small_string()">m_box.data.buf</ValuePointer>
+        <ValuePointer Condition="__large_string()">m_box.data.ptr</ValuePointer>
+      </ArrayItems>
+    </Expand>
+  </Type>
+
+  <Type Name="lib::base_static_string&lt;char,*&gt;">
+    <DisplayString>{m_buf,na}</DisplayString>
+    <Expand>
+      <Item Name="length">m_len</Item>
+      <ArrayItems>
+        <Size>m_len</Size>
+        <ValuePointer>m_buf</ValuePointer>
+      </ArrayItems>
+    </Expand>
+  </Type>
+
+  <Type Name="lib::base_static_string&lt;wchar_t,*&gt;">
+    <DisplayString>{m_buf,su}</DisplayString>
+    <Expand>
+      <Item Name="length">m_len</Item>
+      <ArrayItems>
+        <Size>m_len</Size>
+        <ValuePointer>m_buf</ValuePointer>
+      </ArrayItems>
+    </Expand>
+  </Type>
+
+</AutoVisualizer>

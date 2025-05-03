@@ -1,0 +1,1 @@
+.\gltfpack.exe -i ..\data\demo\models\sponza_updated\scene.gltf -o ..\data\demo\models\sponza_updated\compressed\scene.gltf -noq -tc
