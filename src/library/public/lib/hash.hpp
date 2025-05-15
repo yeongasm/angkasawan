@@ -1,5 +1,6 @@
 #pragma once
 #include <limits>
+#include <type_traits>
 #ifndef LIB_HPPASH_HPP
 #define LIB_HPPASH_HPP
 
@@ -626,7 +627,41 @@ private:
 	{
 		bucket_info* p_info = _info();
 		p_info[to] = std::move(p_info[from]);
-		std::memcpy(&m_box->data[to], &m_box->data[from], sizeof(type));
+
+		if constexpr (std::is_trivially_copyable_v<key_type> && std::is_trivially_copyable_v<value_type>)
+		{
+			std::memcpy(&const_cast<key_type&>(m_box->data[to].first), &const_cast<key_type&>(m_box->data[from].first), sizeof(key_type));
+			// Take sets into account.
+			if constexpr (!std::is_same_v<key_type, value_type>)
+			{
+				std::memcpy(&m_box->data[to].second, &m_box->data[from].second, sizeof(value_type));
+			}
+		}
+		else 
+		{
+			if constexpr (std::is_move_assignable_v<key_type>)
+			{
+				const_cast<key_type&>(m_box->data[to].first) = std::move(const_cast<key_type&>(m_box->data[from].first));
+			}
+			else 
+			{
+				const_cast<key_type&>(m_box->data[to].first) = m_box->data[from].first;
+				const_cast<key_type&>(m_box->data[from].first).~key_type();
+			}
+			
+			if constexpr (!std::is_same_v<key_type, value_type>)
+			{
+				if constexpr (std::is_move_assignable_v<value_type>)
+				{
+					m_box->data[to].second = std::move(m_box->data[from].second);
+				}
+				else
+				{
+					m_box->data[to].second = m_box->data[from].second;
+					m_box->data[from].second.~value_type();
+				}
+			}
+		}
 
 		// Reduce the bucket's psl by 1.
 		--p_info[to].psl;

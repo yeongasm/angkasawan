@@ -4,32 +4,6 @@
 
 namespace lib
 {
-
-void memmove(void* dst, void* src, size_t size)
-{
-	std::memmove(dst, src, size);
-}
-
-void memcopy(void* dst, const void* src, size_t size)
-{
-	std::memcpy(dst, src, size);
-}
-
-size_t memcmp(void* src, void* dst, size_t size)
-{
-	return std::memcmp(src, dst, size);
-}
-
-void memset(void* dst, uint8 Val, size_t size)
-{
-	std::memset(dst, Val, size);
-}
-
-void memzero(void* dst, size_t size)
-{
-	std::memset(dst, 0, size);
-}
-
 struct memory
 {
 	void*	pointer;

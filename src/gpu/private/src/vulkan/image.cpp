@@ -178,17 +178,25 @@ auto Image::from(Device& device, ImageInfo&& info, Resource<MemoryBlock> memoryB
 
 		CHECK_OP(vmaCreateImage(vkdevice.allocator, &imgInfo, &allocInfo, &handle, &allocation, &allocationInfo))
 
-		auto it = vkdevice.gpuResourcePool.memoryBlocks.emplace(vkdevice, false);
+		auto it = vkdevice.gpuResourcePool.stores.memoryBlocks.emplace(vkdevice, false);
+
+		auto id = ++vkdevice.gpuResourcePool.idCounter;
+
+		vkdevice.gpuResourcePool.caches.memoryBlock.emplace(id, it);
 
 		auto&& vkmemoryblock = *it;
 
 		vkmemoryblock.handle = allocation;
 		vkmemoryblock.allocationInfo = std::move(allocationInfo);
 
-		new (&memoryBlock) Resource<MemoryBlock>{ vkmemoryblock, vk::to_id(it) };
+		new (&memoryBlock) Resource<MemoryBlock>{ vkmemoryblock, id };
 	}
 
-	auto it = vkdevice.gpuResourcePool.images.emplace(vkdevice);
+	auto it = vkdevice.gpuResourcePool.stores.images.emplace(vkdevice);
+
+	auto id = ++vkdevice.gpuResourcePool.idCounter;
+
+	vkdevice.gpuResourcePool.caches.image.emplace(id, it);
 
 	auto&& vkimage = *it;
 
@@ -244,7 +252,7 @@ auto Image::from(Device& device, ImageInfo&& info, Resource<MemoryBlock> memoryB
 		vkdevice.setup_debug_name(vkimage);
 	}
 
-	return Resource<Image>{ vkimage, vk::to_id(it) };
+	return Resource<Image>{ vkimage, id };
 }
 
 auto Image::from(Swapchain& swapchain) -> lib::array<Resource<Image>>
@@ -312,7 +320,11 @@ auto Image::from(Swapchain& swapchain) -> lib::array<Resource<Image>>
 			imageInfo.name = lib::format("<image>:{}_{}", swapchainInfo.name.c_str(), i);
 		}
 
-		auto it = vkdevice.gpuResourcePool.images.emplace(vkdevice);
+		auto it = vkdevice.gpuResourcePool.stores.images.emplace(vkdevice);
+
+		auto id = ++vkdevice.gpuResourcePool.idCounter;
+
+		vkdevice.gpuResourcePool.caches.image.emplace(id, it);
 
 		auto&& vkimage = *it;
 
@@ -325,13 +337,13 @@ auto Image::from(Swapchain& swapchain) -> lib::array<Resource<Image>>
 			vkdevice.setup_debug_name(vkimage);
 		}
 
-		images.emplace_back(vkimage, vk::to_id(it));
+		images.emplace_back(vkimage, id);
 	}
 
 	return images;
 }
 
-auto Image::destroy(Image& resource, Id id) -> void
+auto Image::destroy(Image& resource, uint64 id) -> void
 {
 	/*
 	* At this point, the ref count on the resource is only 1 which means ONLY the resource has a reference to itself and can be safely deleted.
@@ -358,15 +370,15 @@ auto Image::destroy(Image& resource, Id id) -> void
 
 				if (!vkimage.is_swapchain_image())
 				{
-					using iterator = typename lib::hive<vk::MemoryBlockImpl>::iterator;
-
 					auto&& block = to_impl(*vkimage.allocationBlock);
 			
-					auto const it = vk::to_hive_it<iterator>(vkimage.allocationBlock.id());
+					auto blockId = vkimage.allocationBlock.id();
+					auto it = device.gpuResourcePool.caches.memoryBlock[blockId];
 	
 					vmaDestroyImage(device.allocator, vkimage.handle, block.handle);
 
-					device.gpuResourcePool.memoryBlocks.erase(it);
+					device.gpuResourcePool.caches.memoryBlock.erase(blockId);
+					device.gpuResourcePool.stores.memoryBlocks.erase(it);
 				}
 			}
 			else
@@ -375,9 +387,10 @@ auto Image::destroy(Image& resource, Id id) -> void
 				vkDestroyImage(device.device, vkimage.handle, nullptr);
 			}
 
-			using iterator = typename lib::hive<vk::ImageImpl>::iterator;
+			auto it = device.gpuResourcePool.caches.image[id];
 
-			device.gpuResourcePool.images.erase(vk::to_hive_it<iterator>(id));
+			device.gpuResourcePool.stores.images.erase(it);
+			device.gpuResourcePool.caches.image.erase(id);
 		}
 	);
 }

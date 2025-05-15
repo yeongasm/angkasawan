@@ -39,12 +39,12 @@ private:
     gpu::Version m_version = {};
 };
 
-PipelineCache::PipelineCache(gpu::Device& device, PipelineCacheInfo const& info, bool recompileShaders) : 
+PipelineCache::PipelineCache(gpu::Device& device, PipelineCacheInfo const& info, [[maybe_unused]] bool recompileShaders) : 
     m_device{ device },
     m_configuration{ info },
     m_rasterPipelines{ plf::limits{ 4, 32 } },
-    m_computePipelines{ plf::limits{ 4, 32 } },
-    RECOMPILE_SHADERS{ recompileShaders }
+    m_computePipelines{ plf::limits{ 4, 32 } }/*,
+    RECOMPILE_SHADERS{ recompileShaders }*/
 {}
 
 auto PipelineCache::create(gpu::Device &device, PipelineCacheInfo const& info /*, FileSystem */) -> std::unique_ptr<PipelineCache>
@@ -103,18 +103,18 @@ auto PipelineCache::create(gpu::Device &device, PipelineCacheInfo const& info /*
     return std::unique_ptr<PipelineCache>{ new PipelineCache{ device, info, recompileShaders } };
 }
 
-auto PipelineCache::create_raster_pipeline(RasterPipelineInfo&& info) -> std::expected<Pipeline, std::string_view>
-{
-    // There are 2 instances where we will have to recompile the given pipeline.
-    // 1. When RECOMPILE_SHADERS is true.
-    // 2. When RECOMPILE_SHADERS is false but the pipeline does not exist in the cache.
-    if (RECOMPILE_SHADERS)
-    {
+// auto PipelineCache::create_raster_pipeline(RasterPipelineInfo&& info) -> std::expected<Pipeline, std::string_view>
+// {
+//     // There are 2 instances where we will have to recompile the given pipeline.
+//     // 1. When RECOMPILE_SHADERS is true.
+//     // 2. When RECOMPILE_SHADERS is false but the pipeline does not exist in the cache.
+//     if (RECOMPILE_SHADERS)
+//     {
 
-    }
+//     }
 
-    return {};
-}
+//     return {};
+// }
 
 // auto PipelineCache::commit() -> void
 // {

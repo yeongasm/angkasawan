@@ -7,7 +7,6 @@
 #include <array>
 #include "lib/string.hpp"
 #include "lib/array.hpp"
-// #include "lib/paged_array.hpp"
 #include "lib/resource.hpp"
 #include "lib/function.hpp"
 #include "platform_minimal.hpp"
@@ -162,7 +161,7 @@ private:
 	friend class Window;
 	friend struct EventQueueHandler;
 
-	lib::hive<Window> 	m_windows = {};
+	plf::colony<Window> 	m_windows = {};
 	lib::array<uint64>	m_zombies = {};
 	IOContext*			m_pIoContext = {};
 };

@@ -50,7 +50,7 @@ auto Buffer::write(void const* data, size_t size, size_t offset) const -> void
 	{
 		std::byte* pointer = static_cast<std::byte*>(Buffer::data());
 		pointer += offset;
-		lib::memcopy(pointer, data, size);
+		std::memcpy(pointer, data, size);
 	}
 }
 
@@ -58,10 +58,10 @@ auto Buffer::clear() const -> void
 {
 	if (is_host_visible())
 	{
-		auto const& self = to_impl(*this);
-		auto const& memoryBlock = to_impl(*self.allocationBlock);
+		[[maybe_unused]] auto const& self = to_impl(*this);
+		[[maybe_unused]] auto const& memoryBlock = to_impl(*self.allocationBlock);
 
-		lib::memzero(memoryBlock.allocationInfo.pMappedData, m_info.size);
+		//lib::memzero(memoryBlock.allocationInfo.pMappedData, m_info.size);
 	}
 }
 
@@ -188,17 +188,25 @@ auto Buffer::from(Device& device, BufferInfo&& info, Resource<MemoryBlock> memor
 
 		CHECK_OP(vmaCreateBuffer(vkdevice.allocator, &bufferInfo, &allocInfo, &handle, &allocation, &allocationInfo))
 
-		auto it = vkdevice.gpuResourcePool.memoryBlocks.emplace(vkdevice, false);
+		auto it = vkdevice.gpuResourcePool.stores.memoryBlocks.emplace(vkdevice, false);
+
+		auto id = ++vkdevice.gpuResourcePool.idCounter;
+
+		vkdevice.gpuResourcePool.caches.memoryBlock.emplace(id, it);
 
 		auto&& vkmemoryblock = *it;
 
 		vkmemoryblock.handle = allocation;
 		vkmemoryblock.allocationInfo = std::move(allocationInfo);
 
-		new (&memoryBlock) Resource<MemoryBlock>{ vkmemoryblock, vk::to_id(it) };
+		new (&memoryBlock) Resource<MemoryBlock>{ vkmemoryblock, id };
 	}
 
-	auto it = vkdevice.gpuResourcePool.buffers.emplace(vkdevice);
+	auto it = vkdevice.gpuResourcePool.stores.buffers.emplace(vkdevice);
+
+	auto id = ++vkdevice.gpuResourcePool.idCounter;
+
+	vkdevice.gpuResourcePool.caches.buffer.emplace(id, it);
 
 	auto&& vkbuffer = *it;
 
@@ -223,10 +231,10 @@ auto Buffer::from(Device& device, BufferInfo&& info, Resource<MemoryBlock> memor
 		vkdevice.setup_debug_name(vkbuffer);
 	}
 
-	return Resource<Buffer>{ vkbuffer, vk::to_id(it) };
+	return Resource<Buffer>{ vkbuffer, id };
 }
 
-auto Buffer::destroy(Buffer& resource, Id id) -> void
+auto Buffer::destroy(Buffer& resource, uint64 id) -> void
 {
 	/*
 	* At this point, the ref count on the resource is only 1 which means ONLY the resource has a reference to itself and can be safely deleted.
@@ -249,25 +257,25 @@ auto Buffer::destroy(Buffer& resource, Id id) -> void
 		{	
 			if (!vkbuffer.is_transient())
 			{
-				using iterator = typename lib::hive<vk::MemoryBlockImpl>::iterator;
-
 				auto&& block = to_impl(*vkbuffer.allocationBlock);
 			
-				auto const it = vk::to_hive_it<iterator>(vkbuffer.allocationBlock.id());
+				auto blockId = vkbuffer.allocationBlock.id();
+				auto blockIt = device.gpuResourcePool.caches.memoryBlock[blockId];
 
 				vmaDestroyBuffer(device.allocator, vkbuffer.handle, block.handle);
-				device.gpuResourcePool.memoryBlocks.erase(it);
+				
+				device.gpuResourcePool.caches.memoryBlock.erase(blockId);
+				device.gpuResourcePool.stores.memoryBlocks.erase(blockIt);
 			}
 			else
 			{
 				vkDestroyBuffer(device.device, vkbuffer.handle, nullptr);
 			}
 
-			using iterator = typename lib::hive<vk::BufferImpl>::iterator;
+			auto it = device.gpuResourcePool.caches.buffer[id];
 
-			auto const it = vk::to_hive_it<iterator>(id);
-
-			device.gpuResourcePool.buffers.erase(it);
+			device.gpuResourcePool.caches.buffer.erase(id);
+			device.gpuResourcePool.stores.buffers.erase(it);
 		}
 	);
 }

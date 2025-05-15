@@ -26,6 +26,7 @@ if (MSVC)
 endif()
 
 message("CPM_SOURCE_CACHE: ${CPM_SOURCE_CACHE}")
+message("CMAKE_BINARY_DIR: ${CMAKE_BINARY_DIR}")
 
 check_ipo_supported(RESULT result OUTPUT output)
 
@@ -33,6 +34,13 @@ if (result)
     set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
 else()
     message(WARNING "IPO is not supported: ${output}")
+endif()
+
+if (PROJECT_IS_TOP_LEVEL AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    execute_process(
+        COMMAND ${CMAKE_COMMAND} -E create_symlink
+        ${CMAKE_BINARY_DIR}/compile_commands.json ${CMAKE_SOURCE_DIR}/build/compile_commands.json
+    )
 endif()
 
 add_subdirectory(src)

@@ -14,8 +14,6 @@ namespace render
 * Not to be confused with the pipeline cache that's in the gpu.
 * The PipelineCache is meant to compile shaders once into the API shader intermediary format (DXIL/SPIR-V) as long as the GPU's driver version does not change.
 * Once the shaders are compiled into SPIR-V, the engine looks up into the cache's directory and serializes all the pipelines into the engine.
-*
-* In non release builds, we filewatch the shaders by default.
 */
 struct RasterPipelineShaders
 {
@@ -100,7 +98,7 @@ class PipelineCache : lib::non_copyable_non_movable
 public:
     static auto create(gpu::Device& device, PipelineCacheInfo const& info /*, FileSystem */) -> std::unique_ptr<PipelineCache>;
 
-    auto create_raster_pipeline(RasterPipelineInfo&& info) -> std::expected<Pipeline, std::string_view>;
+    //auto create_raster_pipeline(RasterPipelineInfo&& info) -> std::expected<Pipeline, std::string_view>;
     // auto create_compute_pipeline(ComputePipelineInfo&& info) -> std::expected<Pipeline, std::string_view>;
     // auto destroy_raster_pipeline(Pipeline& pipeline) -> void;
     // auto destroy_compute_pipeline(Pipeline& pipeline) -> void;
@@ -131,9 +129,9 @@ private:
 
     [[maybe_unused]] gpu::Device& m_device;
     PipelineCacheInfo m_configuration;
-    lib::hive<CachedRasterPipeline> m_rasterPipelines;
-    lib::hive<CachedComputePipeline> m_computePipelines;
-    bool const RECOMPILE_SHADERS;
+    plf::colony<CachedRasterPipeline> m_rasterPipelines;
+    plf::colony<CachedComputePipeline> m_computePipelines;
+    //bool const RECOMPILE_SHADERS;
     /*FileSystem*/
 };
 }

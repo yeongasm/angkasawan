@@ -125,7 +125,7 @@ auto CommandBuffer::clear(ImageClearInfo const& info) -> void
 	else
 	{
 		VkClearColorValue colorValue{};
-		lib::memcopy(&colorValue.uint32, &imgClearValue.color.u32, sizeof(imgClearValue.color));
+		std::memcpy(&colorValue.uint32, &imgClearValue.color.u32, sizeof(imgClearValue.color));
 		vkCmdClearColorImage(
 			self.handle,
 			img.handle,
@@ -1157,7 +1157,7 @@ auto CommandBuffer::from(Resource<CommandPool>& commandPool) -> Resource<Command
 	return Resource<CommandBuffer>{ vkcmdbuffer, {} };
 }
 
-auto CommandBuffer::destroy(CommandBuffer& resource, [[maybe_unused]] Id id) -> void
+auto CommandBuffer::destroy(CommandBuffer& resource, [[maybe_unused]] uint64 id) -> void
 {
 	auto&& cmdBufferImpl = to_impl(resource);
 	auto&& cmdPoolImpl = to_impl(*resource.m_commandPool);

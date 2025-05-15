@@ -109,7 +109,7 @@ public:
 
 	constexpr bitset& reset()
 	{
-		memzero(m_data, sizeof(value_type) * (_word + 1));
+		std::memset(m_data, 0, sizeof(value_type) * (_word + 1));
 		return *this;
 	}
 

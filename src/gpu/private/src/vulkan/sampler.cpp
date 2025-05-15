@@ -60,13 +60,13 @@ auto Sampler::from(Device& device, SamplerInfo&& info) -> Resource<Sampler>
 	auto&& vkdevice = to_device(device);
 	uint64 const packed = vk::sampler_info_packed_uint64(info);
 
-	if (vkdevice.gpuResourcePool.samplerCache.contains(packed))
+	if (vkdevice.gpuResourcePool.caches.sampler.contains(packed))
 	{
-		auto it = vkdevice.gpuResourcePool.samplerCache[packed];
+		auto it = vkdevice.gpuResourcePool.caches.sampler[packed];
 
 		it->reference();
 
-		return Resource<Sampler>{ *it, vk::to_id(it) };
+		return Resource<Sampler>{ *it, packed };
 	}
 
 	VkSamplerCreateInfo createInfo{
@@ -92,7 +92,7 @@ auto Sampler::from(Device& device, SamplerInfo&& info) -> Resource<Sampler>
 
 	CHECK_OP(vkCreateSampler(vkdevice.device, &createInfo, nullptr, &handle))
 
-	auto it = vkdevice.gpuResourcePool.samplers.emplace(vkdevice);
+	auto it = vkdevice.gpuResourcePool.stores.samplers.emplace(vkdevice);
 
 	auto&& vksampler = *it;
 
@@ -106,17 +106,17 @@ auto Sampler::from(Device& device, SamplerInfo&& info) -> Resource<Sampler>
 	vksampler.m_info = std::move(info);
 
 	// Cache the sampler's state permutation for obvious reasons...
-	vkdevice.gpuResourcePool.samplerCache[packed] = it;
+	vkdevice.gpuResourcePool.caches.sampler.emplace(packed, it);
 
 	if constexpr (ENABLE_GPU_RESOURCE_DEBUG_NAMES)
 	{
 		vkdevice.setup_debug_name(vksampler);
 	}
 
-	return Resource<Sampler>{ vksampler, vk::to_id(it) };
+	return Resource<Sampler>{ vksampler, packed };
 }
 
-auto Sampler::destroy(Sampler& resource, Id id) -> void
+auto Sampler::destroy(Sampler& resource, uint64 id) -> void
 {
 	/*
 	 * At this point, the ref count on the resource is only 1 which means ONLY the resource has a reference to itself and can be safely deleted.
@@ -132,14 +132,12 @@ auto Sampler::destroy(Sampler& resource, Id id) -> void
 		cpuTimelineValue,
 		[&vksampler, id](vk::DeviceImpl& device) -> void
 		{
-			using iterator = typename lib::hive<vk::SamplerImpl>::iterator;
-
-			device.gpuResourcePool.samplerCache.erase(vksampler.info_packed());
 			vkDestroySampler(device.device, vksampler.handle, nullptr);
-
-			auto const it = vk::to_hive_it<iterator>(id);
-
-			device.gpuResourcePool.samplers.erase(it);
+			
+			auto it = device.gpuResourcePool.caches.sampler[id];
+			
+			device.gpuResourcePool.caches.sampler.erase(id);
+			device.gpuResourcePool.stores.samplers.erase(it);
 		}
 	);
 }

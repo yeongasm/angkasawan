@@ -278,7 +278,7 @@ auto store_image_uri_paths_and_image_data(
 			size_t const len = imageUriLengthSpan[i];
 			auto imageURI = dirAbsolutePath / image.uri;
 
-			lib::memcopy(&imageUriSpan[offset], imageURI.c_str(), len * sizeof(wchar_t));
+			std::memcpy(&imageUriSpan[offset], imageURI.c_str(), len * sizeof(wchar_t));
 
 			imageInfo.uri = std::wstring_view{ &imageUriSpan[offset], len };
 
@@ -329,7 +329,7 @@ auto store_material_names(
 		if (data->materials[i].name)
 		{
 			size_t const len = materialNameLengthSpan[j++];
-			lib::memcopy(&materialNameSpan[total], data->materials[i].name, len);
+			std::memcpy(&materialNameSpan[total], data->materials[i].name, len);
 			materialSpan[i].name = std::string_view{ &materialNameSpan[total], len };
 			total += len;
 		}
@@ -413,13 +413,13 @@ auto store_material_data(
 		// Store factors.
 
 		// Base color factor.
-		lib::memcopy(info.baseColorFactor, material.pbr_metallic_roughness.base_color_factor, sizeof(float32) * 4);
+		std::memcpy(info.baseColorFactor, material.pbr_metallic_roughness.base_color_factor, sizeof(float32) * 4);
 		// Metallic factor.
 		info.metallicFactor = material.pbr_metallic_roughness.metallic_factor;
 		// Roughness factor.
 		info.roughnessFactor = material.pbr_metallic_roughness.roughness_factor;
 		// Emissive factors and emissive strength.
-		lib::memcopy(info.emmissiveFactor, material.emissive_factor, sizeof(float32) * 3);
+		std::memcpy(info.emmissiveFactor, material.emissive_factor, sizeof(float32) * 3);
 		info.emmissiveStrength = material.emissive_strength.emissive_strength;
 		// Alpha mode & cutoff.
 		info.alphaMode = translate_alpha_mode(material.alpha_mode);
@@ -560,7 +560,7 @@ auto Mesh::unpack_index_data_internal(void* data, size_t count, size_t size) con
 		cgltf_uint index = {};
 		cgltf_accessor_read_uint(m_data.indices, i, &index, 1);
 		
-		lib::memcopy(ptr, &index, size);
+		std::memcpy(ptr, &index, size);
 		ptr += size;
 	}
 }

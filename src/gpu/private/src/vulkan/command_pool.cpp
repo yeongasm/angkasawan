@@ -62,7 +62,11 @@ auto CommandPool::from(Device& device, CommandPoolInfo&& info) -> Resource<Comma
 
 	CHECK_OP(vkCreateCommandPool(vkdevice.device, &commandPoolInfo, nullptr, &handle))
 
-	auto it = vkdevice.gpuResourcePool.commandPools.emplace(vkdevice);
+	auto it = vkdevice.gpuResourcePool.stores.commandPools.emplace(vkdevice);
+
+	auto id = ++vkdevice.gpuResourcePool.idCounter;
+
+	vkdevice.gpuResourcePool.caches.commandPool.emplace(id, it);
 
 	auto&& vkcommandpool = *it;
 
@@ -79,10 +83,10 @@ auto CommandPool::from(Device& device, CommandPoolInfo&& info) -> Resource<Comma
 		vkdevice.setup_debug_name(vkcommandpool);
 	}
 
-	return Resource<CommandPool>{ vkcommandpool, vk::to_id(it) };
+	return Resource<CommandPool>{ vkcommandpool, id };
 }
 
-auto CommandPool::destroy(CommandPool& resource, Id id) -> void
+auto CommandPool::destroy(CommandPool& resource, uint64 id) -> void
 {
 	/*
 	 * At this point, the ref count on the resource is only 1 which means ONLY the resource has a reference to itself and can be safely deleted.
@@ -98,8 +102,6 @@ auto CommandPool::destroy(CommandPool& resource, Id id) -> void
 		cpuTimelineValue,
 		[&vkcommandpool, id](vk::DeviceImpl& device) -> void
 		{
-			using iterator = typename lib::hive<vk::CommandPoolImpl>::iterator;
-
 			std::array<VkCommandBuffer, MAX_COMMAND_BUFFER_PER_POOL> cmdBuffers;
 
 			for (uint32 i = 0; i < vkcommandpool.commandBufferPool.commandBufferCount; ++i)
@@ -109,10 +111,11 @@ auto CommandPool::destroy(CommandPool& resource, Id id) -> void
 		
 			vkFreeCommandBuffers(device.device, vkcommandpool.handle, vkcommandpool.commandBufferPool.commandBufferCount, cmdBuffers.data());
 			vkDestroyCommandPool(device.device, vkcommandpool.handle, nullptr);
-		
-			auto const it = vk::to_hive_it<iterator>(id);
 
-			device.gpuResourcePool.commandPools.erase(it);		
+			auto it = device.gpuResourcePool.caches.commandPool[id];
+
+			device.gpuResourcePool.caches.commandPool.erase(id);
+			device.gpuResourcePool.stores.commandPools.erase(it);		
 		}
 	);
 }

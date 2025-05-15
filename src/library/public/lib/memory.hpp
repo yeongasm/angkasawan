@@ -13,22 +13,6 @@ constexpr inline size_t operator""_GiB(size_t n) { return 1024_MiB * n; }
 
 namespace lib
 {
-
-LIB_API void	memmove(void* dst, void* src, size_t size);
-LIB_API void	memcopy(void* dst, const void* src, size_t size);
-LIB_API size_t	memcmp(const void* src, const void* dst, size_t size);
-LIB_API void	memset(void* dst, uint8 val, size_t size);
-LIB_API void	memzero(void* dst, size_t size);
-
-template <typename T>
-void memswap(T* a, T* b)
-{
-	T temp;
-	memcopy(&temp, a, sizeof(T));
-	memcopy(a, b, sizeof(T));
-	memcopy(b, &temp, sizeof(T));
-}
-
 constexpr auto is_power_of_two(size_t num) -> bool
 {
 	return (num > 0) & ((num & (num - 1)) == 0);
@@ -116,84 +100,89 @@ public:
 		using other = allocator<U>;
 	};
 
-	allocator() noexcept = default;
-	~allocator() = default;
+	constexpr allocator() noexcept = default;
+	constexpr ~allocator() = default;
 
-	allocator(allocator const& other) :
+	constexpr allocator(allocator const& other) :
 		m_memoryResource{ other.resource() }
 	{}
 
 	template <typename U>
-	allocator(allocator<U> const& other) :
+	constexpr allocator(allocator<U> const& other) :
 		m_memoryResource{ other.resource() }
 	{}
 
-	allocator(memory_resource* resource) :
+	constexpr allocator(memory_resource* resource) :
 		m_memoryResource{ resource }
 	{}
 
 	template <typename A>
-	auto operator==(allocator<A> const& rhs) const -> bool
+	constexpr auto operator==(allocator<A> const& rhs) const -> bool
 	{
 		return m_memoryResource == rhs.m_memoryResource;
 	}
 
-	friend auto operator==(allocator const& lhs, allocator const& rhs) -> bool
+	constexpr friend auto operator==(allocator const& lhs, allocator const& rhs) -> bool
 	{
 		return lhs.m_memoryResource == rhs.m_memoryResource;
 	}
 
-	auto allocate(size_t n = 1) -> pointer
+	constexpr auto allocate(size_t n = 1) -> pointer
 	{
 		return static_cast<pointer>(m_memoryResource->allocate(sizeof(value_type) * n));
 	}
 
-	auto deallocate(pointer p, size_t n = 1) -> void
+	constexpr auto deallocate(pointer p, size_t n = 1) -> void
 	{
 		return m_memoryResource->deallocate(p, sizeof(value_type) * n);
 	}
 
 	template <typename U, typename... Args>
-	auto construct(U* p, Args&&... args) -> void
+	constexpr auto construct(U* p, Args&&... args) -> void
 	{
 		// new (p) std::decay_t<U>{ std::forward<Args>(args)... };
 		std::construct_at(p, std::forward<Args>(args)...);
 	}
 
 	template <typename U>
-	auto destroy(U* p) -> void
+	constexpr auto destroy(U* p) -> void
 	{
 		p->~U();
 	};
 
-	auto allocate_bytes(size_t nbytes, size_t alignment = alignof(std::max_align_t)) -> void*
+	constexpr auto allocate_bytes(size_t nbytes, size_t alignment = alignof(std::max_align_t)) -> void*
 	{
 		return m_memoryResource->allocate(nbytes, alignment);
 	}
 
-	auto deallocate_bytes(void* p, size_t nbytes, size_t alignment = alignof(std::max_align_t)) -> void
+	constexpr auto deallocate_bytes(void* p, size_t nbytes, size_t alignment = alignof(std::max_align_t)) -> void
 	{
 		m_memoryResource->deallocate(p, nbytes, alignment);
 	}
 
 	template <typename U>
-	auto allocate_object(size_t n = 1) -> U*
+	constexpr auto allocate_object(size_t n = 1) -> U*
 	{
 		return static_cast<U*>(m_memoryResource->allocate(sizeof(U) * n, alignof(U)));
 	}
 
 	template <typename U>
-	auto deallocate_object(U* p, size_t n = 1) -> void
+	constexpr auto deallocate_object(U* p, size_t n = 1) -> void
 	{
 		m_memoryResource->deallocate(p, sizeof(U) * n, alignof(U));
 	}
 
-	auto select_on_container_copy_construction() const -> allocator
+	constexpr auto select_on_container_copy_construction() const -> allocator
 	{
 		return allocator{};
 	}
 
-	auto resource() const -> memory_resource* { return m_memoryResource; }
+	constexpr auto max_size() const -> size_t
+	{
+		return std::numeric_limits<size_type>::max() / sizeof(value_type);
+	}
+
+	constexpr auto resource() const -> memory_resource* { return m_memoryResource; }
 
 private:
 	memory_resource* m_memoryResource = get_default_resource();

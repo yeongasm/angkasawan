@@ -1,15 +1,6 @@
 include(${CMAKE_SOURCE_DIR}/cmake/Util.cmake)
 include(${CMAKE_SOURCE_DIR}/cmake/CPM.cmake)
 
-# find_package(plf-colony)
-
-# find_path(PLF_COLONY_INCLUDE_DIRS "plf_colony.h")
-# add_library(plf_colony INTERFACE ${PLF_COLONY_INCLUDE_DIRS})
-
-# target_compile_features(plf_colony INTERFACE cxx_std_23)
-# target_include_directories(plf_colony INTERFACE ${PLF_COLONY_INCLUDE_DIRS})
-# set_target_properties(plf_colony PROPERTIES FOLDER thirdparty)
-
 CPMAddPackage(
 	NAME fmt
 	GIT_TAG 11.1.1
@@ -17,6 +8,15 @@ CPMAddPackage(
 )
 set_target_properties(fmt PROPERTIES FOLDER thirdparty)
 target_compile_features(fmt PUBLIC cxx_std_23)
+
+CPMAddPackage(
+	NAME unordered_dense
+	GIT_TAG v4.5.0
+	GIT_REPOSITORY https://github.com/martinus/unordered_dense.git
+)
+
+set_target_properties(unordered_dense PROPERTIES FOLDER thirdparty)
+target_compile_features(unordered_dense INTERFACE cxx_std_23)
 
 CPMAddPackage(
 	NAME plf_colony
@@ -60,7 +60,7 @@ set(
 	"public/lib/map.hpp"
 	"public/lib/memory.hpp"
 	"public/lib/named_type.hpp"
-	"public/lib/paged_array.hpp"
+	#"public/lib/paged_array.hpp"
 	"public/lib/resource.hpp"
 	"public/lib/set_once.hpp"
 	"public/lib/set.hpp"
@@ -101,5 +101,5 @@ target_include_directories(
 	PUBLIC "public"
 )
 
-target_link_libraries(lib PUBLIC fmt plf_colony)
+target_link_libraries(lib PUBLIC fmt plf_colony unordered_dense)
 assign_source_group(${source_list} ${win_source_list})

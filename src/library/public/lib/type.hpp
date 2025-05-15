@@ -23,6 +23,9 @@ using void_type = type_wrapper<void>;
 template <typename T>
 using type = type_wrapper<T>;
 
+template <typename T>
+inline constexpr type<T> type_v{};
+
 template <typename... T>
 struct type_tuple;
 

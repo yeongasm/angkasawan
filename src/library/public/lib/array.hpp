@@ -883,9 +883,6 @@ private:
 	size_t m_len;
 	size_t m_capacity;
 };
-
-template <typename T>
-using hive = plf::colony<T, allocator<T>>;
 }
 
 #endif // !LIB_ARRAY_HPP

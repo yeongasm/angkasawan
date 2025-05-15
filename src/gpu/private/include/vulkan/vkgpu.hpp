@@ -6,8 +6,9 @@
 #include <mutex>
 #include <array>
 
+#include <ankerl/unordered_dense.h>
+
 #include "lib/array.hpp"
-#include "lib/map.hpp"
 #include "lib/function.hpp"
 
 #include "vk.h"
@@ -23,22 +24,6 @@ namespace gpu
 {
 namespace vk
 {
-template <typename T>
-auto to_hive_it(Id id) -> T
-{
-	T out;
-	std::memcpy(&out, &id, sizeof(T));
-	return out;
-};
-
-template <typename T>
-auto to_id(T it) -> Id
-{
-	Id id;
-	std::memcpy(&id, &it, sizeof(Id));
-	return id;
-}
-
 class DeviceImpl;
 
 static constexpr uint32 INVALID_QUEUE_FAMILY_INDEX = std::numeric_limits<uint32>::max();
@@ -134,7 +119,7 @@ public:
 	SwapchainImpl() = default;
 	SwapchainImpl(DeviceImpl& device);
 
-	using surface_iterator = typename lib::hive<Surface>::iterator;
+	using surface_iterator = typename plf::colony<Surface>::iterator;
 	
 	surface_iterator surface = {};
 	VkSwapchainKHR handle = VK_NULL_HANDLE;
@@ -207,7 +192,7 @@ public:
 struct Zombie
 {
 	using device_timeline_t = Device::cpu_timeline_t;
-	using destroy_fn = lib::function<void(DeviceImpl&), { .capacity = sizeof(Id) + sizeof(uintptr_t) }>;
+	using destroy_fn 		= lib::function<void(DeviceImpl&), { .capacity = sizeof(uintptr_t) * 5 }>;
 	
 	device_timeline_t timeline;
 	destroy_fn destroyFn;
@@ -215,30 +200,49 @@ struct Zombie
 
 struct ResourcePool
 {
-	using SamplerCache = lib::map<uint64, typename lib::hive<SamplerImpl>::iterator>;
+	template <typename T>
+	using Cache = ankerl::unordered_dense::map<uint64, typename plf::colony<T>::iterator>;
 
-	lib::hive<SemaphoreImpl> binarySemaphore{ plf::limits{ 8, 64 } };
-	lib::hive<FenceImpl> timelineSemaphore{ plf::limits{ 8, 64 } };
-	lib::hive<EventImpl> events{ plf::limits{ 8, 64 } };
-	lib::hive<BufferImpl> buffers{ plf::limits{ 8, 64 } };
-	lib::hive<ImageImpl> images{ plf::limits{ 8, 64 } };
-	lib::hive<SamplerImpl> samplers{ plf::limits{ 8, 64 } };
-	SamplerCache samplerCache;
-	lib::hive<Surface> surfaces{ plf::limits{ 4, 8 } };
-	lib::hive<SwapchainImpl> swapchains{ plf::limits{ 4, 8 } };
-	lib::hive<ShaderImpl> shaders{ plf::limits{ 8, 64 } };
-	lib::hive<PipelineImpl> pipelines{ plf::limits{ 8, 64 } };
-	lib::hive<MemoryBlockImpl> memoryBlocks{ plf::limits{ 8, 64 } };
-	lib::hive<CommandPoolImpl> commandPools{ plf::limits{ 4, 16 } };
+	struct
+	{
+		plf::colony<SemaphoreImpl> binarySemaphore{ plf::limits{ 8, 64 } };
+		plf::colony<FenceImpl> timelineSemaphore{ plf::limits{ 8, 64 } };
+		plf::colony<EventImpl> events{ plf::limits{ 8, 64 } };
+		plf::colony<BufferImpl> buffers{ plf::limits{ 8, 64 } };
+		plf::colony<ImageImpl> images{ plf::limits{ 8, 64 } };
+		plf::colony<SamplerImpl> samplers{ plf::limits{ 8, 64 } };
+		plf::colony<Surface> surfaces{ plf::limits{ 4, 8 } };
+		plf::colony<SwapchainImpl> swapchains{ plf::limits{ 4, 8 } };
+		plf::colony<ShaderImpl> shaders{ plf::limits{ 8, 64 } };
+		plf::colony<PipelineImpl> pipelines{ plf::limits{ 8, 64 } };
+		plf::colony<MemoryBlockImpl> memoryBlocks{ plf::limits{ 8, 64 } };
+		plf::colony<CommandPoolImpl> commandPools{ plf::limits{ 4, 16 } };
+	} stores;
+	
+	struct
+	{
+		Cache<SemaphoreImpl> binarySemaphore;
+		Cache<FenceImpl> timelineSemaphore;
+		Cache<EventImpl> event;
+		Cache<BufferImpl> buffer;
+		Cache<ImageImpl> image;
+		Cache<SamplerImpl> sampler;
+		Cache<SwapchainImpl> swapchain;
+		Cache<ShaderImpl> shader;
+		Cache<PipelineImpl> pipeline;
+		Cache<MemoryBlockImpl> memoryBlock;
+		Cache<CommandPoolImpl> commandPool;
+	} caches;
 
 	std::deque<Zombie> zombies;
 	std::mutex zombieMutex;
+	uint64 idCounter;
 };
 
 struct DescriptorCache
 {
 	// Pipeline layouts.
-	lib::map<uint32, VkPipelineLayout> pipelineLayouts;
+	ankerl::unordered_dense::map<uint32, VkPipelineLayout> pipelineLayouts;
 
 	// Descriptors.
 	VkDescriptorPool descriptorPool;

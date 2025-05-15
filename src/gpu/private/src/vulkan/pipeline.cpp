@@ -231,7 +231,11 @@ auto Pipeline::from(Device& device, RasterPipelineShaderInfo const& pipelineShad
 	// The only way this can fail is when we run out of host / device memory OR shader linkage has failed.
 	CHECK_OP(vkCreateGraphicsPipelines(vkdevice.device, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &handle))
 
-	auto it = vkdevice.gpuResourcePool.pipelines.emplace(vkdevice);
+	auto it = vkdevice.gpuResourcePool.stores.pipelines.emplace(vkdevice);
+	
+	auto id = ++vkdevice.gpuResourcePool.idCounter;
+
+	vkdevice.gpuResourcePool.caches.pipeline.emplace(id, it);
 
 	auto&& vkpipeline = *it;
 
@@ -253,7 +257,7 @@ auto Pipeline::from(Device& device, RasterPipelineShaderInfo const& pipelineShad
 		vkdevice.setup_debug_name(vkpipeline);
 	}
 
-	return Resource<Pipeline>{ vkpipeline, vk::to_id(it) };
+	return Resource<Pipeline>{ vkpipeline, id };
 }
 
 auto Pipeline::from(Device& device, Resource<Shader>& computeShader, ComputePipelineInfo&& info) -> Resource<Pipeline>
@@ -286,7 +290,11 @@ auto Pipeline::from(Device& device, Resource<Shader>& computeShader, ComputePipe
 
 	CHECK_OP(vkCreateComputePipelines(vkdevice.device, VK_NULL_HANDLE, 1u, &pipelineCreateInfo, nullptr, &handle))
 
-	auto it = vkdevice.gpuResourcePool.pipelines.emplace(vkdevice);
+	auto it = vkdevice.gpuResourcePool.stores.pipelines.emplace(vkdevice);
+
+	auto id = ++vkdevice.gpuResourcePool.idCounter;
+
+	vkdevice.gpuResourcePool.caches.pipeline.emplace(id, it);
 
 	auto&& vkpipeline = *it;
 
@@ -308,10 +316,10 @@ auto Pipeline::from(Device& device, Resource<Shader>& computeShader, ComputePipe
 		vkdevice.setup_debug_name(vkpipeline);
 	}
 
-	return Resource<Pipeline>{ vkpipeline, vk::to_id(it) };
+	return Resource<Pipeline>{ vkpipeline, id };
 }
 
-auto Pipeline::destroy(Pipeline& resource, Id id) -> void
+auto Pipeline::destroy(Pipeline& resource, uint64 id) -> void
 {
 	/*
 	* At this point, the ref count on the resource is only 1 which means ONLY the resource has a reference to itself and can be safely deleted.
@@ -327,13 +335,12 @@ auto Pipeline::destroy(Pipeline& resource, Id id) -> void
 		cpuTimelineValue,
 		[&vkpipeline, id](vk::DeviceImpl& device) -> void
 		{
-			using iterator = typename lib::hive<vk::PipelineImpl>::iterator;
-
 			vkDestroyPipeline(device.device, vkpipeline.handle, nullptr);
 
-			auto const it = vk::to_hive_it<iterator>(id);
+			auto it = device.gpuResourcePool.caches.pipeline[id];
 
-			device.gpuResourcePool.pipelines.erase(it);
+			device.gpuResourcePool.caches.pipeline.erase(id);
+			device.gpuResourcePool.stores.pipelines.erase(it);
 		}
 	);
 }

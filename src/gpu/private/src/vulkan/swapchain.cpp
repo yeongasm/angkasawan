@@ -284,7 +284,7 @@ auto Swapchain::from(Device& device, SwapchainInfo&& info, Resource<Swapchain> p
 #elif __linux__
 #endif
 
-		auto it = vkdevice.gpuResourcePool.surfaces.emplace();
+		auto it = vkdevice.gpuResourcePool.stores.surfaces.emplace();
 
 		auto&& vksurface = *it;
 
@@ -385,7 +385,11 @@ auto Swapchain::from(Device& device, SwapchainInfo&& info, Resource<Swapchain> p
 
 	FenceInfo fenceInfo{ .initialValue = 0 };
 
-	auto it = vkdevice.gpuResourcePool.swapchains.emplace(vkdevice);
+	auto it = vkdevice.gpuResourcePool.stores.swapchains.emplace(vkdevice);
+	
+	auto id = ++vkdevice.gpuResourcePool.idCounter;
+
+	vkdevice.gpuResourcePool.caches.swapchain.emplace(id, it);
 
 	auto&& vkswapchain = *it;
 
@@ -436,10 +440,10 @@ auto Swapchain::from(Device& device, SwapchainInfo&& info, Resource<Swapchain> p
 		vkdevice.setup_debug_name(vkswapchain);
 	}
 
-	return Resource<Swapchain>{ vkswapchain, vk::to_id(it) };
+	return Resource<Swapchain>{ vkswapchain, id };
 }
 
-auto Swapchain::destroy(Swapchain& resource, Id id) -> void
+auto Swapchain::destroy(Swapchain& resource, uint64 id) -> void
 {
 	/*
 	 * At this point, the ref count on the resource is only 1 which means ONLY the resource has a reference to itself and can be safely deleted.
@@ -472,15 +476,14 @@ auto Swapchain::destroy(Swapchain& resource, Id id) -> void
 		cpuTimelineValue,
 		[&vkswapchain, id](vk::DeviceImpl& device) -> void
 		{
-			using iterator = typename lib::hive<vk::SwapchainImpl>::iterator;
-
 			auto surface = vkswapchain.surface;
 
 			vkDestroySwapchainKHR(device.device, vkswapchain.handle, nullptr);
 		
-			auto const it = vk::to_hive_it<iterator>(id);
+			auto it = device.gpuResourcePool.caches.swapchain[id];
 
-			device.gpuResourcePool.swapchains.erase(it);
+			device.gpuResourcePool.caches.swapchain.erase(id);
+			device.gpuResourcePool.stores.swapchains.erase(it);
 			
 			/**
 			* fetch_sub returns the previously held value of the atomic variable prior to the operation.
@@ -489,7 +492,7 @@ auto Swapchain::destroy(Swapchain& resource, Id id) -> void
 			if (surface->refCount.fetch_sub(1, std::memory_order_acq_rel) == 2)
 			{
 				vkDestroySurfaceKHR(device.instance, surface->handle, nullptr);
-				device.gpuResourcePool.surfaces.erase(surface);
+				device.gpuResourcePool.stores.surfaces.erase(surface);
 			}
 		}
 	);

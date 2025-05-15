@@ -31,7 +31,11 @@ auto Semaphore::from(Device& device, SemaphoreInfo&& info) -> Resource<Semaphore
 
 	CHECK_OP(vkCreateSemaphore(vkdevice.device, &semaphoreInfo, nullptr, &handle))
 
-	auto it = vkdevice.gpuResourcePool.binarySemaphore.emplace(vkdevice);
+	auto it = vkdevice.gpuResourcePool.stores.binarySemaphore.emplace(vkdevice);
+
+	auto id = ++vkdevice.gpuResourcePool.idCounter;
+
+	vkdevice.gpuResourcePool.caches.binarySemaphore.emplace(id, it);
 
 	auto&& vksemaphore = *it;
 
@@ -48,10 +52,10 @@ auto Semaphore::from(Device& device, SemaphoreInfo&& info) -> Resource<Semaphore
 		vkdevice.setup_debug_name(vksemaphore);
 	}
 
-	return Resource<Semaphore>{ vksemaphore, vk::to_id(it) };
+	return Resource<Semaphore>{ vksemaphore, id };
 }
 
-auto Semaphore::destroy(Semaphore& resource, Id id) -> void
+auto Semaphore::destroy(Semaphore& resource, uint64 id) -> void
 {
 	auto&& vkdevice = to_device(resource.m_device);
 	auto&& vksemaphore = to_impl(resource);
@@ -64,13 +68,12 @@ auto Semaphore::destroy(Semaphore& resource, Id id) -> void
 		cpuTimelineValue,
 		[&vksemaphore, id](vk::DeviceImpl& device) -> void
 		{
-			using iterator = typename lib::hive<vk::SemaphoreImpl>::iterator;
-
 			vkDestroySemaphore(device.device, vksemaphore.handle, nullptr);
 
-			auto const it = vk::to_hive_it<iterator>(id);
+			auto it = device.gpuResourcePool.caches.binarySemaphore[id];
 
-			device.gpuResourcePool.binarySemaphore.erase(it);
+			device.gpuResourcePool.caches.binarySemaphore.erase(id);
+			device.gpuResourcePool.stores.binarySemaphore.erase(it);
 		}
 	);
 }
@@ -193,7 +196,11 @@ auto Fence::from(Device& device, FenceInfo&& info) -> Resource<Fence>
 
 	CHECK_OP(vkCreateSemaphore(vkdevice.device, &semaphoreInfo, nullptr, &handle))
 
-	auto it = vkdevice.gpuResourcePool.timelineSemaphore.emplace(vkdevice);
+	auto it = vkdevice.gpuResourcePool.stores.timelineSemaphore.emplace(vkdevice);
+
+	auto id = ++vkdevice.gpuResourcePool.idCounter;
+
+	vkdevice.gpuResourcePool.caches.timelineSemaphore.emplace(id, it);
 
 	auto&& vksemaphore = *it;
 
@@ -210,10 +217,10 @@ auto Fence::from(Device& device, FenceInfo&& info) -> Resource<Fence>
 		vkdevice.setup_debug_name(vksemaphore);
 	}
 
-	return Resource<Fence>{ vksemaphore, vk::to_id(it) };
+	return Resource<Fence>{ vksemaphore, id };
 }
 
-auto Fence::destroy(Fence const& resource, Id id) -> void
+auto Fence::destroy(Fence const& resource, uint64 id) -> void
 {
 	auto&& vkdevice = to_device(resource.m_device);
 	auto&& vksemaphore = to_impl(resource);
@@ -226,13 +233,12 @@ auto Fence::destroy(Fence const& resource, Id id) -> void
 		cpuTimelineValue,
 		[&vksemaphore, id](vk::DeviceImpl& device) -> void
 		{
-			using iterator = typename lib::hive<vk::FenceImpl>::iterator;
-
 			vkDestroySemaphore(device.device, vksemaphore.handle, nullptr);
 
-			auto const it = vk::to_hive_it<iterator>(id);
+			auto it = device.gpuResourcePool.caches.timelineSemaphore[id];
 
-			device.gpuResourcePool.timelineSemaphore.erase(it);
+			device.gpuResourcePool.caches.timelineSemaphore.erase(id);
+			device.gpuResourcePool.stores.timelineSemaphore.erase(it);
 		}
 	);
 }
@@ -295,7 +301,11 @@ auto Event::from(Device& device, EventInfo&& info) -> Resource<Event>
 
 	CHECK_OP(vkCreateEvent(vkdevice.device, &eventInfo, nullptr, &handle))
 
-	auto it = vkdevice.gpuResourcePool.events.emplace(vkdevice);
+	auto it = vkdevice.gpuResourcePool.stores.events.emplace(vkdevice);
+
+	auto id = ++vkdevice.gpuResourcePool.idCounter;
+
+	vkdevice.gpuResourcePool.caches.event.emplace(id, it);
 
 	auto&& vkevent = *it;
 
@@ -312,10 +322,10 @@ auto Event::from(Device& device, EventInfo&& info) -> Resource<Event>
 		vkdevice.setup_debug_name(vkevent);
 	}
 
-	return Resource<Event>{ vkevent, vk::to_id(it) };
+	return Resource<Event>{ vkevent, id };
 }
 
-auto Event::destroy(Event const& resource, Id id) -> void
+auto Event::destroy(Event const& resource, uint64 id) -> void
 {
 	auto&& vkdevice = to_device(resource.m_device);
 	auto&& vkevent = to_impl(resource);
@@ -328,13 +338,12 @@ auto Event::destroy(Event const& resource, Id id) -> void
 		cpuTimelineValue,
 		[&vkevent, id] (vk::DeviceImpl& device) -> void
 		{
-			using iterator = typename lib::hive<vk::EventImpl>::iterator;
-
 			vkDestroyEvent(device.device, vkevent.handle, nullptr);
 
-			auto const it = vk::to_hive_it<iterator>(id);
+			auto it = device.gpuResourcePool.caches.event[id];
 
-			device.gpuResourcePool.events.erase(it);
+			device.gpuResourcePool.caches.event.erase(id);
+			device.gpuResourcePool.stores.events.erase(it);
 		}
 	);
 }

@@ -8,8 +8,6 @@
 #include "lib/memory.hpp"
 #include "lib/set.hpp"
 #include "lib/map.hpp"
-#include "lib/paged_array.hpp"
-#include "lib/string.hpp"
 
 #include "file_watcher.hpp"
 

@@ -4,7 +4,6 @@
 
 #include <array>
 #include <type_traits>
-#include "lib/paged_array.hpp"
 #include "platform_minimal.hpp"
 #include "windowing.hpp"
 
