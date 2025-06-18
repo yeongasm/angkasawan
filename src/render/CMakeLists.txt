@@ -11,6 +11,7 @@ set(
     "public/render/upload_heap.hpp"
     "public/render/work_graph.hpp"
     "public/render/pipeline_cache.hpp"
+    "public/render/pipeline_definitions.hpp"
 )
 
 set(
@@ -45,6 +46,7 @@ target_include_directories(
 	PRIVATE "private/include"
 )
 
+target_link_libraries(render PRIVATE glaze::glaze)
 target_link_libraries(render PUBLIC core.platform gpu core.serialization)
 
 assign_source_group(${render_header_files} ${render_source_files})

@@ -111,7 +111,7 @@ struct Version
 	uint32 minor;
 	uint32 patch;
 
-	auto stringify() const -> lib::string;
+	auto stringify() const -> std::string;
 };
 
 struct DeviceInfo
@@ -171,7 +171,7 @@ struct ColorBlendInfo
 
 struct SurfaceInfo
 {
-	lib::string name;
+	std::string name;
 	lib::array<Format> preferredSurfaceFormats;
 	void* instance;
 	void* window;
@@ -179,7 +179,7 @@ struct SurfaceInfo
 
 struct SwapchainInfo
 {
-	lib::string name;
+	std::string name;
 	SurfaceInfo surfaceInfo;
 	Extent2D dimension;
 	uint32 imageCount;
@@ -207,14 +207,14 @@ struct CompiledShaderInfo
 
 struct ShaderInfo
 {
-	lib::string name;
+	std::string name;
 	ShaderType type;
-	lib::string entryPoint;
+	std::string entryPoint;
 };
 
 struct BufferInfo
 {
-	lib::string name;
+	std::string name;
 	size_t size;
 	BufferUsage	bufferUsage;
 	MemoryUsage memoryUsage;
@@ -223,7 +223,7 @@ struct BufferInfo
 
 struct ImageInfo
 {
-	lib::string name;
+	std::string name;
 	ImageType type;
 	Format	format;
 	SampleCount	samples;
@@ -238,7 +238,7 @@ struct ImageInfo
 
 struct SamplerInfo
 {
-	lib::string name;
+	std::string name;
 	TexelFilter minFilter;
 	TexelFilter magFilter;
 	MipmapMode mipmapMode;
@@ -256,13 +256,13 @@ struct SamplerInfo
 
 struct CommandPoolInfo
 {
-	lib::string name;
+	std::string name;
 	DeviceQueue queue;
 };
 
 struct CommandBufferInfo
 {
-	lib::string name;
+	std::string name;
 };
 
 struct DepthTestInfo
@@ -293,7 +293,7 @@ struct ColorAttachment
 
 struct RasterPipelineInfo
 {
-	lib::string name;
+	std::string name;
 	lib::array<ColorAttachment> colorAttachments;
 	Format depthAttachmentFormat;
 	Format stencilAttachmentFormat;
@@ -306,24 +306,24 @@ struct RasterPipelineInfo
 
 struct ComputePipelineInfo
 {
-	lib::string name;
+	std::string name;
 	uint32 pushConstantSize;
 };
 
 struct SemaphoreInfo
 {
-	lib::string name;
+	std::string name;
 };
 
 struct FenceInfo
 {
-	lib::string name;
+	std::string name;
 	uint64 initialValue;
 };
 
 struct EventInfo
 {
-	lib::string name;
+	std::string name;
 };
 
 struct MemoryRequirementInfo
@@ -336,13 +336,13 @@ struct MemoryRequirementInfo
 
 struct MemoryBlockInfo
 {
-	lib::string name;
+	std::string name;
 	MemoryUsage usage;
 };
 
 struct MemoryBlockAllocateInfo
 {
-	lib::string name;
+	std::string name;
 	MemoryRequirementInfo memoryRequirement;
 };
 

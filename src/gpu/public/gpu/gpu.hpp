@@ -442,6 +442,8 @@ protected:
 struct RasterPipelineShaderInfo
 {
 	Resource<Shader> vertexShader;
+	// Resource<Shader> meshShader;
+	// Resource<Shader> taskShader;
 	Resource<Shader> pixelShader;
 	std::span<ShaderAttribute> vertexInputAttrib;
 };

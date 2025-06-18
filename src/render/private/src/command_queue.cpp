@@ -135,7 +135,7 @@ auto CommandQueue::next_free_command_buffer(RequestCommandBufferInfo&& info) -> 
 			}
 		};
 
-		auto commandPool = gpu::CommandPool::from(m_device, { .name = lib::format("type={}, tid={}", queue_type_name(info.queue), info.tid), .queue = info.queue });
+		auto commandPool = gpu::CommandPool::from(m_device, { .name = fmt::format("<cmdpool>:type={}, tid={}", queue_type_name(info.queue), info.tid), .queue = info.queue });
 
 		if (!commandPool)
 		{

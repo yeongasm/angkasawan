@@ -96,11 +96,6 @@ auto Sampler::from(Device& device, SamplerInfo&& info) -> Resource<Sampler>
 
 	auto&& vksampler = *it;
 
-	if (info.name.size())
-	{
-		info.name.format("<sampler>:{}", info.name.c_str());
-	}
-
 	vksampler.handle = handle;
 	vksampler.m_packedInfoBits = packed;
 	vksampler.m_info = std::move(info);

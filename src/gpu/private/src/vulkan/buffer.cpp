@@ -216,12 +216,6 @@ auto Buffer::from(Device& device, BufferInfo&& info, Resource<MemoryBlock> memor
 	};
 
 	vkbuffer.address = vkGetBufferDeviceAddress(vkdevice.device, &addressInfo);
-
-	if (!info.name.empty())
-	{
-		info.name.format("<buffer>:{}", info.name.c_str());
-	}
-
 	vkbuffer.handle = handle;
 	vkbuffer.allocationBlock = memoryBlock;
 	vkbuffer.m_info = std::move(info);

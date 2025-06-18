@@ -1,93 +1,59 @@
 #pragma once
+#include "gpu/common.hpp"
 #ifndef RENDER_PIPELINE_CACHE_HPP
 #define RENDER_PIPELINE_CACHE_HPP
 
 #include <filesystem>
 
-#include "lib/function.hpp"
 #include "gpu/gpu.hpp"
 #include "gpu/shader_compiler.hpp"
 
+#include "pipeline_definitions.hpp"
+
 namespace render
 {
-/*
-* Not to be confused with the pipeline cache that's in the gpu.
-* The PipelineCache is meant to compile shaders once into the API shader intermediary format (DXIL/SPIR-V) as long as the GPU's driver version does not change.
-* Once the shaders are compiled into SPIR-V, the engine looks up into the cache's directory and serializes all the pipelines into the engine.
-*/
-struct RasterPipelineShaders
-{
-    std::optional<std::string_view> mesh;
-    std::optional<std::string_view> vertex;
-    std::optional<std::string_view> tesselationControl;
-    std::optional<std::string_view> tesselationEvaluation;
-    std::optional<std::string_view> fragment;
-    std::optional<std::string_view> task;
-};
-
-struct ComputePipelineShaders
-{
-    std::string_view compute;
-};
-
-struct RasterPipelineInfo
-{
-    gpu::RasterPipelineInfo info;
-    RasterPipelineShaders shaders;
-    lib::map<lib::string, lib::string> preprocessorDefinitions;
-    lib::array<std::filesystem::path> includePaths;
-};
-
-struct ComputePipelineInfo
-{
-    gpu::ComputePipelineInfo info;
-    ComputePipelineShaders shaders;
-    lib::map<lib::string, lib::string> preprocessorDefinitions;
-    lib::array<std::filesystem::path> includePaths;
-};
-
 struct PipelineCacheInfo
 {
     std::filesystem::path cachePath;
+    size_t scratchBufferSize;
 };
 
-/*
-* Stores a callback function that returns the the pipeline when we do a dereference / pointer access.
-* This way we can return the type erased handles.
-*
-*/
-class Pipeline
+struct PipelineCacheLoadDefinitionsInfo
 {
-public:
-    Pipeline() = default;
-    ~Pipeline() = default;
+    std::span<RasterPipelineDefinition const*> raster;
+    std::span<ComputePipelineDefinition const*> compute;
+};
 
-    auto type() const -> gpu::PipelineType;
+struct PipelineShaderCompileInfo
+{
+    gpu::ShaderType type;
 
-    template <typename Self>
-    auto operator*(this Self&& self) -> auto&&
-    {
-        return std::forward_like<Self>(self.m_access());
-    }
+    /**
+	* \brief 0 - no optimization
+	* \brief 1 - performance
+	* \brief 2 - size
+	* \brief 3 - performance and size
+	*/
+    uint32 optimizationLevel;
 
-    template <typename Self>
-    auto operator->(this Self&& self) -> auto&&
-    {
-        return std::forward_like<Self>(&self.m_access());
-    }
-private:
-    friend class PipelineCache;
+    /**
+	* \brief Compiled with debug symbol if 1.
+	*/
+    uint32 enableDebugSymbol : 1;
 
-    template <typename AccessFn>
-    Pipeline(gpu::PipelineType type, AccessFn&& fn) :
-        m_access{ std::forward<AccessFn>(fn) },
-        m_type{ type }
-    {}
+    /**
+	* \brief 
+    * Do not use. Use add_macro_definition rather than appending manually.
+    * If required, provide semicolon ";" separated keys and key-values.
+    * Key-values should have an equals "=" between them.
+    *
+    * For e.g,  key only -> FOO;BAR
+    *           key-value -> FOO;BAR=BAZ;
+	*/
+    std::string defines;
 
-    using AccessFn = lib::function<gpu::Pipeline&(void), { .capacity = sizeof(uintptr_t) * 3 }>;
-
-    AccessFn m_access;
-    gpu::PipelineType m_type;
+    auto add_macro_definition(std::string_view key) -> void;
+    auto add_macro_definition(std::string_view key, std::string_view value) -> void;
 };
 
 /*
@@ -96,43 +62,59 @@ private:
 class PipelineCache : lib::non_copyable_non_movable
 {
 public:
+
+    /*
+    * 1. When initializing the pipeline cache, we check if our gpu driver version matches with the one that is cached.
+    * 2. If there was no previously cached driver version, we don't do anything.
+    * 3. If there is a driver version mismatch, we clear everything in the cache directory.
+    * 4. Upon creating the pipeline cache, we then parse a list of pipeline definitions.
+    *       4.1. A pipeline definition is simply a text file / code that defines a list of pipelines with it's name, pipeline info and its shaders.
+    * 5. If the cache folder is not empty, we simply serialize the shaders into the pipeline cache and use them to construct the pipelines.
+    * 6. If the cache folder is empty, we serialize the shaders in it's raw format and recompile them. After recompiling, we construct the pipelines.
+    */
+
     static auto create(gpu::Device& device, PipelineCacheInfo const& info /*, FileSystem */) -> std::unique_ptr<PipelineCache>;
 
-    //auto create_raster_pipeline(RasterPipelineInfo&& info) -> std::expected<Pipeline, std::string_view>;
-    // auto create_compute_pipeline(ComputePipelineInfo&& info) -> std::expected<Pipeline, std::string_view>;
-    // auto destroy_raster_pipeline(Pipeline& pipeline) -> void;
-    // auto destroy_compute_pipeline(Pipeline& pipeline) -> void;
-    
+    auto shader_compiler() -> gpu::ShaderCompiler&;
+
     /*
-    * IDEA(afiq):
-    * When creating a pipeline, we will not immediately write to disk.
-    * Instead, store into some blob of memory and then only write the pipelines to disk when commit() is called.
-    *
-    * Motive? 
-    * When shaders are edited in runtime and non-final builds, we don't pay the cost of I/O operations everytime a shader is updated.
-    *
+    * Attempts to load shader binaries that are written to disk.
+	* If the function returns false, that means the gpu driver version don't match and we'll need to recompile shaders.
     */
-    //auto commit() -> void;
+    auto load_cache(PipelineCacheLoadDefinitionsInfo const& definitions) -> bool;
+
+    /*
+    * Serializes the shaders in the pipeline definition to disk and adds the pipeline into the cache.
+    */
+    auto cache_pipeline(RasterPipelineDefinition const& definition, std::span<PipelineShaderCompileInfo const*> compileInfo) -> std::expected<gpu::pipeline, std::string>;
+
+    /*
+    * Serializes the shaders in the pipeline definition to disk and adds the pipeline into the cache.
+    */
+    // auto cache_pipeline(ComputePipelineDefinition const& definition, PipelineShaderCompileInfo& compileInfo) -> std::expected<gpu::pipeline, std::string>;
+
+    auto remove_pipeline(std::string_view uri) -> void;
+
+    auto get_pipeline(std::string_view uri) -> std::expected<gpu::pipeline, std::string>;
 
 private:
-    PipelineCache(gpu::Device& device, PipelineCacheInfo const& info, bool recompileShaders);
+    PipelineCache(gpu::Device& device, PipelineCacheInfo const& info);
 
-    template <typename T>
-    struct CachedPipeline
-    {
-        gpu::pipeline pipeline;
-        T config;
-    };
+    using UriToPipelineMap = ankerl::unordered_dense::map<std::string_view, plf::colony<gpu::pipeline>::iterator>;
 
-    using CachedRasterPipeline  = CachedPipeline<RasterPipelineInfo>;
-    using CachedComputePipeline = CachedPipeline<ComputePipelineInfo>;
-
-    [[maybe_unused]] gpu::Device& m_device;
+    gpu::Device& m_device;
     PipelineCacheInfo m_configuration;
-    plf::colony<CachedRasterPipeline> m_rasterPipelines;
-    plf::colony<CachedComputePipeline> m_computePipelines;
-    //bool const RECOMPILE_SHADERS;
-    /*FileSystem*/
+    std::unique_ptr<gpu::ShaderCompiler> m_shaderCompiler;
+    plf::colony<gpu::pipeline> m_pipelines;
+    UriToPipelineMap m_uriToPipeline;
+
+    auto load_pipeline(RasterPipelineDefinition const& definition) -> void;
+    auto load_pipeline(ComputePipelineDefinition const& definition) -> void;
+    auto try_compile_shader(std::filesystem::path const& path, PipelineShaderCompileInfo const& compileInfo) -> std::expected<gpu::shader, std::string>;
+    auto compile_shader(std::string_view path, std::filesystem::path const& output, PipelineShaderCompileInfo const& compileInfo) -> std::expected<gpu::shader, std::string>;
+    auto compilation_error(std::string_view message, bool sourceFileOpen, bool sourceCodeExist) -> std::string;
+    auto serialize_shader(std::filesystem::path const& path, gpu::CompiledShaderInfo const& compiledInfo) -> void;
+    auto deserialize_shader(std::filesystem::path const& path) -> gpu::shader;
 };
 }
 

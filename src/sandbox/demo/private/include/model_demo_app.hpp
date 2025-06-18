@@ -44,7 +44,6 @@ private:
 
 	core::platform::Application* m_app = {};
 	render::AsyncDevice* m_gpu = {};
-	std::unique_ptr<gpu::ShaderCompiler> m_shaderCompiler = {};
 	core::Ref<core::platform::Window> m_rootWindowRef = {};
 	gpu::swapchain m_swapchain = {};
 
@@ -102,7 +101,7 @@ private:
 	render::GpuPtr<CameraProjectionView[2]> m_cameraProjView = {};
 
 	gpu::pipeline m_pipeline = {};
-	core::filewatcher::file_watch_id m_pipelineShaderCodeWatchId = {};
+	// core::filewatcher::file_watch_id m_pipelineShaderCodeWatchId = {};
 
 	uint32 m_currentFrame = {};
 
@@ -118,6 +117,8 @@ private:
 
 	auto unpack_sponza() -> void;
 	auto unpack_materials(render::material::util::MaterialJSON const& materialRep) -> void;
+
+	auto setup_shader_compiler_and_pipelines() -> void;
 };
 }
 

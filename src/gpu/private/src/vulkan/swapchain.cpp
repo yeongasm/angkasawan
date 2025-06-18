@@ -401,9 +401,7 @@ auto Swapchain::from(Device& device, SwapchainInfo&& info, Resource<Swapchain> p
 	// Update info to contain the updated values.
 	if (!info.name.empty())
 	{
-		info.name.format("<swapchain>:{}", info.name.c_str());
-		info.surfaceInfo.name.format("<surface>:{}", info.surfaceInfo.name.c_str());
-		fenceInfo.name = lib::format("<fence>:{}_gpu_timeline", info.name.c_str());
+		fenceInfo.name = fmt::format("<fence>:{}_gpu_timeline", info.name);
 	}
 
 	info.imageCount = imageCount;
@@ -421,12 +419,12 @@ auto Swapchain::from(Device& device, SwapchainInfo&& info, Resource<Swapchain> p
 
 	for (size_t i = 0; i < maxFramesInFlight; ++i)
 	{
-		lib::string acqSemaphoreName, presentSemaphoreName;
+		std::string acqSemaphoreName, presentSemaphoreName;
 
 		if (!vkswapchain.m_info.name.empty())
 		{
-			acqSemaphoreName = lib::format("<semaphore>:{}_acquire_{}", vkswapchain.m_info.name.c_str(), i);
-			presentSemaphoreName = lib::format("<semaphore>:{}_present_{}", vkswapchain.m_info.name.c_str(), i);
+			acqSemaphoreName = fmt::format("<semaphore>:{}_acquire_{}", vkswapchain.m_info.name, i);
+			presentSemaphoreName = fmt::format("<semaphore>:{}_present_{}", vkswapchain.m_info.name, i);
 		}	
 
 		vkswapchain.m_acquireSemaphore.push_back(Semaphore::from(device, { .name = std::move(acqSemaphoreName) }));

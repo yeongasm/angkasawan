@@ -4,6 +4,9 @@
 #include "core.serialization/file.hpp"
 #include "model_demo_app.hpp"
 
+#include "app_pipeline_definitions.hpp"
+#include "render/pipeline_cache.hpp"
+
 // TODO(Afiq):
 // 1. Check if shader is already compiled.
 // 2. Check for local shader binary cache.
@@ -34,17 +37,6 @@ auto ModelDemoApp::start(
 	m_app = &application;
 	m_gpu = &gpu;
 	m_rootWindowRef = rootWindow;
-
-	// NOTE(afiq):
-	// I hate this, think of a better way to handle the shader compiler.
-	if (auto result = gpu::ShaderCompiler::create(); !result)
-	{
-		return false;
-	}
-	else 
-	{
-		m_shaderCompiler = std::move(result.value());
-	}
 
 	// Create swapchain for root window.
 	{
@@ -86,143 +78,136 @@ auto ModelDemoApp::start(
 	m_camera.frameHeight = swapchainHeight;
 
 	make_render_targets(swapchainInfo.dimension.width, swapchainInfo.dimension.height);
-
-	fmt::print("Working directory: {}", std::filesystem::current_path());
+	setup_shader_compiler_and_pipelines();
 
 	// TODO(afiq):
 	// Check if the shader binary exist and if it doesn't compile from source.
-	auto make_uber_pipeline = [&](core::filewatcher::FileActionInfo const& fileAction) -> void
-	{
-		if (fileAction.action == core::filewatcher::FileAction::Modified)
-		{
-			m_shaderCompiler->add_macro_definition("STORAGE_IMAGE_BINDING", gpu::STORAGE_IMAGE_BINDING);
-			m_shaderCompiler->add_macro_definition("SAMPLED_IMAGE_BINDING", gpu::SAMPLED_IMAGE_BINDING);
-			m_shaderCompiler->add_macro_definition("SAMPLER_BINDING", gpu::SAMPLER_BINDING);
-			m_shaderCompiler->add_macro_definition("BUFFER_DEVICE_ADDRESS_BINDING", gpu::BUFFER_DEVICE_ADDRESS_BINDING);
-			m_shaderCompiler->add_macro_definition("STORAGE_BUFFER_BINDING", gpu::STORAGE_BUFFER_BINDING);
-
-			core::sbf::File const sourceCode({ .path = fileAction.path, .shareMode = core::sbf::FileShareMode::Shared_Read, .map = true });
+	// auto make_uber_pipeline = [&](core::filewatcher::FileActionInfo const& fileAction) -> void
+	// {
+	// 	if (fileAction.action == core::filewatcher::FileAction::Modified)
+	// 	{
+	// 		core::sbf::File const sourceCode({ .path = fileAction.path, .shareMode = core::sbf::FileShareMode::Shared_Read, .map = true });
 			
-			if (!sourceCode.is_open() || 
-				sourceCode.data() == nullptr)
-			{
-				return;
-			}
+	// 		if (!sourceCode.is_open() || 
+	// 			sourceCode.data() == nullptr)
+	// 		{
+	// 			return;
+	// 		}
 
-			gpu::shader vs, ps;
+	// 		gpu::shader vs, ps;
 
-			gpu::ShaderCompileInfo compileInfo{
-				.path = "data/demo/shaders/model.slang",
-				.type = gpu::ShaderType::Vertex,
-				.entryPoint = "main_vertex",
-				.sourceCode = std::string_view{ static_cast<char const*>(sourceCode.data()), sourceCode.size() }
-			};
+	// 		gpu::ShaderCompileInfo compileInfo{
+	// 			.path = "data/demo/shaders/model.slang",
+	// 			.type = gpu::ShaderType::Vertex,
+	// 			.entryPoint = "main_vertex",
+	// 			.sourceCode = std::string_view{ static_cast<char const*>(sourceCode.data()), sourceCode.size() }
+	// 		};
 
-			{
-				if (auto result = m_shaderCompiler->compile(compileInfo); result)
-				{
-					vs = gpu::Shader::from(m_gpu->device(), result->compiled_info());
-				}
-				else
-				{
-					fmt::print("{}", result.error().c_str());
-				}
-			}
+	// 		{
+	// 			if (auto result = m_shaderCompiler->compile(compileInfo); result)
+	// 			{
+	// 				vs = gpu::Shader::from(m_gpu->device(), result->compiled_info());
+	// 			}
+	// 			else
+	// 			{
+	// 				fmt::print("{}", result.error().c_str());
+	// 			}
+	// 		}
 
-			{
-				compileInfo.type = gpu::ShaderType::Pixel;
-				compileInfo.entryPoint = "main_fragment";
+	// 		{
+	// 			compileInfo.type = gpu::ShaderType::Pixel;
+	// 			compileInfo.entryPoint = "main_fragment";
 
-				if (auto result = m_shaderCompiler->compile(compileInfo); result)
-				{
-					ps = gpu::Shader::from(m_gpu->device(), result->compiled_info());
-				}
-				else
-				{
-					fmt::print("{}", result.error().data());
-				}
-			}
+	// 			if (auto result = m_shaderCompiler->compile(compileInfo); result)
+	// 			{
+	// 				ps = gpu::Shader::from(m_gpu->device(), result->compiled_info());
+	// 			}
+	// 			else
+	// 			{
+	// 				fmt::print("{}", result.error().data());
+	// 			}
+	// 		}
 
-			if (!(vs.valid() && ps.valid()))
-			{
-				return;
-			}
+	// 		if (!(vs.valid() && ps.valid()))
+	// 		{
+	// 			return;
+	// 		}
 
-			m_pipeline = gpu::Pipeline::from(
-				m_gpu->device(),
-				{
-					.vertexShader = vs,
-					.pixelShader = ps,
-				},
-				{
-					.name = "sponza uber pipeline",
-					.colorAttachments = {
-						{ 
-							.format = m_baseColorAttachment->info().format, 
-							.blendInfo = { 
-								.enable = true,
-								.srcColorBlendFactor = gpu::BlendFactor::One,
-								.dstColorBlendFactor = gpu::BlendFactor::Zero,
-								.colorBlendOp = gpu::BlendOp::Add,
-								.srcAlphaBlendFactor = gpu::BlendFactor::One,
-								.dstAlphaBlendFactor = gpu::BlendFactor::Zero,
-								.alphaBlendOp = gpu::BlendOp::Add
-							} 
-						},
-						{
-							.format = m_metallicRoughnessAttachment->info().format, 
-							.blendInfo = { 
-								.enable = true,
-								.srcColorBlendFactor = gpu::BlendFactor::One,
-								.dstColorBlendFactor = gpu::BlendFactor::Zero,
-								.colorBlendOp = gpu::BlendOp::Add,
-								.srcAlphaBlendFactor = gpu::BlendFactor::One,
-								.dstAlphaBlendFactor = gpu::BlendFactor::Zero,
-								.alphaBlendOp = gpu::BlendOp::Add
-							} 				
-						},
-						{
-							.format = m_normalAttachment->info().format, 
-							.blendInfo = { 
-								.enable = true,
-								.srcColorBlendFactor = gpu::BlendFactor::One,
-								.dstColorBlendFactor = gpu::BlendFactor::Zero,
-								.colorBlendOp = gpu::BlendOp::Add,
-								.srcAlphaBlendFactor = gpu::BlendFactor::One,
-								.dstAlphaBlendFactor = gpu::BlendFactor::Zero,
-								.alphaBlendOp = gpu::BlendOp::Add
-							} 				
-						}
-					},
-					.depthAttachmentFormat = gpu::Format::D32_Float,
-					.rasterization = {
-						.polygonalMode = gpu::PolygonMode::Fill,
-						.cullMode = gpu::CullingMode::Back,
-						.frontFace = gpu::FrontFace::Counter_Clockwise
-					},
-					.depthTest = {
-						.depthTestCompareOp = gpu::CompareOp::Less,
-						.minDepthBounds = 0.f,
-						.maxDepthBounds = 1.f,
-						.enableDepthBoundsTest = false,
-						.enableDepthTest = true,
-						.enableDepthWrite = true
-					},
-					.topology = gpu::TopologyType::Triangle,
-					.pushConstantSize = sizeof(PushConstant)
-				}
-			);
-		}
-	};
+	// 		m_pipeline = gpu::Pipeline::from(
+	// 			m_gpu->device(),
+	// 			{
+	// 				.vertexShader = vs,
+	// 				.pixelShader = ps,
+	// 			},
+	// 			{
+	// 				.name = "<pipeline.raster>:sponza uber pipeline",
+	// 				.colorAttachments = {
+	// 					{ 
+	// 						.format = m_baseColorAttachment->info().format, 
+	// 						.blendInfo = { 
+	// 							.enable = true,
+	// 							.srcColorBlendFactor = gpu::BlendFactor::One,
+	// 							.dstColorBlendFactor = gpu::BlendFactor::Zero,
+	// 							.colorBlendOp = gpu::BlendOp::Add,
+	// 							.srcAlphaBlendFactor = gpu::BlendFactor::One,
+	// 							.dstAlphaBlendFactor = gpu::BlendFactor::Zero,
+	// 							.alphaBlendOp = gpu::BlendOp::Add
+	// 						} 
+	// 					},
+	// 					{
+	// 						.format = m_metallicRoughnessAttachment->info().format, 
+	// 						.blendInfo = { 
+	// 							.enable = true,
+	// 							.srcColorBlendFactor = gpu::BlendFactor::One,
+	// 							.dstColorBlendFactor = gpu::BlendFactor::Zero,
+	// 							.colorBlendOp = gpu::BlendOp::Add,
+	// 							.srcAlphaBlendFactor = gpu::BlendFactor::One,
+	// 							.dstAlphaBlendFactor = gpu::BlendFactor::Zero,
+	// 							.alphaBlendOp = gpu::BlendOp::Add
+	// 						} 				
+	// 					},
+	// 					{
+	// 						.format = m_normalAttachment->info().format, 
+	// 						.blendInfo = { 
+	// 							.enable = true,
+	// 							.srcColorBlendFactor = gpu::BlendFactor::One,
+	// 							.dstColorBlendFactor = gpu::BlendFactor::Zero,
+	// 							.colorBlendOp = gpu::BlendOp::Add,
+	// 							.srcAlphaBlendFactor = gpu::BlendFactor::One,
+	// 							.dstAlphaBlendFactor = gpu::BlendFactor::Zero,
+	// 							.alphaBlendOp = gpu::BlendOp::Add
+	// 						} 				
+	// 					}
+	// 				},
+	// 				.depthAttachmentFormat = gpu::Format::D32_Float,
+	// 				.rasterization = {
+	// 					.polygonalMode = gpu::PolygonMode::Fill,
+	// 					.cullMode = gpu::CullingMode::Back,
+	// 					.frontFace = gpu::FrontFace::Counter_Clockwise
+	// 				},
+	// 				.depthTest = {
+	// 					.depthTestCompareOp = gpu::CompareOp::Less,
+	// 					.minDepthBounds = 0.f,
+	// 					.maxDepthBounds = 1.f,
+	// 					.enableDepthBoundsTest = false,
+	// 					.enableDepthTest = true,
+	// 					.enableDepthWrite = true
+	// 				},
+	// 				.topology = gpu::TopologyType::Triangle,
+	// 				.pushConstantSize = sizeof(PushConstant)
+	// 			}
+	// 		);
+	// 	}
+	// };
 
-	m_pipelineShaderCodeWatchId = core::filewatcher::watch({ .path = "data/demo/shaders/model.slang", .callback = make_uber_pipeline });
+	// m_pipelineShaderCodeWatchId = core::filewatcher::watch({ .path = "data/demo/shaders/model.slang", .callback = make_uber_pipeline });
 
-	make_uber_pipeline({ .path = "data/demo/shaders/model.slang", .action = core::filewatcher::FileAction::Modified });
+	// make_uber_pipeline({ .path = "data/demo/shaders/model.slang", .action = core::filewatcher::FileAction::Modified });
 
 	allocate_camera_buffers();
 
 	m_normalSampler = gpu::Sampler::from(m_gpu->device(), {
-		.name = "normal sampler",
+		.name = "<sampler>:normal sampler",
 		.minFilter = gpu::TexelFilter::Linear,
 		.magFilter = gpu::TexelFilter::Linear,
 		.mipmapMode = gpu::MipmapMode::Linear,
@@ -239,7 +224,7 @@ auto ModelDemoApp::start(
 	});
 
 	m_defaultWhiteTexture = gpu::Image::from(m_gpu->device(), {
-		.name = "default white texture",
+		.name = "<image>:default white texture",
 		.type = gpu::ImageType::Image_2D,
 		.format = gpu::Format::B8G8R8A8_Srgb,
 		.samples = gpu::SampleCount::Sample_Count_1,
@@ -254,7 +239,7 @@ auto ModelDemoApp::start(
 	});
 
 	m_defaultMetallicRoughnessMap = gpu::Image::from(m_gpu->device(), {
-		.name = "default metallic roughness map",
+		.name = "<image>:default metallic roughness map",
 		.type = gpu::ImageType::Image_2D,
 		.format = gpu::Format::R8G8_Unorm,
 		.samples = gpu::SampleCount::Sample_Count_1,
@@ -269,7 +254,7 @@ auto ModelDemoApp::start(
 	});
 
 	m_defaultNormalMap = gpu::Image::from(m_gpu->device(), {
-		.name = "default normal map",
+		.name = "<image>:default normal map",
 		.type = gpu::ImageType::Image_2D,
 		.format = gpu::Format::B8G8R8A8_Srgb,
 		.samples = gpu::SampleCount::Sample_Count_1,
@@ -558,9 +543,9 @@ auto ModelDemoApp::make_swapchain(core::platform::Window& window) -> void
 {
 	auto const& info = window.info();
 	m_swapchain = gpu::Swapchain::from(m_gpu->device(), {
-		.name = "root app window",
+		.name = "<swapchain>:root app window",
 		.surfaceInfo = {
-			.name = "root app surface",
+			.name = "<surface>:root app",
 			.preferredSurfaceFormats = { gpu::Format::B8G8R8A8_Srgb },
 			.instance = window.process_handle(),
 			.window = info.nativeHandle
@@ -575,7 +560,7 @@ auto ModelDemoApp::make_swapchain(core::platform::Window& window) -> void
 auto ModelDemoApp::make_render_targets(uint32 width, uint32 height) -> void
 {
 	m_depthBuffer = gpu::Image::from(m_gpu->device(), {
-		.name = "depth buffer",
+		.name = "<image>:depth buffer",
 		.type = gpu::ImageType::Image_2D,
 		.format = gpu::Format::D32_Float,
 		.samples = gpu::SampleCount::Sample_Count_1,
@@ -594,7 +579,7 @@ auto ModelDemoApp::make_render_targets(uint32 width, uint32 height) -> void
 	});
 
 	m_baseColorAttachment = gpu::Image::from(m_gpu->device(), {
-		.name = "albedo attachment",
+		.name = "<image>:albedo attachment",
 		.type = gpu::ImageType::Image_2D,
 		.format = gpu::Format::B8G8R8A8_Srgb,
 		.samples = gpu::SampleCount::Sample_Count_1,
@@ -608,7 +593,7 @@ auto ModelDemoApp::make_render_targets(uint32 width, uint32 height) -> void
 	});
 
 	m_metallicRoughnessAttachment = gpu::Image::from(m_gpu->device(), {
-		.name = "metallic roughness attachment",
+		.name = "<image>:metallic roughness attachment",
 		.type = gpu::ImageType::Image_2D,
 		.format = gpu::Format::R8G8_Unorm,
 		.samples = gpu::SampleCount::Sample_Count_1,
@@ -622,7 +607,7 @@ auto ModelDemoApp::make_render_targets(uint32 width, uint32 height) -> void
 	});
 
 	m_normalAttachment = gpu::Image::from(m_gpu->device(), {
-		.name = "normal attachment",
+		.name = "<image>:normal attachment",
 		.type = gpu::ImageType::Image_2D,
 		.format = gpu::Format::B8G8R8A8_Srgb,
 		.samples = gpu::SampleCount::Sample_Count_1,
@@ -914,7 +899,7 @@ auto ModelDemoApp::unpack_sponza() -> void
 		mesh.buffer = gpu::Buffer::from(
 			m_gpu->device(), 
 			{
-				.name = lib::format("<mesh>:data/demo/models/sponza:{}", i),
+				.name = fmt::format("<mesh>:data/demo/models/sponza:{}", i),
 				.size = totalSizeBytesRequired,
 				.bufferUsage = gpu::BufferUsage::Transfer_Dst | gpu::BufferUsage::Vertex | gpu::BufferUsage::Index,
 				.memoryUsage = gpu::MemoryUsage::Can_Alias | gpu::MemoryUsage::Best_Fit
@@ -989,7 +974,7 @@ auto ModelDemoApp::unpack_sponza() -> void
 		meshRenderInfo.info = render::GpuPtr<RenderableInfo>::from(
 			m_gpu->upload_heap(),
 			{
-				.name = lib::format("sponza render info:{}", i),
+				.name = fmt::format("sponza render info:{}", i),
 				.bufferUsage = gpu::BufferUsage::Transfer_Dst | gpu::BufferUsage::Storage
 			},
 			mesh.position,
@@ -1048,7 +1033,7 @@ auto ModelDemoApp::unpack_materials(render::material::util::MaterialJSON const& 
 
 			auto& texture = m_images.emplace_back(
 				gpu::Image::from(m_gpu->device(), {
-					.name			= lib::format("sponza_{}", std::string_view{ image.uri.c_str(), image.uri.size() }),
+					.name			= fmt::format("<image>:sponza-{}", std::string_view{ image.uri.c_str(), image.uri.size() }),
 					.type			= imageSbf.type(),
 					.format			= imageSbf.format(),
 					.imageUsage 	= gpu::ImageUsage::Transfer_Dst | gpu::ImageUsage::Sampled,
@@ -1093,5 +1078,52 @@ auto ModelDemoApp::unpack_materials(render::material::util::MaterialJSON const& 
 
 		++i;
 	}
+}
+
+auto ModelDemoApp::setup_shader_compiler_and_pipelines() -> void
+{
+	auto&& pipelineCache = m_gpu->pipeline_cache();
+
+	render::PipelineShaderCompileInfo vsCompileInfo{
+		.type = gpu::ShaderType::Vertex,
+		.optimizationLevel = 3,
+		.enableDebugSymbol = 1
+	};
+
+	render::PipelineShaderCompileInfo psCompileInfo{
+		.type = gpu::ShaderType::Pixel,
+		.optimizationLevel = 3,
+		.enableDebugSymbol = 1
+	};
+
+	render::PipelineShaderCompileInfo const* compileInfos[] = { &vsCompileInfo, &psCompileInfo };
+	render::RasterPipelineDefinition const* rasterDefinitions[] = { &UBER_PIPELINE_DEFINITION };
+
+	render::PipelineCacheLoadDefinitionsInfo definitions{
+		.raster = rasterDefinitions,
+		.compute = {}
+	};
+
+	if (!pipelineCache.load_cache(definitions))
+	{
+		auto&& shaderCompiler = pipelineCache.shader_compiler();
+
+		shaderCompiler.add_macro_definition("STORAGE_IMAGE_BINDING", gpu::STORAGE_IMAGE_BINDING);
+		shaderCompiler.add_macro_definition("SAMPLED_IMAGE_BINDING", gpu::SAMPLED_IMAGE_BINDING);
+		shaderCompiler.add_macro_definition("SAMPLER_BINDING", gpu::SAMPLER_BINDING);
+		shaderCompiler.add_macro_definition("BUFFER_DEVICE_ADDRESS_BINDING", gpu::BUFFER_DEVICE_ADDRESS_BINDING);
+		shaderCompiler.add_macro_definition("STORAGE_BUFFER_BINDING", gpu::STORAGE_BUFFER_BINDING);
+
+		// Compile and build each pipeline when loading the cache fails.
+		for (auto definition : definitions.raster)
+		{
+			if (auto res = pipelineCache.cache_pipeline(*definition, compileInfos); !res)
+			{
+				fmt::print("[ERROR] {}", res.error());
+			}
+		}
+	}
+
+	m_pipeline = pipelineCache.get_pipeline("sponza uber pipeline").value();
 }
 }

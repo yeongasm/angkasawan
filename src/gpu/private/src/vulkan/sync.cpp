@@ -39,11 +39,6 @@ auto Semaphore::from(Device& device, SemaphoreInfo&& info) -> Resource<Semaphore
 
 	auto&& vksemaphore = *it;
 
-	if (info.name.size())
-	{
-		info.name.format("<semaphore>:{}", info.name.c_str());
-	}
-
 	vksemaphore.handle = handle;
 	vksemaphore.m_info = std::move(info);
 
@@ -204,11 +199,6 @@ auto Fence::from(Device& device, FenceInfo&& info) -> Resource<Fence>
 
 	auto&& vksemaphore = *it;
 
-	if (info.name.size())
-	{
-		info.name.format("<fence>:{}", info.name.c_str());
-	}
-
 	vksemaphore.m_info = std::move(info);
 	vksemaphore.handle = handle;
 
@@ -308,11 +298,6 @@ auto Event::from(Device& device, EventInfo&& info) -> Resource<Event>
 	vkdevice.gpuResourcePool.caches.event.emplace(id, it);
 
 	auto&& vkevent = *it;
-
-	if (info.name.size())
-	{
-		info.name.format("<event>:{}", info.name.c_str());
-	}
 
 	vkevent.handle = handle;
 	vkevent.m_info = std::move(info);

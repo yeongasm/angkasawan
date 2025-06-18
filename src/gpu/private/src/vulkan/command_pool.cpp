@@ -70,11 +70,6 @@ auto CommandPool::from(Device& device, CommandPoolInfo&& info) -> Resource<Comma
 
 	auto&& vkcommandpool = *it;
 
-	if (!info.name.empty())
-	{
-		info.name.format("<command_pool>:{}", info.name.c_str());
-	}
-
 	vkcommandpool.handle = handle;
 	vkcommandpool.m_info = std::move(info);
 

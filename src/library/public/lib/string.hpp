@@ -175,7 +175,7 @@ public:
 	}
 
     template <typename T>
-	friend auto operator== (basic_string const& lhs, T&& rhs) -> bool requires (std::same_as<std::decay_t<T>, basic_string> || std::same_as<std::decay_t<T>, std::basic_string_view<typename basic_string::value_type>>)
+	friend auto operator== (basic_string const& lhs, T const& rhs) -> bool requires (std::same_as<std::decay_t<T>, basic_string> || std::same_as<std::decay_t<T>, std::basic_string_view<typename basic_string::value_type>>)
 	{
 		return lhs._compare(rhs);
 	}

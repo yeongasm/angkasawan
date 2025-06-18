@@ -8,6 +8,12 @@
 
 namespace gpu
 {
+/*
+* TODO(afiq):
+* Support multi-threaded shader compilation.
+* To do that, we need to have a session (NOT global session) per thread.
+* We can keep an map of thread id's to session to achieve this.
+*/
 struct SlangShaderCompiler : public ShaderCompiler
 {
     std::mutex sessionMutex;

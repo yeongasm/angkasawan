@@ -7,6 +7,7 @@ set(
 	"private/include/camera.hpp"
 	"private/include/applet.hpp"
 	"private/include/model_demo_app.hpp"
+	"private/include/app_pipeline_definitions.hpp"
 )
 
 set(

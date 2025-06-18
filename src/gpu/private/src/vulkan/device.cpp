@@ -395,15 +395,15 @@ auto DeviceImpl::push_constant_pipeline_layout(uint32 const pushConstantSize, ui
 
 auto DeviceImpl::setup_debug_name(SwapchainImpl const& swapchain) -> void
 {
-	auto&& name = swapchain.info().name;
-	if (name.size())
+	std::string_view name = swapchain.info().name;
+	if (!name.empty())
 	{
 		VkDebugUtilsObjectNameInfoEXT debugResourceNameInfo{
 			.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
 			.pNext = nullptr,
 			.objectType = VK_OBJECT_TYPE_SWAPCHAIN_KHR,
 			.objectHandle = reinterpret_cast<uint64_t>(swapchain.handle),
-			.pObjectName = name.c_str(),
+			.pObjectName = name.data(),
 		};
 		vkSetDebugUtilsObjectNameEXT(device, &debugResourceNameInfo);
 	}
@@ -411,14 +411,14 @@ auto DeviceImpl::setup_debug_name(SwapchainImpl const& swapchain) -> void
 
 auto DeviceImpl::setup_debug_name(ShaderImpl const& shader) -> void
 {
-	auto&& name = shader.info().name;
-	if (name.size())
+	std::string_view name = shader.info().name;
+	if (!name.empty())
 	{
 		VkDebugUtilsObjectNameInfoEXT debugResourceNameInfo{
 			.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
 			.objectType = VK_OBJECT_TYPE_SHADER_MODULE,
 			.objectHandle = reinterpret_cast<uint64_t>(shader.handle),
-			.pObjectName = name.c_str(),
+			.pObjectName = name.data(),
 		};
 		vkSetDebugUtilsObjectNameEXT(device, &debugResourceNameInfo);
 	}
@@ -426,14 +426,14 @@ auto DeviceImpl::setup_debug_name(ShaderImpl const& shader) -> void
 
 auto DeviceImpl::setup_debug_name(BufferImpl const& buffer) -> void
 {
-	auto&& name = buffer.info().name;
-	if (name.size())
+	std::string_view name = buffer.info().name;
+	if (!name.empty())
 	{
 		VkDebugUtilsObjectNameInfoEXT debugResourceNameInfo{
 			.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
 			.objectType = VK_OBJECT_TYPE_BUFFER,
 			.objectHandle = reinterpret_cast<uint64_t>(buffer.handle),
-			.pObjectName = name.c_str(),
+			.pObjectName = name.data(),
 		};
 		vkSetDebugUtilsObjectNameEXT(device, &debugResourceNameInfo);
 	}
@@ -441,18 +441,19 @@ auto DeviceImpl::setup_debug_name(BufferImpl const& buffer) -> void
 
 auto DeviceImpl::setup_debug_name(ImageImpl const& image) -> void
 {
-	auto&& name = image.info().name;
-	if (name.size())
+	std::string_view name = image.info().name;
+	if (!name.empty())
 	{
 		VkDebugUtilsObjectNameInfoEXT imageDebugNameInfo{
 			.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
 			.objectType = VK_OBJECT_TYPE_IMAGE,
 			.objectHandle = reinterpret_cast<uint64_t>(image.handle),
-			.pObjectName = name.c_str(),
+			.pObjectName = name.data(),
 		};
 		vkSetDebugUtilsObjectNameEXT(device, &imageDebugNameInfo);
 
-		lib::string imageViewDebugName = lib::format("<image_view>:{}", image.info().name.c_str());
+		std::string const imageViewDebugName = fmt::format("<imgview>:{}", image.info().name);
+
 		VkDebugUtilsObjectNameInfoEXT imageViewDebugNameInfo{
 			.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
 			.objectType = VK_OBJECT_TYPE_IMAGE_VIEW,
@@ -465,14 +466,14 @@ auto DeviceImpl::setup_debug_name(ImageImpl const& image) -> void
 
 auto DeviceImpl::setup_debug_name(SamplerImpl const& sampler) -> void
 {
-	auto&& name = sampler.info().name;
-	if (name.size())
+	std::string_view name = sampler.info().name;
+	if (!name.empty())
 	{
 		VkDebugUtilsObjectNameInfoEXT debugResourceNameInfo{
 			.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
 			.objectType = VK_OBJECT_TYPE_SAMPLER,
 			.objectHandle = reinterpret_cast<uint64_t>(sampler.handle),
-			.pObjectName = name.c_str(),
+			.pObjectName = name.data(),
 		};
 		vkSetDebugUtilsObjectNameEXT(device, &debugResourceNameInfo);
 	}
@@ -480,20 +481,20 @@ auto DeviceImpl::setup_debug_name(SamplerImpl const& sampler) -> void
 
 auto DeviceImpl::setup_debug_name(PipelineImpl const& pipeline) -> void
 {
-	lib::string const* name = nullptr;
+	std::string_view name = {};
 
 	if (pipeline.type() == PipelineType::Rasterization)
 	{
-		name = &pipeline.as<RasterPipeline>()->info().name;
+		name = pipeline.as<RasterPipeline>()->info().name;
 	}
 
-	if (name && name->size())
+	if (!name.empty())
 	{
 		VkDebugUtilsObjectNameInfoEXT debugResourceNameInfo{
 			.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
 			.objectType = VK_OBJECT_TYPE_PIPELINE,
 			.objectHandle = reinterpret_cast<uint64_t>(pipeline.handle),
-			.pObjectName = name->c_str(),
+			.pObjectName = name.data(),
 		};
 		vkSetDebugUtilsObjectNameEXT(device, &debugResourceNameInfo);
 	}
@@ -501,14 +502,14 @@ auto DeviceImpl::setup_debug_name(PipelineImpl const& pipeline) -> void
 
 auto DeviceImpl::setup_debug_name(CommandPoolImpl const& commandPool) -> void
 {
-	auto&& name = commandPool.info().name;
-	if (name.size())
+	std::string_view name = commandPool.info().name;
+	if (!name.empty())
 	{
 		VkDebugUtilsObjectNameInfoEXT debugResourceNameInfo{
 			.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
 			.objectType = VK_OBJECT_TYPE_COMMAND_POOL,
 			.objectHandle = reinterpret_cast<uint64_t>(commandPool.handle),
-			.pObjectName = name.c_str(),
+			.pObjectName = name.data(),
 		};
 		vkSetDebugUtilsObjectNameEXT(device, &debugResourceNameInfo);
 	}
@@ -516,14 +517,14 @@ auto DeviceImpl::setup_debug_name(CommandPoolImpl const& commandPool) -> void
 
 auto DeviceImpl::setup_debug_name(CommandBufferImpl const& commandBuffer) -> void
 {
-	auto&& name = commandBuffer.info().name;
-	if (name.size())
+	std::string_view name = commandBuffer.info().name;
+	if (!name.empty())
 	{
 		VkDebugUtilsObjectNameInfoEXT debugResourceNameInfo{
 			.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
 			.objectType = VK_OBJECT_TYPE_COMMAND_BUFFER,
 			.objectHandle = reinterpret_cast<uint64_t>(commandBuffer.handle),
-			.pObjectName = name.c_str(),
+			.pObjectName = name.data(),
 		};
 		vkSetDebugUtilsObjectNameEXT(device, &debugResourceNameInfo);
 	}
@@ -531,14 +532,14 @@ auto DeviceImpl::setup_debug_name(CommandBufferImpl const& commandBuffer) -> voi
 
 auto DeviceImpl::setup_debug_name(SemaphoreImpl const& semaphore) -> void
 {
-	auto&& name = semaphore.info().name;
-	if (name.size())
+	std::string_view name = semaphore.info().name;
+	if (!name.empty())
 	{
 		VkDebugUtilsObjectNameInfoEXT debugResourceNameInfo{
 			.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
 			.objectType = VK_OBJECT_TYPE_SEMAPHORE,
 			.objectHandle = reinterpret_cast<uint64_t>(semaphore.handle),
-			.pObjectName = name.c_str(),
+			.pObjectName = name.data(),
 		};
 		vkSetDebugUtilsObjectNameEXT(device, &debugResourceNameInfo);
 	}
@@ -546,14 +547,14 @@ auto DeviceImpl::setup_debug_name(SemaphoreImpl const& semaphore) -> void
 
 auto DeviceImpl::setup_debug_name(FenceImpl const& fence) -> void
 {
-	auto&& name = fence.info().name;
-	if (name.size())
+	std::string_view name = fence.info().name;
+	if (!name.empty())
 	{
 		VkDebugUtilsObjectNameInfoEXT debugResourceNameInfo{
 			.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
 			.objectType = VK_OBJECT_TYPE_SEMAPHORE,
 			.objectHandle = reinterpret_cast<uint64_t>(fence.handle),
-			.pObjectName = name.c_str(),
+			.pObjectName = name.data(),
 		};
 		vkSetDebugUtilsObjectNameEXT(device, &debugResourceNameInfo);
 	}
@@ -561,14 +562,14 @@ auto DeviceImpl::setup_debug_name(FenceImpl const& fence) -> void
 
 auto DeviceImpl::setup_debug_name(EventImpl const& event) -> void
 {
-	auto&& name = event.info().name;
-	if (name.size())
+	std::string_view name = event.info().name;
+	if (!name.empty())
 	{
 		VkDebugUtilsObjectNameInfoEXT debugResourceNameInfo{
 			.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
 			.objectType = VK_OBJECT_TYPE_EVENT,
 			.objectHandle = reinterpret_cast<uint64_t>(event.handle),
-			.pObjectName = name.c_str(),
+			.pObjectName = name.data(),
 		};
 		vkSetDebugUtilsObjectNameEXT(device, &debugResourceNameInfo);
 	}
@@ -576,14 +577,14 @@ auto DeviceImpl::setup_debug_name(EventImpl const& event) -> void
 
 auto DeviceImpl::setup_debug_name(MemoryBlockImpl const& event) -> void
 {
-	auto const& name = event.info().name;
-	if (name.size())
+	std::string_view name = event.info().name;
+	if (!name.empty())
 	{
 		VkDebugUtilsObjectNameInfoEXT debugResourceNameInfo{
 			.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
 			.objectType = VK_OBJECT_TYPE_DEVICE_MEMORY,
 			.objectHandle = reinterpret_cast<uint64_t>(event.handle),
-			.pObjectName = name.c_str(),
+			.pObjectName = name.data(),      
 		};
 		vkSetDebugUtilsObjectNameEXT(device, &debugResourceNameInfo);
 	}

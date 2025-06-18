@@ -239,11 +239,6 @@ auto Pipeline::from(Device& device, RasterPipelineShaderInfo const& pipelineShad
 
 	auto&& vkpipeline = *it;
 
-	if (!info.name.empty())
-	{
-		info.name.format("<pipeline.rasterization>:{}", info.name.c_str());
-	}
-
 	vkpipeline.handle = handle;
 	vkpipeline.layout = layoutHandle;
 	vkpipeline.m_type = PipelineType::Rasterization;
@@ -297,11 +292,6 @@ auto Pipeline::from(Device& device, Resource<Shader>& computeShader, ComputePipe
 	vkdevice.gpuResourcePool.caches.pipeline.emplace(id, it);
 
 	auto&& vkpipeline = *it;
-
-	if (!info.name.empty())
-	{
-		info.name.format("<pipeline.compute>:{}", info.name.c_str());
-	}
 
 	vkpipeline.handle = handle;
 	vkpipeline.layout = layoutHandle;

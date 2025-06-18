@@ -2,8 +2,9 @@
 #ifndef GPU_SHADER_COMPILER_H
 #define GPU_SHADER_COMPILER_H
 
+#include <ankerl/unordered_dense.h>
+
 #include "lib/string.hpp"
-#include "lib/map.hpp"
 #include "gpu/common.hpp"
 
 namespace gpu
@@ -24,7 +25,7 @@ struct ShaderCompileInfo
 	/**
 	* \brief Do not use. Use add_macro_definition rather than appending manually.
 	*/
-	lib::map<std::string_view, std::string_view> macroDefinitions;
+	ankerl::unordered_dense::map<std::string_view, std::string_view> macroDefinitions;
 	/**
 	* \brief 0 - no optimization
 	* \brief 1 - performance
@@ -63,13 +64,6 @@ struct ShaderCompiledUnit
 	}
 };
 
-/**
-* TODO(afiq):
-* 1. Allow file watching when enabled.
-* 2. Add / Remove compiled shaders.
-* 3. Cache the result of the compilation and only recompile if the filewatcher kicks in or if the driver version does not match.
-* 4. Add some sort of scratch buffer for string allocation and replace lib::string with std::string_view
-*/
 class ShaderCompiler : public lib::non_copyable_non_movable
 {
 public:
@@ -88,8 +82,8 @@ public:
 	auto clear_macro_definitions() -> void;
 
 protected:
-	lib::array<lib::string> 			m_includeDirectories;
-	lib::map<lib::string, lib::string> 	m_macroDefinitions;
+	lib::array<lib::string> m_includeDirectories;
+	ankerl::unordered_dense::map<lib::string, lib::string> m_macroDefinitions;
 };
 }
 

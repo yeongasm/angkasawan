@@ -743,7 +743,8 @@ enum class ShaderType
 	Ray_Miss,
 	Intersection,
 	Callable,
-	None
+	None,
+	Max = None
 };
 
 enum class ShaderStage

@@ -2,9 +2,9 @@
 
 namespace gpu
 {
-auto Version::stringify() const -> lib::string
+auto Version::stringify() const -> std::string
 {
-	return lib::format("{}.{}.{}", major, minor, patch);
+	return fmt::format("{}.{}.{}", major, minor, patch);
 }
 
 auto is_color_format(Format format) -> bool

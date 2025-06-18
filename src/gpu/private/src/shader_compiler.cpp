@@ -82,7 +82,7 @@ auto ShaderCompiler::remove_include_directory(std::string_view dir) -> void
 
 auto ShaderCompiler::add_macro_definition(std::string_view definition) -> void
 {
-	m_macroDefinitions.try_insert(lib::string{ definition }, lib::string{});
+	m_macroDefinitions.try_emplace(lib::string{ definition }, lib::string{});
 }
 
 auto ShaderCompiler::add_macro_definition(std::string_view key, std::string_view value) -> void
@@ -95,8 +95,8 @@ auto ShaderCompiler::add_macro_definition(std::string_view key, std::string_view
 
         lib::string v{ value };
         v.push_back('\0');
-
-        m_macroDefinitions.insert(std::move(k), std::move(v));
+		
+		m_macroDefinitions.emplace(std::move(k), std::move(v));
     }
 }
 
@@ -110,7 +110,7 @@ auto ShaderCompiler::add_macro_definition(std::string_view key, uint32 value) ->
         lib::string v{ std::string_view{ "{}" }, value };
         v.push_back('\0');
 
-        m_macroDefinitions.insert(std::move(k), std::move(v));
+        m_macroDefinitions.emplace(std::move(k), std::move(v));
     }
 }
 

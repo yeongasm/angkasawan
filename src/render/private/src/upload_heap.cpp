@@ -78,7 +78,7 @@ UploadHeap::UploadHeap(gpu::Device& device, CommandQueue& commandQueue) :
 	m_cpuUploadTimeline{},
 	m_device{ device },
 	m_commandQueue{ commandQueue },
-	m_gpuUploadTimeline{ gpu::Fence::from(m_device, { .name = "upload heap gpu timeline" }) },
+	m_gpuUploadTimeline{ gpu::Fence::from(m_device, { .name = "<fence>:upload heap gpu timeline" }) },
 	m_nextPool{}
 {}
 
@@ -361,7 +361,7 @@ auto UploadHeap::allocate_heap(size_t count) -> void
 	for (size_t i = 0; i < maxAllocatableCount && i < count; ++i)
 	{
 		gpu::BufferInfo heapBlockInfo{
-			.name = lib::format("upload heap {}:{}", m_nextPool, heapPool.heaps.size()),
+			.name = fmt::format("<buffer>:upload heap {}:{}", m_nextPool, heapPool.heaps.size()),
 			.size = HEAP_BLOCK_SIZE,
 			.bufferUsage = gpu::BufferUsage::Transfer_Src,
 			.memoryUsage = gpu::MemoryUsage::Can_Alias | gpu::MemoryUsage::Host_Writable,

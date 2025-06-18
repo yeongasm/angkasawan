@@ -200,11 +200,6 @@ auto Image::from(Device& device, ImageInfo&& info, Resource<MemoryBlock> memoryB
 
 	auto&& vkimage = *it;
 
-	if (!info.name.empty())
-	{
-		info.name.format("<image>:{}", info.name.c_str());
-	}
-
 	vkimage.handle = handle;
 	vkimage.allocationBlock = memoryBlock;
 	vkimage.m_info = std::move(info);
@@ -314,11 +309,6 @@ auto Image::from(Swapchain& swapchain) -> lib::array<Resource<Image>>
 			},
 			.mipLevel = 0
 		};
-
-		if (swapchainInfo.name.size())
-		{
-			imageInfo.name = lib::format("<image>:{}_{}", swapchainInfo.name.c_str(), i);
-		}
 
 		auto it = vkdevice.gpuResourcePool.stores.images.emplace(vkdevice);
 

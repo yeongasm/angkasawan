@@ -1142,7 +1142,7 @@ auto CommandBuffer::from(Resource<CommandPool>& commandPool) -> Resource<Command
 	CHECK_OP(vkAllocateCommandBuffers(vkdevice.device, &allocateInfo, &handle))
 
 	CommandBufferInfo info{
-		.name = lib::format("<command_buffer:{}>:{}", index, commandPool->info().name.c_str())
+		.name = fmt::format("<cmdbuffer:{}>:{}", index, commandPool->info().name)
 	};
 
 	vkcmdbuffer.handle = handle;

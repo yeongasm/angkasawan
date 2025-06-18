@@ -74,11 +74,6 @@ auto MemoryBlock::from(Device& device, MemoryBlockAllocateInfo&& info) -> Resour
 
 	auto&& vkmemory = *it;
 
-	if (!info.name.empty())
-	{
-		info.name.format("<memory>:{}", info.name.c_str());
-	}
-
 	vkmemory.handle = handle;
 	vkmemory.allocationInfo = std::move(allocInfo);
 	vkmemory.m_info.name = std::move(info.name);

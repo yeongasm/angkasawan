@@ -62,7 +62,7 @@ struct GpuDataContainer : public lib::non_copyable
 
 struct GpuPtrInfo
 {
-    lib::string name;
+    std::string name;
     gpu::BufferUsage bufferUsage;
 };
 
