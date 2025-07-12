@@ -7,11 +7,6 @@
 #include "app_pipeline_definitions.hpp"
 #include "render/pipeline_cache.hpp"
 
-// TODO(Afiq):
-// 1. Check if shader is already compiled.
-// 2. Check for local shader binary cache.
-// 3. If either 1) or 2) exists and the timestamp of the shader from 1) matches the timestamp of the shader, ignore the compilation request.
-
 template <>
 struct glz::meta<render::material::ImageType>
 {
@@ -1104,6 +1099,9 @@ auto ModelDemoApp::setup_shader_compiler_and_pipelines() -> void
 		.compute = {}
 	};
 
+	// TODO(afiq):
+	// When loading pipelines, we need to keep a visited set for all the pipelines that have been loaded.
+	// If there are pipeline definitions that have not, we need to load them.
 	if (!pipelineCache.load_cache(definitions))
 	{
 		auto&& shaderCompiler = pipelineCache.shader_compiler();
@@ -1123,6 +1121,9 @@ auto ModelDemoApp::setup_shader_compiler_and_pipelines() -> void
 			}
 		}
 	}
+
+	// This is where we'll check the pipeline against the visited set, compile and store them.
+	// Ideally maybe do this is not final builds.
 
 	m_pipeline = pipelineCache.get_pipeline("sponza uber pipeline").value();
 }

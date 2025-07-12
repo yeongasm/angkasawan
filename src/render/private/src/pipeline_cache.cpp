@@ -315,6 +315,49 @@ auto PipelineCache::cache_pipeline(RasterPipelineDefinition const& definition, s
     return pipeline;
 }
 
+auto PipelineCache::cache_pipeline(ComputePipelineDefinition const& definition, PipelineShaderCompileInfo const& compileInfo) -> std::expected<gpu::pipeline, std::string>
+{
+    if (definition.shaderPaths.compute.empty())
+    {
+        return std::unexpected{ "A compute shader is required for a compute pipeline." };
+    }
+
+    if (definition.uri.empty())
+    {
+        return std::unexpected{ "Pipeline URI cannot be empty." };
+    }
+
+    auto result = try_compile_shader(definition.shaderPaths.compute, compileInfo);
+
+    if (!result)
+    {
+        return std::unexpected{ std::move(result.error()) };
+    }
+
+    auto pipeline = gpu::Pipeline::from(
+        m_device,
+        *result,
+        {
+            .name = std::string{ definition.info.name },
+            .pushConstantSize = definition.info.pushConstantSize
+        }
+    );
+
+    if (pipeline.valid())
+    {
+        if (m_uriToPipeline.contains(definition.uri))
+        {
+            auto const it = m_uriToPipeline[definition.uri];
+            m_pipelines.erase(it);
+        }
+
+        auto it = m_pipelines.emplace(pipeline);
+        m_uriToPipeline[definition.uri] = it;
+    }
+
+    return pipeline;
+}
+
 auto PipelineCache::remove_pipeline(std::string_view uri) -> void
 {
     if (m_uriToPipeline.contains(uri))
@@ -332,6 +375,11 @@ auto PipelineCache::get_pipeline(std::string_view uri) -> std::expected<gpu::pip
         return std::unexpected{ fmt::format("Could not get pipeline with uri - {}", uri) };
     }
     return *m_uriToPipeline[uri];
+}
+
+auto PipelineCache::contains(std::string_view uri) -> bool
+{
+    return m_uriToPipeline.contains(uri);
 }
 
 auto PipelineCache::load_pipeline(RasterPipelineDefinition const& definition) -> void
@@ -393,7 +441,6 @@ auto PipelineCache::try_compile_shader(std::filesystem::path const& path, Pipeli
 {
     // First we check if the compiled binaries already exist. We only recompile if they don't.
     // That way during development, we only need to recompile the shaders that are being hot-reloaded.
-
 
     std::filesystem::path cachedBinaryPath = m_configuration.cachePath / path.stem().replace_extension(SHADER_EXTENSION_NAME[std::to_underlying(compileInfo.type)]);
 

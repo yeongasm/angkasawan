@@ -32,7 +32,8 @@ SandboxApp::SandboxApp([[maybe_unused]] int32 argc, [[maybe_unused]] char** argv
 			{
 				.title = L"Sandbox",
 				.position = { 0, 0 },
-				.dimension = { 1024, 768 },
+				// .dimension = { 1024, 768 },
+				.dimension = { 1920, 1080 },
 				.config = core::platform::WindowConfig::Borderless | core::platform::WindowConfig::Catch_Input
 			}
 		);

@@ -21,6 +21,8 @@ get_filename_component(
 )
 set(CPM_SOURCE_CACHE "${DEP_PATH}")
 
+set(CMAKE_VERBOSE_MAKEFILE ON)
+
 if (MSVC)
     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
 endif()

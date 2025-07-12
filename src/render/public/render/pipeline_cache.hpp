@@ -63,16 +63,6 @@ class PipelineCache : lib::non_copyable_non_movable
 {
 public:
 
-    /*
-    * 1. When initializing the pipeline cache, we check if our gpu driver version matches with the one that is cached.
-    * 2. If there was no previously cached driver version, we don't do anything.
-    * 3. If there is a driver version mismatch, we clear everything in the cache directory.
-    * 4. Upon creating the pipeline cache, we then parse a list of pipeline definitions.
-    *       4.1. A pipeline definition is simply a text file / code that defines a list of pipelines with it's name, pipeline info and its shaders.
-    * 5. If the cache folder is not empty, we simply serialize the shaders into the pipeline cache and use them to construct the pipelines.
-    * 6. If the cache folder is empty, we serialize the shaders in it's raw format and recompile them. After recompiling, we construct the pipelines.
-    */
-
     static auto create(gpu::Device& device, PipelineCacheInfo const& info /*, FileSystem */) -> std::unique_ptr<PipelineCache>;
 
     auto shader_compiler() -> gpu::ShaderCompiler&;
@@ -91,11 +81,12 @@ public:
     /*
     * Serializes the shaders in the pipeline definition to disk and adds the pipeline into the cache.
     */
-    // auto cache_pipeline(ComputePipelineDefinition const& definition, PipelineShaderCompileInfo& compileInfo) -> std::expected<gpu::pipeline, std::string>;
+    auto cache_pipeline(ComputePipelineDefinition const& definition, PipelineShaderCompileInfo const& compileInfo) -> std::expected<gpu::pipeline, std::string>;
 
     auto remove_pipeline(std::string_view uri) -> void;
 
     auto get_pipeline(std::string_view uri) -> std::expected<gpu::pipeline, std::string>;
+    auto contains(std::string_view uri) -> bool;
 
 private:
     PipelineCache(gpu::Device& device, PipelineCacheInfo const& info);
