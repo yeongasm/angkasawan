@@ -1,4 +1,6 @@
 #include "vulkan/vkgpu.hpp"
+#include <atomic>
+#include <utility>
 
 /**
 * Vulkan Command Buffers Specification
@@ -11,7 +13,8 @@ CommandBuffer::CommandBuffer(Device& device) :
 	DeviceResource{ device },
 	m_info{},
 	m_commandPool{},
-	m_recordingTimeline{}
+	m_recordingTimeline{},
+	m_currentTimeline{}
 {}
 
 auto CommandBuffer::info() const -> CommandBufferInfo const&
@@ -31,20 +34,43 @@ auto CommandBuffer::recording_timeline() const -> uint64
 	return m_recordingTimeline.load(std::memory_order_acquire);
 }
 
-auto CommandBuffer::reset() -> void
+auto CommandBuffer::current_timeline() const -> uint64
 {
-	if (valid() && 
-		recording_timeline() < m_device->gpu_timeline())
-	{
-		auto&& self = to_impl(*this);
+	return m_currentTimeline->value();
+}
 
+auto CommandBuffer::current_timeline_fence() const -> Resource<Fence>
+{
+	return m_currentTimeline;
+}
+
+auto CommandBuffer::try_reset() -> bool
+{
+	auto&& self = to_impl(*this);
+
+	auto recordingTimeline = m_recordingTimeline.load(std::memory_order_acquire);
+	auto gpuTimeline = m_currentTimeline->value();
+
+	if (std::cmp_equal(gpuTimeline, 0) && 
+		std::cmp_equal(recordingTimeline, 0))
+	{
+		return true;
+	}
+
+	auto const resetable = 	std::cmp_greater_equal(gpuTimeline, recordingTimeline);
+
+	if (resetable)
+	{
 		vkResetCommandBuffer(self.handle, VK_COMMAND_BUFFER_RESET_RELEASE_RESOURCES_BIT);
 	}
+
+	return resetable;
 }
 
 auto CommandBuffer::begin() -> bool
 {
-	if (!valid()) [[unlikely]]
+	if (!valid() || 
+		!try_reset()) [[unlikely]]
 	{
 		return false;
 	}
@@ -1096,37 +1122,31 @@ auto CommandBuffer::from(Resource<CommandPool>& commandPool) -> Resource<Command
 
 	vk::CommandBufferPool& cmdBufferPool = cmdPool.commandBufferPool;
 
-	if (cmdBufferPool.freeSlotCount)
-	{
-		uint32 iterations = 0;
+	size_t const size = cmdBufferPool.commandBuffers.size();
+	size_t iterations = 0;
 
-		while (iterations < cmdBufferPool.freeSlotCount)
+	while (iterations < size)
+	{
+		auto const current = cmdBufferPool.current;
+
+		auto&& cmdBuffer = cmdBufferPool.commandBuffers[current];
+
+		/*
+		* recording_timeline < current_timleine, never possible unless something goes extremely wrong.
+		* recording_timeline > current_timeline, command buffer work begins, should not be used.
+		* recording_timeline == current_timeline, timeline semaphore is signalled once gpu queue finishes recording, able to be re-used.
+		*/
+
+		if (cmdBuffer.recording_timeline() == cmdBuffer.current_timeline())
 		{
-			 cmdBufferPool.currentFreeSlot = (cmdBufferPool.currentFreeSlot + 1) % cmdBufferPool.freeSlotCount;
-
-			 size_t const index = cmdBufferPool.freeSlots[cmdBufferPool.currentFreeSlot];
-			 vk::CommandBufferImpl& allocatedCmdBuffer = cmdBufferPool.commandBuffers[index];
-
-			 if (allocatedCmdBuffer.valid() && 
-				 allocatedCmdBuffer.recording_timeline() < vkdevice.gpu_timeline())
-			 {
-				 --cmdBufferPool.freeSlotCount;
-
-				 return Resource<CommandBuffer>{ allocatedCmdBuffer, {} };
-			 }
-
-			 ++iterations;
+			return Resource<CommandBuffer>{ cmdBuffer, {} };
 		}
+
+		cmdBufferPool.current = (cmdBufferPool.current + 1) % size;
 	}
 
-	if (cmdBufferPool.commandBufferCount + 1 > MAX_COMMAND_BUFFER_PER_POOL)
-	{
-		return {};
-	}
-
-	size_t const index = cmdBufferPool.commandBufferCount++;
-
-	vk::CommandBufferImpl& vkcmdbuffer = cmdBufferPool.commandBuffers[index];
+	auto index = cmdBufferPool.commandBuffers.size();
+	auto&& vkcmdbuffer = cmdBufferPool.commandBuffers.emplace_back();
 
 	new (&vkcmdbuffer) vk::CommandBufferImpl{ vkdevice };
 
@@ -1148,6 +1168,9 @@ auto CommandBuffer::from(Resource<CommandPool>& commandPool) -> Resource<Command
 	vkcmdbuffer.handle = handle;
 	vkcmdbuffer.m_info = std::move(info);
 	vkcmdbuffer.m_commandPool = commandPool;
+	vkcmdbuffer.m_currentTimeline = Fence::from(vkdevice, {
+		.name = fmt::format("<fence>:{}", vkcmdbuffer.m_info.name.c_str())
+	});
 
 	if constexpr (ENABLE_GPU_RESOURCE_DEBUG_NAMES)
 	{
@@ -1157,27 +1180,33 @@ auto CommandBuffer::from(Resource<CommandPool>& commandPool) -> Resource<Command
 	return Resource<CommandBuffer>{ vkcmdbuffer, {} };
 }
 
-auto CommandBuffer::destroy(CommandBuffer& resource, [[maybe_unused]] uint64 id) -> void
-{
-	auto&& cmdBufferImpl = to_impl(resource);
-	auto&& cmdPoolImpl = to_impl(*resource.m_commandPool);
-
-	auto& cmdBufferPool = cmdPoolImpl.commandBufferPool;
-
-	if (&cmdBufferImpl >= cmdBufferPool.commandBuffers.data() &&
-		&cmdBufferImpl < cmdBufferPool.commandBuffers.data() + MAX_COMMAND_BUFFER_PER_POOL)
-	{
-		cmdBufferPool.freeSlots[cmdBufferPool.currentFreeSlot] = static_cast<size_t>(&cmdBufferImpl - cmdBufferPool.commandBuffers.data());
-		++cmdBufferPool.freeSlotCount;
-		cmdBufferPool.currentFreeSlot = (cmdBufferPool.currentFreeSlot + 1) % MAX_COMMAND_BUFFER_PER_POOL;
-	}
-}
+auto CommandBuffer::destroy([[maybe_unused]] CommandBuffer& resource, [[maybe_unused]] uint64 id) -> void {}
 
 namespace vk
 {
 CommandBufferImpl::CommandBufferImpl(DeviceImpl& device) :
 	CommandBuffer{ device }
 {}
+
+CommandBufferImpl::CommandBufferImpl(CommandBufferImpl&& rhs) :
+	CommandBuffer{ *rhs.m_device },
+	handle{ std::exchange(rhs.handle, {}) },
+	numMemoryBarrier{ std::exchange(rhs.numMemoryBarrier, {}) },
+	numBufferBarrier{ std::exchange(rhs.numBufferBarrier, {}) },
+	numImageBarrier{ std::exchange(rhs.numImageBarrier, {}) }
+{
+	m_info = std::exchange(rhs.m_info, {});
+	m_commandPool = std::move(rhs.m_commandPool);
+
+	m_recordingTimeline.store(rhs.m_recordingTimeline.load(std::memory_order_acquire), std::memory_order_relaxed);
+	m_currentTimeline = std::move(rhs.m_currentTimeline);
+
+	m_refCount.store(rhs.m_refCount.load(std::memory_order_acquire), std::memory_order_relaxed);
+
+	std::memcpy(memoryBarriers.data(), rhs.memoryBarriers.data(), MAX_COMMAND_BUFFER_BARRIER_COUNT * sizeof(VkMemoryBarrier2));
+	std::memcpy(bufferBarriers.data(), rhs.bufferBarriers.data(), MAX_COMMAND_BUFFER_BARRIER_COUNT * sizeof(VkBufferMemoryBarrier2));
+	std::memcpy(imageBarriers.data(), rhs.imageBarriers.data(), MAX_COMMAND_BUFFER_BARRIER_COUNT * sizeof(VkImageMemoryBarrier2));
+}
 
 auto CommandBufferImpl::get_memory_barrier_info(MemoryBarrierInfo const& info) const -> VkMemoryBarrier2
 {

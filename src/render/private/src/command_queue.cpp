@@ -22,6 +22,8 @@ auto SubmissionGroup::submit(gpu::command_buffer const& commandBuffer) -> void
 	const uint32 offset = (Queue::NUM_COMMAND_BUFFER_SUBMISSION_PER_GROUP - 1u) * m_data.id;
 
 	m_queue.submittedCommandBuffers[offset + m_data.numCommandBuffers++] = commandBuffer;
+
+	signal(commandBuffer->current_timeline_fence(), commandBuffer->recording_timeline());
 }
 
 auto SubmissionGroup::signal(gpu::fence const& fence, uint64 value) -> void

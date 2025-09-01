@@ -152,6 +152,8 @@ public:
 	CommandBufferImpl() = default;
 	CommandBufferImpl(DeviceImpl& device);
 
+	CommandBufferImpl(CommandBufferImpl&& rhs);
+
 	auto get_memory_barrier_info(MemoryBarrierInfo const& info) const -> VkMemoryBarrier2;
 	auto get_buffer_barrier_info(BufferBarrierInfo const& info) const -> VkBufferMemoryBarrier2;
 	auto get_image_barrier_info(ImageBarrierInfo const& info) const -> VkImageMemoryBarrier2;
@@ -172,11 +174,8 @@ public:
 
 struct CommandBufferPool
 {
-	std::array<CommandBufferImpl, MAX_COMMAND_BUFFER_PER_POOL> commandBuffers;
-	std::array<size_t, MAX_COMMAND_BUFFER_PER_POOL> freeSlots;
-	uint32 commandBufferCount;
-	uint32 freeSlotCount;
-	uint32 currentFreeSlot;
+	lib::array<CommandBufferImpl> commandBuffers;
+	uint32 current;
 };
 
 class CommandPoolImpl : public CommandPool

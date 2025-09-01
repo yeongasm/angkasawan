@@ -1,4 +1,6 @@
+#include "vulkan/vk.h"
 #include "vulkan/vkgpu.hpp"
+#include <atomic>
 
 namespace gpu
 {
@@ -12,8 +14,8 @@ Swapchain::Swapchain(Device& device) :
 	m_presentSemaphore{},
 	m_colorSpace{ ColorSpace::Srgb_Non_Linear },
 	m_cpuElapsedFrames{},
-	m_currentFrameIndex{},
-	m_nextImageIndex{}
+	m_acquireSemaphoreIndex{},
+	m_currentImageIndex{}
 {}
 
 auto Swapchain::info() const -> SwapchainInfo const&
@@ -42,14 +44,14 @@ auto Swapchain::current_image() const -> Resource<Image>
 {
 	if (valid())
 	{
-		return m_images[m_nextImageIndex];
+		return m_images[m_currentImageIndex];
 	}
 	return {};
 }
 
 auto Swapchain::current_image_index() const -> uint32
 {
-	return valid() ? m_nextImageIndex : 0;
+	return valid() ? m_currentImageIndex : 0;
 }
 
 auto Swapchain::acquire_next_image() -> Resource<Image>
@@ -63,15 +65,15 @@ auto Swapchain::acquire_next_image() -> Resource<Image>
 	auto const& self = to_impl(*this);
 
 	int64 const maxFramesInFlight = static_cast<int64>(vkdevice.config().maxFramesInFlight);
+	
 	// We wait until the gpu elapsed frame count is behind our swapchain's elapsed frame count.
-	//[[maybe_unused]] uint64 currentValue = m_gpu_elapsed_frames.value();
-	m_gpuElapsedFrames->wait_for_value(static_cast<uint64>(std::max(0ll, static_cast<int64>(m_cpuElapsedFrames))));
+	m_gpuElapsedFrames->wait_for_value(static_cast<uint64>(std::max(0ll, static_cast<int64>(m_cpuElapsedFrames) - maxFramesInFlight)));
 
 	// Update swapchain's frame index for the next call to this function.
-	m_previousFrameIndex = m_currentFrameIndex;
-	m_currentFrameIndex = (m_currentFrameIndex + 1) % maxFramesInFlight;
+	uint32 const cpuElapsedFrameCount = m_cpuElapsedFrames.load(std::memory_order_acquire);
+	m_acquireSemaphoreIndex = cpuElapsedFrameCount % (maxFramesInFlight + 1);
 
-	vk::SemaphoreImpl const& vksemaphore = to_impl(*m_acquireSemaphore[m_currentFrameIndex]);
+	vk::SemaphoreImpl const& vksemaphore = to_impl(*m_acquireSemaphore[m_acquireSemaphoreIndex]);
 
 	VkResult result = vkAcquireNextImageKHR(
 		vkdevice.device,
@@ -79,7 +81,7 @@ auto Swapchain::acquire_next_image() -> Resource<Image>
 		UINT64_MAX,
 		vksemaphore.handle,
 		nullptr,
-		&m_nextImageIndex
+		&m_currentImageIndex
 	);
 
 	switch (result)
@@ -104,17 +106,17 @@ auto Swapchain::acquire_next_image() -> Resource<Image>
 	// Increment total swapchain elapsed frame count.
 	m_cpuElapsedFrames.fetch_add(1, std::memory_order_relaxed);
 
-	return m_images[static_cast<size_t>(m_nextImageIndex)];
+	return m_images[static_cast<size_t>(m_currentImageIndex)];
 }
 
 auto Swapchain::current_acquire_semaphore() const -> Resource<Semaphore>
 {
-	return m_acquireSemaphore[m_currentFrameIndex];
+	return m_acquireSemaphore[m_acquireSemaphoreIndex];
 }
 
 auto Swapchain::current_present_semaphore() const -> Resource<Semaphore>
 {
-	return m_presentSemaphore[m_currentFrameIndex];
+	return m_presentSemaphore[m_currentImageIndex];
 }
 
 auto Swapchain::cpu_frame_count() const -> uint64
@@ -337,6 +339,12 @@ auto Swapchain::from(Device& device, SwapchainInfo&& info, Resource<Swapchain> p
 	VkImageUsageFlags imageUsage = vk::translate_image_usage_flags(info.imageUsage);
 	VkPresentModeKHR presentationMode = vk::translate_swapchain_presentation_mode(info.presentationMode);
 
+	[[maybe_unused]] VkPresentModeKHR presentationModes[10];
+	[[maybe_unused]] uint32 numPresentModes = 0u;
+
+	vkGetPhysicalDeviceSurfacePresentModesKHR(vkdevice.gpu, surface->handle, &numPresentModes, nullptr);
+	vkGetPhysicalDeviceSurfacePresentModesKHR(vkdevice.gpu, surface->handle, &numPresentModes, presentationModes);
+
 	bool foundPreferred = false;
 	VkSurfaceFormatKHR surfaceFormat = surface->availableColorFormats[0];
 
@@ -413,22 +421,32 @@ auto Swapchain::from(Device& device, SwapchainInfo&& info, Resource<Swapchain> p
 	vkswapchain.m_gpuElapsedFrames = Fence::from(device, std::move(fenceInfo));
 
 	size_t const maxFramesInFlight = static_cast<size_t>(device.config().maxFramesInFlight);
+	size_t const numImages = vkswapchain.m_info.imageCount;
 
-	vkswapchain.m_acquireSemaphore.reserve(maxFramesInFlight);
-	vkswapchain.m_presentSemaphore.reserve(maxFramesInFlight);
+	vkswapchain.m_acquireSemaphore.reserve(maxFramesInFlight + 1);
+	vkswapchain.m_presentSemaphore.reserve(numImages);
 
-	for (size_t i = 0; i < maxFramesInFlight; ++i)
+	bool const swapchainHasName = !vkswapchain.m_info.name.empty();
+	std::string name;
+
+	for (size_t i = 0; i < maxFramesInFlight + 1; ++i)
 	{
-		std::string acqSemaphoreName, presentSemaphoreName;
-
-		if (!vkswapchain.m_info.name.empty())
+		if (swapchainHasName)
 		{
-			acqSemaphoreName = fmt::format("<semaphore>:{}_acquire_{}", vkswapchain.m_info.name, i);
-			presentSemaphoreName = fmt::format("<semaphore>:{}_present_{}", vkswapchain.m_info.name, i);
+			name = fmt::format("<semaphore>:{}_acquire_{}", vkswapchain.m_info.name, i);
 		}	
-
-		vkswapchain.m_acquireSemaphore.push_back(Semaphore::from(device, { .name = std::move(acqSemaphoreName) }));
-		vkswapchain.m_presentSemaphore.push_back(Semaphore::from(device, { .name = std::move(presentSemaphoreName) }));
+		
+		vkswapchain.m_acquireSemaphore.push_back(Semaphore::from(device, { .name = std::move(name) }));
+	}
+	
+	for (size_t i = 0; i < numImages; ++i)
+	{
+		if (swapchainHasName)
+		{
+			name = fmt::format("<semaphore>:{}_present_{}", vkswapchain.m_info.name, i);
+		}
+		
+		vkswapchain.m_presentSemaphore.push_back(Semaphore::from(device, { .name = std::move(name) }));
 	}
 
 	vkswapchain.m_images = Image::from(vkswapchain);

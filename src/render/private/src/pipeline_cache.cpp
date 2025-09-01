@@ -512,7 +512,7 @@ auto PipelineCache::compile_shader(std::string_view path, std::filesystem::path 
             compilation_error(
                 std::string_view{ compilationResult.error().data(), compilationResult.error().size() }, 
                 sourceCode.is_open(), 
-                sourceCode.data() == nullptr) 
+                sourceCode.data() != nullptr) 
         };
     }
 

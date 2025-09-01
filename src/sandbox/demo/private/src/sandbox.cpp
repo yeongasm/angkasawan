@@ -6,7 +6,6 @@
 
 #include "core.platform/file_watcher.hpp"
 
-
 namespace sandbox
 {
 SandboxApp::SandboxApp([[maybe_unused]] int32 argc, [[maybe_unused]] char** argv) :
@@ -72,8 +71,7 @@ SandboxApp::SandboxApp([[maybe_unused]] int32 argc, [[maybe_unused]] char** argv
 				.engineVersion = { 0, 1, 0, 0 },
 				.preferredDevice = gpu::DeviceType::Discrete_Gpu,
 				.config = {
-					.maxFramesInFlight = 2,
-					.swapchainImageCount = 3,
+					.maxFramesInFlight = 1,
 					.maxBuffers = gpu::MAX_BUFFERS,
 					.maxImages = gpu::MAX_IMAGES,
 					.maxSamplers = gpu::MAX_SAMPLERS,

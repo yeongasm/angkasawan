@@ -134,7 +134,8 @@ auto Buffer::memory_requirement(Device& device, BufferInfo const& info) -> Memor
 auto Buffer::from(Device& device, BufferInfo&& info, Resource<MemoryBlock> memoryBlock) -> Resource<Buffer>
 {
 	ASSERTION(info.memoryUsage != MemoryUsage::None && "MemoryUsage cannot be 'None'");
-
+	ASSERTION(info.size != 80000 && "Allocation size is below threshold");
+	
 	auto&& vkdevice = to_device(device);
 
 	uint32 queueFamilyIndices[] = {

@@ -1,4 +1,5 @@
 #pragma once
+#include "lib/common.hpp"
 #ifndef GPU_H
 #define GPU_H
 
@@ -127,7 +128,7 @@ struct SamplerBindInfo
 	uint32 index;
 };
 
-class RefCountedResource : public lib::non_copyable_non_movable
+class RefCountedResource : public lib::non_copyable
 {
 public:
 	RefCountedResource() = default;
@@ -148,7 +149,6 @@ public:
 		return m_refCount.load(std::memory_order_acquire);
 	}
 
-private:
 	std::atomic_uint64_t m_refCount = {};
 };
 
@@ -414,9 +414,8 @@ protected:
 	SemaphoreArray m_presentSemaphore;
 	ColorSpace m_colorSpace = ColorSpace::Srgb_Non_Linear;
 	std::atomic_uint64_t m_cpuElapsedFrames;
-	uint32 m_currentFrameIndex;
-	uint32 m_previousFrameIndex;
-	uint32 m_nextImageIndex;
+	uint32 m_acquireSemaphoreIndex;
+	uint32 m_currentImageIndex;
 };
 
 class Shader : public DeviceResource
@@ -768,8 +767,9 @@ public:
 	auto info() const -> CommandBufferInfo const&;
 	auto valid() const -> bool;
 	auto recording_timeline() const -> uint64;
+	auto current_timeline() const -> uint64;
 
-	auto reset() -> void;
+	auto current_timeline_fence() const -> Resource<Fence>;
 
 	auto begin() -> bool;
 	auto end() -> void;
@@ -828,6 +828,8 @@ public:
 protected:
 	friend class Resource<CommandBuffer>;
 
+	auto try_reset() -> bool;
+
 	/**
 	 * Destroying a command buffer doesn't actually releases it from the command pool.
 	 * Rather, it is returned to the command pool for re-use.
@@ -839,6 +841,7 @@ protected:
 	CommandBufferInfo m_info;
 	Resource<CommandPool> m_commandPool;
 	std::atomic_uint64_t m_recordingTimeline;
+	Resource<Fence> m_currentTimeline;
 };
 
 class CommandPool : public DeviceResource

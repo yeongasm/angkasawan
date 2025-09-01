@@ -5,6 +5,7 @@
 #include "model_demo_app.hpp"
 
 #include "app_pipeline_definitions.hpp"
+#include "gpu/common.hpp"
 #include "render/pipeline_cache.hpp"
 
 template <>
@@ -74,130 +75,6 @@ auto ModelDemoApp::start(
 
 	make_render_targets(swapchainInfo.dimension.width, swapchainInfo.dimension.height);
 	setup_shader_compiler_and_pipelines();
-
-	// TODO(afiq):
-	// Check if the shader binary exist and if it doesn't compile from source.
-	// auto make_uber_pipeline = [&](core::filewatcher::FileActionInfo const& fileAction) -> void
-	// {
-	// 	if (fileAction.action == core::filewatcher::FileAction::Modified)
-	// 	{
-	// 		core::sbf::File const sourceCode({ .path = fileAction.path, .shareMode = core::sbf::FileShareMode::Shared_Read, .map = true });
-			
-	// 		if (!sourceCode.is_open() || 
-	// 			sourceCode.data() == nullptr)
-	// 		{
-	// 			return;
-	// 		}
-
-	// 		gpu::shader vs, ps;
-
-	// 		gpu::ShaderCompileInfo compileInfo{
-	// 			.path = "data/demo/shaders/model.slang",
-	// 			.type = gpu::ShaderType::Vertex,
-	// 			.entryPoint = "main_vertex",
-	// 			.sourceCode = std::string_view{ static_cast<char const*>(sourceCode.data()), sourceCode.size() }
-	// 		};
-
-	// 		{
-	// 			if (auto result = m_shaderCompiler->compile(compileInfo); result)
-	// 			{
-	// 				vs = gpu::Shader::from(m_gpu->device(), result->compiled_info());
-	// 			}
-	// 			else
-	// 			{
-	// 				fmt::print("{}", result.error().c_str());
-	// 			}
-	// 		}
-
-	// 		{
-	// 			compileInfo.type = gpu::ShaderType::Pixel;
-	// 			compileInfo.entryPoint = "main_fragment";
-
-	// 			if (auto result = m_shaderCompiler->compile(compileInfo); result)
-	// 			{
-	// 				ps = gpu::Shader::from(m_gpu->device(), result->compiled_info());
-	// 			}
-	// 			else
-	// 			{
-	// 				fmt::print("{}", result.error().data());
-	// 			}
-	// 		}
-
-	// 		if (!(vs.valid() && ps.valid()))
-	// 		{
-	// 			return;
-	// 		}
-
-	// 		m_pipeline = gpu::Pipeline::from(
-	// 			m_gpu->device(),
-	// 			{
-	// 				.vertexShader = vs,
-	// 				.pixelShader = ps,
-	// 			},
-	// 			{
-	// 				.name = "<pipeline.raster>:sponza uber pipeline",
-	// 				.colorAttachments = {
-	// 					{ 
-	// 						.format = m_baseColorAttachment->info().format, 
-	// 						.blendInfo = { 
-	// 							.enable = true,
-	// 							.srcColorBlendFactor = gpu::BlendFactor::One,
-	// 							.dstColorBlendFactor = gpu::BlendFactor::Zero,
-	// 							.colorBlendOp = gpu::BlendOp::Add,
-	// 							.srcAlphaBlendFactor = gpu::BlendFactor::One,
-	// 							.dstAlphaBlendFactor = gpu::BlendFactor::Zero,
-	// 							.alphaBlendOp = gpu::BlendOp::Add
-	// 						} 
-	// 					},
-	// 					{
-	// 						.format = m_metallicRoughnessAttachment->info().format, 
-	// 						.blendInfo = { 
-	// 							.enable = true,
-	// 							.srcColorBlendFactor = gpu::BlendFactor::One,
-	// 							.dstColorBlendFactor = gpu::BlendFactor::Zero,
-	// 							.colorBlendOp = gpu::BlendOp::Add,
-	// 							.srcAlphaBlendFactor = gpu::BlendFactor::One,
-	// 							.dstAlphaBlendFactor = gpu::BlendFactor::Zero,
-	// 							.alphaBlendOp = gpu::BlendOp::Add
-	// 						} 				
-	// 					},
-	// 					{
-	// 						.format = m_normalAttachment->info().format, 
-	// 						.blendInfo = { 
-	// 							.enable = true,
-	// 							.srcColorBlendFactor = gpu::BlendFactor::One,
-	// 							.dstColorBlendFactor = gpu::BlendFactor::Zero,
-	// 							.colorBlendOp = gpu::BlendOp::Add,
-	// 							.srcAlphaBlendFactor = gpu::BlendFactor::One,
-	// 							.dstAlphaBlendFactor = gpu::BlendFactor::Zero,
-	// 							.alphaBlendOp = gpu::BlendOp::Add
-	// 						} 				
-	// 					}
-	// 				},
-	// 				.depthAttachmentFormat = gpu::Format::D32_Float,
-	// 				.rasterization = {
-	// 					.polygonalMode = gpu::PolygonMode::Fill,
-	// 					.cullMode = gpu::CullingMode::Back,
-	// 					.frontFace = gpu::FrontFace::Counter_Clockwise
-	// 				},
-	// 				.depthTest = {
-	// 					.depthTestCompareOp = gpu::CompareOp::Less,
-	// 					.minDepthBounds = 0.f,
-	// 					.maxDepthBounds = 1.f,
-	// 					.enableDepthBoundsTest = false,
-	// 					.enableDepthTest = true,
-	// 					.enableDepthWrite = true
-	// 				},
-	// 				.topology = gpu::TopologyType::Triangle,
-	// 				.pushConstantSize = sizeof(PushConstant)
-	// 			}
-	// 		);
-	// 	}
-	// };
-
-	// m_pipelineShaderCodeWatchId = core::filewatcher::watch({ .path = "data/demo/shaders/model.slang", .callback = make_uber_pipeline });
-
-	// make_uber_pipeline({ .path = "data/demo/shaders/model.slang", .action = core::filewatcher::FileAction::Modified });
 
 	allocate_camera_buffers();
 
@@ -394,16 +271,10 @@ auto ModelDemoApp::render() -> void
 
 	m_gpu->device().clear_garbage();
 
-	auto cmd = m_gpu->command_queue().next_free_command_buffer();
 	auto&& swapchainImage = m_swapchain->acquire_next_image();
+	auto cmd = m_gpu->command_queue().next_free_command_buffer();
 
-	cmd->reset();
 	cmd->begin();
-
-	cmd->pipeline_barrier({
-		.srcAccess = gpu::access::TRANSFER_WRITE,
-		.dstAccess = gpu::access::HOST_READ
-	});
 
 	cmd->pipeline_image_barrier({
 		.image = *swapchainImage,
@@ -480,7 +351,7 @@ auto ModelDemoApp::render() -> void
 
 	cmd->pipeline_image_barrier({
 		.image = *m_baseColorAttachment,
-		.srcAccess = gpu::access::FRAGMENT_SHADER_WRITE,
+		.srcAccess = gpu::access::COLOR_ATTACHMENT_OUTPUT_WRITE,
 		.dstAccess = gpu::access::TRANSFER_READ,
 		.oldLayout = gpu::ImageLayout::Color_Attachment,
 		.newLayout = gpu::ImageLayout::Transfer_Src,
@@ -498,7 +369,7 @@ auto ModelDemoApp::render() -> void
 	cmd->pipeline_image_barrier({
 		.image = *m_baseColorAttachment,
 		.srcAccess = gpu::access::TRANSFER_READ,
-		.dstAccess = gpu::access::FRAGMENT_SHADER_WRITE,
+		.dstAccess = gpu::access::COLOR_ATTACHMENT_OUTPUT_WRITE,
 		.oldLayout = gpu::ImageLayout::Transfer_Src,
 		.newLayout = gpu::ImageLayout::Color_Attachment,
 		.subresource = BASE_COLOR_SUBRESOURCE
@@ -546,7 +417,7 @@ auto ModelDemoApp::make_swapchain(core::platform::Window& window) -> void
 			.window = info.nativeHandle
 		},
 		.dimension = { static_cast<uint32>(info.dim.width), static_cast<uint32>(info.dim.height) },
-		.imageCount = 4,
+		.imageCount = 3,
 		.imageUsage = gpu::ImageUsage::Color_Attachment | gpu::ImageUsage::Transfer_Dst,
 		.presentationMode = gpu::SwapchainPresentMode::Mailbox
 	}, (m_swapchain.valid()) ? m_swapchain: gpu::swapchain{});
@@ -584,6 +455,11 @@ auto ModelDemoApp::make_render_targets(uint32 width, uint32 height) -> void
 			.width = width,
 			.height = height,
 		},
+		.clearValue = {
+			.color = {
+				.f32 = { 0.f, 0.f, 0.f, 1.f }
+			}
+		},
 		.mipLevel = 1
 	});
 
@@ -598,6 +474,11 @@ auto ModelDemoApp::make_render_targets(uint32 width, uint32 height) -> void
 			.width = width,
 			.height = height,
 		},
+		.clearValue = {
+			.color = {
+				.f32 = { 0.f, 0.f, 0.f, 1.f }
+			}
+		},
 		.mipLevel = 1
 	});
 
@@ -611,6 +492,11 @@ auto ModelDemoApp::make_render_targets(uint32 width, uint32 height) -> void
 		.dimension = {
 			.width = width,
 			.height = height,
+		},
+		.clearValue = {
+			.color = {
+				.f32 = { 0.f, 0.f, 0.f, 1.f }
+			}
 		},
 		.mipLevel = 1
 	});

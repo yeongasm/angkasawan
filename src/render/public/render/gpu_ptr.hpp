@@ -64,6 +64,7 @@ struct GpuPtrInfo
 {
     std::string name;
     gpu::BufferUsage bufferUsage;
+	gpu::SharingMode sharingMode = gpu::SharingMode::Concurrent;
 };
 
 template <typename T>
@@ -142,6 +143,8 @@ public:
         return std::nullopt;
     }
 
+	auto resource() -> gpu::buffer { return super::storage; }
+
     template <typename... Args>
     requires (std::is_constructible_v<value_type, Args...>)
     static auto from(gpu::Device& device, GpuPtrInfo&& info, Args&&... args) -> GpuPtr<value_type>
@@ -155,7 +158,7 @@ public:
                 .size = sizeof(value_type),
                 .bufferUsage = info.bufferUsage,
                 .memoryUsage = Best_Fit | Host_Writable | Host_Transferable,
-                .sharingMode = gpu::SharingMode::Concurrent
+                .sharingMode = info.sharingMode
             }
         );
 
@@ -190,7 +193,7 @@ public:
                 .size = sizeof(value_type),
                 .bufferUsage = busage,
                 .memoryUsage = Best_Fit,
-                .sharingMode = gpu::SharingMode::Concurrent
+                .sharingMode = info.sharingMode
             }
         );
 
@@ -291,6 +294,8 @@ public:
         return std::nullopt;
     }
 
+	auto resource() -> gpu::buffer { return super::storage; }
+
     template <typename... Args>
     requires 
     (
@@ -308,7 +313,7 @@ public:
                 .size = sizeof(type),
                 .bufferUsage = info.bufferUsage,
                 .memoryUsage = Best_Fit | Host_Writable | Host_Transferable,
-                .sharingMode = gpu::SharingMode::Concurrent
+                .sharingMode = info.sharingMode
             }
         );
 
@@ -347,7 +352,7 @@ public:
                 .size = sizeof(type),
                 .bufferUsage = busage,
                 .memoryUsage = Best_Fit,
-                .sharingMode = gpu::SharingMode::Concurrent
+                .sharingMode = info.sharingMode
             }
         );
 

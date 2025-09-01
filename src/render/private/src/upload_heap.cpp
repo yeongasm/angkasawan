@@ -1,5 +1,6 @@
 #include <numeric>
 #include "upload_heap.hpp"
+#include "gpu/common.hpp"
 
 namespace render
 {
@@ -386,21 +387,23 @@ auto UploadHeap::upload_to_gpu(bool waitIdle) -> void
 	std::span imageUploads  = std::span{ imageUploadInfos.uploads.data(), imageUploadInfos.uploads.size() };
 	std::span bufferUploads = std::span{ bufferUploadInfos.uploads.data(), bufferUploadInfos.uploads.size() };
 
-	cmd->reset();
 	cmd->begin();
 
 	acquire_buffer_resources(*cmd, bufferUploads);
-
-	cmd->pipeline_barrier({
-		.srcAccess = gpu::access::TOP_OF_PIPE_NONE,
-		.dstAccess = gpu::access::TRANSFER_WRITE
-	});
-
 	acquire_image_resources(*cmd, imageUploads);
 
 	copy_to_buffers(*cmd, bufferUploads);
 	copy_to_images(*cmd, imageUploads);
 
+	// We need to insert a pipeline barrier after copy operations to ensure that the copy finishes before the next thing that access
+	// those resources begin. For resources that have exclusive sharing mode, this is done during the ownership transfer phase.
+	// This pipeline barrier here is to take into account resources that have concurrent sharing mode. Ideally we should use
+	// specific pipeline barriers but I'm too lazy.
+	cmd->pipeline_barrier({
+		.srcAccess = gpu::access::TRANSFER_WRITE,
+		.dstAccess = gpu::access::TRANSFER_WRITE
+	});
+	
 	release_image_resources(*cmd, imageUploads);
 	release_buffer_resources(*cmd, bufferUploads);
 
@@ -481,7 +484,7 @@ auto UploadHeap::acquire_image_resources(gpu::CommandBuffer& cmd, std::span<Imag
 				.subresource = info.copyInfo.imageSubresource,
 				.srcQueue = info.owningQueue,
 				.dstQueue = gpu::DeviceQueue::Transfer
-			});
+			});	
 		}
 		else
 		{
@@ -495,6 +498,8 @@ auto UploadHeap::acquire_image_resources(gpu::CommandBuffer& cmd, std::span<Imag
 				.dstQueue = gpu::DeviceQueue::None
 			});
 		}
+
+		info.owningQueue = gpu::DeviceQueue::Transfer;
 	}
 }
 
@@ -514,11 +519,13 @@ auto UploadHeap::acquire_buffer_resources(gpu::CommandBuffer& cmd, std::span<Buf
 				.buffer = info.copyInfo.dst,
 				.size = info.copyInfo.size,
 				.offset = info.copyInfo.dstOffset,
-				.dstAccess = gpu::access::TOP_OF_PIPE_NONE,
+				.dstAccess = gpu::access::TRANSFER_WRITE,
 				.srcQueue = info.owningQueue,
 				.dstQueue = gpu::DeviceQueue::Transfer
 			});
 		}
+
+		info.owningQueue = gpu::DeviceQueue::Transfer;
 	}
 }
 
@@ -531,6 +538,8 @@ auto UploadHeap::release_image_resources(gpu::CommandBuffer& cmd, std::span<Imag
 			continue;
 		}
 
+		// At this point, the image will still be owned by the transfer queue and hence we need
+		// to transfer it's ownership to the destination queue.
 		cmd.pipeline_image_barrier({
 			.image = info.copyInfo.dst,
 			.srcAccess = gpu::access::TRANSFER_WRITE,
@@ -552,6 +561,8 @@ auto UploadHeap::release_buffer_resources(gpu::CommandBuffer& cmd, std::span<Buf
 			continue;
 		}
 
+		// At this point, the buffer will still be owned by the transfer queue and we need
+		// to transfer it's ownership to the destination queue.
 		cmd.pipeline_buffer_barrier({
 			.buffer = info.copyInfo.dst,
 			.size = info.copyInfo.size,

@@ -97,10 +97,10 @@ auto Image::bind(ImageBindInfo const& info) const -> ImageBindInfo
 		descriptorSetWrites[count++] = {
 			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
 			.dstSet = vkdevice.descriptorCache.descriptorSet,
-			.dstBinding = info.sampler.valid() ? COMBINED_IMAGE_SAMPLER_BINDING : SAMPLED_IMAGE_BINDING,
+			.dstBinding = SAMPLED_IMAGE_BINDING,
 			.dstArrayElement = index,
 			.descriptorCount = 1,
-			.descriptorType = info.sampler.valid() ? VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER : VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+			.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
 			.pImageInfo = &descriptorSampledImageInfo
 		};
 	}
@@ -264,10 +264,7 @@ auto Image::from(Swapchain& swapchain) -> lib::array<Resource<Image>>
 	std::array<VkImage, MAX_FRAMES_IN_FLIGHT> vkImageHandles = {};
 	std::array<VkImageView, MAX_FRAMES_IN_FLIGHT> vkImageViewHandles = {};
 
-	for (uint32 i = 0; i < maxImageCount; ++i)
-	{
-		vkGetSwapchainImagesKHR(vkdevice.device, vkswapchain.handle, &maxImageCount, vkImageHandles.data());
-	}
+	vkGetSwapchainImagesKHR(vkdevice.device, vkswapchain.handle, &maxImageCount, vkImageHandles.data());
 
 	VkImageViewCreateInfo imageViewInfo{
 		.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,

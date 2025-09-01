@@ -98,7 +98,6 @@ struct ClearValue
 struct DeviceConfig
 {
 	uint32 maxFramesInFlight;
-	uint32 swapchainImageCount;
 	uint32 maxBuffers;
 	uint32 maxImages;
 	uint32 maxSamplers;

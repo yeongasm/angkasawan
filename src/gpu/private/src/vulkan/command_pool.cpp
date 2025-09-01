@@ -1,3 +1,4 @@
+#include "constants.hpp"
 #include "vulkan/vkgpu.hpp"
 
 namespace gpu
@@ -73,6 +74,8 @@ auto CommandPool::from(Device& device, CommandPoolInfo&& info) -> Resource<Comma
 	vkcommandpool.handle = handle;
 	vkcommandpool.m_info = std::move(info);
 
+	vkcommandpool.commandBufferPool.commandBuffers.reserve(MAX_COMMAND_BUFFER_PER_POOL);
+
 	if constexpr (ENABLE_GPU_RESOURCE_DEBUG_NAMES)
 	{
 		vkdevice.setup_debug_name(vkcommandpool);
@@ -97,14 +100,14 @@ auto CommandPool::destroy(CommandPool& resource, uint64 id) -> void
 		cpuTimelineValue,
 		[&vkcommandpool, id](vk::DeviceImpl& device) -> void
 		{
-			std::array<VkCommandBuffer, MAX_COMMAND_BUFFER_PER_POOL> cmdBuffers;
-
-			for (uint32 i = 0; i < vkcommandpool.commandBufferPool.commandBufferCount; ++i)
+			lib::array<VkCommandBuffer> cmdBuffers{ vkcommandpool.commandBufferPool.commandBuffers.size() };
+			
+			for (auto const& cmdBuffer : vkcommandpool.commandBufferPool.commandBuffers)
 			{
-				cmdBuffers[i] = vkcommandpool.commandBufferPool.commandBuffers[i].handle;
+				cmdBuffers.push_back(cmdBuffer.handle);
 			}
-		
-			vkFreeCommandBuffers(device.device, vkcommandpool.handle, vkcommandpool.commandBufferPool.commandBufferCount, cmdBuffers.data());
+
+			vkFreeCommandBuffers(device.device, vkcommandpool.handle, cmdBuffers.size(), cmdBuffers.data());
 			vkDestroyCommandPool(device.device, vkcommandpool.handle, nullptr);
 
 			auto it = device.gpuResourcePool.caches.commandPool[id];

@@ -59,7 +59,6 @@ if (USE_VULKAN)
 		"private/src/vulkan/sync.cpp"
 		"private/src/vulkan/vk.cpp"
 		"private/src/slang_shader_compiler.cpp"
-		#"private/src/util/spirv_shader_compiler.cpp"
 	)
 
 	target_sources(
@@ -90,42 +89,22 @@ if (USE_VULKAN)
 		target_compile_options(VulkanMemoryAllocator INTERFACE -Wno-unused-variable -Wno-missing-field-initializers)
 	endif()
 
-	# to deprecate
-	#add_library(shaderc UNKNOWN IMPORTED)
-	#set_target_properties(
-	#	shaderc 
-	#	PROPERTIES
-	#		IMPORTED_LOCATION "$ENV{VULKAN_SDK}/Lib/shaderc_shared.lib"
-	#		INTERFACE_INCLUDE_DIRECTORIES "$ENV{VULKAN_SDK}/Include"
-	#)
-
-	add_library(slang UNKNOWN IMPORTED)
-	set_target_properties(
-		slang 
-		PROPERTIES
-			IMPORTED_LOCATION "$ENV{VULKAN_SDK}/Lib/slang.lib"
-			INTERFACE_INCLUDE_DIRECTORIES "$ENV{VULKAN_SDK}/Include"
-			FOLDER thirdparty
+	find_library(
+		SLANG_LIB 
+		NAMES slang
+		PATHS 
+			"$ENV{VULKAN_SDK}/Lib"
+			"$ENV{VULKAN_SDK}/Bin"
+		PATH_SUFFIXES ""
+		REQUIRED
 	)
 
-	set(SPIRV_REFLECT_EXECUTABLE OFF CACHE BOOL "" FORCE)
-	set(SPIRV_REFLECT_EXAMPLES OFF CACHE BOOL "" FORCE)
-	set(SPIRV_REFLECT_STATIC_LIB ON CACHE BOOL "" FORCE)
-
-	CPMAddPackage(
-		NAME spirv-reflect-static
-		GIT_TAG sdk-1.3.224.1
-		GIT_REPOSITORY https://github.com/KhronosGroup/SPIRV-Reflect.git
-	)
-	set_target_properties(spirv-reflect-static PROPERTIES FOLDER thirdparty)
-	
 	if (MSVC)
 		target_compile_options(VulkanMemoryAllocator INTERFACE /wd4701 /wd4703)
 	endif()
 
-	#target_link_libraries(gpu PRIVATE volk_headers VulkanMemoryAllocator shaderc spirv-reflect-static)
-	target_link_libraries(gpu PRIVATE volk_headers VulkanMemoryAllocator slang spirv-reflect-static)
-	target_compile_definitions(gpu PRIVATE $<$<PLATFORM_ID:Windows>:VK_USE_PLATFORM_WIN32_KHR> $<$<NOT:$<CONFIG:RELEASE>>:ENABLE_GPU_VALIDATION_LAYER>)
+	target_link_libraries(gpu PRIVATE volk_headers VulkanMemoryAllocator ${SLANG_LIB})
+	target_compile_definitions(gpu PRIVATE $<$<PLATFORM_ID:Windows>:VK_USE_PLATFORM_WIN32_KHR> $<$<CONFIG:DEBUG>:ENABLE_GPU_VALIDATION_LAYER>)
 	assign_source_group(${vulkan_header_files} ${vulkan_source_files})
 endif()
 

@@ -1,5 +1,4 @@
 #pragma once
-#include "gpu/common.hpp"
 #ifndef SANDBOX_DEMO_APP_PIPELINE_DEFINITIONS_HPP
 #define SANDBOX_DEMO_APP_PIPELINE_DEFINITIONS_HPP
 
@@ -53,6 +52,7 @@ static inline constexpr render::RasterPipelineDefinition UBER_PIPELINE_DEFINITIO
                 } 				
             }   
         },
+		.numColorAttachments = 3u,
         .depthAttachmentFormat = gpu::Format::D32_Float,
         .rasterization = {
             .polygonalMode = gpu::PolygonMode::Fill,

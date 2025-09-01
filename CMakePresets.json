@@ -152,7 +152,7 @@
             "name": "ninja-clang-x64-relwithdebinfo",
             "displayName": "Ninja Clang x64 Release With Debug Info",
             "configurePreset": "windows-clang-x64-ninja",
-            "configuration": "RelWithDenInfo"
+            "configuration": "RelWithDebInfo"
         },
         {
             "name": "ninja-clang-x64-debug-asan-ubsan",

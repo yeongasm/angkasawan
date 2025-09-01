@@ -36,6 +36,21 @@ if (plf_colony_ADDED)
 	endif()
 endif()
 
+CPMAddPackage(
+  NAME mimalloc
+  GIT_TAG v3.0.8
+  GIT_REPOSITORY https://github.com/microsoft/mimalloc.git
+  OPTIONS "MI_BUILD_SHARED ON" "MI_OVERRIDE ON" "MI_USE_CXX ON" "MI_DEBUG OFF"
+)
+
+if (mimalloc_ADDED)
+	if (NOT MSVC)
+		#target_compile_options(mimalloc PRIVATE -Wno-incompatible-pointer-types -Wno-int-conversion -Wno-pointer-sign -Wno-strict-prototypes)
+	endif()
+	
+	set_target_properties(mimalloc PROPERTIES FOLDER thirdparty)
+endif()
+
 if (MSVC)
 	target_compile_options(fmt PUBLIC /wd4541 /wd4702)
 else()
@@ -92,6 +107,7 @@ if (MSVC)
 	string(REPLACE "/EHsc" "/EHs-c-" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 	target_compile_definitions(lib PUBLIC "MSVC")
 	target_compile_options(lib PRIVATE /permissive-)
+	target_link_options(lib PUBLIC /include:mi_version)
 else()
 	target_compile_options(lib PRIVATE -fno-rtti -fno-exceptions)
 endif()
@@ -101,5 +117,5 @@ target_include_directories(
 	PUBLIC "public"
 )
 
-target_link_libraries(lib PUBLIC fmt plf_colony unordered_dense)
+target_link_libraries(lib PUBLIC mimalloc fmt plf_colony unordered_dense)
 assign_source_group(${source_list} ${win_source_list})

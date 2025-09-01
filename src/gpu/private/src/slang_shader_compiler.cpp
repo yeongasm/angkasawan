@@ -1,6 +1,5 @@
-#include <memory>
+#include <expected>
 #include <mutex>
-#include <spirv_reflect.h>
 #include <slang/slang.h>
 #include <slang/slang-com-ptr.h>
 #include <slang/slang-com-helper.h>
@@ -41,23 +40,22 @@ struct SlangShaderCompiler : public ShaderCompiler
         {
             includeDirs.push_back(dir.c_str());
         }
-
+		
         slang::TargetDesc targetDesc = {
-            .format     = SlangCompileTarget::SLANG_SPIRV,
-            .profile    = globalSession->findProfile("spirv_1_4"),
-            .forceGLSLScalarBufferLayout = true
+			.format     = SlangCompileTarget::SLANG_SPIRV,
+            .profile    = globalSession->findProfile("spirv_1_6")
         };
-
+		
         slang::CompilerOptionEntry compilerOption{
-            .name = slang::CompilerOptionName::EmitSpirvDirectly,
+			.name = slang::CompilerOptionName::EmitSpirvDirectly,
             .value = {
-                .kind = slang::CompilerOptionValueKind::Int,
+				.kind = slang::CompilerOptionValueKind::Int,
                 .intValue0 = 1
             }
         };
-
+		
         slang::SessionDesc desc = {
-            .targets                    = &targetDesc,
+			.targets                    = &targetDesc,
             .targetCount                = 1,
             .defaultMatrixLayoutMode    = SLANG_MATRIX_LAYOUT_COLUMN_MAJOR,
             .searchPaths                = includeDirs.data(),
@@ -67,83 +65,73 @@ struct SlangShaderCompiler : public ShaderCompiler
             .compilerOptionEntries      = &compilerOption,
             .compilerOptionEntryCount   = 1
         };
-
+		
         Slang::ComPtr<slang::ISession> session = {};
-
+		
         globalSession->createSession(desc, session.writeRef());
-
+		
         return session;
     };
+	
+	auto do_compile(ShaderCompileInfo const& info) -> std::expected<ShaderCompiledUnit const, lib::string>
+	{
+		auto session = make_session(info);
 
-    auto do_compile(ShaderCompileInfo const& info) -> std::expected<ShaderCompiledUnit const, lib::string>
-    {
-        auto session = make_session(info);
+		Slang::ComPtr<slang::IModule> slangModule = {};
 
-        if (session.get() == nullptr)
+		Slang::ComPtr<slang::IBlob> diagnosticsBlob = {}; 
+
+        slangModule = session->loadModuleFromSourceString("angkasawan-slang-shader", info.path.data(), info.sourceCode.data(), diagnosticsBlob.writeRef());
+
+		if (diagnosticsBlob != nullptr)
+		{
+			return std::unexpected{ lib::format("[ERROR][SLANG] {} - {}", info.path, static_cast<char const*>(diagnosticsBlob->getBufferPointer())) };
+		}
+
+		Slang::ComPtr<slang::IEntryPoint> entryPoint = {};
+		
+		if (SLANG_FAILED(slangModule->findEntryPointByName(info.entryPoint.data(), entryPoint.writeRef())))
+		{
+			return std::unexpected{ lib::format("[ERROR][SLANG] {} - Failed to find entry point '{}' in module.", info.path, info.entryPoint) };
+		}
+
+		std::array<slang::IComponentType*, 2> componentTypes =
         {
-            return std::unexpected{ "[ERROR][SLANG] Failed to create Slang compiliation session." };
-        }
-
-        Slang::ComPtr<SlangCompileRequest> compileRequest = {};
-        
-        if (SLANG_FAILED(session->createCompileRequest(compileRequest.writeRef())))
-        {
-            return std::unexpected{ "[ERROR][SLANG] Failed to create Slang compilation request." };
-        }
-
-        char const* compileCommandArguments[] = {
-            "-warnings-disable", "39001",
-            "-O0"
+            slangModule,
+            entryPoint
         };
 
-        compileRequest->processCommandLineArguments(compileCommandArguments, 3);
+		Slang::ComPtr<slang::IComponentType> composedProgram = {};
 
-        int const tui = compileRequest->addTranslationUnit(SLANG_SOURCE_LANGUAGE_SLANG, "_angkasawan_shader_file");
+		if (SLANG_FAILED(session->createCompositeComponentType(componentTypes.data(), componentTypes.size(), composedProgram.writeRef(), diagnosticsBlob.writeRef())))
+		{
+			return std::unexpected{ lib::format("[ERROR][SLANG] {} - {}", info.path, static_cast<char const*>(diagnosticsBlob->getBufferPointer())) };
+		}
 
-        compileRequest->addTranslationUnitSourceString(tui, info.path.data(), info.sourceCode.data());
+		Slang::ComPtr<slang::IComponentType> linkedProgram = {};
+		
+		if (SLANG_FAILED(composedProgram->link(linkedProgram.writeRef(), diagnosticsBlob.writeRef())))
+		{
+			return std::unexpected{ lib::format("[ERROR][SLANG] {} - {}", info.path, static_cast<char const*>(diagnosticsBlob->getBufferPointer())) };
+		}
 
-        if (SLANG_FAILED(compileRequest->compile()))
-        {
-            return std::unexpected{ lib::format("[ERROR][SLANG] {} - {}", info.path, compileRequest->getDiagnosticOutput()) };
-        }
+		Slang::ComPtr<slang::IBlob> spirvCode = {};
 
-        auto entryPointIndex = std::numeric_limits<uint32>::max();
-        auto reflection = compileRequest->getReflection();
-        auto const numEntryPoints = spReflection_getEntryPointCount(reflection);
-
-        for (auto i = 0u; i < numEntryPoints; ++i)
-        {
-            auto entryPoint = spReflection_getEntryPointByIndex(reflection, i);
-            auto entryPointName = std::string_view{ spReflectionEntryPoint_getName(entryPoint) };
-
-            if (info.entryPoint == entryPointName)
-            {
-                entryPointIndex = i;
-                break;
-            }
-        }
-
-        if (entryPointIndex == std::numeric_limits<uint32>::max())
-        {
-            return std::unexpected{ lib::format("[ERROR][SLANG] {} - Failed to find entry point '{}' in module.", info.path, info.entryPoint) };
-        }
-
-        Slang::ComPtr<slang::IBlob> spirvCode = {};
-
-        // TODO(afiq):
-        // Need to make sure this does not return an error.
-        compileRequest->getEntryPointCodeBlob(entryPointIndex, 0, spirvCode.writeRef());
+		if (SLANG_FAILED(linkedProgram->getEntryPointCode(0, 0, spirvCode.writeRef(), diagnosticsBlob.writeRef())))
+		{
+			return std::unexpected{ lib::format("[ERROR][SLANG] {} - {}", info.path, static_cast<char const*>(diagnosticsBlob->getBufferPointer())) };
+		}
 
         auto begin  = static_cast<uint32 const*>(spirvCode->getBufferPointer());
         auto end    = begin + (spirvCode->getBufferSize() / sizeof(uint32));
 
-        return ShaderCompiledUnit{
+		return ShaderCompiledUnit{
             .type       = info.type,
             .path       = info.path,
             .entryPoint = info.entryPoint, 
             .byteCode   = { begin, end } 
         };
-    };
+	}
 };
 
 auto ShaderCompiler::create() -> std::expected<std::unique_ptr<ShaderCompiler>, std::string_view>

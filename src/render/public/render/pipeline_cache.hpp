@@ -1,5 +1,4 @@
 #pragma once
-#include "gpu/common.hpp"
 #ifndef RENDER_PIPELINE_CACHE_HPP
 #define RENDER_PIPELINE_CACHE_HPP
 

@@ -648,7 +648,7 @@ auto DeviceImpl::create_vulkan_instance() -> bool
 
 		VkValidationFeatureEnableEXT const validationFeatures[] =
 		{
-			VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT,
+			// VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT,
 			VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT
 		};
 
@@ -1177,13 +1177,6 @@ auto DeviceImpl::create_descriptor_set_layout() -> bool
 		.stageFlags = VK_SHADER_STAGE_ALL
 	};
 
-	VkDescriptorSetLayoutBinding combinedImageSamplerLayout{
-		.binding = COMBINED_IMAGE_SAMPLER_BINDING,
-		.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-		.descriptorCount = m_config.maxImages,
-		.stageFlags = VK_SHADER_STAGE_ALL
-	};
-
 	VkDescriptorSetLayoutBinding sampledImageLayout{
 		.binding = SAMPLED_IMAGE_BINDING,
 		.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
@@ -1207,14 +1200,12 @@ auto DeviceImpl::create_descriptor_set_layout() -> bool
 
 	VkDescriptorSetLayoutBinding descriptorSetLayoutBindings[] = {
 		storageImageLayout,
-		combinedImageSamplerLayout,
 		sampledImageLayout,
 		samplerLayout,
 		bufferDeviceAddressLayout
 	};
 
 	VkDescriptorBindingFlags bindingFlags[] = {
-		VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,
 		VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,
 		VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,
 		VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,

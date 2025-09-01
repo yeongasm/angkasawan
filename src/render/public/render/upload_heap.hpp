@@ -63,6 +63,8 @@ struct FenceInfo
 
 /**
 * Uploads data to the specified device local buffer and images on the GPU via a pool of upload heaps.
+* The UploadHeap only does acquire and release ownership transfer on the transfer queue for itself for resources with exclusive sharing mode.
+* Acquire and release ownership transfer on other queues needs to be done manually.
 * 
 * TODO(afiq):
 * 1. Take ReBAR into account. Buffers that are from the ReBAR shouldn't need to go through the staging process.

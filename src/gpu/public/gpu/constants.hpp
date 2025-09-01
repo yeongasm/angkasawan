@@ -10,7 +10,7 @@ namespace gpu
 inline constexpr uint32 COMMAND_BUFFER_PIPELINE_BARRIER_BATCH_SIZE = 16;
 inline constexpr uint32 MAX_PIPELINE_COLOR_ATTACHMENT = 16;
 inline constexpr uint32 MAX_COMMAND_BUFFER_ATTACHMENT = 16;
-inline constexpr uint32 MAX_COMMAND_BUFFER_PER_POOL = 16;
+inline constexpr uint32 MAX_COMMAND_BUFFER_PER_POOL = 8;
 inline constexpr uint32 MAX_FRAMES_IN_FLIGHT = 4;
 // resource limits.
 inline constexpr uint32 MAX_BUFFERS = 10'000;
@@ -18,12 +18,11 @@ inline constexpr uint32 MAX_IMAGES = 10'000;
 inline constexpr uint32 MAX_SAMPLERS = 100;
 // shader bindings.
 inline constexpr uint32 STORAGE_IMAGE_BINDING = 0;
-inline constexpr uint32 COMBINED_IMAGE_SAMPLER_BINDING = 1;
-inline constexpr uint32 SAMPLED_IMAGE_BINDING = 2;
-inline constexpr uint32 SAMPLER_BINDING = 3;
-inline constexpr uint32 BUFFER_DEVICE_ADDRESS_BINDING = 4;
-inline constexpr uint32 STORAGE_BUFFER_BINDING = 5;
-inline constexpr uint32 UNIFORM_BUFFER_BINDING = 6;
+inline constexpr uint32 SAMPLED_IMAGE_BINDING = 1;
+inline constexpr uint32 SAMPLER_BINDING = 2;
+inline constexpr uint32 BUFFER_DEVICE_ADDRESS_BINDING = 3;
+inline constexpr uint32 STORAGE_BUFFER_BINDING = 4;
+inline constexpr uint32 UNIFORM_BUFFER_BINDING = 5;
 
 #ifndef ENABLE_GPU_VALIDATION_LAYER
 #define ENABLE_GPU_VALIDATION_LAYER 0
