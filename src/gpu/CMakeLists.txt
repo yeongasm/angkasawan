@@ -47,7 +47,7 @@ if (USE_VULKAN)
 	set(
 		vulkan_source_files
 		"private/src/vulkan/buffer.cpp"
-		"private/src/vulkan/command_buffer.cpp"
+		"private/src/vulkan/command_recorder.cpp"
 		"private/src/vulkan/command_pool.cpp"
 		"private/src/vulkan/device.cpp"
 		"private/src/vulkan/image.cpp"

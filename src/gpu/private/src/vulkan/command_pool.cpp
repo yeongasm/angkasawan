@@ -3,10 +3,36 @@
 
 namespace gpu
 {
-CommandPool::CommandPool(Device& device) :
-	DeviceResource{ device },
-	m_info{}
+namespace vk
+{
+CommandPoolImpl::CommandPoolImpl(DeviceImpl& device) :
+	vkdevice{ &device }
 {}
+
+auto CommandPoolImpl::allocate_new_command_buffer() -> uint64
+{
+	auto index = commandBufferPool.commandBuffers.size();
+	auto&& vkcmdbuffer = commandBufferPool.commandBuffers.emplace_back();
+
+	VkCommandBufferAllocateInfo allocateInfo{
+		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+		.commandPool = handle,
+		.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+		.commandBufferCount = 1
+	};
+
+	VkCommandBuffer handle = VK_NULL_HANDLE;
+
+	CHECK_OP(vkAllocateCommandBuffers(vkdevice->device, &allocateInfo, &handle))
+
+	vkcmdbuffer.handle = handle;
+	vkcmdbuffer.gpuTimeline = Fence::from(*vkdevice, {
+		.name = fmt::format("<fence>:{}:cmd_buffer_{}", m_info.name, index)
+	});
+
+	return index;
+}
+}
 
 auto CommandPool::info() const -> CommandPoolInfo const&
 {
@@ -17,23 +43,22 @@ auto CommandPool::valid() const -> bool
 {
 	auto const& self = to_impl(*this);
 
-	return m_device != nullptr && self.handle != VK_NULL_HANDLE;
+	return self.handle != VK_NULL_HANDLE;
 }
 
 auto CommandPool::reset() const -> void
 {
 	auto const& self = to_impl(*this);
-	auto const& vkdevice = to_device(m_device);
 
 	if (valid())
 	{
 		return;
 	}
 
-	vkResetCommandPool(vkdevice.device, self.handle, VK_COMMAND_POOL_RESET_RELEASE_RESOURCES_BIT);
+	vkResetCommandPool(self.vkdevice->device, self.handle, VK_COMMAND_POOL_RESET_RELEASE_RESOURCES_BIT);
 }
 
-auto CommandPool::from(Device& device, CommandPoolInfo&& info) -> Resource<CommandPool>
+auto CommandPool::from(Device& device, CommandPoolInfo&& info) -> handle_type
 {
 	auto&& vkdevice = to_device(device);
 
@@ -65,9 +90,15 @@ auto CommandPool::from(Device& device, CommandPoolInfo&& info) -> Resource<Comma
 
 	auto it = vkdevice.gpuResourcePool.stores.commandPools.emplace(vkdevice);
 
-	auto id = ++vkdevice.gpuResourcePool.idCounter;
+	vk::_ResourceMeta meta{
+		.type 	= vk::detail::type_id_v<vk::CommandPoolImpl>,
+		.id 	= ++vkdevice.gpuResourcePool.idCounter.others
+	};
+
+	auto id = std::bit_cast<uint64>(meta);
 
 	vkdevice.gpuResourcePool.caches.commandPool.emplace(id, it);
+	vkdevice.begin_referencing(id);
 
 	auto&& vkcommandpool = *it;
 
@@ -81,16 +112,17 @@ auto CommandPool::from(Device& device, CommandPoolInfo&& info) -> Resource<Comma
 		vkdevice.setup_debug_name(vkcommandpool);
 	}
 
-	return Resource<CommandPool>{ vkcommandpool, id };
+	return { vkdevice, id };
 }
 
-auto CommandPool::destroy(CommandPool& resource, uint64 id) -> void
+auto CommandPool::Deleter::operator()(Device& device, uint64 id) const -> void
 {
+	ASSERTION(id != std::numeric_limits<uint64>::max() && "Attempting to destroy a CommandPool with an invalid id");
 	/*
-	 * At this point, the ref count on the resource is only 1 which means ONLY the resource has a reference to itself and can be safely deleted.
-	 */
-	auto&& vkdevice = to_device(resource.m_device);
-	auto&& vkcommandpool = to_impl(resource);
+	* At this point, the ref count on the resource is only 1 which means ONLY the resource has a reference to itself and can be safely deleted.
+	*/
+	auto&& vkdevice = to_device(device);
+	auto&& vkcommandpool = *vkdevice.gpuResourcePool.caches.commandPool[id];
 
 	std::lock_guard const lock{ vkdevice.gpuResourcePool.zombieMutex };
 
@@ -116,12 +148,5 @@ auto CommandPool::destroy(CommandPool& resource, uint64 id) -> void
 			device.gpuResourcePool.stores.commandPools.erase(it);		
 		}
 	);
-}
-
-namespace vk
-{
-CommandPoolImpl::CommandPoolImpl(DeviceImpl& device) :
-	CommandPool{ device }
-{}
 }
 }

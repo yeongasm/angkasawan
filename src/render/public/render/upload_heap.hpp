@@ -9,7 +9,7 @@ namespace render
 {
 struct HeapBlock
 {
-	gpu::buffer buffer = {};
+	gpu::resource<gpu::Buffer> buffer = {};
 	size_t byteOffset = {};
 
 	auto remaining_capacity() const -> size_t;
@@ -23,7 +23,7 @@ struct HeapBlock
 
 struct BufferDataUploadInfo
 {
-	gpu::buffer dst;
+	gpu::resource<gpu::Buffer> dst;
 	size_t dstOffset;
 	void* data;
 	size_t size;
@@ -36,7 +36,7 @@ struct BufferHeapBlockUploadInfo
 	HeapBlock& heapBlock;
 	size_t heapWriteOffset;
 	size_t heapWriteSize;
-	gpu::buffer dst;
+	gpu::resource<gpu::Buffer> dst;
 	size_t dstOffset;
 	gpu::DeviceQueue srcQueue = gpu::DeviceQueue::None;
 	gpu::DeviceQueue dstQueue = gpu::DeviceQueue::Main;
@@ -44,7 +44,7 @@ struct BufferHeapBlockUploadInfo
 
 struct ImageDataUploadInfo
 {
-	gpu::image image;
+	gpu::resource<gpu::Image> image;
 	void const* data;
 	size_t size;
 	uint32 mipLevel = 0;
@@ -57,7 +57,7 @@ using upload_id = lib::handle<struct UPLOAD_HEAP_ID, uint64, std::numeric_limits
 
 struct FenceInfo
 {
-	gpu::fence fence;
+	gpu::resource<gpu::Fence> fence;
 	uint64 value;
 };
 
@@ -151,19 +151,19 @@ private:
 	uint64 m_cpuUploadTimeline;
 	gpu::Device& m_device;
 	CommandQueue& m_commandQueue;
-	gpu::fence m_gpuUploadTimeline;
+	gpu::resource<gpu::Fence> m_gpuUploadTimeline;
 	uint32 m_nextPool;
 
 	auto allocate_heap(size_t count) -> void;
 	auto upload_to_gpu(bool waitIdle = true) -> void;
 	auto increment_counter() -> void;
 	auto reset_next_pool() -> void;
-	auto copy_to_images(gpu::CommandBuffer& cmd, std::span<ImageUploadInfo>& imageUploads) -> void;
-	auto copy_to_buffers(gpu::CommandBuffer& cmd, std::span<BufferUploadInfo>& bufferUploads) -> void;
-	auto acquire_image_resources(gpu::CommandBuffer& cmd, std::span<ImageUploadInfo>& imageUploads) -> void;
-	auto acquire_buffer_resources(gpu::CommandBuffer& cmd, std::span<BufferUploadInfo>& bufferUploads) -> void;
-	auto release_image_resources(gpu::CommandBuffer& cmd, std::span<ImageUploadInfo>& imageUploads) -> void;
-	auto release_buffer_resources(gpu::CommandBuffer& cmd, std::span<BufferUploadInfo>& bufferUploads) -> void;
+	auto copy_to_images(gpu::CommandRecorder& cmd, std::span<ImageUploadInfo>& imageUploads) -> void;
+	auto copy_to_buffers(gpu::CommandRecorder& cmd, std::span<BufferUploadInfo>& bufferUploads) -> void;
+	auto acquire_image_resources(gpu::CommandRecorder& cmd, std::span<ImageUploadInfo>& imageUploads) -> void;
+	auto acquire_buffer_resources(gpu::CommandRecorder& cmd, std::span<BufferUploadInfo>& bufferUploads) -> void;
+	auto release_image_resources(gpu::CommandRecorder& cmd, std::span<ImageUploadInfo>& imageUploads) -> void;
+	auto release_buffer_resources(gpu::CommandRecorder& cmd, std::span<BufferUploadInfo>& bufferUploads) -> void;
 	auto do_upload() const -> bool;
 	/*
 	* Differs from request_heap() by returning a HeapBlock that will fit the requested size.

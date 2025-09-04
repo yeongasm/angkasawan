@@ -2,12 +2,6 @@
 
 namespace gpu
 {
-Sampler::Sampler(Device& device) :
-	DeviceResource{ device },
-	m_info{},
-	m_packedInfoBits{}
-{}
-
 auto Sampler::info() const -> SamplerInfo const&
 {
 	return m_info;
@@ -17,56 +11,20 @@ auto Sampler::valid() const -> bool
 {
 	auto&& self = to_impl(*this);
 
-	return m_device != nullptr && self.handle != VK_NULL_HANDLE;
+	return self.handle != VK_NULL_HANDLE;
 }
 
-auto Sampler::info_packed() const -> uint64
-{
-	return m_packedInfoBits;
-}
-
-auto Sampler::bind(SamplerBindInfo const& info) const -> SamplerBindInfo
-{
-	auto&& self = to_impl(*this);
-	auto&& vkdevice = to_device(self.device());
-
-	uint32 index = info.index;
-
-	index = index % vkdevice.config().maxSamplers;
-
-	VkDescriptorImageInfo descriptorSamplerInfo{
-		.sampler = self.handle,
-		.imageView = VK_NULL_HANDLE,
-		.imageLayout = VK_IMAGE_LAYOUT_UNDEFINED
-	};
-
-	VkWriteDescriptorSet writeDescriptorSetImage{
-		.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-		.dstSet = vkdevice.descriptorCache.descriptorSet,
-		.dstBinding = SAMPLER_BINDING,
-		.dstArrayElement = index,
-		.descriptorCount = 1,
-		.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
-		.pImageInfo = &descriptorSamplerInfo
-	};
-
-	vkUpdateDescriptorSets(vkdevice.device, 1, &writeDescriptorSetImage, 0, nullptr);
-
-	return SamplerBindInfo{ .index = index };
-}
-
-auto Sampler::from(Device& device, SamplerInfo&& info) -> Resource<Sampler>
+auto Sampler::from(Device& device, SamplerInfo&& info) -> handle_type
 {
 	auto&& vkdevice = to_device(device);
 	uint64 const packed = vk::sampler_info_packed_uint64(info);
 
-	if (vkdevice.gpuResourcePool.caches.sampler.contains(packed))
+	for (auto&& [id, it] : vkdevice.gpuResourcePool.caches.sampler)
 	{
-		auto it = vkdevice.gpuResourcePool.caches.sampler[packed];
-
-		it->reference();
-
-		return Resource<Sampler>{ *it, packed };
+		if (it->m_packedInfoBits == packed)
+		{
+			return handle_type{ vkdevice, id };
+		}
 	}
 
 	VkSamplerCreateInfo createInfo{
@@ -92,7 +50,7 @@ auto Sampler::from(Device& device, SamplerInfo&& info) -> Resource<Sampler>
 
 	CHECK_OP(vkCreateSampler(vkdevice.device, &createInfo, nullptr, &handle))
 
-	auto it = vkdevice.gpuResourcePool.stores.samplers.emplace(vkdevice);
+	auto it = vkdevice.gpuResourcePool.stores.samplers.emplace();
 
 	auto&& vksampler = *it;
 
@@ -100,24 +58,34 @@ auto Sampler::from(Device& device, SamplerInfo&& info) -> Resource<Sampler>
 	vksampler.m_packedInfoBits = packed;
 	vksampler.m_info = std::move(info);
 
+	vk::_ResourceMeta meta{
+		.type 	= vk::detail::type_id_v<vk::SamplerImpl>,
+		.id 	= vkdevice.gpuResourcePool.idCounter.sampler++ % vkdevice.config().maxSamplers
+	};
+
+	auto id = std::bit_cast<uint64>(meta);
+
 	// Cache the sampler's state permutation for obvious reasons...
-	vkdevice.gpuResourcePool.caches.sampler.emplace(packed, it);
+	vkdevice.gpuResourcePool.caches.sampler.emplace(id, it);
+	vkdevice.bind(vksampler, meta.id);
+	vkdevice.begin_referencing(id);
 
 	if constexpr (ENABLE_GPU_RESOURCE_DEBUG_NAMES)
 	{
 		vkdevice.setup_debug_name(vksampler);
 	}
 
-	return Resource<Sampler>{ vksampler, packed };
+	return handle_type{ vkdevice, id };
 }
 
-auto Sampler::destroy(Sampler& resource, uint64 id) -> void
+auto Sampler::Deleter::operator()(Device& device, uint64 id) const -> void
 {
+	ASSERTION(id != std::numeric_limits<uint64>::max() && "Attempting to destroy a Sampler with an invalid id");
 	/*
 	 * At this point, the ref count on the resource is only 1 which means ONLY the resource has a reference to itself and can be safely deleted.
 	 */
-	auto&& vkdevice = to_device(resource.m_device);
-	auto&& vksampler = to_impl(resource);
+	auto&& vkdevice = to_device(device);
+	auto&& vksampler = *vkdevice.gpuResourcePool.caches.sampler[id];
 
 	std::lock_guard const lock{ vkdevice.gpuResourcePool.zombieMutex };
 
@@ -135,12 +103,5 @@ auto Sampler::destroy(Sampler& resource, uint64 id) -> void
 			device.gpuResourcePool.stores.samplers.erase(it);
 		}
 	);
-}
-
-namespace vk
-{
-SamplerImpl::SamplerImpl(DeviceImpl& device) :
-	Sampler{ device }
-{}
 }
 }

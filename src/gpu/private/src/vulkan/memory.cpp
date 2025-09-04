@@ -2,8 +2,7 @@
 
 namespace gpu
 {
-MemoryBlock::MemoryBlock(Device& device, bool aliased) :
-	DeviceResource{ device },
+MemoryBlock::MemoryBlock(bool aliased) :
 	m_aliased{ aliased }
 {}
 
@@ -16,7 +15,7 @@ auto MemoryBlock::valid() const -> bool
 {
 	auto const& self = to_impl(*this);
 
-	return m_device != nullptr && self.handle != VK_NULL_HANDLE;
+	return self.handle != VK_NULL_HANDLE;
 }
 
 auto MemoryBlock::aliased() const -> bool
@@ -31,7 +30,7 @@ auto MemoryBlock::size() const -> size_t
 	return self.allocationInfo.size;
 }
 
-auto MemoryBlock::from(Device& device, MemoryBlockAllocateInfo&& info) -> Resource<MemoryBlock>
+auto MemoryBlock::from(Device& device, MemoryBlockAllocateInfo&& info) -> handle_type
 {
 	if (std::cmp_equal(info.memoryRequirement.size, 0) || std::cmp_equal(info.memoryRequirement.alignment, 0))
 	{
@@ -66,11 +65,17 @@ auto MemoryBlock::from(Device& device, MemoryBlockAllocateInfo&& info) -> Resour
 
 	CHECK_OP(vmaAllocateMemory(vkdevice.allocator, &memReq, &allocCreateInfo, &handle, &allocInfo))
 
-	auto it = vkdevice.gpuResourcePool.stores.memoryBlocks.emplace(vkdevice, true);
+	auto it = vkdevice.gpuResourcePool.stores.memoryBlocks.emplace(true);
+	
+	vk::_ResourceMeta meta{
+		.type 	= vk::detail::type_id_v<vk::MemoryBlockImpl>,
+		.id 	= ++vkdevice.gpuResourcePool.idCounter.others
+	};
 
-	auto id = ++vkdevice.gpuResourcePool.idCounter;
+	auto id = std::bit_cast<uint64>(meta);
 
 	vkdevice.gpuResourcePool.caches.memoryBlock.emplace(id, it);
+	vkdevice.begin_referencing(id);
 
 	auto&& vkmemory = *it;
 
@@ -84,19 +89,21 @@ auto MemoryBlock::from(Device& device, MemoryBlockAllocateInfo&& info) -> Resour
 		vkdevice.setup_debug_name(vkmemory);
 	}
 
-	return Resource<MemoryBlock>{ vkmemory, id };
+	return handle_type{ vkdevice, id };
 }
 
-auto MemoryBlock::destroy(MemoryBlock& resource, uint64 id) -> void
+auto MemoryBlock::Deleter::operator()(Device& device, uint64 id) const -> void
 {
+	ASSERTION(id != std::numeric_limits<uint64>::max() && "Attempting to destroy a MemoryBlock with an invalid id.");
+	
+	auto&& vkdevice = to_device(device);
+	auto&& vkmemoryblock = *vkdevice.gpuResourcePool.caches.memoryBlock[id];
+	
 	// Memory blocks that are not aliased are owned by the resource that references it and deallocation is done by the resource itself.
-	if (!resource.aliased())
+	if (!vkmemoryblock.aliased())
 	{
-		return;
+		return;                                                             
 	}
-
-	auto&& vkdevice = to_device(resource.m_device);
-	auto&& vkmemoryblock = to_impl(resource);
 
 	std::lock_guard const lock{ vkdevice.gpuResourcePool.zombieMutex };
 
@@ -118,8 +125,8 @@ auto MemoryBlock::destroy(MemoryBlock& resource, uint64 id) -> void
 
 namespace vk
 {
-MemoryBlockImpl::MemoryBlockImpl(DeviceImpl& device, bool aliased) :
-	MemoryBlock{ device, aliased }
+MemoryBlockImpl::MemoryBlockImpl(bool aliased) :
+	MemoryBlock{ aliased }
 {}
 }
 }

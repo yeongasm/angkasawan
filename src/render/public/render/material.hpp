@@ -115,11 +115,10 @@ struct MaterialJSON
 
 struct Image
 {
-	gpu::image image;
-	gpu::sampler sampler;
+	gpu::resource<gpu::Image> image;
+	gpu::resource<gpu::Sampler> sampler;
 	material::ImageType materialType;
 	uint32 mipLevel;
-	uint32 binding;
 };
 
 struct Material

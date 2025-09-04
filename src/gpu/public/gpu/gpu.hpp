@@ -1,12 +1,15 @@
 #pragma once
 #include "lib/common.hpp"
+#include <type_traits>
 #ifndef GPU_H
 #define GPU_H
 
 #include <variant>
-#include <expected>
 #include <atomic>
+#include <expected>
 #include <array>
+
+#include "lib/type.hpp"
 
 #include "common.hpp"
 
@@ -14,6 +17,8 @@ namespace gpu
 {
 class Semaphore;
 class Fence;
+class Event;
+class MemoryBlock;
 class Buffer;
 class Image;
 class Sampler;
@@ -24,157 +29,156 @@ class CommandPool;
 class CommandBuffer;
 class Device;
 
-template <typename T>
-class Resource
+namespace detail
 {
+template <typename DeviceType>
+struct handle_base
+{
+	DeviceType* m_device = {};
+
+	handle_base() = default;
+
+	handle_base(Device& device) : 
+		m_device{ &device }
+	{}
+
+	handle_base(handle_base const& rhs) : 
+		m_device{ rhs.m_device }
+	{}
+
+	handle_base(handle_base&& rhs) : 
+		m_device{ std::exchange(rhs.m_device, nullptr) }
+	{}
+
+	auto inc_ref(uint64 id) -> void { m_device->inc_ref(id); }
+	auto dec_ref(uint64 id) -> uint64 { return m_device->dec_ref(id); }
+
+	template <typename T>
+	auto resource_for(lib::type<T> type, uint64 id) const -> T&
+	{
+		ASSERTION(id != std::numeric_limits<uint64>::max() && "Unable to access resource with invalid id");
+		return m_device->get_resource(type, id); 
+	}
+};
+};
+
+template <typename T>
+concept is_gpu_resource = std::same_as<T, Semaphore> 
+	|| std::same_as<T, Fence>
+	|| std::same_as<T, Event>
+	|| std::same_as<T, MemoryBlock>
+	|| std::same_as<T, Buffer>
+	|| std::same_as<T, Image>
+	|| std::same_as<T, Sampler>
+	|| std::same_as<T, Swapchain>
+	|| std::same_as<T, Shader>
+	|| std::same_as<T, Pipeline>
+	|| std::same_as<T, CommandPool>
+	|| std::same_as<T, CommandBuffer>
+	|| std::same_as<T, Device>;
+
+template <is_gpu_resource T, typename Deleter>
+requires is_gpu_resource<T> && std::invocable<Deleter, Device&, uint64>
+class handle : protected detail::handle_base<Device>
+{
+private:
+	using super = detail::handle_base<Device>;
 public:
 	using resource_type = T;
 	using pointer = resource_type*;
 	using const_pointer = resource_type const*;
 	using reference = resource_type&;
 	using const_reference = resource_type const&;
+	using deleter_type = Deleter;
 
-	Resource() = default;
+	handle() = default;
 
-	Resource(resource_type& resource,  uint64 id) : 
-		m_resource{ &resource },
+	handle(Device& device, uint64 id) :   
+		handle_base{ device },
 		m_id{ id }
 	{
-		m_resource->reference();
+		this->inc_ref(m_id);
 	}
 
-	~Resource() { destroy(); }
+	~handle() { destroy(); }
 
-	Resource(Resource const& rhs) :
-		m_resource{ rhs.m_resource },
+	handle(handle const& rhs) :
+		handle_base{ rhs },
 		m_id{ rhs.m_id }
 	{
-		if (m_resource)
-		{
-			m_resource->reference();
-		}
+		this->inc_ref(m_id);
 	}
 
-	Resource& operator=(Resource const& rhs)
+	handle& operator=(handle const& rhs)
 	{
 		if (this != &rhs)
 		{
 			// If the current resource object already holds something, destroy it first before a reassignment.
 			destroy();
 
-			m_resource = rhs.m_resource;
+			m_device = rhs.m_device;
 			m_id = rhs.m_id;
 
-			if (m_resource)
-			{
-				m_resource->reference();
-			}
+			super::inc_ref(m_id);
 		}
 		return *this;
 	}
 
-	Resource(Resource&& rhs) noexcept :
-		m_resource{ std::exchange(rhs.m_resource, nullptr) },
+	handle(handle&& rhs) noexcept :
+		handle_base{ std::move(rhs) },
 		m_id{ std::exchange(rhs.m_id, std::numeric_limits<uint64>::max()) }
 	{}
 
-	Resource& operator=(Resource&& rhs) noexcept
+	handle& operator=(handle&& rhs) noexcept
 	{
 		if (this != &rhs)
 		{
 			// If the current resource object already holds something, destroy it first before a reassignment.
 			destroy();
 
-			m_resource = std::exchange(rhs.m_resource, nullptr);
+			m_device = std::exchange(rhs.m_device, nullptr);
 			m_id = std::exchange(rhs.m_id, std::numeric_limits<uint64>::max());
 		}
 		return *this;
 	}
 
-	auto operator->() const -> pointer { return m_resource; }
-	auto operator*() const -> reference { return *m_resource; }
-
-	auto id() const -> uint64 { return m_id; };
-	auto valid() const -> bool { return m_resource != nullptr && m_resource->valid(); }
+	auto operator*() const -> reference { return super::resource_for<resource_type>(lib::type<resource_type>{}, m_id); }
+	auto id() const -> uint64 { return m_id; }
+	template <typename Self>
+	auto device(this Self&& self) -> auto&& { return std::forward_like<Self>(*self.m_device); }
+	// auto device() -> Device& { return *m_device; }
+	// auto device() const -> Device const& { return *m_device; }
+	auto valid() const -> bool { return m_device != nullptr && m_id != std::numeric_limits<uint64>::max(); }
 
 	explicit operator bool() const { return valid(); }
 
 	auto destroy() -> void
 	{
-		if (m_resource && 
-			std::cmp_equal(m_resource->dereference(), 0))
+		if (m_device && 
+			m_id != std::numeric_limits<uint64>::max() &&
+			super::dec_ref(m_id) == 0)
 		{
-			resource_type::destroy(*m_resource, m_id);
+			deleter_type{}(*m_device, m_id);
 		} 
-		m_resource = nullptr;
+		m_device = nullptr;
 		m_id = std::numeric_limits<uint64>::max();
 	}
 private:
-	resource_type* m_resource = {};
 	uint64 m_id = std::numeric_limits<uint64>::max();
 };
 
 using DeviceAddress = uint64;
 
-struct BufferBindInfo
-{
-	size_t offset = 0;
-	size_t size = std::numeric_limits<size_t>::max();
-	uint32 index;
-};
-
-struct SamplerBindInfo
-{
-	uint32 index;
-};
-
-class RefCountedResource : public lib::non_copyable
+class MemoryBlock
 {
 public:
-	RefCountedResource() = default;
-	~RefCountedResource() = default;
-
-	auto reference() -> void
+	struct Deleter
 	{
-		m_refCount.fetch_add(1, std::memory_order_relaxed);
-	}
+		auto operator()(Device& device, uint64 id) const -> void;
+	};
 
-	auto dereference() -> uint64
-	{
-		return m_refCount.fetch_sub(1, std::memory_order_acq_rel) - 1;
-	}
+	using handle_type = handle<MemoryBlock, Deleter>;
 
-	auto ref_count() const -> uint64
-	{
-		return m_refCount.load(std::memory_order_acquire);
-	}
-
-	std::atomic_uint64_t m_refCount = {};
-};
-
-class DeviceResource : public RefCountedResource
-{
-public:
-	DeviceResource() = default;
-
-	DeviceResource(Device& device) :
-		m_device{ &device }
-	{}
-
-	~DeviceResource() = default;
-
-	auto device() const -> Device& 
-	{ 
-		ASSERTION(m_device && "Invalid resource! No device attached to this resource.");
-		return *m_device;
-	}
-protected:
-	Device* m_device = nullptr;
-};
-
-class MemoryBlock : public DeviceResource
-{
-public:
 	MemoryBlock() = default;
 	~MemoryBlock() = default;
 
@@ -183,91 +187,91 @@ public:
 	auto aliased() const -> bool;
 	auto size() const -> size_t;
 
-	static auto from(Device& device, MemoryBlockAllocateInfo&& info) -> Resource<MemoryBlock>;
+	static auto from(Device& device, MemoryBlockAllocateInfo&& info) -> handle_type;
 protected:
-	friend class Resource<MemoryBlock>;
-
-	static auto destroy(MemoryBlock& resource, uint64 id) -> void;
-
-	MemoryBlock(Device& device, bool aliased);
+	MemoryBlock(bool aliased);
 
 	MemoryBlockInfo m_info;
 	bool const m_aliased = false;
 };
 
-class Semaphore : public DeviceResource
+class Semaphore
 {
 public:
+	struct Deleter
+	{
+		auto operator()(Device& device, uint64 id) const -> void;
+	};
+
+	using handle_type = handle<Semaphore, Deleter>;
+
 	Semaphore() = default;
 	~Semaphore() = default;
 
 	auto info() const -> SemaphoreInfo const&;
 	auto valid() const -> bool;
 
-	static auto from(Device& device, SemaphoreInfo&& info) -> Resource<Semaphore>;
+	static auto from(Device& device, SemaphoreInfo&& info) -> handle_type;
 protected:
-	friend class Resource<Semaphore>;
-
-	static auto destroy(Semaphore& resource, uint64 id) -> void;
-
-	Semaphore(Device& device);
-
 	SemaphoreInfo m_info;
 };
 
-class Fence : public DeviceResource
+class Fence
 {
 public:
-	using fence_value_t = uint64;
+	struct Deleter
+	{
+		auto operator()(Device& device, uint64 id) const -> void;
+	};
+
+	using handle_type = handle<Fence, Deleter>;
 
 	Fence() = default;
 	~Fence() = default;
 
 	auto info() const -> FenceInfo const&;
 	auto valid() const -> bool;
-	auto value() const -> fence_value_t;
-	auto signal(fence_value_t const value) const -> void;
+	auto value() const -> uint64;
+	auto wait_for_value(uint64 value, uint64 timeout = std::numeric_limits<uint64>::max()) const -> bool;
+	auto signal(uint64 value) const -> void;
 	auto signal() const -> void;
-	auto wait_for_value(fence_value_t value, uint64 timeout = std::numeric_limits<uint64>::max()) const -> bool;
 
-	static auto from(Device& device, FenceInfo&& info) -> Resource<Fence>;
+	static auto from(Device& device, FenceInfo&& info) -> handle_type;
 protected:
-	friend class Resource<Fence>;
-
-	static auto destroy(Fence const& resource, uint64 id) -> void;
-
-	Fence(Device& device);
-
 	FenceInfo m_info;
 };
 
-class Event : public DeviceResource
+class Event
 {
 public:
+	struct Deleter
+	{
+		auto operator()(Device& device, uint64 id) const -> void;
+	};
+
+	using handle_type = handle<Event, Deleter>;
+
 	Event() = default;
 	~Event() = default;
 
 	auto info() const -> EventInfo const&;
 	auto valid() const -> bool;
-	auto state() const -> EventState;
-	auto signal() const -> void;
-	auto reset() const -> void;
 
-	static auto from(Device& device, EventInfo&& info) -> Resource<Event>;
-
+	static auto from(Device& device, EventInfo&& info) -> handle_type;
 protected:
-	friend class Resource<Event>;
-
-	static auto destroy(Event const& resource, uint64 id) -> void;
-
-	Event(Device& device);
-
 	EventInfo m_info;
 };
 
-class Buffer : public DeviceResource
+class Buffer
 {
 public:
+	struct Deleter
+	{
+		auto operator()(Device& device, uint64 id) const -> void;
+	};
+
+	using handle_type = handle<Buffer, Deleter>;
+
 	Buffer() = default;
 	~Buffer() = default;
 
@@ -280,7 +284,6 @@ public:
 	auto is_host_visible() const -> bool;
 	auto is_transient() const -> bool;
 	auto gpu_address() const -> DeviceAddress;
-	auto bind(BufferBindInfo const& info) const -> BufferBindInfo;
 
 	template <typename T>
 	auto write(T const& data, size_t offset) const -> void
@@ -296,49 +299,49 @@ public:
 
 	static auto memory_requirement(Device& device, BufferInfo const& info) -> MemoryRequirementInfo;
 
-	static auto from(Device& device, BufferInfo&& info, Resource<MemoryBlock> memoryBlock = {}) -> Resource<Buffer>;
+	static auto from(Device& device, BufferInfo&& info, MemoryBlock::handle_type memoryBlock = {}) -> handle_type;
 protected:
-	friend class Resource<Buffer>;
-
-	static auto destroy(Buffer& resource, uint64 id) -> void;
-
-	Buffer(Device& device);
-
 	BufferInfo m_info;
 };
 
-class Sampler : public DeviceResource
+class Sampler
 {
 public:
+	struct Deleter
+	{
+		auto operator()(Device& device, uint64 id) const -> void;
+	};
+
+	using handle_type = handle<Sampler, Deleter>;
+
 	Sampler() = default;
 	~Sampler() = default;
 
 	auto info() const -> SamplerInfo const&;
 	auto valid() const -> bool;
-	auto info_packed() const -> uint64;
-	auto bind(SamplerBindInfo const& info) const -> SamplerBindInfo;
 
-	static auto from(Device& device, SamplerInfo&& info) -> Resource<Sampler>;
+	static auto from(Device& device, SamplerInfo&& info) -> handle_type;
 protected:
-	friend class Resource<Sampler>;
-
-	static auto destroy(Sampler& resource, uint64 id) -> void;
-
-	Sampler(Device& device);
-
 	SamplerInfo m_info;
 	uint64 m_packedInfoBits;
 };
 
 struct ImageBindInfo
 {
-	Resource<Sampler> sampler;
+	Sampler::handle_type sampler;
 	uint32 index;
 };
 
-class Image : public DeviceResource
+class Image
 {
 public:
+	struct Deleter
+	{
+		auto operator()(Device& device, uint64 id) const -> void;
+	};
+
+	using handle_type = handle<Image, Deleter>;
+
 	Image() = default;
 	~Image() = default;
 
@@ -346,26 +349,27 @@ public:
 	auto valid() const -> bool;
 	auto is_swapchain_image() const -> bool;
 	auto is_transient() const -> bool;
-	auto bind(ImageBindInfo const& info) const -> ImageBindInfo;
 
 	static auto memory_requirement(Device& device, ImageInfo const& info) -> MemoryRequirementInfo;
 
-	static auto from(Device& device, ImageInfo&& info, Resource<MemoryBlock> memoryBlock = {}) -> Resource<Image>;
-	static auto from(Swapchain& swapchain) -> lib::array<Resource<Image>>;
+	static auto from(Device& device, ImageInfo&& info, MemoryBlock::handle_type memoryBlock = {}) -> handle_type;
+	static auto from(Swapchain& swapchain) -> lib::array<handle_type>;
 protected:
-	friend class Resource<Image>;
 	friend class Swapchain;
-
-	static auto destroy(Image& resource, uint64 id) -> void;
-
-	Image(Device& device);
 
 	ImageInfo m_info;
 };
 
-class Swapchain : public DeviceResource
+class Swapchain
 {
 public:
+	struct Deleter
+	{
+		auto operator()(Device& device, uint64 id) const -> void;
+	};
+
+	using handle_type = handle<Swapchain, Deleter>;
+
 	Swapchain() = default;
 	~Swapchain() = default;
 
@@ -376,7 +380,7 @@ public:
 	/**
 	* Returns the current free image in the swapchain *after* acquire_next_image() is called.
 	*/
-	auto current_image() const -> Resource<Image>;
+	auto current_image() const -> Image::handle_type;
 	/**
 	* Returns the index of the current free image in the swapchain *after* acquire_next_image() is called.
 	*/
@@ -384,67 +388,62 @@ public:
 	/**
 	* Has to be called at the start of the frame.
 	*/
-	auto acquire_next_image() -> Resource<Image>;
-	auto current_acquire_semaphore() const -> Resource<Semaphore>;
-	auto current_present_semaphore() const -> Resource<Semaphore>;
+	auto acquire_next_image() -> Image::handle_type;
+	auto current_acquire_semaphore() const -> Semaphore::handle_type;
+	auto current_present_semaphore() const -> Semaphore::handle_type;
 	auto cpu_frame_count() const -> uint64;
-	auto gpu_frame_count() const -> uint64;
-	auto get_gpu_fence() const -> Resource<Fence>;
+	auto gpu_fence() const -> Fence::handle_type;
 	auto image_format() const -> Format;
-	auto color_space() const -> ColorSpace;
 
 	auto resize(Extent2D dim) -> bool;
 
-	static auto from(Device& device, SwapchainInfo&& info, Resource<Swapchain> previousSwapchain = {}) -> Resource<Swapchain>;
+	static auto from(Device& device, SwapchainInfo&& info, handle_type previousSwapchain = {}) -> handle_type;
 protected:
-	friend class Resource<Swapchain>;
-
-	static auto destroy(Swapchain& resource, uint64 id) -> void;
-
-	Swapchain(Device& device);
-
-	using ImageArray		= lib::array<Resource<Image>>;
-	using SemaphoreArray	= lib::array<Resource<Semaphore>>;
+	using ImageArray		= lib::array<Image::handle_type>;
+	using SemaphoreArray	= lib::array<Semaphore::handle_type>;
 
 	SwapchainInfo m_info;
 	SwapchainState m_state = SwapchainState::Error;
 	ImageArray m_images;
-	Resource<Fence> m_gpuElapsedFrames;
+	Fence::handle_type m_gpuElapsedFrames;
 	SemaphoreArray m_acquireSemaphore;
 	SemaphoreArray m_presentSemaphore;
-	ColorSpace m_colorSpace = ColorSpace::Srgb_Non_Linear;
 	std::atomic_uint64_t m_cpuElapsedFrames;
 	uint32 m_acquireSemaphoreIndex;
 	uint32 m_currentImageIndex;
 };
 
-class Shader : public DeviceResource
+class Shader
 {
 public:
+	struct Deleter
+	{
+		auto operator()(Device& device, uint64 id) const -> void;
+	};
+
+	using handle_type = handle<Shader, Deleter>;
+
 	Shader() = default;
 	~Shader() = default;
 
 	auto info() const->ShaderInfo const&;
 	auto valid() const -> bool;
 
-	static auto from(Device& device, CompiledShaderInfo const& compiledShaderInfo) -> Resource<Shader>;
+	static auto from(Device& device, CompiledShaderInfo const& compiledShaderInfo) -> handle_type;
 protected:
-	friend class Resource<Shader>;
-
-	static auto destroy(Shader& resource, uint64 id) -> void;
-
-	Shader(Device& device);
-
 	ShaderInfo	m_info;
 };
 
 struct RasterPipelineShaderInfo
 {
-	Resource<Shader> vertexShader;
-	// Resource<Shader> meshShader;
-	// Resource<Shader> taskShader;
-	Resource<Shader> pixelShader;
+	Shader::handle_type vertexShader;
+	Shader::handle_type pixelShader;
 	std::span<ShaderAttribute> vertexInputAttrib;
+};
+
+struct ComputePipelineShaderInfo
+{
+	Shader::handle_type computeShader;
 };
 
 class RasterPipeline
@@ -476,9 +475,16 @@ private:
 template <typename T>
 concept is_pipeline_type = std::same_as<T, RasterPipeline> || std::same_as<T, ComputePipeline>;
 
-class Pipeline : public DeviceResource
+class Pipeline
 {
 public:
+	struct Deleter
+	{
+		auto operator()(Device& device, uint64 id) const -> void;
+	};
+
+	using handle_type = handle<Pipeline, Deleter>;
+
 	Pipeline() = default;
 	~Pipeline() = default;
 
@@ -488,16 +494,10 @@ public:
 	template <is_pipeline_type T>
 	auto as() const -> T const* { return std::get_if<T>(&m_pipelineVariant); }
 
-	static auto from(Device& device, RasterPipelineShaderInfo const& pipelineShaderInfo, RasterPipelineInfo&& info) -> Resource<Pipeline>;
-	static auto from(Device& device, Resource<Shader>& computeShader, ComputePipelineInfo&& info) -> Resource<Pipeline>;
+	static auto from(Device& device, RasterPipelineShaderInfo const& pipelineShaderInfo, RasterPipelineInfo&& info) -> handle_type;
+	static auto from(Device& device, ComputePipelineShaderInfo const& pipelineShaderInfo, ComputePipelineInfo&& info) -> handle_type;
 protected:
-	friend class Resource<Pipeline>;
-
-	static auto destroy(Pipeline& resource, uint64 id) -> void;
-
 	using PipelineVariant = std::variant<RasterPipeline, ComputePipeline>;
-
-	Pipeline(Device& device);
 
 	PipelineVariant m_pipelineVariant;
 	PipelineType m_type;
@@ -505,7 +505,7 @@ protected:
 
 struct RenderAttachment
 {
-	Resource<Image> image;
+	Image::handle_type image;
 	ImageLayout imageLayout;
 	AttachmentLoadOp loadOp;
 	AttachmentStoreOp storeOp;
@@ -743,33 +743,45 @@ struct BindPushConstantInfo
 	ShaderStage shaderStage = ShaderStage::All;
 };
 
-struct SubmitInfo
-{
-	DeviceQueue queue;
-	std::span<Resource<CommandBuffer>> commandBuffers;
-	std::span<Resource<Semaphore>> waitSemaphores;
-	std::span<Resource<Semaphore>> signalSemaphores;
-	std::span<std::pair<Resource<Fence>, uint64>> waitFences;
-	std::span<std::pair<Resource<Fence>, uint64>> signalFences;
-};
-
 struct PresentInfo
 {
-	std::span<Resource<Swapchain>> swapchains;
+	std::span<Swapchain::handle_type> swapchains;
 };
 
-class CommandBuffer : public DeviceResource
+class CommandPool
 {
 public:
-	CommandBuffer() = default;
-	~CommandBuffer() = default;
+	struct Deleter
+	{
+		auto operator()(Device& device, uint64 id) const -> void;
+	};
 
-	auto info() const -> CommandBufferInfo const&;
+	using handle_type = handle<CommandPool, Deleter>;
+
+	CommandPool() = default;
+	~CommandPool() = default;
+
+	auto info() const -> CommandPoolInfo const&;
+	auto valid() const -> bool;
+	auto reset() const -> void;
+
+	static auto from(Device& device, CommandPoolInfo&& info) -> handle_type;
+protected:
+	CommandPoolInfo	m_info;
+};
+
+/*
+* Should not have persistent lifetimes.
+* If persistent lifetime is required, then have a CommandQueue for each frame in flight
+*/
+class CommandRecorder : lib::non_copyable
+{
+public:
+	CommandRecorder() = default;
+
 	auto valid() const -> bool;
 	auto recording_timeline() const -> uint64;
-	auto current_timeline() const -> uint64;
-
-	auto current_timeline_fence() const -> Resource<Fence>;
+	auto current_timeline_fence() const -> Fence::handle_type;
 
 	auto begin() -> bool;
 	auto end() -> void;
@@ -821,63 +833,34 @@ public:
 
 	/**
 	* Requests a CommandBuffer from the CommandPool.
-	* Total CommandBuffer that is allowed to be requested from a CommandPool is defined by the constant MAX_COMMAND_BUFFER_PER_POOL.
-	* When the total number of CommandBuffers have been requested, a null_resource is returned instead.
 	*/
-	static auto from(Resource<CommandPool>& commandPool) -> Resource<CommandBuffer>;
-protected:
-	friend class Resource<CommandBuffer>;
+	static auto from(CommandPool::handle_type& commandPool) -> CommandRecorder;
+private:
+	friend class Device;
 
-	auto try_reset() -> bool;
+	CommandPool::handle_type m_cmdPool;
+	uint64 m_index;
 
-	/**
-	 * Destroying a command buffer doesn't actually releases it from the command pool.
-	 * Rather, it is returned to the command pool for re-use.
-	 */
-	static auto destroy(CommandBuffer& resource, uint64 id) -> void;
-
-	CommandBuffer(Device& device);
-
-	CommandBufferInfo m_info;
-	Resource<CommandPool> m_commandPool;
-	std::atomic_uint64_t m_recordingTimeline;
-	Resource<Fence> m_currentTimeline;
+	CommandRecorder(CommandPool::handle_type const& pool, uint64 commandBufferIndex);
 };
 
-class CommandPool : public DeviceResource
-{
-public:
-	CommandPool() = default;
-	~CommandPool() = default;
+static_assert(std::is_move_constructible_v<CommandRecorder>, "CommandRecorder needs to be move assignable.");
+static_assert(std::is_move_assignable_v<CommandRecorder>, "CommandRecorder needs to be move constructible.");
 
-	auto info() const -> CommandPoolInfo const&;
-	auto valid() const -> bool;
-	auto reset() const -> void;
-
-	static auto from(Device& device, CommandPoolInfo&& info) -> Resource<CommandPool>;
-protected:
-	friend class Resource<CommandPool>;
-
-	static auto destroy(CommandPool& resource, uint64 id) -> void;
-
-	CommandPool(Device& device);
-
-	CommandPoolInfo	m_info;
-};
-
-using semaphore		= Resource<Semaphore>;
-using fence			= Resource<Fence>;
-using event			= Resource<Event>;
-using buffer		= Resource<Buffer>;
-using image			= Resource<Image>;
-using sampler		= Resource<Sampler>;
-using swapchain		= Resource<Swapchain>;
-using shader		= Resource<Shader>;
-using pipeline		= Resource<Pipeline>;
-using command_pool	= Resource<CommandPool>;
-using command_buffer = Resource<CommandBuffer>;
+template <is_gpu_resource T>
+using resource = T::handle_type;
 
 using device_address = DeviceAddress;
+
+struct SubmitInfo
+{
+	DeviceQueue queue;
+	std::span<CommandRecorder> commandRecorders;
+	std::span<Semaphore::handle_type> waitSemaphores;
+	std::span<Semaphore::handle_type> signalSemaphores;
+	std::span<std::pair<Fence::handle_type, uint64>> waitFences;
+	std::span<std::pair<Fence::handle_type, uint64>> signalFences;
+};
 
 class Device : public lib::non_copyable_non_movable
 {
@@ -907,11 +890,28 @@ public:
 	static auto from(DeviceInitInfo const& info) -> std::expected<std::unique_ptr<Device>, std::string_view>;
 	static auto destroy(std::unique_ptr<Device>& device) -> void;
 protected:
+	friend struct detail::handle_base<Device>;
+
 	DeviceInfo m_info;
 	DeviceInitInfo m_initInfo;
 	DeviceConfig m_config;
 	std::atomic_uint64_t m_cpuTimeline;
-	Resource<Fence> m_gpuTimeline;
+	Fence::handle_type m_gpuTimeline;
+
+	auto inc_ref(uint64 id) -> void;
+	[[nodiscard]] auto dec_ref(uint64 id) -> uint64;
+
+	auto get_resource(lib::type<Semaphore> type, uint64 id) -> Semaphore&;
+	auto get_resource(lib::type<Fence> type, uint64 id) -> Fence&;
+	auto get_resource(lib::type<Event> type, uint64 id) -> Event&;
+	auto get_resource(lib::type<MemoryBlock> type, uint64 id) -> MemoryBlock&;
+	auto get_resource(lib::type<Buffer> type, uint64 id) -> Buffer&;
+	auto get_resource(lib::type<Image> type, uint64 id) -> Image&;
+	auto get_resource(lib::type<Sampler> type, uint64 id) -> Sampler&;
+	auto get_resource(lib::type<Swapchain> type, uint64 id) -> Swapchain&;
+	auto get_resource(lib::type<Shader> type, uint64 id) -> Shader&;
+	auto get_resource(lib::type<Pipeline> type, uint64 id) -> Pipeline&;
+	auto get_resource(lib::type<CommandPool> type, uint64 id) -> CommandPool&;
 };
 }
 

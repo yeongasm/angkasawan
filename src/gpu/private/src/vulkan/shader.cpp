@@ -2,11 +2,6 @@
 
 namespace gpu
 {
-Shader::Shader(Device& device) :
-	DeviceResource{ device },
-	m_info{}
-{}
-
 auto Shader::info() const -> ShaderInfo const&
 {
 	return m_info;
@@ -16,10 +11,10 @@ auto Shader::valid() const -> bool
 {
 	auto&& self = to_impl(*this);
 
-	return m_device != nullptr && self.handle != VK_NULL_HANDLE;
+	return self.handle != VK_NULL_HANDLE;
 }
 
-auto Shader::from(Device& device, CompiledShaderInfo const& compiledShaderInfo) -> Resource<Shader>
+auto Shader::from(Device& device, CompiledShaderInfo const& compiledShaderInfo) -> handle_type
 {
 	if (compiledShaderInfo.binaries.empty())
 	{
@@ -47,11 +42,17 @@ auto Shader::from(Device& device, CompiledShaderInfo const& compiledShaderInfo) 
 
 	CHECK_OP(vkCreateShaderModule(vkdevice.device, &shaderInfo, nullptr, &handle))
 
-	auto it = vkdevice.gpuResourcePool.stores.shaders.emplace(vkdevice);
+	auto it = vkdevice.gpuResourcePool.stores.shaders.emplace();
 
-	auto id = ++vkdevice.gpuResourcePool.idCounter;
+	vk::_ResourceMeta meta{
+		.type 	= vk::detail::type_id_v<vk::ShaderImpl>,
+		.id 	= ++vkdevice.gpuResourcePool.idCounter.others
+	};
+
+	auto id = std::bit_cast<uint64>(meta);
 
 	vkdevice.gpuResourcePool.caches.shader.emplace(id, it);
+	vkdevice.begin_referencing(id);
 
 	auto&& vkshader = *it;
 
@@ -65,16 +66,17 @@ auto Shader::from(Device& device, CompiledShaderInfo const& compiledShaderInfo) 
 		vkdevice.setup_debug_name(vkshader);
 	}
 
-	return Resource<Shader>{ vkshader, id };
+	return { vkdevice, id };
 }
 
-auto Shader::destroy(Shader& resource, uint64 id) -> void
+auto Shader::Deleter::operator()(Device& device, uint64 id) const -> void
 {
+	ASSERTION(id != std::numeric_limits<uint64>::max() && "Attempting to destroy a Shader with an invalid id");
 	/*
 	 * At this point, the ref count on the resource is only 1 which means ONLY the resource has a reference to itself and can be safely deleted.
 	 */
-	auto&& vkdevice = to_device(resource.m_device);
-	auto&& vkshader = to_impl(resource);
+	auto&& vkdevice = to_device(device);
+	auto&& vkshader = *vkdevice.gpuResourcePool.caches.shader[id];
 
 	std::lock_guard const lock{ vkdevice.gpuResourcePool.zombieMutex };
 
@@ -92,12 +94,5 @@ auto Shader::destroy(Shader& resource, uint64 id) -> void
 			device.gpuResourcePool.stores.shaders.erase(it);
 		}
 	);
-}
-
-namespace vk
-{
-ShaderImpl::ShaderImpl(DeviceImpl& device) :
-	Shader{ device }
-{}
 }
 }

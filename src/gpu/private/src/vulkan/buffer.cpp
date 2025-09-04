@@ -4,11 +4,6 @@
 
 namespace gpu
 {
-Buffer::Buffer(Device& device) :
-	DeviceResource{ device },
-	m_info{}
-{}
-
 auto Buffer::info() const -> BufferInfo const&
 {
 	return m_info;
@@ -18,7 +13,7 @@ auto Buffer::valid() const -> bool
 {
 	auto const& self = to_impl(*this);
 
-	return m_device != nullptr && self.handle != VK_NULL_HANDLE;
+	return self.handle != VK_NULL_HANDLE;
 }
 
 auto Buffer::data() const -> void*
@@ -78,7 +73,7 @@ auto Buffer::is_transient() const -> bool
 {
 	auto const& self = to_impl(*this);
 
-	return self.allocationBlock->aliased();
+	return (*self.allocationBlock).aliased();
 }
 
 auto Buffer::gpu_address() const -> DeviceAddress
@@ -86,25 +81,6 @@ auto Buffer::gpu_address() const -> DeviceAddress
 	auto const& self = to_impl(*this);
 
 	return DeviceAddress{ self.address };
-}
-
-auto Buffer::bind(BufferBindInfo const& info) const -> BufferBindInfo
-{
-	auto&& self = to_impl(*this);
-	auto&& vkdevice = to_device(self.device());
-
-	uint32 index = info.index;
-
-	if (info.offset < self.m_info.size && self.m_info.size <= info.size)
-	{
-		index = index % vkdevice.config().maxBuffers;
-
-		VkDeviceAddress const address = self.address + info.offset;
-
-		vkdevice.descriptorCache.bdaHostAddress[index] = address;
-	}
-
-	return BufferBindInfo{ .offset = info.offset, .size = info.size, .index = index };
 }
 
 auto Buffer::memory_requirement(Device& device, BufferInfo const& info) -> MemoryRequirementInfo
@@ -131,7 +107,7 @@ auto Buffer::memory_requirement(Device& device, BufferInfo const& info) -> Memor
 	};
 }
 
-auto Buffer::from(Device& device, BufferInfo&& info, Resource<MemoryBlock> memoryBlock) -> Resource<Buffer>
+auto Buffer::from(Device& device, BufferInfo&& info, MemoryBlock::handle_type memoryBlock) -> handle_type
 {
 	ASSERTION(info.memoryUsage != MemoryUsage::None && "MemoryUsage cannot be 'None'");
 	ASSERTION(info.size != 80000 && "Allocation size is below threshold");
@@ -189,25 +165,34 @@ auto Buffer::from(Device& device, BufferInfo&& info, Resource<MemoryBlock> memor
 
 		CHECK_OP(vmaCreateBuffer(vkdevice.allocator, &bufferInfo, &allocInfo, &handle, &allocation, &allocationInfo))
 
-		auto it = vkdevice.gpuResourcePool.stores.memoryBlocks.emplace(vkdevice, false);
+		auto it = vkdevice.gpuResourcePool.stores.memoryBlocks.emplace(false);
 
-		auto id = ++vkdevice.gpuResourcePool.idCounter;
+		vk::_ResourceMeta meta{
+			.type = vk::detail::type_id_v<vk::MemoryBlockImpl>,
+			.id = ++vkdevice.gpuResourcePool.idCounter.others
+		};
+
+		auto id = std::bit_cast<uint64>(meta);
 
 		vkdevice.gpuResourcePool.caches.memoryBlock.emplace(id, it);
+		vkdevice.begin_referencing(id);
 
 		auto&& vkmemoryblock = *it;
 
 		vkmemoryblock.handle = allocation;
 		vkmemoryblock.allocationInfo = std::move(allocationInfo);
 
-		new (&memoryBlock) Resource<MemoryBlock>{ vkmemoryblock, id };
+		new (&memoryBlock) MemoryBlock::handle_type{ vkdevice, id };
 	}
 
-	auto it = vkdevice.gpuResourcePool.stores.buffers.emplace(vkdevice);
+	auto it = vkdevice.gpuResourcePool.stores.buffers.emplace();
 
-	auto id = ++vkdevice.gpuResourcePool.idCounter;
+	vk::_ResourceMeta meta{
+		.type = vk::detail::type_id_v<vk::BufferImpl>,
+		.id = vkdevice.gpuResourcePool.idCounter.buffers++ % vkdevice.config().maxBuffers
+	};
 
-	vkdevice.gpuResourcePool.caches.buffer.emplace(id, it);
+	auto id = std::bit_cast<uint64>(meta);
 
 	auto&& vkbuffer = *it;
 
@@ -221,21 +206,26 @@ auto Buffer::from(Device& device, BufferInfo&& info, Resource<MemoryBlock> memor
 	vkbuffer.allocationBlock = memoryBlock;
 	vkbuffer.m_info = std::move(info);
 
+	vkdevice.gpuResourcePool.caches.buffer.emplace(id, it);
+	vkdevice.bind(vkbuffer, meta.id);
+	vkdevice.begin_referencing(id);
+
 	if constexpr (ENABLE_GPU_RESOURCE_DEBUG_NAMES)
 	{
 		vkdevice.setup_debug_name(vkbuffer);
 	}
 
-	return Resource<Buffer>{ vkbuffer, id };
+	return { vkdevice, id };
 }
 
-auto Buffer::destroy(Buffer& resource, uint64 id) -> void
+auto Buffer::Deleter::operator()(Device& device, uint64 id) const -> void
 {
+	ASSERTION(id != std::numeric_limits<uint64>::max() && "Attempting to destroy a Buffer with an invalid id.");
 	/*
 	* At this point, the ref count on the resource is only 1 which means ONLY the resource has a reference to itself and can be safely deleted.
 	*/
-	auto&& vkdevice = to_device(resource.m_device);
-	auto&& vkbuffer = to_impl(resource);
+	auto&& vkdevice = to_device(device);
+	auto&& vkbuffer = *vkdevice.gpuResourcePool.caches.buffer[id];
 
 	/*
 	* Release ownership of it's memory allocation.
@@ -252,15 +242,7 @@ auto Buffer::destroy(Buffer& resource, uint64 id) -> void
 		{	
 			if (!vkbuffer.is_transient())
 			{
-				auto&& block = to_impl(*vkbuffer.allocationBlock);
-			
-				auto blockId = vkbuffer.allocationBlock.id();
-				auto blockIt = device.gpuResourcePool.caches.memoryBlock[blockId];
-
-				vmaDestroyBuffer(device.allocator, vkbuffer.handle, block.handle);
-				
-				device.gpuResourcePool.caches.memoryBlock.erase(blockId);
-				device.gpuResourcePool.stores.memoryBlocks.erase(blockIt);
+				vkbuffer.allocationBlock.destroy();
 			}
 			else
 			{
@@ -273,12 +255,5 @@ auto Buffer::destroy(Buffer& resource, uint64 id) -> void
 			device.gpuResourcePool.stores.buffers.erase(it);
 		}
 	);
-}
-
-namespace vk
-{
-BufferImpl::BufferImpl(DeviceImpl& device) :
-	Buffer{ device }
-{}
 }
 }

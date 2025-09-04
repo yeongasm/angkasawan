@@ -7,9 +7,9 @@ SubmissionGroup::SubmissionGroup(Queue& queue, Queue::SubmissionData& data) :
 	m_data{ data }
 {}
 
-auto SubmissionGroup::submit(gpu::command_buffer const& commandBuffer) -> void
+auto SubmissionGroup::submit(gpu::CommandRecorder&& commands) -> void
 {
-	if (!commandBuffer.valid())
+	if (!commands.valid())
 	{
 		return;
 	}
@@ -21,12 +21,12 @@ auto SubmissionGroup::submit(gpu::command_buffer const& commandBuffer) -> void
 
 	const uint32 offset = (Queue::NUM_COMMAND_BUFFER_SUBMISSION_PER_GROUP - 1u) * m_data.id;
 
-	m_queue.submittedCommandBuffers[offset + m_data.numCommandBuffers++] = commandBuffer;
-
-	signal(commandBuffer->current_timeline_fence(), commandBuffer->recording_timeline());
+	signal(commands.current_timeline_fence(), commands.recording_timeline());
+	
+	m_queue.submittedCommands[offset + m_data.numCommandBuffers++] = std::move(commands);
 }
 
-auto SubmissionGroup::signal(gpu::fence const& fence, uint64 value) -> void
+auto SubmissionGroup::signal(gpu::resource<gpu::Fence> const& fence, uint64 value) -> void
 {
 	if (!fence.valid())
 	{
@@ -43,7 +43,7 @@ auto SubmissionGroup::signal(gpu::fence const& fence, uint64 value) -> void
 	m_queue.submittedFences[offset + m_data.numSignalFences++] = std::pair{ fence, value };
 }
 
-auto SubmissionGroup::signal(gpu::semaphore const& semaphore) -> void
+auto SubmissionGroup::signal(gpu::resource<gpu::Semaphore> const& semaphore) -> void
 {
 	if (!semaphore.valid())
 	{
@@ -60,7 +60,7 @@ auto SubmissionGroup::signal(gpu::semaphore const& semaphore) -> void
 	m_queue.submittedSemaphores[offset + m_data.numSignalSemaphores++] = semaphore;
 }
 
-auto SubmissionGroup::wait(gpu::fence const& fence, uint64 value) -> void
+auto SubmissionGroup::wait(gpu::resource<gpu::Fence> const& fence, uint64 value) -> void
 {
 	if (!fence.valid())
 	{
@@ -77,7 +77,7 @@ auto SubmissionGroup::wait(gpu::fence const& fence, uint64 value) -> void
 	m_queue.submittedFences[offset + m_data.numWaitFences++] = std::pair{ fence, value };
 }
 
-auto SubmissionGroup::wait(gpu::semaphore const& semaphore) -> void
+auto SubmissionGroup::wait(gpu::resource<gpu::Semaphore> const& semaphore) -> void
 {
 	if (!semaphore.valid())
 	{
@@ -117,7 +117,7 @@ auto CommandQueue::new_submission_group(gpu::DeviceQueue deviceQueue) -> Submiss
 	return SubmissionGroup{ queue, data };
 }
 
-auto CommandQueue::next_free_command_buffer(RequestCommandBufferInfo&& info) -> gpu::command_buffer
+auto CommandQueue::new_command_recorder(RequestCommandRecorder&& info) -> gpu::CommandRecorder
 {
 	Queue& queue = get_queue(info.queue);
 
@@ -149,7 +149,7 @@ auto CommandQueue::next_free_command_buffer(RequestCommandBufferInfo&& info) -> 
 
 	auto& commandPool = queue.commandPoolStore[info.tid];
 
-	return gpu::CommandBuffer::from(commandPool);
+	return gpu::CommandRecorder::from(commandPool);
 }
 
 auto CommandQueue::clear(gpu::DeviceQueue queue) -> void
@@ -193,7 +193,7 @@ auto CommandQueue::send_to_gpu(Queue& queue, gpu::DeviceQueue type) -> void
 
 		gpu::SubmitInfo info{
 			.queue				= type,
-			.commandBuffers		= std::span{ &queue.submittedCommandBuffers[commandBufferOffset],	data.numCommandBuffers },
+			.commandRecorders	= std::span{ &queue.submittedCommands[commandBufferOffset],			data.numCommandBuffers },
 			.waitSemaphores		= std::span{ &queue.submittedSemaphores[waitSemaphoreOffset],		data.numWaitSemaphores },
 			.signalSemaphores	= std::span{ &queue.submittedSemaphores[signalSemaphoreOffset],		data.numSignalSemaphores },
 			.waitFences			= std::span{ &queue.submittedFences[waitFenceOffset],				data.numWaitFences },
@@ -212,16 +212,10 @@ auto CommandQueue::clear(Queue& queue) -> void
 	{
 		Queue::SubmissionData& data = queue.submissionGroupData[i];
 
-		uint32 const commandBufferOffset	= (Queue::NUM_COMMAND_BUFFER_SUBMISSION_PER_GROUP - 1u) * data.id;
 		uint32 const waitSemaphoreOffset	= (Queue::NUM_SEMAPHORE_SUBMISSION_PER_GROUP - 1u) * data.id + Queue::HALF_SEMAPHORE_SUBMISSION_COUNT;;
 		uint32 const signalSemaphoreOffset	= (Queue::NUM_SEMAPHORE_SUBMISSION_PER_GROUP - 1u) * data.id;
 		uint32 const waitFenceOffset		= (Queue::NUM_FENCE_SUBMISSION_PER_GROUP - 1u) * data.id + Queue::HALF_FENCE_SUBMISSION_COUNT;
 		uint32 const signalFenceOffset		= (Queue::NUM_FENCE_SUBMISSION_PER_GROUP - 1u) * data.id;
-
-		for (uint32 j = 0; j < data.numCommandBuffers; ++j)
-		{
-			queue.submittedCommandBuffers[commandBufferOffset + j].destroy();
-		}
 
 		for (uint32 j = 0; j < data.numWaitFences; ++j)
 		{

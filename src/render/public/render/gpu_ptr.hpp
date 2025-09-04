@@ -30,17 +30,17 @@ requires (
 )
 struct GpuDataContainer : public lib::non_copyable
 {
-    gpu::buffer storage;
+    gpu::resource<gpu::Buffer> storage;
     std::unique_ptr<detail::DeviceLocalDataStorage<T>> localData;
 
     GpuDataContainer() = default;
 
-    GpuDataContainer(gpu::buffer buffer) : 
+    GpuDataContainer(gpu::resource<gpu::Buffer> buffer) : 
         storage{ buffer },
         localData{}
     {}
 
-    GpuDataContainer(gpu::buffer buffer, std::unique_ptr<detail::DeviceLocalDataStorage<T>> data) :
+    GpuDataContainer(gpu::resource<gpu::Buffer> buffer, std::unique_ptr<detail::DeviceLocalDataStorage<T>> data) :
         storage{ buffer },
         localData{ std::move(data) }
     {}
@@ -55,7 +55,7 @@ struct GpuDataContainer : public lib::non_copyable
     */
     auto buffer_info() const -> gpu::BufferInfo const&
     {
-        return storage->info();
+        return (*storage).info();
     }
 };
 }
@@ -74,11 +74,11 @@ private:
 
     using super = detail::GpuDataContainer<T>;
 
-    GpuPtr(gpu::buffer buffer) : 
+    GpuPtr(gpu::resource<gpu::Buffer> buffer) : 
         super{ buffer }
     {}
 
-    GpuPtr(gpu::buffer buffer, std::unique_ptr<detail::DeviceLocalDataStorage<T>> data) :
+    GpuPtr(gpu::resource<gpu::Buffer> buffer, std::unique_ptr<detail::DeviceLocalDataStorage<T>> data) :
         super{ buffer, std::move(data) }
     {}
 
@@ -97,7 +97,7 @@ public:
     */
     auto address() const -> gpu::device_address
     {
-        return super::storage->gpu_address();
+        return (*super::storage).gpu_address();
     }
 
     template <typename Self>
@@ -105,14 +105,14 @@ public:
     {
         using enum gpu::MemoryUsage;
 
-        auto memoryUsage = self.storage->info().memoryUsage;
+        auto memoryUsage = (*self.storage).info().memoryUsage;
 
         if (((memoryUsage & Host_Writable) == None) && 
             ((memoryUsage & Host_Transferable) == None))
         {
             return &std::forward<std::remove_reference_t<Self>>(self).localData->data;
         }
-        return std::forward_like<std::remove_reference_t<Self>>(static_cast<pointer>(self.storage->data()));
+        return std::forward_like<std::remove_reference_t<Self>>(static_cast<pointer>((*self.storage).data()));
     }
 
     /**
@@ -123,7 +123,7 @@ public:
     {
         using enum gpu::MemoryUsage;
 
-        auto memoryUsage = super::storage->info().memoryUsage;
+        auto memoryUsage = (*super::storage).info().memoryUsage;
         // If the buffer is device local only, we need to do a transfer op.
         // Ideally this should be removed once all motherboards enable ReBAR by default.
         if (((memoryUsage & Host_Writable) == None) && 
@@ -143,7 +143,7 @@ public:
         return std::nullopt;
     }
 
-	auto resource() -> gpu::buffer { return super::storage; }
+	auto resource() -> gpu::resource<gpu::Buffer> { return super::storage; }
 
     template <typename... Args>
     requires (std::is_constructible_v<value_type, Args...>)
@@ -151,7 +151,7 @@ public:
     {
         using enum gpu::MemoryUsage;
 
-        auto buffer = gpu::Buffer::from(
+        auto bufferHandle = gpu::Buffer::from(
             device, 
             {
                 .name = std::move(info.name),
@@ -162,14 +162,16 @@ public:
             }
         );
 
-        if (buffer->is_host_visible())
+		auto const& buffer = *bufferHandle;
+
+        if (buffer.is_host_visible())
         {
-            pointer ptr = static_cast<pointer>(buffer->data());
+            pointer ptr = static_cast<pointer>(buffer.data());
 
             std::construct_at(ptr, std::forward<Args>(args)...);
         }
 
-        return GpuPtr<value_type>{ buffer };
+        return GpuPtr<value_type>{ bufferHandle };
     };
 
     template <typename... Args>
@@ -216,11 +218,11 @@ private:
     using type = T[N];
     using super = detail::GpuDataContainer<type>;
 
-    GpuPtr(gpu::buffer storage) :
+    GpuPtr(gpu::resource<gpu::Buffer> storage) :
         super{ storage }
     {}
 
-    GpuPtr(gpu::buffer storage, std::unique_ptr<detail::DeviceLocalDataStorage<type>> data) :
+    GpuPtr(gpu::resource<gpu::Buffer> storage, std::unique_ptr<detail::DeviceLocalDataStorage<type>> data) :
         super{ storage, std::move(data) }
     {}
 
@@ -240,7 +242,7 @@ public:
     auto address_at(size_t i) const -> gpu::device_address
     {
         ASSERTION(std::cmp_less(i, N) && "Index being accessed exceeds the amount of data the pointer is holding.");
-        return super::storage->gpu_address() + (i * sizeof(value_type));
+        return (*super::storage).gpu_address() + (i * sizeof(value_type));
     }
 
     template <typename Self>
@@ -250,14 +252,14 @@ public:
 
         using enum gpu::MemoryUsage;
 
-        auto memoryUsage = self.storage->info().memoryUsage;
+        auto memoryUsage = (*self.storage).info().memoryUsage;
 
         if (((memoryUsage & Host_Writable) == None) && 
             ((memoryUsage & Host_Transferable) == None))
         {
             return std::forward<Self>(self).localData->data[i];
         }
-        return std::forward_like<Self>(*(static_cast<pointer>(self.storage->data()) + i));      
+        return std::forward_like<Self>(*(static_cast<pointer>((*self.storage).data()) + i));      
     }
 
     auto size() const -> size_t { return N; }
@@ -273,7 +275,7 @@ public:
     {
         using enum gpu::MemoryUsage;
 
-        auto memoryUsage = super::storage->info().memoryUsage;
+        auto memoryUsage = (*super::storage).info().memoryUsage;
         // If the buffer is device local only, we need to do a transfer op.
         // Ideally this should be removed once all motherboards enable ReBAR by default.
         if (((memoryUsage & Host_Writable) == None) && 
@@ -294,7 +296,7 @@ public:
         return std::nullopt;
     }
 
-	auto resource() -> gpu::buffer { return super::storage; }
+	auto resource() -> gpu::resource<gpu::Buffer> { return super::storage; }
 
     template <typename... Args>
     requires 
@@ -306,7 +308,7 @@ public:
     {
         using enum gpu::MemoryUsage;
 
-        auto buffer = gpu::Buffer::from(
+        auto bufferHandle = gpu::Buffer::from(
             device, 
             {
                 .name = std::move(info.name),
@@ -317,9 +319,11 @@ public:
             }
         );
 
-        if (buffer->is_host_visible())
+		auto const& buffer = *bufferHandle;
+
+        if (buffer.is_host_visible())
         {
-            pointer ptr = static_cast<pointer>(buffer->data());
+            pointer ptr = static_cast<pointer>(buffer.data());
 
             std::construct_at(ptr, std::forward<Args>(args)...);
         }

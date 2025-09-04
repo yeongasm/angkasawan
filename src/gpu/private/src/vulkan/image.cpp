@@ -2,11 +2,6 @@
 
 namespace gpu
 {
-Image::Image(Device& device) :
-	DeviceResource{ device },
-	m_info{}
-{}
-
 auto Image::info() const -> ImageInfo const&
 {
 	return m_info;
@@ -16,7 +11,7 @@ auto Image::valid() const -> bool
 {
 	auto const& self = to_impl(*this);
 	
-	return m_device != nullptr && self.handle != VK_NULL_HANDLE;
+	return self.handle != VK_NULL_HANDLE;
 }
 
 auto Image::is_swapchain_image() const -> bool
@@ -33,7 +28,7 @@ auto Image::is_transient() const -> bool
 {
 	auto const& self = to_impl(*this);
 
-	return self.allocationBlock.valid() && self.allocationBlock->aliased();
+	return self.allocationBlock.valid() && (*self.allocationBlock).aliased();
 }
 
 auto Image::memory_requirement(Device& device, ImageInfo const& info) -> MemoryRequirementInfo
@@ -60,70 +55,7 @@ auto Image::memory_requirement(Device& device, ImageInfo const& info) -> MemoryR
 	};
 }
 
-auto Image::bind(ImageBindInfo const& info) const -> ImageBindInfo
-{
-	auto&& self = to_impl(*this);
-	auto&& vkdevice = to_device(self.device());
-
-	uint32 count = 0;
-	std::array<VkWriteDescriptorSet, 2> descriptorSetWrites{};
-
-	ImageInfo const& imageInfo = self.info();
-
-	uint32 index = info.index;
-
-	index = index % vkdevice.config().maxImages;
-
-	VkDescriptorImageInfo descriptorSampledImageInfo{
-		.sampler = VK_NULL_HANDLE,
-		.imageView = self.imageView,
-		.imageLayout = VK_IMAGE_LAYOUT_READ_ONLY_OPTIMAL
-	};
-
-	if (info.sampler.valid())
-	{
-		auto&& vksampler = to_impl(*info.sampler);
-		descriptorSampledImageInfo.sampler = vksampler.handle;
-	}
-
-	VkDescriptorImageInfo descriptorStorageImageInfo{
-		.sampler = VK_NULL_HANDLE,
-		.imageView = self.imageView,
-		.imageLayout = VK_IMAGE_LAYOUT_GENERAL
-	};
-
-	if ((imageInfo.imageUsage & ImageUsage::Sampled) != ImageUsage::None)
-	{
-		descriptorSetWrites[count++] = {
-			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-			.dstSet = vkdevice.descriptorCache.descriptorSet,
-			.dstBinding = SAMPLED_IMAGE_BINDING,
-			.dstArrayElement = index,
-			.descriptorCount = 1,
-			.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-			.pImageInfo = &descriptorSampledImageInfo
-		};
-	}
-
-	if ((imageInfo.imageUsage & ImageUsage::Storage) != ImageUsage::None)
-	{
-		descriptorSetWrites[count++] = {
-			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-			.dstSet = vkdevice.descriptorCache.descriptorSet,
-			.dstBinding = STORAGE_IMAGE_BINDING,
-			.dstArrayElement = index,
-			.descriptorCount = 1,
-			.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-			.pImageInfo = &descriptorStorageImageInfo
-		};
-	}
-
-	vkUpdateDescriptorSets(vkdevice.device, count, descriptorSetWrites.data(), 0, nullptr);
-
-	return ImageBindInfo{ .sampler = info.sampler, .index = index };
-}
-
-auto Image::from(Device& device, ImageInfo&& info, Resource<MemoryBlock> memoryBlock) -> Resource<Image>
+auto Image::from(Device& device, ImageInfo&& info, MemoryBlock::handle_type memoryBlock) -> handle_type
 {
 	auto&& vkdevice = to_device(device);
 
@@ -178,25 +110,34 @@ auto Image::from(Device& device, ImageInfo&& info, Resource<MemoryBlock> memoryB
 
 		CHECK_OP(vmaCreateImage(vkdevice.allocator, &imgInfo, &allocInfo, &handle, &allocation, &allocationInfo))
 
-		auto it = vkdevice.gpuResourcePool.stores.memoryBlocks.emplace(vkdevice, false);
+		auto it = vkdevice.gpuResourcePool.stores.memoryBlocks.emplace(false);
 
-		auto id = ++vkdevice.gpuResourcePool.idCounter;
+		vk::_ResourceMeta meta{
+			.type 	= vk::detail::type_id_v<vk::MemoryBlockImpl>,
+			.id 	= ++vkdevice.gpuResourcePool.idCounter.others
+		};
+
+		auto id = std::bit_cast<uint64>(meta);
 
 		vkdevice.gpuResourcePool.caches.memoryBlock.emplace(id, it);
+		vkdevice.begin_referencing(id);
 
 		auto&& vkmemoryblock = *it;
 
 		vkmemoryblock.handle = allocation;
 		vkmemoryblock.allocationInfo = std::move(allocationInfo);
 
-		new (&memoryBlock) Resource<MemoryBlock>{ vkmemoryblock, id };
+		new (&memoryBlock) MemoryBlock::handle_type{ vkdevice, id };
 	}
 
-	auto it = vkdevice.gpuResourcePool.stores.images.emplace(vkdevice);
+	auto it = vkdevice.gpuResourcePool.stores.images.emplace();
 
-	auto id = ++vkdevice.gpuResourcePool.idCounter;
+	vk::_ResourceMeta meta{ 
+		.type 	= vk::detail::type_id_v<vk::ImageImpl>, 
+		.id 	= vkdevice.gpuResourcePool.idCounter.images++ % vkdevice.config().maxImages
+	};
 
-	vkdevice.gpuResourcePool.caches.image.emplace(id, it);
+	auto id = std::bit_cast<uint64>(meta);
 
 	auto&& vkimage = *it;
 
@@ -242,25 +183,29 @@ auto Image::from(Device& device, ImageInfo&& info, Resource<MemoryBlock> memoryB
 
 	vkCreateImageView(vkdevice.device, &imgViewInfo, nullptr, &vkimage.imageView);
 
+	vkdevice.gpuResourcePool.caches.image.emplace(id, it);
+	vkdevice.bind(vkimage, meta.id);
+	vkdevice.begin_referencing(id);
+
 	if constexpr (ENABLE_GPU_RESOURCE_DEBUG_NAMES)
 	{
 		vkdevice.setup_debug_name(vkimage);
 	}
 
-	return Resource<Image>{ vkimage, id };
+	return handle_type{ vkdevice, id };
 }
 
-auto Image::from(Swapchain& swapchain) -> lib::array<Resource<Image>>
+auto Image::from(Swapchain& swapchain) -> lib::array<handle_type>
 {
-	auto&& vkdevice = to_device(swapchain.device());
 	auto&& vkswapchain = *static_cast<vk::SwapchainImpl*>(&swapchain);
+	auto&& vkdevice = *vkswapchain.vkdevice;
 
 	auto&& swapchainInfo = swapchain.info();
 
 	// Ideally should be const but vkGetSwapchainImagesKHR does not accept a const uint32* on pSwapchainImageCount.
 	uint32 maxImageCount = (swapchainInfo.imageCount > MAX_FRAMES_IN_FLIGHT) ? MAX_FRAMES_IN_FLIGHT : swapchainInfo.imageCount;
 
-	lib::array<Resource<Image>> images{ static_cast<size_t>(maxImageCount) };
+	lib::array<handle_type> images{ static_cast<size_t>(maxImageCount) };
 	std::array<VkImage, MAX_FRAMES_IN_FLIGHT> vkImageHandles = {};
 	std::array<VkImageView, MAX_FRAMES_IN_FLIGHT> vkImageViewHandles = {};
 
@@ -307,11 +252,17 @@ auto Image::from(Swapchain& swapchain) -> lib::array<Resource<Image>>
 			.mipLevel = 0
 		};
 
-		auto it = vkdevice.gpuResourcePool.stores.images.emplace(vkdevice);
+		auto it = vkdevice.gpuResourcePool.stores.images.emplace();
 
-		auto id = ++vkdevice.gpuResourcePool.idCounter;
+		vk::_ResourceMeta meta{ 
+			.type 	= vk::detail::type_id_v<vk::ImageImpl>, 
+			.id 	= vkdevice.gpuResourcePool.idCounter.images++ % vkdevice.config().maxImages
+		};
+
+		auto const id = std::bit_cast<uint64>(meta);
 
 		vkdevice.gpuResourcePool.caches.image.emplace(id, it);
+		vkdevice.begin_referencing(id);
 
 		auto&& vkimage = *it;
 
@@ -324,19 +275,20 @@ auto Image::from(Swapchain& swapchain) -> lib::array<Resource<Image>>
 			vkdevice.setup_debug_name(vkimage);
 		}
 
-		images.emplace_back(vkimage, id);
+		images.emplace_back(vkdevice, id);
 	}
 
 	return images;
 }
 
-auto Image::destroy(Image& resource, uint64 id) -> void
+auto Image::Deleter::operator()(Device& device, uint64 id) const -> void
 {
+	ASSERTION(id != std::numeric_limits<uint64>::max() && "Attempting to destroy an Image with an invalid id");
 	/*
 	* At this point, the ref count on the resource is only 1 which means ONLY the resource has a reference to itself and can be safely deleted.
 	*/
-	auto&& vkdevice = to_device(resource.m_device);
-	auto&& vkimage = to_impl(resource);
+	auto&& vkdevice = to_device(device);
+	auto&& vkimage = *vkdevice.gpuResourcePool.caches.image[id];
 
 	/*
 	* Release ownership of it's memory allocation.
@@ -357,15 +309,7 @@ auto Image::destroy(Image& resource, uint64 id) -> void
 
 				if (!vkimage.is_swapchain_image())
 				{
-					auto&& block = to_impl(*vkimage.allocationBlock);
-			
-					auto blockId = vkimage.allocationBlock.id();
-					auto it = device.gpuResourcePool.caches.memoryBlock[blockId];
-	
-					vmaDestroyImage(device.allocator, vkimage.handle, block.handle);
-
-					device.gpuResourcePool.caches.memoryBlock.erase(blockId);
-					device.gpuResourcePool.stores.memoryBlocks.erase(it);
+					vkimage.allocationBlock.destroy();
 				}
 			}
 			else
@@ -380,13 +324,6 @@ auto Image::destroy(Image& resource, uint64 id) -> void
 			device.gpuResourcePool.caches.image.erase(id);
 		}
 	);
-}
-
-namespace vk
-{
-ImageImpl::ImageImpl(DeviceImpl& device) :
-	Image{ device }
-{}
 }
 
 auto format_texel_info(Format format) -> FormatTexelInfo

@@ -24,7 +24,33 @@ namespace gpu
 {
 namespace vk
 {
-class DeviceImpl;
+namespace detail
+{
+consteval auto fnv1a_32(const char* str) -> uint32
+{
+    constexpr uint32 FNV_OFFSET_BASIS = 0x811C9DC5u; // 2166136261
+    constexpr uint32 FNV_PRIME = 0x01000193u;        // 16777619
+
+    uint32 hash = FNV_OFFSET_BASIS;
+    while (*str) 
+	{
+        hash ^= static_cast<uint8_t>(*str++);
+        hash *= FNV_PRIME;
+    }
+    return hash;
+}
+
+template <typename T>
+struct type_id
+{
+	static constexpr uint32 value = fnv1a_32(std::source_location::current().function_name());
+};
+
+template <typename T>
+static constexpr uint32 type_id_v = type_id<T>::value;
+}
+
+struct DeviceImpl;
 
 static constexpr uint32 INVALID_QUEUE_FAMILY_INDEX = std::numeric_limits<uint32>::max();
 
@@ -39,37 +65,10 @@ class MemoryBlockImpl : public MemoryBlock
 {
 public:
 	MemoryBlockImpl() = default;
-	MemoryBlockImpl(DeviceImpl& device, bool aliased);
+	MemoryBlockImpl(bool aliased);
 
 	VmaAllocation handle = VK_NULL_HANDLE;
 	VmaAllocationInfo allocationInfo = {};
-};
-
-class SemaphoreImpl : public Semaphore
-{
-public:
-	SemaphoreImpl() = default;
-	SemaphoreImpl(DeviceImpl& device);
-
-	VkSemaphore handle = VK_NULL_HANDLE;
-};
-
-class FenceImpl : public Fence
-{
-public:
-	FenceImpl() = default;
-	FenceImpl(DeviceImpl& device);
-
-	VkSemaphore handle = VK_NULL_HANDLE;
-};
-
-class EventImpl : public Event
-{
-public:
-	EventImpl() = default;
-	EventImpl(DeviceImpl& device);
-
-	VkEvent handle = VK_NULL_HANDLE;
 };
 
 // https://gpuopen-librariesandsdks.github.io/VulkanMemoryAllocator/html/usage_patterns.html
@@ -77,32 +76,28 @@ class BufferImpl : public Buffer
 {
 public:
 	BufferImpl() = default;
-	BufferImpl(DeviceImpl& device);
 
 	VkBuffer handle = VK_NULL_HANDLE;
 	VkDeviceAddress address = {};
-	Resource<MemoryBlock> allocationBlock = {};
+	MemoryBlock::handle_type allocationBlock = {};
 };
 
 class ImageImpl : public Image
 {
 public:
 	ImageImpl() = default;
-	ImageImpl(DeviceImpl& device);
 
 	VkImage	handle = VK_NULL_HANDLE;
 	VkImageView	imageView = VK_NULL_HANDLE;
-	Resource<MemoryBlock> allocationBlock = {};
+	MemoryBlock::handle_type allocationBlock = {};
 };
 
 class SamplerImpl : public Sampler
 {
 public:
 	SamplerImpl() = default;
-	SamplerImpl(DeviceImpl& device);
 
 	VkSampler handle = VK_NULL_HANDLE;
-	std::atomic_uint32_t refCount = {};
 };
 
 struct Surface
@@ -113,6 +108,32 @@ struct Surface
 	std::atomic_uint32_t refCount = {};
 };
 
+class SemaphoreImpl : public Semaphore
+{
+public:
+	SemaphoreImpl() = default;
+
+	VkSemaphore handle = VK_NULL_HANDLE;
+};
+
+class FenceImpl : public Fence
+{
+public:
+	FenceImpl() = default;
+	FenceImpl(DeviceImpl& device);
+
+	DeviceImpl* vkdevice = nullptr;
+	VkSemaphore handle = VK_NULL_HANDLE;
+};
+
+class EventImpl : public Event
+{
+public:
+	EventImpl() = default;
+
+	VkEvent handle = VK_NULL_HANDLE;
+};
+
 class SwapchainImpl : public Swapchain
 {
 public:
@@ -121,6 +142,7 @@ public:
 
 	using surface_iterator = typename plf::colony<Surface>::iterator;
 	
+	DeviceImpl* vkdevice = {};
 	surface_iterator surface = {};
 	VkSwapchainKHR handle = VK_NULL_HANDLE;
 	VkSurfaceFormatKHR surfaceColorFormat = {};
@@ -130,7 +152,6 @@ class ShaderImpl : public Shader
 {
 public:
 	ShaderImpl() = default;
-	ShaderImpl(DeviceImpl& device);
 
 	VkShaderModule handle = VK_NULL_HANDLE;
 	VkShaderStageFlagBits stage = {};
@@ -140,25 +161,17 @@ class PipelineImpl : public Pipeline
 {
 public:
 	PipelineImpl() = default;
-	PipelineImpl(DeviceImpl& device);
 
 	VkPipeline handle = VK_NULL_HANDLE;
 	VkPipelineLayout layout = {};
 };
 
-class CommandBufferImpl : public CommandBuffer
+struct CommandBufferImpl
 {
-public:
 	CommandBufferImpl() = default;
-	CommandBufferImpl(DeviceImpl& device);
-
 	CommandBufferImpl(CommandBufferImpl&& rhs);
 
-	auto get_memory_barrier_info(MemoryBarrierInfo const& info) const -> VkMemoryBarrier2;
-	auto get_buffer_barrier_info(BufferBarrierInfo const& info) const -> VkBufferMemoryBarrier2;
-	auto get_image_barrier_info(ImageBarrierInfo const& info) const -> VkImageMemoryBarrier2;
-
-	static constexpr size_t MAX_COMMAND_BUFFER_BARRIER_COUNT = 16;
+	static constexpr size_t MAX_COMMAND_BUFFER_BARRIER_COUNT = 8;
 
 	template <typename T>
 	using BarrierArray = std::array<T, MAX_COMMAND_BUFFER_BARRIER_COUNT>;
@@ -170,6 +183,12 @@ public:
 	size_t numMemoryBarrier = {};
 	size_t numBufferBarrier = {};
 	size_t numImageBarrier = {};
+	std::atomic_uint64_t recordingTimeline = {};
+	Fence::handle_type gpuTimeline = {};
+
+	auto get_memory_barrier_info(MemoryBarrierInfo const& info) const -> VkMemoryBarrier2;
+	auto get_buffer_barrier_info(DeviceImpl const& device, BufferBarrierInfo const& info) const -> VkBufferMemoryBarrier2;
+	auto get_image_barrier_info(DeviceImpl const& device, ImageBarrierInfo const& info) const -> VkImageMemoryBarrier2;
 }; 
 
 struct CommandBufferPool
@@ -184,8 +203,11 @@ public:
 	CommandPoolImpl() = default;
 	CommandPoolImpl(DeviceImpl& device);
 
+	DeviceImpl* vkdevice = {};
 	VkCommandPool handle = VK_NULL_HANDLE;
 	CommandBufferPool commandBufferPool = {};
+
+	auto allocate_new_command_buffer() -> uint64;
 };
 
 struct Zombie
@@ -195,6 +217,12 @@ struct Zombie
 	
 	device_timeline_t timeline;
 	destroy_fn destroyFn;
+};
+
+struct _ResourceMeta
+{
+	uint32 type;
+	uint32 id;
 };
 
 struct ResourcePool
@@ -233,9 +261,29 @@ struct ResourcePool
 		Cache<CommandPoolImpl> commandPool;
 	} caches;
 
+	struct
+	{
+		uint32 images;
+		uint32 buffers;
+		uint32 sampler;
+		uint32 others;
+	} idCounter;
+
+	/*
+	* NOTE(afiq):
+	* Don't need separate reference counters for each resource at the moment.
+	* Might consider it in the future.
+	*/
+	using RefCountCache = ankerl::unordered_dense::map<uint64_t, plf::colony<std::atomic_uint64_t>::iterator>;
+	/* 
+	* This needed to be done because std::atomic is not copy assignable.
+	* Hence we need to store it in some container that doesn't move contents around when growing.
+	*/
+	plf::colony<std::atomic_uint64_t> referenceCounts;
+	RefCountCache referenceCountCache;
+
 	std::deque<Zombie> zombies;
 	std::mutex zombieMutex;
-	uint64 idCounter;
 };
 
 struct DescriptorCache
@@ -254,9 +302,8 @@ struct DescriptorCache
 	VkDeviceAddress* bdaHostAddress;
 };
 
-class DeviceImpl : public Device
+struct DeviceImpl : public Device
 {
-public:
 	VkInstance instance = {};
 	VkPhysicalDevice gpu = {};
 	VkDevice device	= {};
@@ -319,6 +366,12 @@ public:
 	
 	auto clear_descriptor_cache() -> void;
 	auto cleanup_resource_pool() -> void;
+
+	auto bind(ImageImpl const& image, uint32 at) -> void;
+	auto bind(BufferImpl const& buffer, uint32 at) -> void;
+	auto bind(SamplerImpl const& sampler, uint32 at) -> void;
+
+	auto begin_referencing(uint64 id) -> void;
 };
 
 auto translate_memory_usage(MemoryUsage const usage) -> VmaAllocationCreateFlags;
@@ -388,7 +441,6 @@ auto to_impl(Sampler const& image) -> vk::SamplerImpl const&;
 auto to_impl(Shader const& shader) -> vk::ShaderImpl const&;
 auto to_impl(Pipeline const& pipeline) -> vk::PipelineImpl const&;
 auto to_impl(Swapchain const& swapchain) -> vk::SwapchainImpl const&;
-auto to_impl(CommandBuffer const& cmdBuffer) -> vk::CommandBufferImpl const&;
 auto to_impl(CommandPool const& cmdPool) -> vk::CommandPoolImpl const&;
 }
 

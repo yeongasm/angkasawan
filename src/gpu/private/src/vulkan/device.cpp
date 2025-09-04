@@ -88,7 +88,16 @@ auto Device::cpu_timeline() const -> uint64
 
 auto Device::gpu_timeline() const -> uint64
 {
-	return m_gpuTimeline->value();
+	auto const& timelineSemaphore = to_impl(*m_gpuTimeline);
+	auto const& vkdevice = to_device(*this);
+
+	uint64 value = {};
+
+	ASSERTION(timelineSemaphore.handle != VK_NULL_HANDLE && "Attempting to retrieve value of an invalid Fence.");
+
+	vkGetSemaphoreCounterValue(vkdevice.device, timelineSemaphore.handle, &value);
+
+	return value;
 }
 
 auto Device::submit(SubmitInfo const& info) -> bool
@@ -111,13 +120,10 @@ auto Device::submit(SubmitInfo const& info) -> bool
 		queue = self.computeQueue.queue;
 	}
 
-	for (auto&& submittedCmdBuffer : info.commandBuffers)
+	for (auto const& submittedRecorder : info.commandRecorders)
 	{
-		if (submittedCmdBuffer->valid())
-		{
-			vk::CommandBufferImpl& vkcmdbuffer = to_impl(*submittedCmdBuffer);
-			self.submitCommandBuffers.push_back(vkcmdbuffer.handle);
-		}
+		auto const& pool = to_impl(*submittedRecorder.m_cmdPool);
+		self.submitCommandBuffers.push_back(pool.commandBufferPool.commandBuffers[submittedRecorder.m_index].handle);
 	}
 
 	for (auto&& [fence, waitValue] : info.waitFences)
@@ -249,6 +255,99 @@ auto Device::destroy(std::unique_ptr<Device>& device) -> void
 	auto& deleter = device.get_deleter();
 	deleter(device.release());
 }
+
+auto Device::inc_ref(uint64 id) -> void
+{
+	auto&& vkdevice = to_device(*this);
+	ASSERTION(id != std::numeric_limits<uint64>::max() && "Attempting to increment the reference count of an invalid resource");
+	vkdevice.gpuResourcePool.referenceCountCache[id]->fetch_add(1, std::memory_order_relaxed);
+}
+
+auto Device::dec_ref(uint64 id) -> uint64
+{
+	auto&& vkdevice = to_device(*this);
+	ASSERTION(id != std::numeric_limits<uint64>::max() && "Attempting to decrement the reference count of an invalid resource");
+	auto it = vkdevice.gpuResourcePool.referenceCountCache[id];
+	auto count = (*it).fetch_sub(1, std::memory_order_relaxed) - 1;
+	if (std::cmp_equal(count, 0))
+	{
+		vkdevice.gpuResourcePool.referenceCountCache.erase(id);
+		vkdevice.gpuResourcePool.referenceCounts.erase(it);
+	}
+	return count;
+}
+
+auto Device::get_resource(lib::type<Semaphore> type, uint64 id) -> Semaphore&
+{
+	auto&& vkdevice = to_device(*this);
+	return *vkdevice.gpuResourcePool.caches.binarySemaphore[id];
+}
+
+auto Device::get_resource(lib::type<Fence> type, uint64 id) -> Fence&
+{
+	auto&& vkdevice = to_device(*this);
+	return *vkdevice.gpuResourcePool.caches.timelineSemaphore[id];
+}
+
+auto Device::get_resource(lib::type<Event> type, uint64 id) -> Event&
+{
+	auto&& vkdevice = to_device(*this);
+	return *vkdevice.gpuResourcePool.caches.event[id];
+}
+
+auto Device::get_resource(lib::type<MemoryBlock> type, uint64 id) -> MemoryBlock&
+{
+	auto&& vkdevice = to_device(*this);
+	return *vkdevice.gpuResourcePool.caches.memoryBlock[id];
+}
+
+auto Device::get_resource(lib::type<Buffer> type, uint64 id) -> Buffer&
+{
+	auto&& vkdevice = to_device(*this);
+	return *vkdevice.gpuResourcePool.caches.buffer[id];
+}
+
+auto Device::get_resource(lib::type<Image> type, uint64 id) -> Image&
+{
+	auto&& vkdevice = to_device(*this);
+	return *vkdevice.gpuResourcePool.caches.image[id];
+}
+
+auto Device::get_resource(lib::type<Sampler> type, uint64 id) -> Sampler&
+{
+	auto&& vkdevice = to_device(*this);
+	return *vkdevice.gpuResourcePool.caches.sampler[id];
+}
+
+auto Device::get_resource(lib::type<Swapchain> type, uint64 id) -> Swapchain&
+{
+	auto&& vkdevice = to_device(*this);
+	return *vkdevice.gpuResourcePool.caches.swapchain[id];
+}
+
+auto Device::get_resource(lib::type<Shader> type, uint64 id) -> Shader&
+{
+	auto&& vkdevice = to_device(*this);
+	return *vkdevice.gpuResourcePool.caches.shader[id];
+}
+
+auto Device::get_resource(lib::type<Pipeline> type, uint64 id) -> Pipeline&
+{
+	auto&& vkdevice = to_device(*this);
+	return *vkdevice.gpuResourcePool.caches.pipeline[id];
+}
+
+auto Device::get_resource(lib::type<CommandPool> type, uint64 id) -> CommandPool&
+{
+	auto&& vkdevice = to_device(*this);
+	return *vkdevice.gpuResourcePool.caches.commandPool[id];
+}
+
+// auto Device::get_resource(lib::type<CommandBuffer> type, uint64 id) -> CommandBuffer*
+// {
+// 	auto&& vkdevice = to_device(*this);
+// 	vkdevice.gpuResourcePool.caches.commandPool.at(id)->commandBufferPool;
+// }
 
 namespace vk
 {
@@ -515,20 +614,20 @@ auto DeviceImpl::setup_debug_name(CommandPoolImpl const& commandPool) -> void
 	}
 }
 
-auto DeviceImpl::setup_debug_name(CommandBufferImpl const& commandBuffer) -> void
-{
-	std::string_view name = commandBuffer.info().name;
-	if (!name.empty())
-	{
-		VkDebugUtilsObjectNameInfoEXT debugResourceNameInfo{
-			.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
-			.objectType = VK_OBJECT_TYPE_COMMAND_BUFFER,
-			.objectHandle = reinterpret_cast<uint64_t>(commandBuffer.handle),
-			.pObjectName = name.data(),
-		};
-		vkSetDebugUtilsObjectNameEXT(device, &debugResourceNameInfo);
-	}
-}
+// auto DeviceImpl::setup_debug_name(CommandBufferImpl const& commandBuffer) -> void
+// {
+// 	std::string_view name = commandBuffer.info().name;
+// 	if (!name.empty())
+// 	{
+// 		VkDebugUtilsObjectNameInfoEXT debugResourceNameInfo{
+// 			.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+// 			.objectType = VK_OBJECT_TYPE_COMMAND_BUFFER,
+// 			.objectHandle = reinterpret_cast<uint64_t>(commandBuffer.handle),
+// 			.pObjectName = name.data(),
+// 		};
+// 		vkSetDebugUtilsObjectNameEXT(device, &debugResourceNameInfo);
+// 	}
+// }
 
 auto DeviceImpl::setup_debug_name(SemaphoreImpl const& semaphore) -> void
 {
@@ -1322,6 +1421,86 @@ auto DeviceImpl::cleanup_resource_pool() -> void
 
 	clear_garbage();
 	clear_descriptor_cache();
+}
+
+auto DeviceImpl::bind(ImageImpl const& image, uint32 at) -> void
+{
+	uint32 count = 0;
+	std::array<VkWriteDescriptorSet, 2> descriptorSetWrites{};
+
+	ImageInfo const& imageInfo = image.info();
+
+	VkDescriptorImageInfo descriptorSampledImageInfo{
+		.sampler = VK_NULL_HANDLE,
+		.imageView = image.imageView,
+		.imageLayout = VK_IMAGE_LAYOUT_READ_ONLY_OPTIMAL
+	};
+
+	VkDescriptorImageInfo descriptorStorageImageInfo{
+		.sampler = VK_NULL_HANDLE,
+		.imageView = image.imageView,
+		.imageLayout = VK_IMAGE_LAYOUT_GENERAL
+	};
+
+	if ((imageInfo.imageUsage & ImageUsage::Sampled) != ImageUsage::None)
+	{
+		descriptorSetWrites[count++] = {
+			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+			.dstSet = descriptorCache.descriptorSet,
+			.dstBinding = SAMPLED_IMAGE_BINDING,
+			.dstArrayElement = at,
+			.descriptorCount = 1,
+			.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+			.pImageInfo = &descriptorSampledImageInfo
+		};
+	}
+
+	if ((imageInfo.imageUsage & ImageUsage::Storage) != ImageUsage::None)
+	{
+		descriptorSetWrites[count++] = {
+			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+			.dstSet = descriptorCache.descriptorSet,
+			.dstBinding = STORAGE_IMAGE_BINDING,
+			.dstArrayElement = at,
+			.descriptorCount = 1,
+			.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+			.pImageInfo = &descriptorStorageImageInfo
+		};
+	}
+
+	vkUpdateDescriptorSets(device, count, descriptorSetWrites.data(), 0, nullptr);
+}
+
+auto DeviceImpl::bind(BufferImpl const& buffer, uint32 at) -> void
+{
+	descriptorCache.bdaHostAddress[at] = buffer.gpu_address();
+}
+
+auto DeviceImpl::bind(SamplerImpl const& sampler, uint32 at) -> void
+{
+	VkDescriptorImageInfo descriptorSamplerInfo{
+		.sampler = sampler.handle,
+		.imageView = VK_NULL_HANDLE,
+		.imageLayout = VK_IMAGE_LAYOUT_UNDEFINED
+	};
+
+	VkWriteDescriptorSet writeDescriptorSetImage{
+		.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+		.dstSet = descriptorCache.descriptorSet,
+		.dstBinding = SAMPLER_BINDING,
+		.dstArrayElement = at,
+		.descriptorCount = 1,
+		.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
+		.pImageInfo = &descriptorSamplerInfo
+	};
+
+	vkUpdateDescriptorSets(device, 1, &writeDescriptorSetImage, 0, nullptr);	
+}
+
+auto DeviceImpl::begin_referencing(uint64 id) -> void
+{
+	auto it = gpuResourcePool.referenceCounts.emplace();
+	gpuResourcePool.referenceCountCache.emplace(id, it);
 }
 
 auto translate_image_usage_flags(ImageUsage flags) -> VkImageUsageFlags
@@ -2583,11 +2762,6 @@ auto to_impl(Swapchain& swapchain) -> vk::SwapchainImpl&
 	return static_cast<vk::SwapchainImpl&>(swapchain);
 }
 
-auto to_impl(CommandBuffer& cmdBuffer) -> vk::CommandBufferImpl&
-{
-	return static_cast<vk::CommandBufferImpl&>(cmdBuffer);
-}
-
 auto to_impl(CommandPool& cmdPool) -> vk::CommandPoolImpl&
 {
 	return static_cast<vk::CommandPoolImpl&>(cmdPool);
@@ -2641,11 +2815,6 @@ auto to_impl(Pipeline const& pipeline) -> vk::PipelineImpl const&
 auto to_impl(Swapchain const& swapchain) -> vk::SwapchainImpl const&
 {
 	return static_cast<vk::SwapchainImpl const&>(swapchain);
-}
-
-auto to_impl(CommandBuffer const& cmdBuffer) -> vk::CommandBufferImpl const&
-{
-	return static_cast<vk::CommandBufferImpl const&>(cmdBuffer);
 }
 
 auto to_impl(CommandPool const& cmdPool) -> vk::CommandPoolImpl const&

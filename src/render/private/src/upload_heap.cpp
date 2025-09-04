@@ -6,21 +6,21 @@ namespace render
 {
 auto HeapBlock::remaining_capacity() const -> size_t
 {
-	return buffer->size() - byteOffset;
+	return (*buffer).size() - byteOffset;
 }
 
 auto HeapBlock::write(void const* data, size_t size, size_t offset) -> void
 {
 	size_t const writeOffset = std::clamp(offset, 0ull, byteOffset);
 
-	buffer->write(data, size, writeOffset);
+	(*buffer).write(data, size, writeOffset);
 
 	byteOffset = writeOffset + size;
 }
 
 auto HeapBlock::data() const -> void*
 {
-	std::byte* ptr = static_cast<std::byte*>(buffer->data());
+	std::byte* ptr = static_cast<std::byte*>((*buffer).data());
 
 	ptr += byteOffset;
 
@@ -157,7 +157,7 @@ auto UploadHeap::upload_data_to_image(ImageDataUploadInfo&& info) -> upload_id
 	// Each "quadrant"'s offset and extent would then be pre-calculated before the actual upload.
 	// SO -> https://stackoverflow.com/questions/46501832/vulkan-vkbufferimagecopy-for-partial-transfer
 
-	auto const& imageInfo = info.image->info();
+	auto const& imageInfo = (*info.image).info();
 
 	auto recursive_upload_lambda_in_quadrants = [&info, &imageInfo, this](size_t const sizeToUpload, int32 x, int32 y, uint32 width, uint32 height, auto callback) -> void
 	{
@@ -209,7 +209,7 @@ auto UploadHeap::upload_data_to_image(ImageDataUploadInfo&& info) -> upload_id
 
 		auto const byteOffset = imageInfo.dimension.width * y + x;
 
-		heapBlock->buffer->write(&dataSpan[byteOffset], sizeToUpload, writtenByteOffset);
+		(*heapBlock->buffer).write(&dataSpan[byteOffset], sizeToUpload, writtenByteOffset);
 
 		heapBlock->byteOffset += sizeToUpload + (writtenByteOffset - heapBlock->byteOffset);
 
@@ -290,7 +290,7 @@ auto UploadHeap::upload_data_to_buffer(BufferDataUploadInfo&& info) -> upload_id
 
 			auto const writtenByteOffset = heapBlock.byteOffset;
 
-			heapBlock.buffer->write(data, writeSize, writtenByteOffset);
+			(*heapBlock.buffer).write(data, writeSize, writtenByteOffset);
 
 			heapBlock.byteOffset += writeSize;
 
@@ -346,7 +346,7 @@ auto UploadHeap::upload_heap_to_buffer(BufferHeapBlockUploadInfo&& info) -> uplo
 
 auto UploadHeap::upload_completed(upload_id id) -> bool
 {
-	return m_gpuUploadTimeline->value() >= id.get();
+	return (*m_gpuUploadTimeline).value() >= id.get();
 }
 
 auto UploadHeap::current_upload_id() const -> upload_id
@@ -377,9 +377,9 @@ auto UploadHeap::upload_to_gpu(bool waitIdle) -> void
 	++m_cpuUploadTimeline;
 
 	auto submitGroup = m_commandQueue.new_submission_group(gpu::DeviceQueue::Transfer);
-	auto cmd = m_commandQueue.next_free_command_buffer({ .queue = gpu::DeviceQueue::Transfer });
+	auto cmd = m_commandQueue.new_command_recorder({ .queue = gpu::DeviceQueue::Transfer });
 
-	ASSERTION(cmd && "Ran out of command buffers for recording!");
+	ASSERTION(cmd.valid() && "Ran out of command buffers for recording!");
 
 	InfoPool<ImageUploadInfo>& imageUploadInfos		= next_image_upload_info_pool();
 	InfoPool<BufferUploadInfo>& bufferUploadInfos	= next_buffer_upload_info_pool();
@@ -387,29 +387,29 @@ auto UploadHeap::upload_to_gpu(bool waitIdle) -> void
 	std::span imageUploads  = std::span{ imageUploadInfos.uploads.data(), imageUploadInfos.uploads.size() };
 	std::span bufferUploads = std::span{ bufferUploadInfos.uploads.data(), bufferUploadInfos.uploads.size() };
 
-	cmd->begin();
+	cmd.begin();
 
-	acquire_buffer_resources(*cmd, bufferUploads);
-	acquire_image_resources(*cmd, imageUploads);
+	acquire_buffer_resources(cmd, bufferUploads);
+	acquire_image_resources(cmd, imageUploads);
 
-	copy_to_buffers(*cmd, bufferUploads);
-	copy_to_images(*cmd, imageUploads);
+	copy_to_buffers(cmd, bufferUploads);
+	copy_to_images(cmd, imageUploads);
 
 	// We need to insert a pipeline barrier after copy operations to ensure that the copy finishes before the next thing that access
 	// those resources begin. For resources that have exclusive sharing mode, this is done during the ownership transfer phase.
 	// This pipeline barrier here is to take into account resources that have concurrent sharing mode. Ideally we should use
 	// specific pipeline barriers but I'm too lazy.
-	cmd->pipeline_barrier({
+	cmd.pipeline_barrier({
 		.srcAccess = gpu::access::TRANSFER_WRITE,
 		.dstAccess = gpu::access::TRANSFER_WRITE
 	});
 	
-	release_image_resources(*cmd, imageUploads);
-	release_buffer_resources(*cmd, bufferUploads);
+	release_image_resources(cmd, imageUploads);
+	release_buffer_resources(cmd, bufferUploads);
 
-	cmd->end();
+	cmd.end();
 
-	submitGroup.submit(cmd);
+	submitGroup.submit(std::move(cmd));
 
 	submitGroup.wait(m_gpuUploadTimeline, m_gpuUploadWaitTimelineValue[m_nextPool]);
 	submitGroup.signal(m_gpuUploadTimeline, m_cpuUploadTimeline);
@@ -449,7 +449,7 @@ auto UploadHeap::reset_next_pool() -> void
 	bufferUploadPool.uploads.clear();
 }
 
-auto UploadHeap::copy_to_images(gpu::CommandBuffer& cmd, std::span<ImageUploadInfo>& imageUploads) -> void
+auto UploadHeap::copy_to_images(gpu::CommandRecorder& cmd, std::span<ImageUploadInfo>& imageUploads) -> void
 {
 	for (ImageUploadInfo& uploadInfo : imageUploads)
 	{
@@ -457,7 +457,7 @@ auto UploadHeap::copy_to_images(gpu::CommandBuffer& cmd, std::span<ImageUploadIn
 	}
 }
 
-auto UploadHeap::copy_to_buffers(gpu::CommandBuffer& cmd, std::span<BufferUploadInfo>& bufferUploads) -> void
+auto UploadHeap::copy_to_buffers(gpu::CommandRecorder& cmd, std::span<BufferUploadInfo>& bufferUploads) -> void
 {
 	for (BufferUploadInfo& uploadInfo : bufferUploads)
 	{
@@ -465,7 +465,7 @@ auto UploadHeap::copy_to_buffers(gpu::CommandBuffer& cmd, std::span<BufferUpload
 	}
 }
 
-auto UploadHeap::acquire_image_resources(gpu::CommandBuffer& cmd, std::span<ImageUploadInfo>& imageUploads) -> void
+auto UploadHeap::acquire_image_resources(gpu::CommandRecorder& cmd, std::span<ImageUploadInfo>& imageUploads) -> void
 {
 	for (ImageUploadInfo& info : imageUploads)
 	{
@@ -503,7 +503,7 @@ auto UploadHeap::acquire_image_resources(gpu::CommandBuffer& cmd, std::span<Imag
 	}
 }
 
-auto UploadHeap::acquire_buffer_resources(gpu::CommandBuffer& cmd, std::span<BufferUploadInfo>& bufferUploads) -> void
+auto UploadHeap::acquire_buffer_resources(gpu::CommandRecorder& cmd, std::span<BufferUploadInfo>& bufferUploads) -> void
 {
 	for (BufferUploadInfo& info : bufferUploads)
 	{
@@ -529,7 +529,7 @@ auto UploadHeap::acquire_buffer_resources(gpu::CommandBuffer& cmd, std::span<Buf
 	}
 }
 
-auto UploadHeap::release_image_resources(gpu::CommandBuffer& cmd, std::span<ImageUploadInfo>& imageUploads) -> void
+auto UploadHeap::release_image_resources(gpu::CommandRecorder& cmd, std::span<ImageUploadInfo>& imageUploads) -> void
 {
 	for (ImageUploadInfo& info : imageUploads)
 	{
@@ -552,7 +552,7 @@ auto UploadHeap::release_image_resources(gpu::CommandBuffer& cmd, std::span<Imag
 	}
 }
 
-auto UploadHeap::release_buffer_resources(gpu::CommandBuffer& cmd, std::span<BufferUploadInfo>& bufferUploads) -> void
+auto UploadHeap::release_buffer_resources(gpu::CommandRecorder& cmd, std::span<BufferUploadInfo>& bufferUploads) -> void
 {
 	for (BufferUploadInfo& info : bufferUploads)
 	{

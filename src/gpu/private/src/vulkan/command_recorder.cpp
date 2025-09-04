@@ -9,73 +9,39 @@
 
 namespace gpu
 {
-CommandBuffer::CommandBuffer(Device& device) :
-	DeviceResource{ device },
-	m_info{},
-	m_commandPool{},
-	m_recordingTimeline{},
-	m_currentTimeline{}
-{}
-
-auto CommandBuffer::info() const -> CommandBufferInfo const&
+auto CommandRecorder::valid() const -> bool
 {
-	return m_info;
-}
-
-auto CommandBuffer::valid() const -> bool
-{
-	auto&& self = to_impl(*this);
-
-	return m_device != nullptr && self.handle != VK_NULL_HANDLE;
-}
-
-auto CommandBuffer::recording_timeline() const -> uint64
-{
-	return m_recordingTimeline.load(std::memory_order_acquire);
-}
-
-auto CommandBuffer::current_timeline() const -> uint64
-{
-	return m_currentTimeline->value();
-}
-
-auto CommandBuffer::current_timeline_fence() const -> Resource<Fence>
-{
-	return m_currentTimeline;
-}
-
-auto CommandBuffer::try_reset() -> bool
-{
-	auto&& self = to_impl(*this);
-
-	auto recordingTimeline = m_recordingTimeline.load(std::memory_order_acquire);
-	auto gpuTimeline = m_currentTimeline->value();
-
-	if (std::cmp_equal(gpuTimeline, 0) && 
-		std::cmp_equal(recordingTimeline, 0))
+	if (!m_cmdPool.valid())
 	{
-		return true;
+		return false;
 	}
-
-	auto const resetable = 	std::cmp_greater_equal(gpuTimeline, recordingTimeline);
-
-	if (resetable)
-	{
-		vkResetCommandBuffer(self.handle, VK_COMMAND_BUFFER_RESET_RELEASE_RESOURCES_BIT);
-	}
-
-	return resetable;
+	auto const& pool = to_impl(*m_cmdPool);
+	return m_index < pool.commandBufferPool.commandBuffers.size() && pool.commandBufferPool.commandBuffers[m_index].handle != VK_NULL_HANDLE;
 }
 
-auto CommandBuffer::begin() -> bool
+auto CommandRecorder::recording_timeline() const -> uint64
 {
-	if (!valid() || 
-		!try_reset()) [[unlikely]]
+	auto const& pool = to_impl(*m_cmdPool);
+	auto const& self = pool.commandBufferPool.commandBuffers[m_index];
+	return self.recordingTimeline.load(std::memory_order_acquire);
+}
+
+auto CommandRecorder::current_timeline_fence() const -> Fence::handle_type
+{
+	auto const& pool = to_impl(*m_cmdPool);
+	auto const& self = pool.commandBufferPool.commandBuffers[m_index];
+	return self.gpuTimeline;
+}
+
+auto CommandRecorder::begin() -> bool
+{
+	if (!valid()) [[unlikely]]
 	{
 		return false;
 	}
 
-	auto&& self = to_impl(*this);
+	auto&& pool = to_impl(*m_cmdPool);
+	auto&& self = pool.commandBufferPool.commandBuffers[m_index];
 
 	VkCommandBufferBeginInfo beginInfo{
 		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
@@ -84,7 +50,7 @@ auto CommandBuffer::begin() -> bool
 
 	if (vkBeginCommandBuffer(self.handle, &beginInfo) == VK_SUCCESS)
 	{
-		m_recordingTimeline.fetch_add(1, std::memory_order_relaxed);
+		self.recordingTimeline.fetch_add(1, std::memory_order_relaxed);
 
 		return true;
 	}
@@ -92,7 +58,7 @@ auto CommandBuffer::begin() -> bool
 	return false;
 }
 
-auto CommandBuffer::end() -> void
+auto CommandRecorder::end() -> void
 {
 	if (!valid()) [[unlikely]]
 	{
@@ -101,17 +67,18 @@ auto CommandBuffer::end() -> void
 
 	flush_barriers();
 
-	auto&& self = to_impl(*this);
+	auto const& pool = to_impl(*m_cmdPool);
+	auto const& self = pool.commandBufferPool.commandBuffers[m_index];
 
 	vkEndCommandBuffer(self.handle);
 }
 
-auto CommandBuffer::clear(Image& image) -> void
+auto CommandRecorder::clear(Image& image) -> void
 {
 	return clear({ .image = image, .dstImageLayout = ImageLayout::General, .clearValue = image.info().clearValue });
 }
 
-auto CommandBuffer::clear(ImageClearInfo const& info) -> void
+auto CommandRecorder::clear(ImageClearInfo const& info) -> void
 {
 	if (!valid() || !info.image.valid()) [[unlikely]]
 	{
@@ -122,7 +89,8 @@ auto CommandBuffer::clear(ImageClearInfo const& info) -> void
 
 	ClearValue imgClearValue = info.image.info().clearValue;
 
-	auto const& self = to_impl(*this);
+	auto const& pool = to_impl(*m_cmdPool);
+	auto const& self = pool.commandBufferPool.commandBuffers[m_index];
 	auto const& img = to_impl(info.image);
 
 	VkImageSubresourceRange subResourceRange{
@@ -163,13 +131,13 @@ auto CommandBuffer::clear(ImageClearInfo const& info) -> void
 	}
 }
 
-auto CommandBuffer::clear(Buffer& buffer) -> void
+auto CommandRecorder::clear(Buffer& buffer) -> void
 {
 	size_t const size = buffer.valid() ? buffer.info().size : 0;
 	clear({ .buffer = buffer, .offset = 0, .size = size, .data = 0u });
 }
 
-auto CommandBuffer::clear(BufferClearInfo const& info) -> void
+auto CommandRecorder::clear(BufferClearInfo const& info) -> void
 {
 	if (!valid() || !info.buffer.valid()) [[unlikely]]
 	{
@@ -178,7 +146,8 @@ auto CommandBuffer::clear(BufferClearInfo const& info) -> void
 
 	flush_barriers();
 
-	auto&& self = to_impl(*this);
+	auto const& pool = to_impl(*m_cmdPool);
+	auto const& self = pool.commandBufferPool.commandBuffers[m_index];
 	auto const& buf = to_impl(info.buffer);
 
 	vkCmdFillBuffer(
@@ -190,38 +159,41 @@ auto CommandBuffer::clear(BufferClearInfo const& info) -> void
 	);
 }
 
-auto CommandBuffer::draw(DrawInfo const& info) const -> void
+auto CommandRecorder::draw(DrawInfo const& info) const -> void
 {
 	if (!valid()) [[unlikely]]
 	{
 		return;
 	}
 
-	auto&& self = to_impl(*this);
+	auto const& pool = to_impl(*m_cmdPool);
+	auto const& self = pool.commandBufferPool.commandBuffers[m_index];
 
 	vkCmdDraw(self.handle, info.vertexCount, info.instanceCount, info.firstVertex, info.firstInstance);
 }
 
-auto CommandBuffer::draw_indexed(DrawIndexedInfo const& info) const -> void
+auto CommandRecorder::draw_indexed(DrawIndexedInfo const& info) const -> void
 {
 	if (!valid()) [[unlikely]]
 	{
 		return;
 	}
 
-	auto&& self = to_impl(*this);
+	auto const& pool = to_impl(*m_cmdPool);
+	auto const& self = pool.commandBufferPool.commandBuffers[m_index];
 
 	vkCmdDrawIndexed(self.handle, info.indexCount, info.instanceCount, info.firstIndex, info.vertexOffset, info.firstInstance);
 }
 
-auto CommandBuffer::draw_indirect(DrawIndirectInfo const& info) const -> void
+auto CommandRecorder::draw_indirect(DrawIndirectInfo const& info) const -> void
 {
 	if (!valid() || !info.drawInfoBuffer.valid()) [[unlikely]]
 	{
 		return;
 	}
 
-	auto&& self = to_impl(*this);
+	auto const& pool = to_impl(*m_cmdPool);
+	auto const& self = pool.commandBufferPool.commandBuffers[m_index];
 	auto const& buf = to_impl(info.drawInfoBuffer);
 
 	if (info.indexed)
@@ -246,14 +218,16 @@ auto CommandBuffer::draw_indirect(DrawIndirectInfo const& info) const -> void
 	}
 }
 
-auto CommandBuffer::draw_indirect_count(DrawIndirectCountInfo const& info) const -> void
+auto CommandRecorder::draw_indirect_count(DrawIndirectCountInfo const& info) const -> void
 {
 	if (!valid() || !info.drawInfoBuffer.valid() || !info.drawCountBuffer.valid()) [[unlikely]]
 	{
 		return;
 	}
 
-	auto&& self = to_impl(*this);
+	auto const& pool = to_impl(*m_cmdPool);
+	auto const& self = pool.commandBufferPool.commandBuffers[m_index];
+	
 	auto const& drawInfoBuf = to_impl(info.drawInfoBuffer);
 	auto const& countBuf = to_impl(info.drawCountBuffer);
 
@@ -283,7 +257,7 @@ auto CommandBuffer::draw_indirect_count(DrawIndirectCountInfo const& info) const
 	}
 }
 
-auto CommandBuffer::bind_vertex_buffer(BindVertexBufferInfo const& info) -> void
+auto CommandRecorder::bind_vertex_buffer(BindVertexBufferInfo const& info) -> void
 {
 	if (!valid() || !info.buffer.valid()) [[unlikely]]
 	{
@@ -292,7 +266,8 @@ auto CommandBuffer::bind_vertex_buffer(BindVertexBufferInfo const& info) -> void
 
 	flush_barriers();
 
-	auto const& self = to_impl(*this);
+	auto const& pool = to_impl(*m_cmdPool);
+	auto const& self = pool.commandBufferPool.commandBuffers[m_index];	
 	auto const& buf = to_impl(info.buffer);
 
 	auto const usage = std::to_underlying(info.buffer.info().bufferUsage);
@@ -304,7 +279,7 @@ auto CommandBuffer::bind_vertex_buffer(BindVertexBufferInfo const& info) -> void
 	}
 }
 
-auto CommandBuffer::bind_index_buffer(BindIndexBufferInfo const& info) -> void
+auto CommandRecorder::bind_index_buffer(BindIndexBufferInfo const& info) -> void
 {
 	if (!valid() || !info.buffer.valid()) [[unlikely]]
 	{
@@ -313,7 +288,8 @@ auto CommandBuffer::bind_index_buffer(BindIndexBufferInfo const& info) -> void
 
 	flush_barriers();
 
-	auto const& self = to_impl(*this);
+	auto const& pool = to_impl(*m_cmdPool);
+	auto const& self = pool.commandBufferPool.commandBuffers[m_index];
 	auto const& buf = to_impl(info.buffer);
 
 	auto const usage = std::to_underlying(info.buffer.info().bufferUsage);
@@ -335,7 +311,7 @@ auto CommandBuffer::bind_index_buffer(BindIndexBufferInfo const& info) -> void
 	}
 }
 
-auto CommandBuffer::bind_push_constant(BindPushConstantInfo const& info) -> void
+auto CommandRecorder::bind_push_constant(BindPushConstantInfo const& info) -> void
 {
 	if (!valid())
 	{
@@ -344,26 +320,26 @@ auto CommandBuffer::bind_push_constant(BindPushConstantInfo const& info) -> void
 
 	flush_barriers();
 
-	auto&& vkdevice = to_device(m_device);
-	auto const& self = to_impl(*this);
+	auto&& pool = to_impl(*m_cmdPool);
+	auto&& self = pool.commandBufferPool.commandBuffers[m_index];
 
-	uint32 sz = static_cast<uint32>(info.size);
-	uint32 off = static_cast<uint32>(info.offset);
+	uint32 const sz 	= static_cast<uint32>(info.size);
+	uint32 const off 	= static_cast<uint32>(info.offset);
 
-	[[maybe_unused]] uint32 const MAX_PUSH_CONSTANT_SIZE = m_device->config().pushConstantMaxSize;
+	[[maybe_unused]] uint32 const MAX_PUSH_CONSTANT_SIZE = pool.vkdevice->config().pushConstantMaxSize;
 
 	ASSERTION(sz <= MAX_PUSH_CONSTANT_SIZE && "Constant supplied exceeded maximum size allowed by the driver.");
 	ASSERTION(off <= MAX_PUSH_CONSTANT_SIZE && "Offset supplied exceeded maximum push constant size allowed by the driver.");
 	ASSERTION((sz % 4 == 0) && "Size must be a multiple of 4.");
 	ASSERTION((off % 4 == 0) && "Offset must be a multiple of 4.");
 
-	VkPipelineLayout layout = vkdevice.descriptorCache.pipelineLayouts[(sz + 3u) & (~0x03u)];
+	VkPipelineLayout layout = pool.vkdevice->descriptorCache.pipelineLayouts[(sz + 3u) & (~0x03u)];
 	VkShaderStageFlags shaderStageFlags = vk::translate_shader_stage_flags(info.shaderStage);
 
 	vkCmdPushConstants(self.handle, layout, shaderStageFlags, off, sz, info.data);
 }
 
-auto CommandBuffer::bind_pipeline(Pipeline& pipeline) -> void
+auto CommandRecorder::bind_pipeline(Pipeline& pipeline) -> void
 {
 	if (!valid() || !pipeline.valid()) [[unlikely]]
 	{
@@ -372,8 +348,9 @@ auto CommandBuffer::bind_pipeline(Pipeline& pipeline) -> void
 
 	flush_barriers();
 
-	auto&& vkdevice = to_device(m_device);
-	auto&& self = to_impl(*this);
+	auto const& pool = to_impl(*m_cmdPool);
+	auto const& self = pool.commandBufferPool.commandBuffers[m_index];
+	
 	auto const& pipelineResource = to_impl(pipeline);
 
 	PipelineType const pipelineType = pipeline.type();
@@ -395,7 +372,7 @@ auto CommandBuffer::bind_pipeline(Pipeline& pipeline) -> void
 		pipelineResource.layout,
 		0,
 		1,
-		&vkdevice.descriptorCache.descriptorSet,
+		&pool.vkdevice->descriptorCache.descriptorSet,
 		0,
 		nullptr
 	);
@@ -403,26 +380,29 @@ auto CommandBuffer::bind_pipeline(Pipeline& pipeline) -> void
 	vkCmdBindPipeline(self.handle, pipelineBindPoint, pipelineResource.handle);
 }
 
-auto CommandBuffer::dispatch(DispatchInfo const& info) -> void
+auto CommandRecorder::dispatch(DispatchInfo const& info) -> void
 {
 	if (!valid()) [[unlikely]]
 	{
 		return;
 	}
 
-	auto&& self = to_impl(*this);
+	auto const& pool = to_impl(*m_cmdPool);
+	auto const& self = pool.commandBufferPool.commandBuffers[m_index];
 
 	vkCmdDispatch(self.handle, info.x, info.y, info.z);
 }
 
-auto CommandBuffer::dispatch_indirect(DispatchIndirectInfo const& info) -> void
+auto CommandRecorder::dispatch_indirect(DispatchIndirectInfo const& info) -> void
 {
 	if (!valid() || !info.dispatchInfoBuffer.valid()) [[unlikely]]
 	{
 		return;
 	}
 
-	auto&& self = to_impl(*this);
+	auto const& pool = to_impl(*m_cmdPool);
+	auto const& self = pool.commandBufferPool.commandBuffers[m_index];
+	
 	auto&& vkbuffer = to_impl(info.dispatchInfoBuffer);
 
 	vkCmdDispatchIndirect(self.handle, vkbuffer.handle, info.offset);
@@ -436,7 +416,7 @@ struct SplitBarrierDependencyInfoBuffer
 };
 
 /**
-* NOTE(afiq):
+* TODO(afiq):
 * Implement a more robust solution.
 * Shamelessly stolen from Daxa, lpotrick will forgive me. Too lazy to think of an appropriate solution.
 */
@@ -444,7 +424,7 @@ static thread_local lib::array<SplitBarrierDependencyInfoBuffer> splitBarrierInf
 static thread_local lib::array<VkDependencyInfo> dependencyInfoBuffer = {};
 static thread_local lib::array<VkEvent> splitBarrierEventBuffer = {};
 
-auto CommandBuffer::signal_event(EventSignalInfo const& info) -> void
+auto CommandRecorder::signal_event(EventSignalInfo const& info) -> void
 {
 	if (!valid() || !info.event.valid()) [[unlikely]]
 	{
@@ -453,7 +433,8 @@ auto CommandBuffer::signal_event(EventSignalInfo const& info) -> void
 
 	flush_barriers();
 
-	auto const& self = to_impl(*this);
+	auto const& pool = to_impl(*m_cmdPool);
+	auto const& self = pool.commandBufferPool.commandBuffers[m_index];
 	auto&& vkevent = to_impl(info.event);
 
 	auto& splitBarrierInfo = splitBarrierInfoBuffer.emplace_back();
@@ -465,12 +446,12 @@ auto CommandBuffer::signal_event(EventSignalInfo const& info) -> void
 
 	for (auto& barrier : info.bufferBarrierInfo)
 	{
-		splitBarrierInfo.vkBufferBarriers.push_back(self.get_buffer_barrier_info(barrier));
+		splitBarrierInfo.vkBufferBarriers.push_back(self.get_buffer_barrier_info(*pool.vkdevice, barrier));
 	}
 
 	for (auto& barrier : info.imageBarrierInfo)
 	{
-		splitBarrierInfo.vkImageBarriers.push_back(self.get_image_barrier_info(barrier));
+		splitBarrierInfo.vkImageBarriers.push_back(self.get_image_barrier_info(*pool.vkdevice, barrier));
 	}
 
 	VkDependencyInfo dependencyInfo{
@@ -488,14 +469,15 @@ auto CommandBuffer::signal_event(EventSignalInfo const& info) -> void
 	splitBarrierInfoBuffer.clear();
 }
 
-auto CommandBuffer::wait_events(std::span<EventWaitInfo const> const& infos) -> void
+auto CommandRecorder::wait_events(std::span<EventWaitInfo const> const& infos) -> void
 {
 	if (!valid()) [[unlikely]]
 	{
 		return;
 	}
 
-	auto&& self = to_impl(*this);
+	auto const& pool = to_impl(*m_cmdPool);
+	auto const& self = pool.commandBufferPool.commandBuffers[m_index];
 
 	flush_barriers();
 
@@ -516,12 +498,12 @@ auto CommandBuffer::wait_events(std::span<EventWaitInfo const> const& infos) -> 
 
 		for (auto& barrier : info.bufferBarrierInfo)
 		{
-			splitBarrierInfo.vkBufferBarriers.push_back(self.get_buffer_barrier_info(barrier));
+			splitBarrierInfo.vkBufferBarriers.push_back(self.get_buffer_barrier_info(*pool.vkdevice, barrier));
 		}
 
 		for (auto& barrier : info.imageBarrierInfo)
 		{
-			splitBarrierInfo.vkImageBarriers.push_back(self.get_image_barrier_info(barrier));
+			splitBarrierInfo.vkImageBarriers.push_back(self.get_image_barrier_info(*pool.vkdevice, barrier));
 		}
 
 		dependencyInfoBuffer.emplace_back(
@@ -545,12 +527,12 @@ auto CommandBuffer::wait_events(std::span<EventWaitInfo const> const& infos) -> 
 	dependencyInfoBuffer.clear();
 }
 
-auto CommandBuffer::wait_event(EventWaitInfo const& info) -> void
+auto CommandRecorder::wait_event(EventWaitInfo const& info) -> void
 {
 	wait_events(std::span{ &info, 1 });
 }
 
-auto CommandBuffer::reset_event(EventResetInfo const& info) -> void
+auto CommandRecorder::reset_event(EventResetInfo const& info) -> void
 {
 	if (!valid()) [[unlikely]]
 	{
@@ -559,20 +541,22 @@ auto CommandBuffer::reset_event(EventResetInfo const& info) -> void
 
 	flush_barriers();
 
-	auto&& self = to_impl(*this);
+	auto const& pool = to_impl(*m_cmdPool);
+	auto const& self = pool.commandBufferPool.commandBuffers[m_index];
 	auto&& vkevent = to_impl(info.event);
 
 	vkCmdResetEvent2(self.handle, vkevent.handle, vk::translate_pipeline_stage_flags(info.stage));
 }
 
-auto CommandBuffer::pipeline_barrier(MemoryBarrierInfo const& barrier) -> void
+auto CommandRecorder::pipeline_barrier(MemoryBarrierInfo const& barrier) -> void
 {
 	if (!valid()) [[unlikely]]
 	{
 		return;
 	}
 
-	auto&& self = to_impl(*this);
+	auto& pool = to_impl(*m_cmdPool);
+	auto& self = pool.commandBufferPool.commandBuffers[m_index];
 
 	if (self.numMemoryBarrier >= vk::CommandBufferImpl::MAX_COMMAND_BUFFER_BARRIER_COUNT)
 	{
@@ -582,48 +566,51 @@ auto CommandBuffer::pipeline_barrier(MemoryBarrierInfo const& barrier) -> void
 	self.memoryBarriers[self.numMemoryBarrier++] = self.get_memory_barrier_info(barrier);
 }
 
-auto CommandBuffer::pipeline_buffer_barrier(BufferBarrierInfo const& barrier) -> void
+auto CommandRecorder::pipeline_buffer_barrier(BufferBarrierInfo const& barrier) -> void
 {
 	if (!valid() || !barrier.buffer.valid()) [[unlikely]]
 	{
 		return;
 	}
 
-	auto&& self = to_impl(*this);
+	auto& pool = to_impl(*m_cmdPool);
+	auto& self = pool.commandBufferPool.commandBuffers[m_index];
 
 	if (self.numBufferBarrier >= vk::CommandBufferImpl::MAX_COMMAND_BUFFER_BARRIER_COUNT)
 	{
 		flush_barriers();
 	}
 
-	self.bufferBarriers[self.numBufferBarrier++] = self.get_buffer_barrier_info(barrier);
+	self.bufferBarriers[self.numBufferBarrier++] = self.get_buffer_barrier_info(*pool.vkdevice, barrier);
 }
 
-auto CommandBuffer::pipeline_image_barrier(ImageBarrierInfo const& barrier) -> void
+auto CommandRecorder::pipeline_image_barrier(ImageBarrierInfo const& barrier) -> void
 {
 	if (!valid() || !barrier.image.valid()) [[unlikely]]
 	{
 		return;
 	}
 
-	auto&& self = to_impl(*this);
+	auto& pool = to_impl(*m_cmdPool);
+	auto& self = pool.commandBufferPool.commandBuffers[m_index];
 
 	if (self.numImageBarrier >= vk::CommandBufferImpl::MAX_COMMAND_BUFFER_BARRIER_COUNT)
 	{
 		flush_barriers();
 	}
 
-	self.imageBarriers[self.numImageBarrier++] = self.get_image_barrier_info(barrier);
+	self.imageBarriers[self.numImageBarrier++] = self.get_image_barrier_info(*pool.vkdevice, barrier);
 }
 
-auto CommandBuffer::flush_barriers() -> void
+auto CommandRecorder::flush_barriers() -> void
 {
 	if (!valid()) [[unlikely]]
 	{
 		return;
 	}
 
-	auto&& self = to_impl(*this);
+	auto& pool = to_impl(*m_cmdPool);
+	auto& self = pool.commandBufferPool.commandBuffers[m_index];
 
 	if (self.numMemoryBarrier > 0 ||
 		self.numBufferBarrier > 0 ||
@@ -659,7 +646,7 @@ auto CommandBuffer::flush_barriers() -> void
 	}
 }
 
-auto CommandBuffer::begin_rendering(RenderingInfo const& info) -> void
+auto CommandRecorder::begin_rendering(RenderingInfo const& info) -> void
 {
 	if (!valid()) [[unlikely]]
 	{
@@ -668,7 +655,8 @@ auto CommandBuffer::begin_rendering(RenderingInfo const& info) -> void
 
 	flush_barriers();
 
-	auto&& self = to_impl(*this);
+	auto const& pool = to_impl(*m_cmdPool);
+	auto const& self = pool.commandBufferPool.commandBuffers[m_index];	
 
 	VkRenderingAttachmentInfo depthAttachmentInfo = {};
 	VkRenderingAttachmentInfo stencilAttachmentInfo = {};
@@ -699,7 +687,7 @@ auto CommandBuffer::begin_rendering(RenderingInfo const& info) -> void
 			{
 				auto&& image = to_impl(*attachment.image);
 
-				Color<float32> clearColor = attachment.image->info().clearValue.color.f32;
+				Color<float32> clearColor = (*attachment.image).info().clearValue.color.f32;
 
 				colorAttachments[i] = {
 					.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
@@ -751,7 +739,7 @@ auto CommandBuffer::begin_rendering(RenderingInfo const& info) -> void
 
 	if (info.stencilAttachment && info.stencilAttachment->image.valid())
 	{
-		Resource<Image> const& stencilAttachment = info.stencilAttachment->image;
+		Image::handle_type const& stencilAttachment = info.stencilAttachment->image;
 		auto&& stencilImage = to_impl(*stencilAttachment);
 
 		stencilAttachmentInfo = {
@@ -765,7 +753,7 @@ auto CommandBuffer::begin_rendering(RenderingInfo const& info) -> void
 			.storeOp = vk::translate_attachment_store_op(info.stencilAttachment->storeOp),
 			.clearValue = {
 				.depthStencil = {
-					.stencil = stencilAttachment->info().clearValue.depthStencil.stencil
+					.stencil = (*stencilAttachment).info().clearValue.depthStencil.stencil
 				}
 			}
 		};
@@ -775,7 +763,7 @@ auto CommandBuffer::begin_rendering(RenderingInfo const& info) -> void
 	vkCmdBeginRendering(self.handle, &renderingInfo);
 }
 
-auto CommandBuffer::end_rendering() -> void
+auto CommandRecorder::end_rendering() -> void
 {
 	if (!valid()) [[unlikely]]
 	{
@@ -784,12 +772,13 @@ auto CommandBuffer::end_rendering() -> void
 
 	flush_barriers();
 
-	auto&& self = to_impl(*this);
+	auto const& pool = to_impl(*m_cmdPool);
+	auto const& self = pool.commandBufferPool.commandBuffers[m_index];
 
 	vkCmdEndRendering(self.handle);
 }
 
-auto CommandBuffer::copy_buffer_to_buffer(BufferCopyInfo const& info) -> void
+auto CommandRecorder::copy_buffer_to_buffer(BufferCopyInfo const& info) -> void
 {
 	if (!valid() || !info.src.valid() || !info.dst.valid())
 	{
@@ -798,7 +787,9 @@ auto CommandBuffer::copy_buffer_to_buffer(BufferCopyInfo const& info) -> void
 
 	flush_barriers();
 
-	auto const& self = to_impl(*this);
+	auto const& pool = to_impl(*m_cmdPool);
+	auto const& self = pool.commandBufferPool.commandBuffers[m_index];
+
 	auto const& srcBuf = to_impl(info.src);
 	auto const& dstBuf = to_impl(info.dst);
 
@@ -813,7 +804,7 @@ auto CommandBuffer::copy_buffer_to_buffer(BufferCopyInfo const& info) -> void
 	vkCmdCopyBuffer(self.handle, srcBuf.handle, dstBuf.handle, 1, &bufferCopy);
 }
 
-auto CommandBuffer::copy_buffer_to_image(BufferImageCopyInfo const& info) -> void
+auto CommandRecorder::copy_buffer_to_image(BufferImageCopyInfo const& info) -> void
 {
 	if (!valid() || !info.src.valid() || !info.dst.valid()) [[unlikely]]
 	{
@@ -822,7 +813,9 @@ auto CommandBuffer::copy_buffer_to_image(BufferImageCopyInfo const& info) -> voi
 
 	flush_barriers();
 
-	auto const& self = to_impl(*this);
+	auto const& pool = to_impl(*m_cmdPool);
+	auto const& self = pool.commandBufferPool.commandBuffers[m_index];
+
 	auto const& srcBuf = to_impl(info.src);
 	auto const& dstImg = to_impl(info.dst);
 
@@ -854,7 +847,7 @@ auto CommandBuffer::copy_buffer_to_image(BufferImageCopyInfo const& info) -> voi
 	vkCmdCopyBufferToImage(self.handle, srcBuf.handle, dstImg.handle, layout, 1, &imageCopy);
 }
 
-auto CommandBuffer::copy_image_to_buffer(ImageBufferCopyInfo const& info) -> void
+auto CommandRecorder::copy_image_to_buffer(ImageBufferCopyInfo const& info) -> void
 {
 	if (!valid() || !info.src.valid() || !info.dst.valid()) [[unlikely]]
 	{
@@ -863,7 +856,9 @@ auto CommandBuffer::copy_image_to_buffer(ImageBufferCopyInfo const& info) -> voi
 
 	flush_barriers();
 
-	auto const& self = to_impl(*this);
+	auto const& pool = to_impl(*m_cmdPool);
+	auto const& self = pool.commandBufferPool.commandBuffers[m_index];
+
 	auto const& srcImg = to_impl(info.src);
 	auto const& dstBuf = to_impl(info.dst);
 
@@ -895,7 +890,7 @@ auto CommandBuffer::copy_image_to_buffer(ImageBufferCopyInfo const& info) -> voi
 	vkCmdCopyImageToBuffer(self.handle, srcImg.handle, layout, dstBuf.handle, 1, &imageCopy);
 }
 
-auto CommandBuffer::copy_image_to_image(ImageCopyInfo const& info) -> void
+auto CommandRecorder::copy_image_to_image(ImageCopyInfo const& info) -> void
 {
 	if (!valid() || !info.src.valid() || !info.dst.valid()) [[unlikely]]
 	{
@@ -904,7 +899,9 @@ auto CommandBuffer::copy_image_to_image(ImageCopyInfo const& info) -> void
 
 	flush_barriers();
 
-	auto const& self = to_impl(*this);
+	auto const& pool = to_impl(*m_cmdPool);
+	auto const& self = pool.commandBufferPool.commandBuffers[m_index];
+	
 	auto const& srcImg = to_impl(info.src);
 	auto const& dstImg = to_impl(info.dst);
 
@@ -947,7 +944,7 @@ auto CommandBuffer::copy_image_to_image(ImageCopyInfo const& info) -> void
 	vkCmdCopyImage(self.handle, srcImg.handle, srcLayout, dstImg.handle, dstLayout, 1, &imageCopy);
 }
 
-auto CommandBuffer::blit_image(ImageBlitInfo const& info) -> void
+auto CommandRecorder::blit_image(ImageBlitInfo const& info) -> void
 {
 	if (!valid() || !info.src.valid() || !info.dst.valid()) [[unlikely]]
 	{
@@ -956,7 +953,9 @@ auto CommandBuffer::blit_image(ImageBlitInfo const& info) -> void
 
 	flush_barriers();
 
-	auto const& self = to_impl(*this);
+	auto const& pool = to_impl(*m_cmdPool);
+	auto const& self = pool.commandBufferPool.commandBuffers[m_index];
+
 	auto const& srcImg = to_impl(info.src);
 	auto const& dstImg = to_impl(info.dst);
 
@@ -990,7 +989,7 @@ auto CommandBuffer::blit_image(ImageBlitInfo const& info) -> void
 	vkCmdBlitImage(self.handle, srcImg.handle, srcImgLayout, dstImg.handle, dstImgLayout, 1, &region, filter);
 }
 
-auto CommandBuffer::blit_image_swapchain(ImageSwapchainBlitInfo const& info) -> void
+auto CommandRecorder::blit_image_swapchain(ImageSwapchainBlitInfo const& info) -> void
 {
 	if (!valid() || !info.src.valid() || !info.dst.valid()) [[unlikely]]
 	{
@@ -999,7 +998,9 @@ auto CommandBuffer::blit_image_swapchain(ImageSwapchainBlitInfo const& info) -> 
 
 	flush_barriers();
 
-	auto const& self = to_impl(*this);
+	auto const& pool = to_impl(*m_cmdPool);
+	auto const& self = pool.commandBufferPool.commandBuffers[m_index];
+
 	auto const& srcImg = to_impl(info.src);
 	auto const& dstImg = to_impl(*info.dst.current_image());
 
@@ -1033,7 +1034,7 @@ auto CommandBuffer::blit_image_swapchain(ImageSwapchainBlitInfo const& info) -> 
 	vkCmdBlitImage(self.handle, srcImg.handle, srcImgLayout, dstImg.handle, dstImgLayout, 1, &region, filter);
 }
 
-auto CommandBuffer::set_viewport(Viewport const& viewport) -> void
+auto CommandRecorder::set_viewport(Viewport const& viewport) -> void
 {
 	if (!valid()) [[unlikely]]
 	{
@@ -1042,7 +1043,8 @@ auto CommandBuffer::set_viewport(Viewport const& viewport) -> void
 
 	flush_barriers();
 
-	auto const& self = to_impl(*this);
+	auto const& pool = to_impl(*m_cmdPool);
+	auto const& self = pool.commandBufferPool.commandBuffers[m_index];
 
 	VkViewport vp{
 		.x = viewport.x,
@@ -1055,7 +1057,7 @@ auto CommandBuffer::set_viewport(Viewport const& viewport) -> void
 	vkCmdSetViewport(self.handle, 0, 1, &vp);
 }
 
-auto CommandBuffer::set_scissor(Rect2D const& rect) -> void
+auto CommandRecorder::set_scissor(Rect2D const& rect) -> void
 {
 	if (!valid()) [[unlikely]]
 	{
@@ -1064,7 +1066,8 @@ auto CommandBuffer::set_scissor(Rect2D const& rect) -> void
 
 	flush_barriers();
 
-	auto const& self = to_impl(*this);
+	auto const& pool = to_impl(*m_cmdPool);
+	auto const& self = pool.commandBufferPool.commandBuffers[m_index];
 
 	VkRect2D scissor{
 		.offset = {
@@ -1080,14 +1083,15 @@ auto CommandBuffer::set_scissor(Rect2D const& rect) -> void
 	vkCmdSetScissor(self.handle, 0, 1, &scissor);
 }
 
-auto CommandBuffer::begin_debug_label(DebugLabelInfo const& info) const -> void
+auto CommandRecorder::begin_debug_label(DebugLabelInfo const& info) const -> void
 {
 	if (!valid()) [[unlikely]]
 	{
 		return;
 	}
 
-	auto const& self = to_impl(*this);
+	auto const& pool = to_impl(*m_cmdPool);
+	auto const& self = pool.commandBufferPool.commandBuffers[m_index];
 
 	VkDebugUtilsLabelEXT debugLabel{
 		.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT,
@@ -1103,109 +1107,79 @@ auto CommandBuffer::begin_debug_label(DebugLabelInfo const& info) const -> void
 	vkCmdBeginDebugUtilsLabelEXT(self.handle, &debugLabel);
 }
 
-auto CommandBuffer::end_debug_label() const -> void
+auto CommandRecorder::end_debug_label() const -> void
 {
 	if (!valid()) [[unlikely]]
 	{
 		return;
 	}
 
-	auto const& self = to_impl(*this);
+	auto const& pool = to_impl(*m_cmdPool);
+	auto const& self = pool.commandBufferPool.commandBuffers[m_index];
 
 	vkCmdEndDebugUtilsLabelEXT(self.handle);
 }
 
-auto CommandBuffer::from(Resource<CommandPool>& commandPool) -> Resource<CommandBuffer>
+auto CommandRecorder::from(CommandPool::handle_type& commandPool) -> CommandRecorder
 {
-	auto&& vkdevice = to_device(commandPool->device());
-	auto&& cmdPool = to_impl(*commandPool);
+	auto&& pool = to_impl(*commandPool);
+	auto&& vkdevice = *pool.vkdevice;
 
-	vk::CommandBufferPool& cmdBufferPool = cmdPool.commandBufferPool;
+	vk::CommandBufferPool& cmdBufferPool = pool.commandBufferPool;
 
 	size_t const size = cmdBufferPool.commandBuffers.size();
 	size_t iterations = 0;
 
 	while (iterations < size)
 	{
-		auto const current = cmdBufferPool.current;
+		auto const current = static_cast<uint64>(cmdBufferPool.current);
 
 		auto&& cmdBuffer = cmdBufferPool.commandBuffers[current];
 
+		auto const& gpuTimelineSemaphore = to_impl(*cmdBuffer.gpuTimeline);
+
 		/*
-		* recording_timeline < current_timleine, never possible unless something goes extremely wrong.
+		* recording_timeline < current_timleine, never possible unless something goes extremely wrong. Some say it's black magic.
 		* recording_timeline > current_timeline, command buffer work begins, should not be used.
 		* recording_timeline == current_timeline, timeline semaphore is signalled once gpu queue finishes recording, able to be re-used.
 		*/
+		auto const cpuTimeline = cmdBuffer.recordingTimeline.load(std::memory_order_acquire);
+		uint64 gpuTimeline = 0;
+		vkGetSemaphoreCounterValue(pool.vkdevice->device, gpuTimelineSemaphore.handle, &gpuTimeline);
 
-		if (cmdBuffer.recording_timeline() == cmdBuffer.current_timeline())
+		if (cpuTimeline == gpuTimeline)
 		{
-			return Resource<CommandBuffer>{ cmdBuffer, {} };
+			vkResetCommandBuffer(cmdBuffer.handle, VK_COMMAND_BUFFER_RESET_RELEASE_RESOURCES_BIT);
+			return { commandPool, current };
 		}
 
 		cmdBufferPool.current = (cmdBufferPool.current + 1) % size;
 	}
 
-	auto index = cmdBufferPool.commandBuffers.size();
-	auto&& vkcmdbuffer = cmdBufferPool.commandBuffers.emplace_back();
+	auto index = pool.allocate_new_command_buffer();
 
-	new (&vkcmdbuffer) vk::CommandBufferImpl{ vkdevice };
-
-	VkCommandBufferAllocateInfo allocateInfo{
-		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-		.commandPool = cmdPool.handle,
-		.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-		.commandBufferCount = 1
-	};
-
-	VkCommandBuffer handle = VK_NULL_HANDLE;
-
-	CHECK_OP(vkAllocateCommandBuffers(vkdevice.device, &allocateInfo, &handle))
-
-	CommandBufferInfo info{
-		.name = fmt::format("<cmdbuffer:{}>:{}", index, commandPool->info().name)
-	};
-
-	vkcmdbuffer.handle = handle;
-	vkcmdbuffer.m_info = std::move(info);
-	vkcmdbuffer.m_commandPool = commandPool;
-	vkcmdbuffer.m_currentTimeline = Fence::from(vkdevice, {
-		.name = fmt::format("<fence>:{}", vkcmdbuffer.m_info.name.c_str())
-	});
-
-	if constexpr (ENABLE_GPU_RESOURCE_DEBUG_NAMES)
-	{
-		vkdevice.setup_debug_name(vkcmdbuffer);
-	}
-
-	return Resource<CommandBuffer>{ vkcmdbuffer, {} };
+	return { commandPool, index };
 }
 
-auto CommandBuffer::destroy([[maybe_unused]] CommandBuffer& resource, [[maybe_unused]] uint64 id) -> void {}
+CommandRecorder::CommandRecorder(CommandPool::handle_type const& pool, uint64 commandBufferIndex) :
+	m_cmdPool{ pool },
+	m_index{ commandBufferIndex }
+{}
 
 namespace vk
 {
-CommandBufferImpl::CommandBufferImpl(DeviceImpl& device) :
-	CommandBuffer{ device }
-{}
-
 CommandBufferImpl::CommandBufferImpl(CommandBufferImpl&& rhs) :
-	CommandBuffer{ *rhs.m_device },
 	handle{ std::exchange(rhs.handle, {}) },
 	numMemoryBarrier{ std::exchange(rhs.numMemoryBarrier, {}) },
 	numBufferBarrier{ std::exchange(rhs.numBufferBarrier, {}) },
-	numImageBarrier{ std::exchange(rhs.numImageBarrier, {}) }
+	numImageBarrier{ std::exchange(rhs.numImageBarrier, {}) },
+	gpuTimeline{ std::exchange(rhs.gpuTimeline, {}) }
 {
-	m_info = std::exchange(rhs.m_info, {});
-	m_commandPool = std::move(rhs.m_commandPool);
-
-	m_recordingTimeline.store(rhs.m_recordingTimeline.load(std::memory_order_acquire), std::memory_order_relaxed);
-	m_currentTimeline = std::move(rhs.m_currentTimeline);
-
-	m_refCount.store(rhs.m_refCount.load(std::memory_order_acquire), std::memory_order_relaxed);
-
 	std::memcpy(memoryBarriers.data(), rhs.memoryBarriers.data(), MAX_COMMAND_BUFFER_BARRIER_COUNT * sizeof(VkMemoryBarrier2));
 	std::memcpy(bufferBarriers.data(), rhs.bufferBarriers.data(), MAX_COMMAND_BUFFER_BARRIER_COUNT * sizeof(VkBufferMemoryBarrier2));
 	std::memcpy(imageBarriers.data(), rhs.imageBarriers.data(), MAX_COMMAND_BUFFER_BARRIER_COUNT * sizeof(VkImageMemoryBarrier2));
+
+	recordingTimeline.store(rhs.recordingTimeline.load(std::memory_order_acquire), std::memory_order_relaxed);
 }
 
 auto CommandBufferImpl::get_memory_barrier_info(MemoryBarrierInfo const& info) const -> VkMemoryBarrier2
@@ -1219,9 +1193,8 @@ auto CommandBufferImpl::get_memory_barrier_info(MemoryBarrierInfo const& info) c
 	};
 }
 
-auto CommandBufferImpl::get_buffer_barrier_info(BufferBarrierInfo const& info) const -> VkBufferMemoryBarrier2
+auto CommandBufferImpl::get_buffer_barrier_info(DeviceImpl const& device, BufferBarrierInfo const& info) const -> VkBufferMemoryBarrier2
 {
-	auto const& vkdevice = to_device(m_device);
 	auto const& vkbuffer = to_impl(info.buffer);
 
 	uint32 srcQueueIndex = VK_QUEUE_FAMILY_IGNORED;
@@ -1230,13 +1203,13 @@ auto CommandBufferImpl::get_buffer_barrier_info(BufferBarrierInfo const& info) c
 	switch (info.srcQueue)
 	{
 	case DeviceQueue::Main:
-		srcQueueIndex = vkdevice.mainQueue.familyIndex;
+		srcQueueIndex = device.mainQueue.familyIndex;
 		break;
 	case DeviceQueue::Transfer:
-		srcQueueIndex = vkdevice.transferQueue.familyIndex;
+		srcQueueIndex = device.transferQueue.familyIndex;
 		break;
 	case DeviceQueue::Compute:
-		srcQueueIndex = vkdevice.computeQueue.familyIndex;
+		srcQueueIndex = device.computeQueue.familyIndex;
 		break;
 	default:
 		break;
@@ -1245,13 +1218,13 @@ auto CommandBufferImpl::get_buffer_barrier_info(BufferBarrierInfo const& info) c
 	switch (info.dstQueue)
 	{
 	case DeviceQueue::Main:
-		dstQueueIndex = vkdevice.mainQueue.familyIndex;
+		dstQueueIndex = device.mainQueue.familyIndex;
 		break;
 	case DeviceQueue::Transfer:
-		dstQueueIndex = vkdevice.transferQueue.familyIndex;
+		dstQueueIndex = device.transferQueue.familyIndex;
 		break;
 	case DeviceQueue::Compute:
-		dstQueueIndex = vkdevice.computeQueue.familyIndex;
+		dstQueueIndex = device.computeQueue.familyIndex;
 		break;
 	default:
 		break;
@@ -1271,9 +1244,8 @@ auto CommandBufferImpl::get_buffer_barrier_info(BufferBarrierInfo const& info) c
 	};
 }
 
-auto CommandBufferImpl::get_image_barrier_info(ImageBarrierInfo const& info) const -> VkImageMemoryBarrier2
+auto CommandBufferImpl::get_image_barrier_info(DeviceImpl const& device, ImageBarrierInfo const& info) const -> VkImageMemoryBarrier2
 {
-	auto const& vkdevice = to_device(m_device);
 	auto const& vkimage = to_impl(info.image);
 
 	uint32 srcQueueIndex = VK_QUEUE_FAMILY_IGNORED;
@@ -1282,13 +1254,13 @@ auto CommandBufferImpl::get_image_barrier_info(ImageBarrierInfo const& info) con
 	switch (info.srcQueue)
 	{
 	case DeviceQueue::Main:
-		srcQueueIndex = vkdevice.mainQueue.familyIndex;
+		srcQueueIndex = device.mainQueue.familyIndex;
 		break;
 	case DeviceQueue::Transfer:
-		srcQueueIndex = vkdevice.transferQueue.familyIndex;
+		srcQueueIndex = device.transferQueue.familyIndex;
 		break;
 	case DeviceQueue::Compute:
-		srcQueueIndex = vkdevice.computeQueue.familyIndex;
+		srcQueueIndex = device.computeQueue.familyIndex;
 		break;
 	default:
 		break;
@@ -1297,13 +1269,13 @@ auto CommandBufferImpl::get_image_barrier_info(ImageBarrierInfo const& info) con
 	switch (info.dstQueue)
 	{
 	case DeviceQueue::Main:
-		dstQueueIndex = vkdevice.mainQueue.familyIndex;
+		dstQueueIndex = device.mainQueue.familyIndex;
 		break;
 	case DeviceQueue::Transfer:
-		dstQueueIndex = vkdevice.transferQueue.familyIndex;
+		dstQueueIndex = device.transferQueue.familyIndex;
 		break;
 	case DeviceQueue::Compute:
-		dstQueueIndex = vkdevice.computeQueue.familyIndex;
+		dstQueueIndex = device.computeQueue.familyIndex;
 		break;
 	default:
 		break;

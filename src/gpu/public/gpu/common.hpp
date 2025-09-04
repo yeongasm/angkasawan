@@ -386,6 +386,18 @@ struct FrameInfo
 	uint32 index;
 };
 
+struct BufferBindInfo
+{
+	size_t offset = 0;
+	size_t size = std::numeric_limits<size_t>::max();
+	uint32 index;
+};
+
+struct SamplerBindInfo
+{
+	uint32 index;
+};
+
 /**
 * Pipeline barrier access information.
 */

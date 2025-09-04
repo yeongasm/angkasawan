@@ -4,19 +4,12 @@
 
 namespace gpu
 {
-Swapchain::Swapchain(Device& device) :
-	DeviceResource{ device },
-	m_info{},
-	m_state{},
-	m_images{},
-	m_gpuElapsedFrames{},
-	m_acquireSemaphore{},
-	m_presentSemaphore{},
-	m_colorSpace{ ColorSpace::Srgb_Non_Linear },
-	m_cpuElapsedFrames{},
-	m_acquireSemaphoreIndex{},
-	m_currentImageIndex{}
+namespace vk
+{
+SwapchainImpl::SwapchainImpl(DeviceImpl& device) :
+	vkdevice{ &device }
 {}
+}
 
 auto Swapchain::info() const -> SwapchainInfo const&
 {
@@ -27,7 +20,7 @@ auto Swapchain::valid() const -> bool
 {
 	auto const& self = to_impl(*this);
 
-	return m_device != nullptr && self.handle != VK_NULL_HANDLE;
+	return self.handle != VK_NULL_HANDLE;
 }
 
 auto Swapchain::state() const -> SwapchainState
@@ -40,7 +33,7 @@ auto Swapchain::num_images() const -> uint32
 	return static_cast<uint32>(m_images.size());
 }
 
-auto Swapchain::current_image() const -> Resource<Image>
+auto Swapchain::current_image() const -> Image::handle_type
 {
 	if (valid())
 	{
@@ -54,20 +47,21 @@ auto Swapchain::current_image_index() const -> uint32
 	return valid() ? m_currentImageIndex : 0;
 }
 
-auto Swapchain::acquire_next_image() -> Resource<Image>
+auto Swapchain::acquire_next_image() -> Image::handle_type
 {
 	if (!valid())
 	{
 		return {};
 	}
 
-	auto&& vkdevice = to_device(m_device);
 	auto const& self = to_impl(*this);
 
-	int64 const maxFramesInFlight = static_cast<int64>(vkdevice.config().maxFramesInFlight);
+	int64 const maxFramesInFlight = static_cast<int64>(self.vkdevice->config().maxFramesInFlight);
+	
+	auto&& gpuTimelineFence = *self.gpu_fence();
 	
 	// We wait until the gpu elapsed frame count is behind our swapchain's elapsed frame count.
-	m_gpuElapsedFrames->wait_for_value(static_cast<uint64>(std::max(0ll, static_cast<int64>(m_cpuElapsedFrames) - maxFramesInFlight)));
+	gpuTimelineFence.wait_for_value(static_cast<uint64>(std::max(0ll, static_cast<int64>(m_cpuElapsedFrames) - maxFramesInFlight)));
 
 	// Update swapchain's frame index for the next call to this function.
 	uint32 const cpuElapsedFrameCount = m_cpuElapsedFrames.load(std::memory_order_acquire);
@@ -76,7 +70,7 @@ auto Swapchain::acquire_next_image() -> Resource<Image>
 	vk::SemaphoreImpl const& vksemaphore = to_impl(*m_acquireSemaphore[m_acquireSemaphoreIndex]);
 
 	VkResult result = vkAcquireNextImageKHR(
-		vkdevice.device,
+		self.vkdevice->device,
 		self.handle,
 		UINT64_MAX,
 		vksemaphore.handle,
@@ -109,12 +103,12 @@ auto Swapchain::acquire_next_image() -> Resource<Image>
 	return m_images[static_cast<size_t>(m_currentImageIndex)];
 }
 
-auto Swapchain::current_acquire_semaphore() const -> Resource<Semaphore>
+auto Swapchain::current_acquire_semaphore() const -> Semaphore::handle_type
 {
 	return m_acquireSemaphore[m_acquireSemaphoreIndex];
 }
 
-auto Swapchain::current_present_semaphore() const -> Resource<Semaphore>
+auto Swapchain::current_present_semaphore() const -> Semaphore::handle_type
 {
 	return m_presentSemaphore[m_currentImageIndex];
 }
@@ -124,12 +118,7 @@ auto Swapchain::cpu_frame_count() const -> uint64
 	return m_cpuElapsedFrames.load(std::memory_order_acquire);
 }
 
-auto Swapchain::gpu_frame_count() const -> uint64
-{
-	return m_gpuElapsedFrames->value();
-}
-
-auto Swapchain::get_gpu_fence() const -> Resource<Fence>
+auto Swapchain::gpu_fence() const -> Fence::handle_type
 {
 	return m_gpuElapsedFrames;
 }
@@ -140,25 +129,19 @@ auto Swapchain::image_format() const -> Format
 
 	if (!m_images.empty())
 	{
-		format = m_images[0]->info().format;
+		format = (*m_images[0]).info().format;
 	}
 
 	return format;
 }
 
-auto Swapchain::color_space() const -> ColorSpace
-{
-	return m_colorSpace;
-}
-
 auto Swapchain::resize(Extent2D dim) -> bool
 {
 	auto&& self = to_impl(*this);
-	auto&& vkdevice = to_device(m_device);
 
 	auto&& surface = *self.surface;
 
-	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vkdevice.gpu, surface.handle, &surface.capabilities);
+	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(self.vkdevice->gpu, surface.handle, &surface.capabilities);
 
 	VkExtent2D const extent{
 		.width	= std::min(dim.width, surface.capabilities.currentExtent.width),
@@ -203,7 +186,7 @@ auto Swapchain::resize(Extent2D dim) -> bool
 		.imageUsage = imageUsage,
 		.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
 		.queueFamilyIndexCount = 1,
-		.pQueueFamilyIndices = &vkdevice.mainQueue.familyIndex,
+		.pQueueFamilyIndices = &self.vkdevice->mainQueue.familyIndex,
 		.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR,
 		.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
 		.presentMode = presentationMode,
@@ -211,7 +194,7 @@ auto Swapchain::resize(Extent2D dim) -> bool
 		.oldSwapchain = self.handle
 	};
 
-	if (vkCreateSwapchainKHR(vkdevice.device, &swapchainCreateInfo, nullptr, &self.handle) != VK_SUCCESS)
+	if (vkCreateSwapchainKHR(self.vkdevice->device, &swapchainCreateInfo, nullptr, &self.handle) != VK_SUCCESS)
 	{
 		return false;
 	}
@@ -225,7 +208,7 @@ auto Swapchain::resize(Extent2D dim) -> bool
 
 	for (uint32 i = 0; i < maxImageCount; ++i)
 	{
-		vkGetSwapchainImagesKHR(vkdevice.device, self.handle, &maxImageCount, vkImageHandles.data());
+		vkGetSwapchainImagesKHR(self.vkdevice->device, self.handle, &maxImageCount, vkImageHandles.data());
 	}
 
 	VkImageViewCreateInfo imageViewInfo{
@@ -245,7 +228,7 @@ auto Swapchain::resize(Extent2D dim) -> bool
 	{
 		auto&& vkimage = to_impl(*image);
 
-		vkDestroyImageView(vkdevice.device, vkimage.imageView, nullptr);
+		vkDestroyImageView(self.vkdevice->device, vkimage.imageView, nullptr);
 
 		vkimage.handle = vkImageHandles[i];
 
@@ -254,7 +237,7 @@ auto Swapchain::resize(Extent2D dim) -> bool
 
 		imageViewInfo.image = vkimage.handle;
 
-		vkCreateImageView(vkdevice.device, &imageViewInfo, nullptr, &vkimage.imageView);
+		vkCreateImageView(self.vkdevice->device, &imageViewInfo, nullptr, &vkimage.imageView);
 
 		++i;
 	}
@@ -262,7 +245,7 @@ auto Swapchain::resize(Extent2D dim) -> bool
 	return true;
 }
 
-auto Swapchain::from(Device& device, SwapchainInfo&& info, Resource<Swapchain> previousSwapchain) -> Resource<Swapchain>
+auto Swapchain::from(Device& device, SwapchainInfo&& info, handle_type previousSwapchain) -> handle_type
 {
 	auto&& vkdevice = to_device(device);
 
@@ -395,16 +378,21 @@ auto Swapchain::from(Device& device, SwapchainInfo&& info, Resource<Swapchain> p
 
 	auto it = vkdevice.gpuResourcePool.stores.swapchains.emplace(vkdevice);
 	
-	auto id = ++vkdevice.gpuResourcePool.idCounter;
+	vk::_ResourceMeta meta{
+		.type 	= vk::detail::type_id_v<vk::SwapchainImpl>,
+		.id 	= ++vkdevice.gpuResourcePool.idCounter.others
+	};
+
+	auto id = std::bit_cast<uint64>(meta);
 
 	vkdevice.gpuResourcePool.caches.swapchain.emplace(id, it);
+	vkdevice.begin_referencing(id);
 
 	auto&& vkswapchain = *it;
 
 	vkswapchain.handle = handle;
 	vkswapchain.surface = surface;
 	vkswapchain.surfaceColorFormat = surfaceFormat;
-	vkswapchain.m_colorSpace = vk::vk_to_rhi_color_space(surfaceFormat.colorSpace);
 
 	// Update info to contain the updated values.
 	if (!info.name.empty())
@@ -456,30 +444,32 @@ auto Swapchain::from(Device& device, SwapchainInfo&& info, Resource<Swapchain> p
 		vkdevice.setup_debug_name(vkswapchain);
 	}
 
-	return Resource<Swapchain>{ vkswapchain, id };
+	return handle_type{ vkdevice, id };
 }
 
-auto Swapchain::destroy(Swapchain& resource, uint64 id) -> void
+auto Swapchain::Deleter::operator()(Device& device, uint64 id) const -> void
 {
+	ASSERTION(id != std::numeric_limits<uint64>::max() && "Attempting to destroy a Swapchain with an invalid id");
+
 	/*
 	 * At this point, the ref count on the resource is only 1 which means ONLY the resource has a reference to itself and can be safely deleted.
 	 */
-	auto&& vkdevice = to_device(resource.m_device);
-	auto&& vkswapchain = to_impl(resource);
+	auto&& vkdevice = to_device(device);
+	auto&& vkswapchain = *vkdevice.gpuResourcePool.caches.swapchain[id];
 
-	resource.m_gpuElapsedFrames.destroy();
+	vkswapchain.m_gpuElapsedFrames.destroy();
 
-	for (auto&& acquireSemaphore : resource.m_acquireSemaphore)
+	for (auto&& acquireSemaphore : vkswapchain.m_acquireSemaphore)
 	{
 		acquireSemaphore.destroy();
 	}
 
-	for (auto&& presentSemaphore : resource.m_presentSemaphore)
+	for (auto&& presentSemaphore : vkswapchain.m_presentSemaphore)
 	{
 		presentSemaphore.destroy();
 	}
 
-	for (auto&& swapchainImages : resource.m_images)
+	for (auto&& swapchainImages : vkswapchain.m_images)
 	{
 		swapchainImages.destroy();
 	}
@@ -512,12 +502,5 @@ auto Swapchain::destroy(Swapchain& resource, uint64 id) -> void
 			}
 		}
 	);
-}
-
-namespace vk
-{
-SwapchainImpl::SwapchainImpl(DeviceImpl& device) :
-	Swapchain{ device }
-{}
 }
 }

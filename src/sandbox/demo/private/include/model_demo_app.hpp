@@ -45,15 +45,15 @@ private:
 	core::platform::Application* m_app = {};
 	render::AsyncDevice* m_gpu = {};
 	core::Ref<core::platform::Window> m_rootWindowRef = {};
-	gpu::swapchain m_swapchain = {};
+	gpu::resource<gpu::Swapchain> m_swapchain = {};
 
 	struct RenderableInfo
 	{
 		gpu::device_address position;
 		gpu::device_address normal;
 		gpu::device_address uv;
-		uint32 textures[3];
-		uint32 sampler;
+		uint64 textures[3];
+		uint64 sampler;
 		uint32 hasUV;
 	};
 
@@ -77,18 +77,18 @@ private:
 		glm::mat4 view;
 	};
 
-	gpu::sampler m_normalSampler = {};
+	gpu::resource<gpu::Sampler> m_normalSampler = {};
 
-	gpu::image m_depthBuffer = {};
-	gpu::image m_defaultWhiteTexture = {};
-	gpu::image m_defaultMetallicRoughnessMap = {};
-	gpu::image m_defaultNormalMap = {};
+	gpu::resource<gpu::Image> m_depthBuffer = {};
+	gpu::resource<gpu::Image> m_defaultWhiteTexture = {};
+	gpu::resource<gpu::Image> m_defaultMetallicRoughnessMap = {};
+	gpu::resource<gpu::Image> m_defaultNormalMap = {};
 
 	std::array<gpu::RenderAttachment, 3> m_renderAttachments = {};
-	gpu::image m_renderablePosAttachment = {};
-	gpu::image m_baseColorAttachment = {};
-	gpu::image m_metallicRoughnessAttachment = {};
-	gpu::image m_normalAttachment = {};
+	gpu::resource<gpu::Image> m_renderablePosAttachment = {};
+	gpu::resource<gpu::Image> m_baseColorAttachment = {};
+	gpu::resource<gpu::Image> m_metallicRoughnessAttachment = {};
+	gpu::resource<gpu::Image> m_normalAttachment = {};
 	
 	Camera m_camera = {};
 	CameraState m_cameraState = {};
@@ -100,7 +100,7 @@ private:
 	render::GpuPtr<glm::mat4> m_sponzaTransform = {};
 	render::GpuPtr<CameraProjectionView[2]> m_cameraProjView = {};
 
-	gpu::pipeline m_pipeline = {};
+	gpu::resource<gpu::Pipeline> m_pipeline = {};
 	// core::filewatcher::file_watch_id m_pipelineShaderCodeWatchId = {};
 
 	uint32 m_currentFrame = {};

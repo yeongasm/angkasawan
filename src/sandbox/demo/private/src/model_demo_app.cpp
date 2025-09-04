@@ -49,7 +49,7 @@ auto ModelDemoApp::start(
 		{
 			auto const dim = ev.current.value<core::platform::WindowEvent::Type::Resize>();
 			m_gpu->device().wait_idle();
-			m_swapchain->resize({ 
+			(*m_swapchain).resize({ 
 				.width = static_cast<uint32>(dim.width), 
 				.height = static_cast<uint32>(dim.height) 
 			});
@@ -59,7 +59,7 @@ auto ModelDemoApp::start(
 		}
 	);
 
-	auto&& swapchainInfo = m_swapchain->info();
+	auto&& swapchainInfo = (*m_swapchain).info();
 
 	float32 const swapchainWidth = static_cast<float32>(swapchainInfo.dimension.width);
 	float32 const swapchainHeight = static_cast<float32>(swapchainInfo.dimension.height);
@@ -140,11 +140,6 @@ auto ModelDemoApp::start(
 		.sharingMode = gpu::SharingMode::Exclusive
 	});
 
-	m_defaultWhiteTexture->bind({ .index = 0u });
-	m_defaultMetallicRoughnessMap->bind({ .index = 1u });
-	m_defaultNormalMap->bind({ .index = 2u });
-	m_normalSampler->bind({ .index = 0u });
-
 	render::material::util::MaterialJSON materialRep{};
 	if (auto ec = glz::read_file_json(materialRep, "data/demo/models/sponza/sponza.material.json", std::string{}); ec)
 	{
@@ -189,13 +184,13 @@ auto ModelDemoApp::start(
 
 	{
 		// Acquire resources ...
-		auto cmd = m_gpu->command_queue().next_free_command_buffer();
+		auto cmd = m_gpu->command_queue().new_command_recorder();
 
-		cmd->begin();
+		cmd.begin();
 
 		for (auto&& image : m_images)
 		{
-			cmd->pipeline_image_barrier({
+			cmd.pipeline_image_barrier({
 				.image = *image.image,
 				.dstAccess = gpu::access::TRANSFER_WRITE,
 				.oldLayout = gpu::ImageLayout::Transfer_Dst,
@@ -206,7 +201,7 @@ auto ModelDemoApp::start(
 			});
 		}
 
-		cmd->pipeline_image_barrier({
+		cmd.pipeline_image_barrier({
 			.image = *m_depthBuffer,
 			.srcAccess = gpu::access::TOP_OF_PIPE_NONE,
 			.oldLayout = gpu::ImageLayout::Undefined,
@@ -214,7 +209,7 @@ auto ModelDemoApp::start(
 			.subresource = DEPTH_SUBRESOURCE
 		});
 
-		cmd->pipeline_image_barrier({
+		cmd.pipeline_image_barrier({
 			.image = *m_baseColorAttachment,
 			.srcAccess = gpu::access::TOP_OF_PIPE_NONE,
 			.oldLayout = gpu::ImageLayout::Undefined,
@@ -222,7 +217,7 @@ auto ModelDemoApp::start(
 			.subresource = BASE_COLOR_SUBRESOURCE
 		});
 
-		cmd->pipeline_image_barrier({
+		cmd.pipeline_image_barrier({
 			.image = *m_metallicRoughnessAttachment,
 			.srcAccess = gpu::access::TOP_OF_PIPE_NONE,
 			.oldLayout = gpu::ImageLayout::Undefined,
@@ -230,7 +225,7 @@ auto ModelDemoApp::start(
 			.subresource = BASE_COLOR_SUBRESOURCE
 		});
 
-		cmd->pipeline_image_barrier({
+		cmd.pipeline_image_barrier({
 			.image = *m_normalAttachment,
 			.srcAccess = gpu::access::TOP_OF_PIPE_NONE,
 			.oldLayout = gpu::ImageLayout::Undefined,
@@ -238,11 +233,11 @@ auto ModelDemoApp::start(
 			.subresource = BASE_COLOR_SUBRESOURCE
 		});
 
-		cmd->end();
+		cmd.end();
 
 		auto ownershipTransferSubmission = m_gpu->command_queue().new_submission_group();
 		ownershipTransferSubmission.wait(fenceInfo.fence, fenceInfo.value);
-		ownershipTransferSubmission.submit(cmd);
+		ownershipTransferSubmission.submit(std::move(cmd));
 	}
 
 	m_gpu->command_queue().send_to_gpu();
@@ -271,13 +266,15 @@ auto ModelDemoApp::render() -> void
 
 	m_gpu->device().clear_garbage();
 
-	auto&& swapchainImage = m_swapchain->acquire_next_image();
-	auto cmd = m_gpu->command_queue().next_free_command_buffer();
+	auto& swapchain = *m_swapchain;
 
-	cmd->begin();
+	auto&& swapchainImage = *swapchain.acquire_next_image();
+	auto cmd = m_gpu->command_queue().new_command_recorder();
 
-	cmd->pipeline_image_barrier({
-		.image = *swapchainImage,
+	cmd.begin();
+
+	cmd.pipeline_image_barrier({
+		.image = swapchainImage,
 		.dstAccess = gpu::access::TRANSFER_WRITE,
 		.oldLayout = gpu::ImageLayout::Undefined,
 		.newLayout = gpu::ImageLayout::Transfer_Dst,
@@ -296,35 +293,35 @@ auto ModelDemoApp::render() -> void
 		.depthAttachment = &depthAttachment,
 		.renderArea = {
 			.extent = {
-				.width = swapchainImage->info().dimension.width,
-				.height = swapchainImage->info().dimension.height
+				.width = swapchainImage.info().dimension.width,
+				.height = swapchainImage.info().dimension.height
 			}
 		}
 	};
 
-	auto const& swapchainInfo = swapchainImage->info();
+	auto const& swapchainInfo = swapchainImage.info();
 
 	float32 const width = static_cast<float32>(swapchainInfo.dimension.width);
 	float32 const height = static_cast<float32>(swapchainInfo.dimension.height);
 
-	cmd->begin_rendering(renderingInfo);
-	cmd->set_viewport({
+	cmd.begin_rendering(renderingInfo);
+	cmd.set_viewport({
 		.width = width,
 		.height = height,
 		.minDepth = 0.f,
 		.maxDepth = 1.f
 	});
-	cmd->set_scissor({
+	cmd.set_scissor({
 		.extent = {
-			.width = swapchainImage->info().dimension.width,
-			.height = swapchainImage->info().dimension.height
+			.width = swapchainImage.info().dimension.width,
+			.height = swapchainImage.info().dimension.height
 		}
 	});
-	cmd->bind_pipeline(*m_pipeline);
+	cmd.bind_pipeline(*m_pipeline);
 
 	for (MeshRenderInfo const& renderInfo : m_renderInfo)
 	{
-		cmd->bind_index_buffer({
+		cmd.bind_index_buffer({
 			.buffer = *renderInfo.mesh->buffer,
 			.offset = renderInfo.mesh->info.indices.byteOffset,
 			.indexType = gpu::IndexType::Uint_32
@@ -336,20 +333,20 @@ auto ModelDemoApp::render() -> void
 			.renderInfo 		= renderInfo.info.address()
 		};
 
-		cmd->bind_push_constant({
+		cmd.bind_push_constant({
 			.data = &pc,
 			.size = sizeof(PushConstant),
 			.shaderStage = gpu::ShaderStage::All
 		});
 
-		cmd->draw_indexed({
+		cmd.draw_indexed({
 			.indexCount = renderInfo.mesh->info.indices.count
 		});
 	}
 
-	cmd->end_rendering();
+	cmd.end_rendering();
 
-	cmd->pipeline_image_barrier({
+	cmd.pipeline_image_barrier({
 		.image = *m_baseColorAttachment,
 		.srcAccess = gpu::access::COLOR_ATTACHMENT_OUTPUT_WRITE,
 		.dstAccess = gpu::access::TRANSFER_READ,
@@ -358,15 +355,15 @@ auto ModelDemoApp::render() -> void
 		.subresource = BASE_COLOR_SUBRESOURCE
 	});
 
-	cmd->copy_image_to_image({
+	cmd.copy_image_to_image({
 		.src = *m_baseColorAttachment,
-		.dst = *swapchainImage,
+		.dst = swapchainImage,
 		.srcSubresource = BASE_COLOR_SUBRESOURCE,
 		.dstSubresource = BASE_COLOR_SUBRESOURCE,
-		.extent = swapchainImage->info().dimension
+		.extent = swapchainImage.info().dimension
 	});
 
-	cmd->pipeline_image_barrier({
+	cmd.pipeline_image_barrier({
 		.image = *m_baseColorAttachment,
 		.srcAccess = gpu::access::TRANSFER_READ,
 		.dstAccess = gpu::access::COLOR_ATTACHMENT_OUTPUT_WRITE,
@@ -375,8 +372,8 @@ auto ModelDemoApp::render() -> void
 		.subresource = BASE_COLOR_SUBRESOURCE
 	});
 
-	cmd->pipeline_image_barrier({
-		.image = *swapchainImage,
+	cmd.pipeline_image_barrier({
+		.image = swapchainImage,
 		.srcAccess = gpu::access::TRANSFER_WRITE,
 		.dstAccess = gpu::access::TRANSFER_READ,
 		.oldLayout = gpu::ImageLayout::Transfer_Dst,
@@ -384,17 +381,17 @@ auto ModelDemoApp::render() -> void
 		.subresource = BASE_COLOR_SUBRESOURCE
 	});
 
-	cmd->end();
+	cmd.end();
 
 	auto uploadFenceInfo = m_gpu->upload_heap().send_to_gpu();
 
 	auto submitGroup = m_gpu->command_queue().new_submission_group();
 
-	submitGroup.submit(cmd);
-	submitGroup.wait(m_swapchain->current_acquire_semaphore());
-	submitGroup.signal(m_swapchain->current_present_semaphore());
+	submitGroup.submit(std::move(cmd));
+	submitGroup.wait(swapchain.current_acquire_semaphore());
+	submitGroup.signal(swapchain.current_present_semaphore());
 	submitGroup.wait(uploadFenceInfo.fence, uploadFenceInfo.value);
-	submitGroup.signal(m_swapchain->get_gpu_fence(), m_swapchain->cpu_frame_count());
+	submitGroup.signal(swapchain.gpu_fence(), swapchain.cpu_frame_count());
 
 	m_gpu->command_queue().send_to_gpu();
 
@@ -420,7 +417,7 @@ auto ModelDemoApp::make_swapchain(core::platform::Window& window) -> void
 		.imageCount = 3,
 		.imageUsage = gpu::ImageUsage::Color_Attachment | gpu::ImageUsage::Transfer_Dst,
 		.presentationMode = gpu::SwapchainPresentMode::Mailbox
-	}, (m_swapchain.valid()) ? m_swapchain: gpu::swapchain{});
+	}, (m_swapchain.valid()) ? m_swapchain: gpu::resource<gpu::Swapchain>{});
 }
 
 auto ModelDemoApp::make_render_targets(uint32 width, uint32 height) -> void
@@ -538,7 +535,7 @@ auto ModelDemoApp::update_camera_state(float32 dt) -> void
 {
 	static bool firstRun[2] = { true, true };
 
-	auto const& swapchainDim = m_swapchain->info().dimension;
+	auto const& swapchainDim = (*m_swapchain).info().dimension;
 
 	float32 const frameWidth  = static_cast<float32>(swapchainDim.width);
 	float32 const frameHeight = static_cast<float32>(swapchainDim.height);
@@ -815,7 +812,9 @@ auto ModelDemoApp::unpack_sponza() -> void
 			.size = posRange.size_bytes()
 		});
 
-		mesh.position = mesh.buffer->gpu_address();
+		auto const& meshBuffer = *mesh.buffer;
+
+		mesh.position = meshBuffer.gpu_address();
 
 		// Normal. If exist.
 		if (!normalRange.empty())
@@ -827,7 +826,7 @@ auto ModelDemoApp::unpack_sponza() -> void
 				.size = normalRange.size_bytes()
 			});
 
-			mesh.normal = mesh.buffer->gpu_address() + (posCount * sizeof(float32));
+			mesh.normal = meshBuffer.gpu_address() + (posCount * sizeof(float32));
 		}
 
 		// TexCoord. If exist.
@@ -840,7 +839,7 @@ auto ModelDemoApp::unpack_sponza() -> void
 				.size = uvRange.size_bytes()
 			});
 
-			mesh.uv = mesh.buffer->gpu_address() + ((posCount + normalCount) * sizeof(float32));
+			mesh.uv = meshBuffer.gpu_address() + ((posCount + normalCount) * sizeof(float32));
 		}
 
 		m_gpu->upload_heap().upload_data_to_buffer({
@@ -863,10 +862,10 @@ auto ModelDemoApp::unpack_sponza() -> void
 			uvRange.empty() ? 0ull : mesh.uv
 		);
 
-		meshRenderInfo.info->textures[0] = 0;
-		meshRenderInfo.info->textures[1] = 1;
-		meshRenderInfo.info->textures[2] = 2;
-		meshRenderInfo.info->sampler = 0;
+		meshRenderInfo.info->textures[0] = m_defaultWhiteTexture.id();
+		meshRenderInfo.info->textures[1] = m_defaultMetallicRoughnessMap.id();
+		meshRenderInfo.info->textures[2] = m_defaultNormalMap.id();
+		meshRenderInfo.info->sampler = m_normalSampler.id();
 		meshRenderInfo.info->hasUV = std::cmp_not_equal(uvCount, 0);
 
 		++i;
@@ -883,9 +882,9 @@ auto ModelDemoApp::unpack_materials(render::material::util::MaterialJSON const& 
 	}
 
 	m_images.reserve(materialRep.numImages);
-	m_images.emplace_back(m_defaultWhiteTexture, m_normalSampler, render::material::ImageType::Base_Color, 1u, 0u);
-	m_images.emplace_back(m_defaultMetallicRoughnessMap, m_normalSampler, render::material::ImageType::Metallic_Roughness, 1u, 1u);
-	m_images.emplace_back(m_defaultNormalMap, m_normalSampler, render::material::ImageType::Normal, 1u, 2u);
+	m_images.emplace_back(m_defaultWhiteTexture, m_normalSampler, render::material::ImageType::Base_Color, 1u);
+	m_images.emplace_back(m_defaultMetallicRoughnessMap, m_normalSampler, render::material::ImageType::Metallic_Roughness, 1u);
+	m_images.emplace_back(m_defaultNormalMap, m_normalSampler, render::material::ImageType::Normal, 1u);
 
 	std::filesystem::path input{ "data/demo/models/sponza/" };
 
@@ -924,11 +923,8 @@ auto ModelDemoApp::unpack_materials(render::material::util::MaterialJSON const& 
 				}),
 				m_normalSampler, 
 				image.type, 
-				1u,
-				static_cast<uint32>(imageStoredOffset) + static_cast<uint32>(imageCount)
+				1u
 			);
-
-			texture.image->bind({ .index = texture.binding });
 
 			auto mipRange = imageSbf.data(0);
 
@@ -941,7 +937,7 @@ auto ModelDemoApp::unpack_materials(render::material::util::MaterialJSON const& 
 
 			input.remove_filename();
 			
-			renderInfo.info->textures[std::to_underlying(image.type)] = texture.binding;
+			renderInfo.info->textures[std::to_underlying(image.type)] = texture.image.id();
 
 			++imageCount;
 		}
@@ -996,7 +992,6 @@ auto ModelDemoApp::setup_shader_compiler_and_pipelines() -> void
 		shaderCompiler.add_macro_definition("SAMPLED_IMAGE_BINDING", gpu::SAMPLED_IMAGE_BINDING);
 		shaderCompiler.add_macro_definition("SAMPLER_BINDING", gpu::SAMPLER_BINDING);
 		shaderCompiler.add_macro_definition("BUFFER_DEVICE_ADDRESS_BINDING", gpu::BUFFER_DEVICE_ADDRESS_BINDING);
-		shaderCompiler.add_macro_definition("STORAGE_BUFFER_BINDING", gpu::STORAGE_BUFFER_BINDING);
 
 		// Compile and build each pipeline when loading the cache fails.
 		for (auto definition : definitions.raster)

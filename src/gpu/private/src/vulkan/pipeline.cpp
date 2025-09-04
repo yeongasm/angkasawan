@@ -12,12 +12,6 @@ auto ComputePipeline::info() const -> ComputePipelineInfo const&
 	return m_info;
 }
 
-Pipeline::Pipeline(Device& device) :
-	DeviceResource{ device },
-	m_pipelineVariant{},
-	m_type{}
-{}
-
 auto Pipeline::type() const -> PipelineType
 {
 	return m_type;
@@ -27,10 +21,10 @@ auto Pipeline::valid() const -> bool
 {
 	auto&& self = *static_cast<vk::PipelineImpl const*>(this);
 
-	return m_device != nullptr && self.handle != VK_NULL_HANDLE;
+	return self.handle != VK_NULL_HANDLE;
 }
 
-auto Pipeline::from(Device& device, RasterPipelineShaderInfo const& pipelineShaderInfo, RasterPipelineInfo&& info) -> Resource<Pipeline>
+auto Pipeline::from(Device& device, RasterPipelineShaderInfo const& pipelineShaderInfo, RasterPipelineInfo&& info) -> handle_type
 {
 	// It is necessary for raster pipelines to have a vertex shader and fragment shader.
 	if (!pipelineShaderInfo.vertexShader || !pipelineShaderInfo.pixelShader)
@@ -231,11 +225,17 @@ auto Pipeline::from(Device& device, RasterPipelineShaderInfo const& pipelineShad
 	// The only way this can fail is when we run out of host / device memory OR shader linkage has failed.
 	CHECK_OP(vkCreateGraphicsPipelines(vkdevice.device, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &handle))
 
-	auto it = vkdevice.gpuResourcePool.stores.pipelines.emplace(vkdevice);
+	auto it = vkdevice.gpuResourcePool.stores.pipelines.emplace();
 	
-	auto id = ++vkdevice.gpuResourcePool.idCounter;
+	vk::_ResourceMeta meta{
+		.type 	= vk::detail::type_id_v<vk::PipelineImpl>,
+		.id 	= ++vkdevice.gpuResourcePool.idCounter.others
+	};
+
+	auto id = std::bit_cast<uint64>(meta);
 
 	vkdevice.gpuResourcePool.caches.pipeline.emplace(id, it);
+	vkdevice.begin_referencing(id);
 
 	auto&& vkpipeline = *it;
 
@@ -252,20 +252,20 @@ auto Pipeline::from(Device& device, RasterPipelineShaderInfo const& pipelineShad
 		vkdevice.setup_debug_name(vkpipeline);
 	}
 
-	return Resource<Pipeline>{ vkpipeline, id };
+	return { vkdevice, id };
 }
 
-auto Pipeline::from(Device& device, Resource<Shader>& computeShader, ComputePipelineInfo&& info) -> Resource<Pipeline>
+auto Pipeline::from(Device& device, ComputePipelineShaderInfo const& pipelineShaderInfo, ComputePipelineInfo&& info) -> handle_type
 {
 	// It is necessary for raster pipelines to have a vertex shader and fragment shader.
-	if (!computeShader)
+	if (!pipelineShaderInfo.computeShader)
 	{
 		return {};
 	}
 
 	vk::DeviceImpl& vkdevice = *static_cast<vk::DeviceImpl*>(&device);
 
-	vk::ShaderImpl const& vkComputeShader = static_cast<vk::ShaderImpl const&>(*computeShader);
+	vk::ShaderImpl const& vkComputeShader = static_cast<vk::ShaderImpl const&>(*pipelineShaderInfo.computeShader);
 
 	VkPipelineLayout layoutHandle = vkdevice.push_constant_pipeline_layout(info.pushConstantSize, vkdevice.properties.limits.maxPushConstantsSize);
 
@@ -285,11 +285,17 @@ auto Pipeline::from(Device& device, Resource<Shader>& computeShader, ComputePipe
 
 	CHECK_OP(vkCreateComputePipelines(vkdevice.device, VK_NULL_HANDLE, 1u, &pipelineCreateInfo, nullptr, &handle))
 
-	auto it = vkdevice.gpuResourcePool.stores.pipelines.emplace(vkdevice);
+	auto it = vkdevice.gpuResourcePool.stores.pipelines.emplace();
 
-	auto id = ++vkdevice.gpuResourcePool.idCounter;
+	vk::_ResourceMeta meta{
+		.type 	= vk::detail::type_id_v<vk::PipelineImpl>,
+		.id 	= ++vkdevice.gpuResourcePool.idCounter.others
+	};
+
+	auto id = std::bit_cast<uint64>(meta);
 
 	vkdevice.gpuResourcePool.caches.pipeline.emplace(id, it);
+	vkdevice.begin_referencing(id);
 
 	auto&& vkpipeline = *it;
 
@@ -306,16 +312,17 @@ auto Pipeline::from(Device& device, Resource<Shader>& computeShader, ComputePipe
 		vkdevice.setup_debug_name(vkpipeline);
 	}
 
-	return Resource<Pipeline>{ vkpipeline, id };
+	return { vkdevice, id };
 }
 
-auto Pipeline::destroy(Pipeline& resource, uint64 id) -> void
+auto Pipeline::Deleter::operator()(Device& device, uint64 id) const -> void
 {
+	ASSERTION(id != std::numeric_limits<uint64>::max() && "Attempting to destroy a Pipeline with an invalid id");
 	/*
 	* At this point, the ref count on the resource is only 1 which means ONLY the resource has a reference to itself and can be safely deleted.
 	*/
-	auto&& vkdevice = to_device(resource.m_device);
-	auto&& vkpipeline = to_impl(resource);
+	auto&& vkdevice = to_device(device);
+	auto&& vkpipeline = *vkdevice.gpuResourcePool.caches.pipeline[id];
 	
 	std::lock_guard const lock{ vkdevice.gpuResourcePool.zombieMutex };
 
@@ -333,12 +340,5 @@ auto Pipeline::destroy(Pipeline& resource, uint64 id) -> void
 			device.gpuResourcePool.stores.pipelines.erase(it);
 		}
 	);
-}
-
-namespace vk
-{
-PipelineImpl::PipelineImpl(DeviceImpl& device) :
-	Pipeline{ device }
-{}
 }
 }

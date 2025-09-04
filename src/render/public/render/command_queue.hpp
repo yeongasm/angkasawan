@@ -32,16 +32,16 @@ struct Queue
 		uint32 numCommandBuffers;
 	};
 
-	using FenceBuffer = std::array<std::pair<gpu::fence, uint64>, MAX_FENCE_SUBMISSION_COUNT>;
-	using SemaphoreBuffer = std::array<gpu::semaphore, MAX_SEMAPHORE_SUBMISSION_COUNT>;
-	using CommandBufferBuffer = std::array<gpu::command_buffer, MAX_COMMAND_BUFFER_SUBMISSION_COUNT>;
-	using SubmissionDataBuffer = std::array<SubmissionData, MAX_SUBMISSION_GROUPS>;
+	using FenceBuffer 			= std::array<std::pair<gpu::resource<gpu::Fence>, uint64>, MAX_FENCE_SUBMISSION_COUNT>;
+	using SemaphoreBuffer 		= std::array<gpu::resource<gpu::Semaphore>, MAX_SEMAPHORE_SUBMISSION_COUNT>;
+	using CommandRecorderBuffer = std::array<gpu::CommandRecorder, MAX_COMMAND_BUFFER_SUBMISSION_COUNT>;
+	using SubmissionDataBuffer 	= std::array<SubmissionData, MAX_SUBMISSION_GROUPS>;
 
 	FenceBuffer	submittedFences;
 	SemaphoreBuffer	submittedSemaphores;
-	CommandBufferBuffer submittedCommandBuffers;
+	CommandRecorderBuffer submittedCommands;
 	SubmissionDataBuffer submissionGroupData;
-	lib::map<std::thread::id, gpu::command_pool> commandPoolStore;
+	lib::map<std::thread::id, gpu::resource<gpu::CommandPool>> commandPoolStore;
 	uint32 numSubmissionGroups;
 };
 
@@ -51,17 +51,17 @@ public:
 	SubmissionGroup(Queue& queue, Queue::SubmissionData& data);
 	~SubmissionGroup() = default;
 
-	auto submit(gpu::command_buffer const& commandBuffer) -> void;
-	auto signal(gpu::fence const& fence, uint64 value) -> void;
-	auto signal(gpu::semaphore const& semaphore) -> void;
-	auto wait(gpu::fence const& fence, uint64 value) -> void;
-	auto wait(gpu::semaphore const& semaphore) -> void;
+	auto submit(gpu::CommandRecorder&& commands) -> void;
+	auto signal(gpu::resource<gpu::Fence> const& fence, uint64 value) -> void;
+	auto signal(gpu::resource<gpu::Semaphore> const& semaphore) -> void;
+	auto wait(gpu::resource<gpu::Fence> const& fence, uint64 value) -> void;
+	auto wait(gpu::resource<gpu::Semaphore> const& semaphore) -> void;
 private:
 	Queue& m_queue;
 	Queue::SubmissionData& m_data;
 };
 
-struct RequestCommandBufferInfo
+struct RequestCommandRecorder
 {
 	std::thread::id tid = std::this_thread::get_id();
 	gpu::DeviceQueue queue = gpu::DeviceQueue::Main;
@@ -74,7 +74,7 @@ public:
 	~CommandQueue() = default;
 
 	auto new_submission_group(gpu::DeviceQueue queue = gpu::DeviceQueue::Main) -> SubmissionGroup;
-	auto next_free_command_buffer(RequestCommandBufferInfo&& info = {}) -> gpu::command_buffer;
+	auto new_command_recorder(RequestCommandRecorder&& info = {}) -> gpu::CommandRecorder;
 	auto send_to_gpu(gpu::DeviceQueue queue = gpu::DeviceQueue::Main) -> void;
 	auto clear(gpu::DeviceQueue queue = gpu::DeviceQueue::Main) -> void;
 private:

@@ -21,8 +21,6 @@ inline constexpr uint32 STORAGE_IMAGE_BINDING = 0;
 inline constexpr uint32 SAMPLED_IMAGE_BINDING = 1;
 inline constexpr uint32 SAMPLER_BINDING = 2;
 inline constexpr uint32 BUFFER_DEVICE_ADDRESS_BINDING = 3;
-inline constexpr uint32 STORAGE_BUFFER_BINDING = 4;
-inline constexpr uint32 UNIFORM_BUFFER_BINDING = 5;
 
 #ifndef ENABLE_GPU_VALIDATION_LAYER
 #define ENABLE_GPU_VALIDATION_LAYER 0
