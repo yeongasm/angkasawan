@@ -32,8 +32,8 @@ struct Queue
 		uint32 numCommandBuffers;
 	};
 
-	using FenceBuffer 			= std::array<std::pair<gpu::resource<gpu::Fence>, uint64>, MAX_FENCE_SUBMISSION_COUNT>;
-	using SemaphoreBuffer 		= std::array<gpu::resource<gpu::Semaphore>, MAX_SEMAPHORE_SUBMISSION_COUNT>;
+	using FenceBuffer 			= std::array<std::pair<gpu::Fence, uint64>, MAX_FENCE_SUBMISSION_COUNT>;
+	using SemaphoreBuffer 		= std::array<gpu::Semaphore, MAX_SEMAPHORE_SUBMISSION_COUNT>;
 	using CommandRecorderBuffer = std::array<gpu::CommandRecorder, MAX_COMMAND_BUFFER_SUBMISSION_COUNT>;
 	using SubmissionDataBuffer 	= std::array<SubmissionData, MAX_SUBMISSION_GROUPS>;
 
@@ -41,7 +41,7 @@ struct Queue
 	SemaphoreBuffer	submittedSemaphores;
 	CommandRecorderBuffer submittedCommands;
 	SubmissionDataBuffer submissionGroupData;
-	lib::map<std::thread::id, gpu::resource<gpu::CommandPool>> commandPoolStore;
+	lib::map<std::thread::id, gpu::CommandPool> commandPoolStore;
 	uint32 numSubmissionGroups;
 };
 
@@ -52,10 +52,10 @@ public:
 	~SubmissionGroup() = default;
 
 	auto submit(gpu::CommandRecorder&& commands) -> void;
-	auto signal(gpu::resource<gpu::Fence> const& fence, uint64 value) -> void;
-	auto signal(gpu::resource<gpu::Semaphore> const& semaphore) -> void;
-	auto wait(gpu::resource<gpu::Fence> const& fence, uint64 value) -> void;
-	auto wait(gpu::resource<gpu::Semaphore> const& semaphore) -> void;
+	auto signal(gpu::Fence const& fence, uint64 value) -> void;
+	auto signal(gpu::Semaphore const& semaphore) -> void;
+	auto wait(gpu::Fence const& fence, uint64 value) -> void;
+	auto wait(gpu::Semaphore const& semaphore) -> void;
 private:
 	Queue& m_queue;
 	Queue::SubmissionData& m_data;

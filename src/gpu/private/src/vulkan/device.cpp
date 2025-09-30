@@ -77,7 +77,7 @@ auto Device::config() const -> DeviceConfig const&
 
 auto Device::wait_idle() const -> void
 {
-	auto&& self = to_device(this);
+	auto&& self = static_cast<DeviceImpl const&>(*this);
 	vkDeviceWaitIdle(self.device);
 }
 
@@ -88,8 +88,8 @@ auto Device::cpu_timeline() const -> uint64
 
 auto Device::gpu_timeline() const -> uint64
 {
-	auto const& timelineSemaphore = to_impl(*m_gpuTimeline);
-	auto const& vkdevice = to_device(*this);
+	auto const& timelineSemaphore = shared_base::impl_of(m_gpuTimeline);
+	auto const& vkdevice = static_cast<DeviceImpl const&>(*this);
 
 	uint64 value = {};
 
@@ -102,8 +102,8 @@ auto Device::gpu_timeline() const -> uint64
 
 auto Device::submit(SubmitInfo const& info) -> bool
 {
-	auto&& self = to_device(this);
-	auto&& gpuTimeline = to_impl(*m_gpuTimeline);
+	auto&& self = static_cast<DeviceImpl&>(*this);
+	auto&& gpuTimeline = shared_base::impl_of(m_gpuTimeline);
 	
 	self.flush_submit_info_buffers();
 
@@ -122,13 +122,13 @@ auto Device::submit(SubmitInfo const& info) -> bool
 
 	for (auto const& submittedRecorder : info.commandRecorders)
 	{
-		auto const& pool = to_impl(*submittedRecorder.m_cmdPool);
+		auto const& pool = shared_base::impl_of(submittedRecorder.m_cmdPool);
 		self.submitCommandBuffers.push_back(pool.commandBufferPool.commandBuffers[submittedRecorder.m_index].handle);
 	}
 
 	for (auto&& [fence, waitValue] : info.waitFences)
 	{
-		vk::FenceImpl& timelineSemaphore = to_impl(*fence);
+		FenceImpl& timelineSemaphore = shared_base::impl_of(fence);
 		self.waitSemaphores.push_back(timelineSemaphore.handle);
 		self.waitTimelineSemaphoreValues.push_back(waitValue);
 		self.waitDstStageMasks.push_back(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
@@ -136,7 +136,7 @@ auto Device::submit(SubmitInfo const& info) -> bool
 
 	for (auto&& waitSemaphore : info.waitSemaphores)
 	{
-		vk::SemaphoreImpl& semaphore = to_impl(*waitSemaphore);
+		SemaphoreImpl& semaphore = shared_base::impl_of(waitSemaphore);
 		self.waitSemaphores.push_back(semaphore.handle);
 		self.waitTimelineSemaphoreValues.push_back(0);
 		self.waitDstStageMasks.push_back(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
@@ -147,14 +147,14 @@ auto Device::submit(SubmitInfo const& info) -> bool
 
 	for (auto&& [fence, signalValue] : info.signalFences)
 	{
-		vk::FenceImpl& timelineSemaphore = to_impl(*fence);
+		FenceImpl& timelineSemaphore = shared_base::impl_of(fence);
 		self.signalSemaphores.push_back(timelineSemaphore.handle);
 		self.signalTimelineSemaphoreValues.push_back(signalValue);
 	}
 
 	for (auto&& signalSemaphore : info.signalSemaphores)
 	{
-		vk::SemaphoreImpl& semaphore = to_impl(*signalSemaphore);
+		SemaphoreImpl& semaphore = shared_base::impl_of(signalSemaphore);
 		self.signalSemaphores.push_back(semaphore.handle);
 		self.signalTimelineSemaphoreValues.push_back(0);
 	}
@@ -184,17 +184,17 @@ auto Device::submit(SubmitInfo const& info) -> bool
 
 auto Device::present(PresentInfo const& info) -> bool
 {
-	auto&& self = to_device(this);
+	auto&& self = static_cast<DeviceImpl&>(*this);
 	
 	self.flush_submit_info_buffers();
 
 	for (auto&& swapchain : info.swapchains)
 	{
-		vk::SwapchainImpl& vkswapchain = to_impl(*swapchain);
-		vk::SemaphoreImpl& presentSemaphore = to_impl(*vkswapchain.current_present_semaphore());
+		auto&& vkswapchain = shared_base::impl_of(swapchain);
+		auto&& presentSemaphore = shared_base::impl_of(swapchain.current_present_semaphore());
 
 		self.presentSwapchains.push_back(vkswapchain.handle);
-		self.presentImageIndices.push_back(vkswapchain.current_image_index());
+		self.presentImageIndices.push_back(swapchain.current_image_index());
 		self.waitSemaphores.push_back(presentSemaphore.handle);
 	}
 
@@ -212,7 +212,7 @@ auto Device::present(PresentInfo const& info) -> bool
 
 auto Device::clear_garbage() -> void
 {
-	auto&& self = to_device(this);
+	auto&& self = static_cast<DeviceImpl&>(*this);
 
 	std::scoped_lock lock{ self.gpuResourcePool.zombieMutex };
 
@@ -233,7 +233,7 @@ auto Device::clear_garbage() -> void
 
 auto Device::from(DeviceInitInfo const& info) -> std::expected<std::unique_ptr<Device>, std::string_view>
 {
-	auto vkdevice = std::make_unique<vk::DeviceImpl>();
+	auto vkdevice = std::make_unique<DeviceImpl>();
 
 	if (!vkdevice->initialize(info))
 	{
@@ -248,7 +248,7 @@ auto Device::from(DeviceInitInfo const& info) -> std::expected<std::unique_ptr<D
 
 auto Device::destroy(std::unique_ptr<Device>& device) -> void
 {
-	auto vkdevice = static_cast<vk::DeviceImpl*>(device.get());
+	auto vkdevice = static_cast<DeviceImpl*>(device.get());
 
 	vkdevice->terminate();
 
@@ -256,101 +256,6 @@ auto Device::destroy(std::unique_ptr<Device>& device) -> void
 	deleter(device.release());
 }
 
-auto Device::inc_ref(uint64 id) -> void
-{
-	auto&& vkdevice = to_device(*this);
-	ASSERTION(id != std::numeric_limits<uint64>::max() && "Attempting to increment the reference count of an invalid resource");
-	vkdevice.gpuResourcePool.referenceCountCache[id]->fetch_add(1, std::memory_order_relaxed);
-}
-
-auto Device::dec_ref(uint64 id) -> uint64
-{
-	auto&& vkdevice = to_device(*this);
-	ASSERTION(id != std::numeric_limits<uint64>::max() && "Attempting to decrement the reference count of an invalid resource");
-	auto it = vkdevice.gpuResourcePool.referenceCountCache[id];
-	auto count = (*it).fetch_sub(1, std::memory_order_relaxed) - 1;
-	if (std::cmp_equal(count, 0))
-	{
-		vkdevice.gpuResourcePool.referenceCountCache.erase(id);
-		vkdevice.gpuResourcePool.referenceCounts.erase(it);
-	}
-	return count;
-}
-
-auto Device::get_resource(lib::type<Semaphore> type, uint64 id) -> Semaphore&
-{
-	auto&& vkdevice = to_device(*this);
-	return *vkdevice.gpuResourcePool.caches.binarySemaphore[id];
-}
-
-auto Device::get_resource(lib::type<Fence> type, uint64 id) -> Fence&
-{
-	auto&& vkdevice = to_device(*this);
-	return *vkdevice.gpuResourcePool.caches.timelineSemaphore[id];
-}
-
-auto Device::get_resource(lib::type<Event> type, uint64 id) -> Event&
-{
-	auto&& vkdevice = to_device(*this);
-	return *vkdevice.gpuResourcePool.caches.event[id];
-}
-
-auto Device::get_resource(lib::type<MemoryBlock> type, uint64 id) -> MemoryBlock&
-{
-	auto&& vkdevice = to_device(*this);
-	return *vkdevice.gpuResourcePool.caches.memoryBlock[id];
-}
-
-auto Device::get_resource(lib::type<Buffer> type, uint64 id) -> Buffer&
-{
-	auto&& vkdevice = to_device(*this);
-	return *vkdevice.gpuResourcePool.caches.buffer[id];
-}
-
-auto Device::get_resource(lib::type<Image> type, uint64 id) -> Image&
-{
-	auto&& vkdevice = to_device(*this);
-	return *vkdevice.gpuResourcePool.caches.image[id];
-}
-
-auto Device::get_resource(lib::type<Sampler> type, uint64 id) -> Sampler&
-{
-	auto&& vkdevice = to_device(*this);
-	return *vkdevice.gpuResourcePool.caches.sampler[id];
-}
-
-auto Device::get_resource(lib::type<Swapchain> type, uint64 id) -> Swapchain&
-{
-	auto&& vkdevice = to_device(*this);
-	return *vkdevice.gpuResourcePool.caches.swapchain[id];
-}
-
-auto Device::get_resource(lib::type<Shader> type, uint64 id) -> Shader&
-{
-	auto&& vkdevice = to_device(*this);
-	return *vkdevice.gpuResourcePool.caches.shader[id];
-}
-
-auto Device::get_resource(lib::type<Pipeline> type, uint64 id) -> Pipeline&
-{
-	auto&& vkdevice = to_device(*this);
-	return *vkdevice.gpuResourcePool.caches.pipeline[id];
-}
-
-auto Device::get_resource(lib::type<CommandPool> type, uint64 id) -> CommandPool&
-{
-	auto&& vkdevice = to_device(*this);
-	return *vkdevice.gpuResourcePool.caches.commandPool[id];
-}
-
-// auto Device::get_resource(lib::type<CommandBuffer> type, uint64 id) -> CommandBuffer*
-// {
-// 	auto&& vkdevice = to_device(*this);
-// 	vkdevice.gpuResourcePool.caches.commandPool.at(id)->commandBufferPool;
-// }
-
-namespace vk
-{
 auto DeviceImpl::initialize(DeviceInitInfo const& info) -> bool
 {
 	static constexpr std::pair<uint32, literal_t> vendorIdToName[] = {
@@ -494,7 +399,7 @@ auto DeviceImpl::push_constant_pipeline_layout(uint32 const pushConstantSize, ui
 
 auto DeviceImpl::setup_debug_name(SwapchainImpl const& swapchain) -> void
 {
-	std::string_view name = swapchain.info().name;
+	std::string_view name = swapchain.info.name;
 	if (!name.empty())
 	{
 		VkDebugUtilsObjectNameInfoEXT debugResourceNameInfo{
@@ -510,7 +415,7 @@ auto DeviceImpl::setup_debug_name(SwapchainImpl const& swapchain) -> void
 
 auto DeviceImpl::setup_debug_name(ShaderImpl const& shader) -> void
 {
-	std::string_view name = shader.info().name;
+	std::string_view name = shader.info.name;
 	if (!name.empty())
 	{
 		VkDebugUtilsObjectNameInfoEXT debugResourceNameInfo{
@@ -525,7 +430,7 @@ auto DeviceImpl::setup_debug_name(ShaderImpl const& shader) -> void
 
 auto DeviceImpl::setup_debug_name(BufferImpl const& buffer) -> void
 {
-	std::string_view name = buffer.info().name;
+	std::string_view name = buffer.info.name;
 	if (!name.empty())
 	{
 		VkDebugUtilsObjectNameInfoEXT debugResourceNameInfo{
@@ -540,7 +445,7 @@ auto DeviceImpl::setup_debug_name(BufferImpl const& buffer) -> void
 
 auto DeviceImpl::setup_debug_name(ImageImpl const& image) -> void
 {
-	std::string_view name = image.info().name;
+	std::string_view name = image.info.name;
 	if (!name.empty())
 	{
 		VkDebugUtilsObjectNameInfoEXT imageDebugNameInfo{
@@ -551,7 +456,7 @@ auto DeviceImpl::setup_debug_name(ImageImpl const& image) -> void
 		};
 		vkSetDebugUtilsObjectNameEXT(device, &imageDebugNameInfo);
 
-		std::string const imageViewDebugName = fmt::format("<imgview>:{}", image.info().name);
+		std::string const imageViewDebugName = fmt::format("<imgview>:{}", image.info.name);
 
 		VkDebugUtilsObjectNameInfoEXT imageViewDebugNameInfo{
 			.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
@@ -565,7 +470,7 @@ auto DeviceImpl::setup_debug_name(ImageImpl const& image) -> void
 
 auto DeviceImpl::setup_debug_name(SamplerImpl const& sampler) -> void
 {
-	std::string_view name = sampler.info().name;
+	std::string_view name = sampler.info.name;
 	if (!name.empty())
 	{
 		VkDebugUtilsObjectNameInfoEXT debugResourceNameInfo{
@@ -582,9 +487,9 @@ auto DeviceImpl::setup_debug_name(PipelineImpl const& pipeline) -> void
 {
 	std::string_view name = {};
 
-	if (pipeline.type() == PipelineType::Rasterization)
+	if (pipeline.type == PipelineType::Rasterization)
 	{
-		name = pipeline.as<RasterPipeline>()->info().name;
+		name = std::get_if<RasterPipelineInfo>(&pipeline.info)->name;
 	}
 
 	if (!name.empty())
@@ -601,7 +506,7 @@ auto DeviceImpl::setup_debug_name(PipelineImpl const& pipeline) -> void
 
 auto DeviceImpl::setup_debug_name(CommandPoolImpl const& commandPool) -> void
 {
-	std::string_view name = commandPool.info().name;
+	std::string_view name = commandPool.info.name;
 	if (!name.empty())
 	{
 		VkDebugUtilsObjectNameInfoEXT debugResourceNameInfo{
@@ -616,7 +521,7 @@ auto DeviceImpl::setup_debug_name(CommandPoolImpl const& commandPool) -> void
 
 // auto DeviceImpl::setup_debug_name(CommandBufferImpl const& commandBuffer) -> void
 // {
-// 	std::string_view name = commandBuffer.info().name;
+// 	std::string_view name = commandBuffer.info.name;
 // 	if (!name.empty())
 // 	{
 // 		VkDebugUtilsObjectNameInfoEXT debugResourceNameInfo{
@@ -631,7 +536,7 @@ auto DeviceImpl::setup_debug_name(CommandPoolImpl const& commandPool) -> void
 
 auto DeviceImpl::setup_debug_name(SemaphoreImpl const& semaphore) -> void
 {
-	std::string_view name = semaphore.info().name;
+	std::string_view name = semaphore.info.name;
 	if (!name.empty())
 	{
 		VkDebugUtilsObjectNameInfoEXT debugResourceNameInfo{
@@ -646,7 +551,7 @@ auto DeviceImpl::setup_debug_name(SemaphoreImpl const& semaphore) -> void
 
 auto DeviceImpl::setup_debug_name(FenceImpl const& fence) -> void
 {
-	std::string_view name = fence.info().name;
+	std::string_view name = fence.info.name;
 	if (!name.empty())
 	{
 		VkDebugUtilsObjectNameInfoEXT debugResourceNameInfo{
@@ -661,7 +566,7 @@ auto DeviceImpl::setup_debug_name(FenceImpl const& fence) -> void
 
 auto DeviceImpl::setup_debug_name(EventImpl const& event) -> void
 {
-	std::string_view name = event.info().name;
+	std::string_view name = event.info.name;
 	if (!name.empty())
 	{
 		VkDebugUtilsObjectNameInfoEXT debugResourceNameInfo{
@@ -676,7 +581,7 @@ auto DeviceImpl::setup_debug_name(EventImpl const& event) -> void
 
 auto DeviceImpl::setup_debug_name(MemoryBlockImpl const& event) -> void
 {
-	std::string_view name = event.info().name;
+	std::string_view name = event.info.name;
 	if (!name.empty())
 	{
 		VkDebugUtilsObjectNameInfoEXT debugResourceNameInfo{
@@ -1428,7 +1333,7 @@ auto DeviceImpl::bind(ImageImpl const& image, uint32 at) -> void
 	uint32 count = 0;
 	std::array<VkWriteDescriptorSet, 2> descriptorSetWrites{};
 
-	ImageInfo const& imageInfo = image.info();
+	ImageInfo const& imageInfo = image.info;
 
 	VkDescriptorImageInfo descriptorSampledImageInfo{
 		.sampler = VK_NULL_HANDLE,
@@ -1473,7 +1378,7 @@ auto DeviceImpl::bind(ImageImpl const& image, uint32 at) -> void
 
 auto DeviceImpl::bind(BufferImpl const& buffer, uint32 at) -> void
 {
-	descriptorCache.bdaHostAddress[at] = buffer.gpu_address();
+	descriptorCache.bdaHostAddress[at] = buffer.address;
 }
 
 auto DeviceImpl::bind(SamplerImpl const& sampler, uint32 at) -> void
@@ -1495,12 +1400,6 @@ auto DeviceImpl::bind(SamplerImpl const& sampler, uint32 at) -> void
 	};
 
 	vkUpdateDescriptorSets(device, 1, &writeDescriptorSetImage, 0, nullptr);	
-}
-
-auto DeviceImpl::begin_referencing(uint64 id) -> void
-{
-	auto it = gpuResourcePool.referenceCounts.emplace();
-	gpuResourcePool.referenceCountCache.emplace(id, it);
 }
 
 auto translate_image_usage_flags(ImageUsage flags) -> VkImageUsageFlags
@@ -2689,136 +2588,5 @@ auto to_error_message(VkResult result) -> std::string_view
 	default:
 		return "VK_SUCCESS - Command successfully completed";
 	}
-}
-}
-
-auto to_device(Device const* device) -> vk::DeviceImpl const&
-{
-	return *static_cast<vk::DeviceImpl const*>(device);
-}
-
-auto to_device(Device const& device) -> vk::DeviceImpl const&
-{
-	return to_device(&device);
-}
-
-auto to_device(Device* device) -> vk::DeviceImpl&
-{
-	return *static_cast<vk::DeviceImpl*>(device);
-}
-
-auto to_device(Device& device) -> vk::DeviceImpl&
-{
-	return to_device(&device);
-}
-
-auto to_impl(MemoryBlock& memoryBlock) -> vk::MemoryBlockImpl&
-{
-	return static_cast<vk::MemoryBlockImpl&>(memoryBlock);
-}
-
-auto to_impl(Semaphore& semaphore) -> vk::SemaphoreImpl&
-{
-	return static_cast<vk::SemaphoreImpl&>(semaphore);
-}
-
-auto to_impl(Fence& fence) -> vk::FenceImpl&
-{
-	return static_cast<vk::FenceImpl&>(fence);
-}
-
-auto to_impl(Event& event) -> vk::EventImpl&
-{
-	return static_cast<vk::EventImpl&>(event);
-}
-
-auto to_impl(Image& image) -> vk::ImageImpl&
-{
-	return static_cast<vk::ImageImpl&>(image);
-}
-
-auto to_impl(Sampler& sampler) -> vk::SamplerImpl&
-{
-	return static_cast<vk::SamplerImpl&>(sampler);
-}
-
-auto to_impl(Buffer& buffer) -> vk::BufferImpl&
-{
-	return static_cast<vk::BufferImpl&>(buffer);
-}
-
-auto to_impl(Shader& shader) -> vk::ShaderImpl&
-{
-	return static_cast<vk::ShaderImpl&>(shader);
-}
-
-auto to_impl(Pipeline& pipeline) -> vk::PipelineImpl&
-{
-	return static_cast<vk::PipelineImpl&>(pipeline);
-}
-
-auto to_impl(Swapchain& swapchain) -> vk::SwapchainImpl&
-{
-	return static_cast<vk::SwapchainImpl&>(swapchain);
-}
-
-auto to_impl(CommandPool& cmdPool) -> vk::CommandPoolImpl&
-{
-	return static_cast<vk::CommandPoolImpl&>(cmdPool);
-}
-
-auto to_impl(MemoryBlock const& memoryBlock) -> vk::MemoryBlockImpl const&
-{
-	return static_cast<vk::MemoryBlockImpl const&>(memoryBlock);
-}
-
-auto to_impl(Semaphore const& semaphore) -> vk::SemaphoreImpl const&
-{
-	return static_cast<vk::SemaphoreImpl const&>(semaphore);
-}
-
-auto to_impl(Fence const& fence) -> vk::FenceImpl const&
-{
-	return static_cast<vk::FenceImpl const&>(fence);
-}
-
-auto to_impl(Event const& event) -> vk::EventImpl const&
-{
-	return static_cast<vk::EventImpl const&>(event);
-}
-
-auto to_impl(Image const& image) -> vk::ImageImpl const&
-{
-	return static_cast<vk::ImageImpl const&>(image);
-}
-
-auto to_impl(Sampler const& sampler) -> vk::SamplerImpl const&
-{
-	return static_cast<vk::SamplerImpl const&>(sampler);
-}
-
-auto to_impl(Buffer const& buffer) -> vk::BufferImpl const&
-{
-	return static_cast<vk::BufferImpl const&>(buffer);
-}
-
-auto to_impl(Shader const& shader) -> vk::ShaderImpl const&
-{
-	return static_cast<vk::ShaderImpl const&>(shader);
-}
-
-auto to_impl(Pipeline const& pipeline) -> vk::PipelineImpl const&
-{
-	return static_cast<vk::PipelineImpl const&>(pipeline);
-}
-
-auto to_impl(Swapchain const& swapchain) -> vk::SwapchainImpl const&
-{
-	return static_cast<vk::SwapchainImpl const&>(swapchain);
-}
-
-auto to_impl(CommandPool const& cmdPool) -> vk::CommandPoolImpl const&
-{
-	return static_cast<vk::CommandPoolImpl const&>(cmdPool);
 }
 }

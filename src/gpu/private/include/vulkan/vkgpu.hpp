@@ -1,4 +1,5 @@
 #pragma once
+#include <type_traits>
 #ifndef VK_GPU_H
 #define VK_GPU_H
 
@@ -22,34 +23,6 @@
 
 namespace gpu
 {
-namespace vk
-{
-namespace detail
-{
-consteval auto fnv1a_32(const char* str) -> uint32
-{
-    constexpr uint32 FNV_OFFSET_BASIS = 0x811C9DC5u; // 2166136261
-    constexpr uint32 FNV_PRIME = 0x01000193u;        // 16777619
-
-    uint32 hash = FNV_OFFSET_BASIS;
-    while (*str) 
-	{
-        hash ^= static_cast<uint8_t>(*str++);
-        hash *= FNV_PRIME;
-    }
-    return hash;
-}
-
-template <typename T>
-struct type_id
-{
-	static constexpr uint32 value = fnv1a_32(std::source_location::current().function_name());
-};
-
-template <typename T>
-static constexpr uint32 type_id_v = type_id<T>::value;
-}
-
 struct DeviceImpl;
 
 static constexpr uint32 INVALID_QUEUE_FAMILY_INDEX = std::numeric_limits<uint32>::max();
@@ -61,43 +34,39 @@ struct Queue
 	uint32 familyIndex = INVALID_QUEUE_FAMILY_INDEX;
 };
 
-class MemoryBlockImpl : public MemoryBlock
+struct MemoryBlockImpl : ref_counted_base
 {
-public:
-	MemoryBlockImpl() = default;
-	MemoryBlockImpl(bool aliased);
-
-	VmaAllocation handle = VK_NULL_HANDLE;
-	VmaAllocationInfo allocationInfo = {};
+	VmaAllocation handle;
+	VmaAllocationInfo allocationInfo;
+	MemoryBlockInfo info;
+	bool aliased;
 };
 
 // https://gpuopen-librariesandsdks.github.io/VulkanMemoryAllocator/html/usage_patterns.html
-class BufferImpl : public Buffer
+struct BufferImpl : ref_counted_base
 {
-public:
-	BufferImpl() = default;
-
-	VkBuffer handle = VK_NULL_HANDLE;
-	VkDeviceAddress address = {};
-	MemoryBlock::handle_type allocationBlock = {};
+	VkBuffer handle;
+	VkDeviceAddress address;
+	MemoryBlock memoryBlock;
+	BufferInfo info;
+	uint64 id;
 };
 
-class ImageImpl : public Image
+struct ImageImpl : ref_counted_base
 {
-public:
-	ImageImpl() = default;
-
-	VkImage	handle = VK_NULL_HANDLE;
-	VkImageView	imageView = VK_NULL_HANDLE;
-	MemoryBlock::handle_type allocationBlock = {};
+	VkImage	handle;
+	VkImageView	imageView;
+	MemoryBlock memoryBlock;
+	ImageInfo info;
+	uint64 id;
 };
 
-class SamplerImpl : public Sampler
+struct SamplerImpl : ref_counted_base
 {
-public:
-	SamplerImpl() = default;
-
-	VkSampler handle = VK_NULL_HANDLE;
+	VkSampler handle;
+	SamplerInfo info;
+	uint64 packedInfoBits;
+	uint64 id;
 };
 
 struct Surface
@@ -108,62 +77,54 @@ struct Surface
 	std::atomic_uint32_t refCount = {};
 };
 
-class SemaphoreImpl : public Semaphore
+struct SemaphoreImpl : ref_counted_base
 {
-public:
-	SemaphoreImpl() = default;
-
-	VkSemaphore handle = VK_NULL_HANDLE;
+	VkSemaphore handle;
+	SemaphoreInfo info;
 };
 
-class FenceImpl : public Fence
+struct FenceImpl : ref_counted_base
 {
-public:
-	FenceImpl() = default;
-	FenceImpl(DeviceImpl& device);
-
-	DeviceImpl* vkdevice = nullptr;
-	VkSemaphore handle = VK_NULL_HANDLE;
+	VkSemaphore handle;
+	FenceInfo info;
 };
 
-class EventImpl : public Event
+struct EventImpl : ref_counted_base
 {
-public:
-	EventImpl() = default;
-
-	VkEvent handle = VK_NULL_HANDLE;
+	VkEvent handle;
+	EventInfo info;
 };
 
-class SwapchainImpl : public Swapchain
+struct SwapchainImpl : ref_counted_base
 {
-public:
-	SwapchainImpl() = default;
-	SwapchainImpl(DeviceImpl& device);
-
 	using surface_iterator = typename plf::colony<Surface>::iterator;
 	
-	DeviceImpl* vkdevice = {};
-	surface_iterator surface = {};
 	VkSwapchainKHR handle = VK_NULL_HANDLE;
+	surface_iterator surface = {};
+	lib::array<Image> images;
+	Fence gpuTimeline;
+	std::atomic_uint64_t cpuTimeline;
+	lib::array<Semaphore> acquireSemaphore;
+	lib::array<Semaphore> presentSemaphore;
+	uint32 acquireSemaphoreIndex;
+	uint32 currentImageIndex;
 	VkSurfaceFormatKHR surfaceColorFormat = {};
+	SwapchainInfo info;
 };
 
-class ShaderImpl : public Shader
+struct ShaderImpl : ref_counted_base
 {
-public:
-	ShaderImpl() = default;
-
 	VkShaderModule handle = VK_NULL_HANDLE;
 	VkShaderStageFlagBits stage = {};
+	ShaderInfo info;
 };
 
-class PipelineImpl : public Pipeline
+struct PipelineImpl : ref_counted_base
 {
-public:
-	PipelineImpl() = default;
-
 	VkPipeline handle = VK_NULL_HANDLE;
 	VkPipelineLayout layout = {};
+	std::variant<RasterPipelineInfo, ComputePipelineInfo> info;
+	PipelineType type;
 };
 
 struct CommandBufferImpl
@@ -176,15 +137,15 @@ struct CommandBufferImpl
 	template <typename T>
 	using BarrierArray = std::array<T, MAX_COMMAND_BUFFER_BARRIER_COUNT>;
 
-	VkCommandBuffer handle = VK_NULL_HANDLE;
-	BarrierArray<VkMemoryBarrier2> memoryBarriers = {};
-	BarrierArray<VkBufferMemoryBarrier2> bufferBarriers = {};
-	BarrierArray<VkImageMemoryBarrier2> imageBarriers = {};
-	size_t numMemoryBarrier = {};
-	size_t numBufferBarrier = {};
-	size_t numImageBarrier = {};
-	std::atomic_uint64_t recordingTimeline = {};
-	Fence::handle_type gpuTimeline = {};
+	VkCommandBuffer handle;
+	BarrierArray<VkMemoryBarrier2> memoryBarriers;
+	BarrierArray<VkBufferMemoryBarrier2> bufferBarriers;
+	BarrierArray<VkImageMemoryBarrier2> imageBarriers;
+	size_t numMemoryBarrier;
+	size_t numBufferBarrier;
+	size_t numImageBarrier;
+	std::atomic_uint64_t recordingTimeline;
+	Fence gpuTimeline;
 
 	auto get_memory_barrier_info(MemoryBarrierInfo const& info) const -> VkMemoryBarrier2;
 	auto get_buffer_barrier_info(DeviceImpl const& device, BufferBarrierInfo const& info) const -> VkBufferMemoryBarrier2;
@@ -197,90 +158,234 @@ struct CommandBufferPool
 	uint32 current;
 };
 
-class CommandPoolImpl : public CommandPool
+struct CommandPoolImpl : ref_counted_base
 {
-public:
-	CommandPoolImpl() = default;
-	CommandPoolImpl(DeviceImpl& device);
-
-	DeviceImpl* vkdevice = {};
-	VkCommandPool handle = VK_NULL_HANDLE;
-	CommandBufferPool commandBufferPool = {};
-
-	auto allocate_new_command_buffer() -> uint64;
+	VkCommandPool handle;
+	CommandBufferPool commandBufferPool;
+	CommandPoolInfo info;
 };
+
+template <> 
+struct implementation<MemoryBlock> 	
+{
+	using type = MemoryBlockImpl;
+
+	template <typename T>
+	requires (std::same_as<std::decay_t<T>, ref_counted_base> && std::is_reference_v<T>)
+	static auto of(T&& resource) -> decltype(auto)
+	{
+		using reference = type&;
+		using const_reference = type const&;
+		using to_type = std::conditional_t<std::is_const_v<T>, const_reference, reference>;
+
+		return std::forward_like<T>(static_cast<to_type>(resource));
+	}
+};
+
+template <> 
+struct implementation<Buffer> 		
+{
+	using type = BufferImpl;
+
+	template <typename T>
+	requires (std::same_as<std::decay_t<T>, ref_counted_base> && std::is_reference_v<T>)
+	static auto of(T&& resource) -> decltype(auto)
+	{
+		using reference = type&;
+		using const_reference = type const&;
+		using to_type = std::conditional_t<std::is_const_v<T>, const_reference, reference>;
+
+		return std::forward_like<T>(static_cast<to_type>(resource));
+	}
+};
+
+template <> 
+struct implementation<Image> 		
+{
+	using type = ImageImpl;
+
+	template <typename T>
+	requires (std::same_as<std::decay_t<T>, ref_counted_base> && std::is_reference_v<T>)
+	static auto of(T&& resource) -> decltype(auto)
+	{
+		using reference = type&;
+		using const_reference = type const&;
+		using to_type = std::conditional_t<std::is_const_v<T>, const_reference, reference>;
+
+		return std::forward_like<T>(static_cast<to_type>(resource));
+	}
+};
+
+template <> 
+struct implementation<Sampler> 		
+{
+	using type = SamplerImpl;
+
+	template <typename T>
+	requires (std::same_as<std::decay_t<T>, ref_counted_base> && std::is_reference_v<T>)
+	static auto of(T&& resource) -> decltype(auto)
+	{
+		using reference = type&;
+		using const_reference = type const&;
+		using to_type = std::conditional_t<std::is_const_v<T>, const_reference, reference>;
+
+		return std::forward_like<T>(static_cast<to_type>(resource));
+	}
+};
+
+template <> 
+struct implementation<Semaphore> 	
+{
+	using type = SemaphoreImpl;
+
+	template <typename T>
+	requires (std::same_as<std::decay_t<T>, ref_counted_base> && std::is_reference_v<T>)
+	static auto of(T&& resource) -> decltype(auto)
+	{
+		using reference = type&;
+		using const_reference = type const&;
+		using to_type = std::conditional_t<std::is_const_v<T>, const_reference, reference>;
+
+		return std::forward_like<T>(static_cast<to_type>(resource));
+	}
+};
+
+template <> 
+struct implementation<Fence> 		
+{
+	using type = FenceImpl;
+
+	template <typename T>
+	requires (std::same_as<std::decay_t<T>, ref_counted_base> && std::is_reference_v<T>)
+	static auto of(T&& resource) -> decltype(auto)
+	{
+		using reference = type&;
+		using const_reference = type const&;
+		using to_type = std::conditional_t<std::is_const_v<T>, const_reference, reference>;
+
+		return std::forward_like<T>(static_cast<to_type>(resource));
+	}
+};
+
+template <> 
+struct implementation<Event> 		
+{
+	using type = EventImpl;
+
+	template <typename T>
+	requires (std::same_as<std::decay_t<T>, ref_counted_base> && std::is_reference_v<T>)
+	static auto of(T&& resource) -> decltype(auto)
+	{
+		using reference = type&;
+		using const_reference = type const&;
+		using to_type = std::conditional_t<std::is_const_v<T>, const_reference, reference>;
+
+		return std::forward_like<T>(static_cast<to_type>(resource));
+	}
+};
+
+template <> 
+struct implementation<Swapchain> 	
+{
+	using type = SwapchainImpl;
+
+	template <typename T>
+	requires (std::same_as<std::decay_t<T>, ref_counted_base> && std::is_reference_v<T>)
+	static auto of(T&& resource) -> decltype(auto)
+	{
+		using reference = type&;
+		using const_reference = type const&;
+		using to_type = std::conditional_t<std::is_const_v<T>, const_reference, reference>;
+
+		return std::forward_like<T>(static_cast<to_type>(resource));
+	}
+};
+
+template <> 
+struct implementation<Shader> 		
+{
+	using type = ShaderImpl;
+
+	template <typename T>
+	requires (std::same_as<std::decay_t<T>, ref_counted_base> && std::is_reference_v<T>)
+	static auto of(T&& resource) -> decltype(auto)
+	{
+		using reference = type&;
+		using const_reference = type const&;
+		using to_type = std::conditional_t<std::is_const_v<T>, const_reference, reference>;
+
+		return std::forward_like<T>(static_cast<to_type>(resource));
+	}
+};
+
+template <> 
+struct implementation<Pipeline> 	
+{
+	using type = PipelineImpl;
+
+	template <typename T>
+	requires (std::same_as<std::decay_t<T>, ref_counted_base> && std::is_reference_v<T>)
+	static auto of(T&& resource) -> decltype(auto)
+	{
+		using reference = type&;
+		using const_reference = type const&;
+		using cast_to_type = std::conditional_t<std::is_const_v<T>, const_reference, reference>;
+
+		return std::forward_like<T>(static_cast<cast_to_type>(resource));
+	}
+};
+
+template <> 
+struct implementation<CommandPool> 	
+{
+	using type = CommandPoolImpl;
+
+	template <typename T>
+	requires (std::same_as<std::decay_t<T>, ref_counted_base> && std::is_reference_v<T>)
+	static auto of(T&& resource) -> decltype(auto)
+	{
+		using reference = type&;
+		using const_reference = type const&;
+		using cast_to_type = std::conditional_t<std::is_const_v<T>, const_reference, reference>;
+
+		return std::forward_like<T>(static_cast<cast_to_type>(resource));
+	}
+};
+
 
 struct Zombie
 {
 	using device_timeline_t = Device::cpu_timeline_t;
-	using destroy_fn 		= lib::function<void(DeviceImpl&), { .capacity = sizeof(uintptr_t) * 5 }>;
+	using destroy_fn 		= lib::function<void(DeviceImpl&), { .capacity = sizeof(uintptr_t) * 2 }>;
 	
 	device_timeline_t timeline;
 	destroy_fn destroyFn;
 };
 
-struct _ResourceMeta
-{
-	uint32 type;
-	uint32 id;
-};
-
 struct ResourcePool
 {
-	template <typename T>
-	using Cache = ankerl::unordered_dense::map<uint64, typename plf::colony<T>::iterator>;
-
 	struct
 	{
-		plf::colony<SemaphoreImpl> binarySemaphore{ plf::limits{ 8, 64 } };
-		plf::colony<FenceImpl> timelineSemaphore{ plf::limits{ 8, 64 } };
-		plf::colony<EventImpl> events{ plf::limits{ 8, 64 } };
 		plf::colony<BufferImpl> buffers{ plf::limits{ 8, 64 } };
 		plf::colony<ImageImpl> images{ plf::limits{ 8, 64 } };
 		plf::colony<SamplerImpl> samplers{ plf::limits{ 8, 64 } };
 		plf::colony<Surface> surfaces{ plf::limits{ 4, 8 } };
-		plf::colony<SwapchainImpl> swapchains{ plf::limits{ 4, 8 } };
+		plf::colony<MemoryBlockImpl> memoryBlocks{ plf::limits{ 8, 64 } };
+		plf::colony<SemaphoreImpl> semaphores{ plf::limits{ 8, 64 } };
+		plf::colony<FenceImpl> fences{ plf::limits{ 8, 64 } };
+		plf::colony<EventImpl> events{ plf::limits{ 8, 64 } };
+		plf::colony<SwapchainImpl> swapchains{ plf::limits{ 8, 64 } };
 		plf::colony<ShaderImpl> shaders{ plf::limits{ 8, 64 } };
 		plf::colony<PipelineImpl> pipelines{ plf::limits{ 8, 64 } };
-		plf::colony<MemoryBlockImpl> memoryBlocks{ plf::limits{ 8, 64 } };
 		plf::colony<CommandPoolImpl> commandPools{ plf::limits{ 4, 16 } };
 	} stores;
 	
 	struct
 	{
-		Cache<SemaphoreImpl> binarySemaphore;
-		Cache<FenceImpl> timelineSemaphore;
-		Cache<EventImpl> event;
-		Cache<BufferImpl> buffer;
-		Cache<ImageImpl> image;
-		Cache<SamplerImpl> sampler;
-		Cache<SwapchainImpl> swapchain;
-		Cache<ShaderImpl> shader;
-		Cache<PipelineImpl> pipeline;
-		Cache<MemoryBlockImpl> memoryBlock;
-		Cache<CommandPoolImpl> commandPool;
-	} caches;
-
-	struct
-	{
 		uint32 images;
 		uint32 buffers;
 		uint32 sampler;
-		uint32 others;
 	} idCounter;
-
-	/*
-	* NOTE(afiq):
-	* Don't need separate reference counters for each resource at the moment.
-	* Might consider it in the future.
-	*/
-	using RefCountCache = ankerl::unordered_dense::map<uint64_t, plf::colony<std::atomic_uint64_t>::iterator>;
-	/* 
-	* This needed to be done because std::atomic is not copy assignable.
-	* Hence we need to store it in some container that doesn't move contents around when growing.
-	*/
-	plf::colony<std::atomic_uint64_t> referenceCounts;
-	RefCountCache referenceCountCache;
 
 	std::deque<Zombie> zombies;
 	std::mutex zombieMutex;
@@ -302,7 +407,7 @@ struct DescriptorCache
 	VkDeviceAddress* bdaHostAddress;
 };
 
-struct DeviceImpl : public Device
+struct DeviceImpl final : public Device
 {
 	VkInstance instance = {};
 	VkPhysicalDevice gpu = {};
@@ -370,8 +475,23 @@ struct DeviceImpl : public Device
 	auto bind(ImageImpl const& image, uint32 at) -> void;
 	auto bind(BufferImpl const& buffer, uint32 at) -> void;
 	auto bind(SamplerImpl const& sampler, uint32 at) -> void;
+};
 
-	auto begin_referencing(uint64 id) -> void;
+template <> 
+struct implementation<Device> 	
+{
+	using type = DeviceImpl;
+
+	template <typename T>
+	requires (std::same_as<std::decay_t<T>, Device> && std::is_reference_v<T>)
+	static auto of(T&& resource) -> decltype(auto)
+	{
+		using reference = type&;
+		using const_reference = type const&;
+		using cast_to_type = std::conditional_t<std::is_const_v<T>, const_reference, reference>;
+
+		return std::forward_like<T>(static_cast<cast_to_type>(resource));
+	}
 };
 
 auto translate_memory_usage(MemoryUsage const usage) -> VmaAllocationCreateFlags;
@@ -413,35 +533,6 @@ auto get_image_create_info(ImageInfo const& info) -> VkImageCreateInfo;
 auto get_buffer_create_info(BufferInfo const& info) -> VkBufferCreateInfo;
 
 auto to_error_message(VkResult result) -> std::string_view;
-}
-
-auto to_device(Device const* device) -> vk::DeviceImpl const&;
-auto to_device(Device const& device) -> vk::DeviceImpl const&;
-auto to_device(Device* device) -> vk::DeviceImpl&;
-auto to_device(Device& device) -> vk::DeviceImpl&;
-auto to_impl(MemoryBlock& memoryBlock) -> vk::MemoryBlockImpl&;
-auto to_impl(Semaphore& semaphore) -> vk::SemaphoreImpl&;
-auto to_impl(Fence& fence) -> vk::FenceImpl&;
-auto to_impl(Event& event) -> vk::EventImpl&;
-auto to_impl(Image& image) -> vk::ImageImpl&;
-auto to_impl(Buffer& buffer) -> vk::BufferImpl&;
-auto to_impl(Sampler& sampler) -> vk::SamplerImpl&;
-auto to_impl(Shader& shader) -> vk::ShaderImpl&;
-auto to_impl(Pipeline& pipeline) -> vk::PipelineImpl&;
-auto to_impl(Swapchain& swapchain) -> vk::SwapchainImpl&;
-auto to_impl(CommandBuffer& cmdBuffer) -> vk::CommandBufferImpl&;
-auto to_impl(CommandPool& cmdPool) -> vk::CommandPoolImpl&;
-auto to_impl(MemoryBlock const& memoryBlock) -> vk::MemoryBlockImpl const&;
-auto to_impl(Semaphore const& semaphore) -> vk::SemaphoreImpl const&;
-auto to_impl(Fence const& fence) -> vk::FenceImpl const&;
-auto to_impl(Event const& event) -> vk::EventImpl const&;
-auto to_impl(Image const& image) -> vk::ImageImpl const&;
-auto to_impl(Buffer const& buffer) -> vk::BufferImpl const&;
-auto to_impl(Sampler const& image) -> vk::SamplerImpl const&;
-auto to_impl(Shader const& shader) -> vk::ShaderImpl const&;
-auto to_impl(Pipeline const& pipeline) -> vk::PipelineImpl const&;
-auto to_impl(Swapchain const& swapchain) -> vk::SwapchainImpl const&;
-auto to_impl(CommandPool const& cmdPool) -> vk::CommandPoolImpl const&;
 }
 
 #endif // !VK_GPU_H

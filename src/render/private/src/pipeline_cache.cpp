@@ -249,7 +249,7 @@ auto PipelineCache::load_cache([[maybe_unused]] PipelineCacheLoadDefinitionsInfo
     return true;
 }
 
-auto PipelineCache::cache_pipeline(RasterPipelineDefinition const& definition, std::span<PipelineShaderCompileInfo const*> compileInfo) -> std::expected<gpu::resource<gpu::Pipeline>, std::string>
+auto PipelineCache::cache_pipeline(RasterPipelineDefinition const& definition, std::span<PipelineShaderCompileInfo const*> compileInfo) -> std::expected<gpu::Pipeline, std::string>
 {
     if ((definition.shaderPaths.vertex.empty() /*|| definition.shaderPaths.mesh.empty()*/) &&
         definition.shaderPaths.pixel.empty())
@@ -262,7 +262,7 @@ auto PipelineCache::cache_pipeline(RasterPipelineDefinition const& definition, s
         return std::unexpected{ "Pipeline URI cannot be empty." };
     }
 
-    std::expected<gpu::resource<gpu::Shader>, std::string> results[2];
+    std::expected<gpu::Shader, std::string> results[2];
 
     results[0] = try_compile_shader(definition.shaderPaths.vertex, *compileInfo[0]);
     results[1] = try_compile_shader(definition.shaderPaths.pixel, *compileInfo[1]);
@@ -315,7 +315,7 @@ auto PipelineCache::cache_pipeline(RasterPipelineDefinition const& definition, s
     return pipeline;
 }
 
-auto PipelineCache::cache_pipeline(ComputePipelineDefinition const& definition, PipelineShaderCompileInfo const& compileInfo) -> std::expected<gpu::resource<gpu::Pipeline>, std::string>
+auto PipelineCache::cache_pipeline(ComputePipelineDefinition const& definition, PipelineShaderCompileInfo const& compileInfo) -> std::expected<gpu::Pipeline, std::string>
 {
     if (definition.shaderPaths.compute.empty())
     {
@@ -370,7 +370,7 @@ auto PipelineCache::remove_pipeline(std::string_view uri) -> void
     }
 };
 
-auto PipelineCache::get_pipeline(std::string_view uri) -> std::expected<gpu::resource<gpu::Pipeline>, std::string>
+auto PipelineCache::get_pipeline(std::string_view uri) -> std::expected<gpu::Pipeline, std::string>
 {
     if (!m_uriToPipeline.contains(uri))
     {
@@ -441,7 +441,7 @@ auto PipelineCache::load_pipeline(ComputePipelineDefinition const& definition) -
     }
 }
 
-auto PipelineCache::try_compile_shader(std::filesystem::path const& path, PipelineShaderCompileInfo const& compileInfo) -> std::expected<gpu::resource<gpu::Shader>, std::string>
+auto PipelineCache::try_compile_shader(std::filesystem::path const& path, PipelineShaderCompileInfo const& compileInfo) -> std::expected<gpu::Shader, std::string>
 {
     // First we check if the compiled binaries already exist. We only recompile if they don't.
     // That way during development, we only need to recompile the shaders that are being hot-reloaded.
@@ -456,7 +456,7 @@ auto PipelineCache::try_compile_shader(std::filesystem::path const& path, Pipeli
     return deserialize_shader(cachedBinaryPath);
 }
 
-auto PipelineCache::compile_shader(std::string_view path, std::filesystem::path const& output, PipelineShaderCompileInfo const& compileInfo) -> std::expected<gpu::resource<gpu::Shader>, std::string>
+auto PipelineCache::compile_shader(std::string_view path, std::filesystem::path const& output, PipelineShaderCompileInfo const& compileInfo) -> std::expected<gpu::Shader, std::string>
 {
     static constexpr std::string_view SHADER_ENRY_POINT[] = {
         "main_vertex",
@@ -570,7 +570,7 @@ auto PipelineCache::serialize_shader(std::filesystem::path const& path, gpu::Com
     stream.write(compiledInfo.binaries.data(), compiledInfo.binaries.size_bytes());
 }
 
-auto PipelineCache::deserialize_shader(std::filesystem::path const& path) -> gpu::resource<gpu::Shader>
+auto PipelineCache::deserialize_shader(std::filesystem::path const& path) -> gpu::Shader
 {
     // The resource is guaranteed to exist since the check was done in a function before the call to this one.
 

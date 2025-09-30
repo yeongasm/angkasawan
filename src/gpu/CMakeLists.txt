@@ -7,6 +7,8 @@ set(
 	"public/gpu/constants.hpp"
 	"public/gpu/gpu.hpp"
 	"public/gpu/gpu_api.hpp"
+	"public/gpu/shared_resource.hpp"
+	"public/gpu/meta.hpp"
 	"public/gpu/shader_compiler.hpp"
 )
 

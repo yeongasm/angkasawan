@@ -37,7 +37,7 @@ auto ModelDemoApp::start(
 	// Create swapchain for root window.
 	{
 		make_swapchain(*m_rootWindowRef);
-		if (!m_swapchain)
+		if (!m_swapchain.valid())
 		{
 			return false;
 		}
@@ -49,7 +49,7 @@ auto ModelDemoApp::start(
 		{
 			auto const dim = ev.current.value<core::platform::WindowEvent::Type::Resize>();
 			m_gpu->device().wait_idle();
-			(*m_swapchain).resize({ 
+			m_swapchain.resize({ 
 				.width = static_cast<uint32>(dim.width), 
 				.height = static_cast<uint32>(dim.height) 
 			});
@@ -59,7 +59,7 @@ auto ModelDemoApp::start(
 		}
 	);
 
-	auto&& swapchainInfo = (*m_swapchain).info();
+	auto&& swapchainInfo = m_swapchain.info();
 
 	float32 const swapchainWidth = static_cast<float32>(swapchainInfo.dimension.width);
 	float32 const swapchainHeight = static_cast<float32>(swapchainInfo.dimension.height);
@@ -191,7 +191,7 @@ auto ModelDemoApp::start(
 		for (auto&& image : m_images)
 		{
 			cmd.pipeline_image_barrier({
-				.image = *image.image,
+				.image = image.image,
 				.dstAccess = gpu::access::TRANSFER_WRITE,
 				.oldLayout = gpu::ImageLayout::Transfer_Dst,
 				.newLayout = gpu::ImageLayout::Shader_Read_Only,
@@ -202,7 +202,7 @@ auto ModelDemoApp::start(
 		}
 
 		cmd.pipeline_image_barrier({
-			.image = *m_depthBuffer,
+			.image = m_depthBuffer,
 			.srcAccess = gpu::access::TOP_OF_PIPE_NONE,
 			.oldLayout = gpu::ImageLayout::Undefined,
 			.newLayout = gpu::ImageLayout::Depth_Attachment,
@@ -210,7 +210,7 @@ auto ModelDemoApp::start(
 		});
 
 		cmd.pipeline_image_barrier({
-			.image = *m_baseColorAttachment,
+			.image = m_baseColorAttachment,
 			.srcAccess = gpu::access::TOP_OF_PIPE_NONE,
 			.oldLayout = gpu::ImageLayout::Undefined,
 			.newLayout = gpu::ImageLayout::Color_Attachment,
@@ -218,7 +218,7 @@ auto ModelDemoApp::start(
 		});
 
 		cmd.pipeline_image_barrier({
-			.image = *m_metallicRoughnessAttachment,
+			.image = m_metallicRoughnessAttachment,
 			.srcAccess = gpu::access::TOP_OF_PIPE_NONE,
 			.oldLayout = gpu::ImageLayout::Undefined,
 			.newLayout = gpu::ImageLayout::Attachment,
@@ -226,7 +226,7 @@ auto ModelDemoApp::start(
 		});
 
 		cmd.pipeline_image_barrier({
-			.image = *m_normalAttachment,
+			.image = m_normalAttachment,
 			.srcAccess = gpu::access::TOP_OF_PIPE_NONE,
 			.oldLayout = gpu::ImageLayout::Undefined,
 			.newLayout = gpu::ImageLayout::Color_Attachment,
@@ -266,9 +266,9 @@ auto ModelDemoApp::render() -> void
 
 	m_gpu->device().clear_garbage();
 
-	auto& swapchain = *m_swapchain;
+	auto& swapchain = m_swapchain;
 
-	auto&& swapchainImage = *swapchain.acquire_next_image();
+	auto&& swapchainImage = swapchain.acquire_next_image();
 	auto cmd = m_gpu->command_queue().new_command_recorder();
 
 	cmd.begin();
@@ -317,12 +317,12 @@ auto ModelDemoApp::render() -> void
 			.height = swapchainImage.info().dimension.height
 		}
 	});
-	cmd.bind_pipeline(*m_pipeline);
+	cmd.bind_pipeline(m_pipeline);
 
 	for (MeshRenderInfo const& renderInfo : m_renderInfo)
 	{
 		cmd.bind_index_buffer({
-			.buffer = *renderInfo.mesh->buffer,
+			.buffer = renderInfo.mesh->buffer,
 			.offset = renderInfo.mesh->info.indices.byteOffset,
 			.indexType = gpu::IndexType::Uint_32
 		});
@@ -347,7 +347,7 @@ auto ModelDemoApp::render() -> void
 	cmd.end_rendering();
 
 	cmd.pipeline_image_barrier({
-		.image = *m_baseColorAttachment,
+		.image = m_baseColorAttachment,
 		.srcAccess = gpu::access::COLOR_ATTACHMENT_OUTPUT_WRITE,
 		.dstAccess = gpu::access::TRANSFER_READ,
 		.oldLayout = gpu::ImageLayout::Color_Attachment,
@@ -356,7 +356,7 @@ auto ModelDemoApp::render() -> void
 	});
 
 	cmd.copy_image_to_image({
-		.src = *m_baseColorAttachment,
+		.src = m_baseColorAttachment,
 		.dst = swapchainImage,
 		.srcSubresource = BASE_COLOR_SUBRESOURCE,
 		.dstSubresource = BASE_COLOR_SUBRESOURCE,
@@ -364,7 +364,7 @@ auto ModelDemoApp::render() -> void
 	});
 
 	cmd.pipeline_image_barrier({
-		.image = *m_baseColorAttachment,
+		.image = m_baseColorAttachment,
 		.srcAccess = gpu::access::TRANSFER_READ,
 		.dstAccess = gpu::access::COLOR_ATTACHMENT_OUTPUT_WRITE,
 		.oldLayout = gpu::ImageLayout::Transfer_Src,
@@ -417,7 +417,7 @@ auto ModelDemoApp::make_swapchain(core::platform::Window& window) -> void
 		.imageCount = 3,
 		.imageUsage = gpu::ImageUsage::Color_Attachment | gpu::ImageUsage::Transfer_Dst,
 		.presentationMode = gpu::SwapchainPresentMode::Mailbox
-	}, (m_swapchain.valid()) ? m_swapchain: gpu::resource<gpu::Swapchain>{});
+	}, (m_swapchain.valid()) ? m_swapchain : gpu::Swapchain{});
 }
 
 auto ModelDemoApp::make_render_targets(uint32 width, uint32 height) -> void
@@ -535,7 +535,7 @@ auto ModelDemoApp::update_camera_state(float32 dt) -> void
 {
 	static bool firstRun[2] = { true, true };
 
-	auto const& swapchainDim = (*m_swapchain).info().dimension;
+	auto const& swapchainDim = m_swapchain.info().dimension;
 
 	float32 const frameWidth  = static_cast<float32>(swapchainDim.width);
 	float32 const frameHeight = static_cast<float32>(swapchainDim.height);
@@ -812,7 +812,7 @@ auto ModelDemoApp::unpack_sponza() -> void
 			.size = posRange.size_bytes()
 		});
 
-		auto const& meshBuffer = *mesh.buffer;
+		auto const& meshBuffer = mesh.buffer;
 
 		mesh.position = meshBuffer.gpu_address();
 

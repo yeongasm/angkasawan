@@ -1,30 +1,19 @@
+#include "common.hpp"
 #include "vulkan/vkgpu.hpp"
 
 namespace gpu
 {
-auto RasterPipeline::info() const -> RasterPipelineInfo const&
-{
-	return m_info;
-}
-
-auto ComputePipeline::info() const -> ComputePipelineInfo const&
-{
-	return m_info;
-}
-
 auto Pipeline::type() const -> PipelineType
 {
-	return m_type;
+	return __self().type;
 }
 
 auto Pipeline::valid() const -> bool
 {
-	auto&& self = *static_cast<vk::PipelineImpl const*>(this);
-
-	return self.handle != VK_NULL_HANDLE;
+	return m_device && m_data && __self().handle != VK_NULL_HANDLE;
 }
 
-auto Pipeline::from(Device& device, RasterPipelineShaderInfo const& pipelineShaderInfo, RasterPipelineInfo&& info) -> handle_type
+auto Pipeline::from(Device& device, RasterPipelineShaderInfo const& pipelineShaderInfo, RasterPipelineInfo&& info) -> Pipeline
 {
 	// It is necessary for raster pipelines to have a vertex shader and fragment shader.
 	if (!pipelineShaderInfo.vertexShader || !pipelineShaderInfo.pixelShader)
@@ -32,17 +21,17 @@ auto Pipeline::from(Device& device, RasterPipelineShaderInfo const& pipelineShad
 		return {};
 	}
 
-	vk::DeviceImpl& vkdevice = *static_cast<vk::DeviceImpl*>(&device);
+	auto&& vkdevice = *static_cast<DeviceImpl*>(&device);
 
-	vk::ShaderImpl const& vertexShader = static_cast<vk::ShaderImpl const&>(*pipelineShaderInfo.vertexShader);
-	vk::ShaderImpl const& pixelShader  = static_cast<vk::ShaderImpl const&>(*pipelineShaderInfo.pixelShader);
+	auto&& vertexShader = impl_of(pipelineShaderInfo.vertexShader);
+	auto&& pixelShader  = impl_of(pipelineShaderInfo.pixelShader);
 
 	// Vertex shader.
 	VkPipelineShaderStageCreateInfo vertexStage{
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
 		.stage = vertexShader.stage,
 		.module = vertexShader.handle,
-		.pName = vertexShader.info().entryPoint.c_str()
+		.pName = vertexShader.info.entryPoint.c_str()
 	};
 
 	// Pixel shader.
@@ -50,7 +39,7 @@ auto Pipeline::from(Device& device, RasterPipelineShaderInfo const& pipelineShad
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
 		.stage = pixelShader.stage,
 		.module = pixelShader.handle,
-		.pName = pixelShader.info().entryPoint.c_str()
+		.pName = pixelShader.info.entryPoint.c_str()
 	};
 
 	std::array shaderStages = { vertexStage, pixelShadingStage };
@@ -76,10 +65,10 @@ auto Pipeline::from(Device& device, RasterPipelineShaderInfo const& pipelineShad
 				attributeDescriptions[numAttributes] = {
 					.location = attribute.location,
 					.binding = numBindings,
-					.format = vk::translate_shader_attrib_format(attribute.format),
+					.format = translate_shader_attrib_format(attribute.format),
 					.offset = stride,
 				};
-				stride += vk::stride_for_shader_attrib_format(attribute.format);
+				stride += stride_for_shader_attrib_format(attribute.format);
 				++numAttributes;
 			}
 		}
@@ -96,7 +85,7 @@ auto Pipeline::from(Device& device, RasterPipelineShaderInfo const& pipelineShad
 
 	VkPipelineInputAssemblyStateCreateInfo pipelineInputAssembly{
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-		.topology = vk::translate_topology(info.topology),
+		.topology = translate_topology(info.topology),
 		.primitiveRestartEnable = VK_FALSE
 	};
 
@@ -133,9 +122,9 @@ auto Pipeline::from(Device& device, RasterPipelineShaderInfo const& pipelineShad
 	VkPipelineRasterizationStateCreateInfo pipelineRasterState{
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
 		.depthClampEnable = info.rasterization.enableDepthClamp,
-		.polygonMode = vk::translate_polygon_mode(info.rasterization.polygonalMode),
-		.cullMode = vk::translate_cull_mode(info.rasterization.cullMode),
-		.frontFace = vk::translate_front_face_dir(info.rasterization.frontFace),
+		.polygonMode = translate_polygon_mode(info.rasterization.polygonalMode),
+		.cullMode = translate_cull_mode(info.rasterization.cullMode),
+		.frontFace = translate_front_face_dir(info.rasterization.frontFace),
 		.lineWidth = 1.f
 	};
 
@@ -158,15 +147,15 @@ auto Pipeline::from(Device& device, RasterPipelineShaderInfo const& pipelineShad
 		auto const& attachment = info.colorAttachments[i];
 		colorAttachmentBlendStates[i] = {
 			.blendEnable = attachment.blendInfo.enable ? VK_TRUE : VK_FALSE,
-			.srcColorBlendFactor = vk::translate_blend_factor(attachment.blendInfo.srcColorBlendFactor),
-			.dstColorBlendFactor = vk::translate_blend_factor(attachment.blendInfo.dstColorBlendFactor),
-			.colorBlendOp = vk::translate_blend_op(attachment.blendInfo.colorBlendOp),
-			.srcAlphaBlendFactor = vk::translate_blend_factor(attachment.blendInfo.srcAlphaBlendFactor),
-			.dstAlphaBlendFactor = vk::translate_blend_factor(attachment.blendInfo.dstAlphaBlendFactor),
-			.alphaBlendOp = vk::translate_blend_op(attachment.blendInfo.alphaBlendOp),
+			.srcColorBlendFactor = translate_blend_factor(attachment.blendInfo.srcColorBlendFactor),
+			.dstColorBlendFactor = translate_blend_factor(attachment.blendInfo.dstColorBlendFactor),
+			.colorBlendOp = translate_blend_op(attachment.blendInfo.colorBlendOp),
+			.srcAlphaBlendFactor = translate_blend_factor(attachment.blendInfo.srcAlphaBlendFactor),
+			.dstAlphaBlendFactor = translate_blend_factor(attachment.blendInfo.dstAlphaBlendFactor),
+			.alphaBlendOp = translate_blend_op(attachment.blendInfo.alphaBlendOp),
 			.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT
 		};
-		colorAttachmentFormats[i] = vk::translate_format(attachment.format);
+		colorAttachmentFormats[i] = translate_format(attachment.format);
 	}
 
 	VkPipelineColorBlendStateCreateInfo pipelineColorBlendState{
@@ -182,7 +171,7 @@ auto Pipeline::from(Device& device, RasterPipelineShaderInfo const& pipelineShad
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
 		.depthTestEnable = info.depthTest.enableDepthTest,
 		.depthWriteEnable = info.depthTest.enableDepthWrite,
-		.depthCompareOp = vk::translate_compare_op(info.depthTest.depthTestCompareOp),
+		.depthCompareOp = translate_compare_op(info.depthTest.depthTestCompareOp),
 		.depthBoundsTestEnable = info.depthTest.enableDepthBoundsTest,
 		.minDepthBounds = info.depthTest.minDepthBounds,
 		.maxDepthBounds = info.depthTest.maxDepthBounds
@@ -192,8 +181,8 @@ auto Pipeline::from(Device& device, RasterPipelineShaderInfo const& pipelineShad
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR,
 		.colorAttachmentCount = static_cast<uint32>(attachmentCount),
 		.pColorAttachmentFormats = colorAttachmentFormats.data(),
-		.depthAttachmentFormat = vk::translate_format(info.depthAttachmentFormat),
-		.stencilAttachmentFormat = vk::translate_format(info.stencilAttachmentFormat)
+		.depthAttachmentFormat = translate_format(info.depthAttachmentFormat),
+		.stencilAttachmentFormat = translate_format(info.stencilAttachmentFormat)
 	};
 
 	VkPipelineLayout layoutHandle = vkdevice.push_constant_pipeline_layout(info.pushConstantSize, vkdevice.properties.limits.maxPushConstantsSize);
@@ -225,37 +214,23 @@ auto Pipeline::from(Device& device, RasterPipelineShaderInfo const& pipelineShad
 	// The only way this can fail is when we run out of host / device memory OR shader linkage has failed.
 	CHECK_OP(vkCreateGraphicsPipelines(vkdevice.device, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &handle))
 
-	auto it = vkdevice.gpuResourcePool.stores.pipelines.emplace();
-	
-	vk::_ResourceMeta meta{
-		.type 	= vk::detail::type_id_v<vk::PipelineImpl>,
-		.id 	= ++vkdevice.gpuResourcePool.idCounter.others
-	};
-
-	auto id = std::bit_cast<uint64>(meta);
-
-	vkdevice.gpuResourcePool.caches.pipeline.emplace(id, it);
-	vkdevice.begin_referencing(id);
-
-	auto&& vkpipeline = *it;
+	auto&& vkpipeline = *vkdevice.gpuResourcePool.stores.pipelines.emplace();
 
 	vkpipeline.handle = handle;
 	vkpipeline.layout = layoutHandle;
-	vkpipeline.m_type = PipelineType::Rasterization;
+	vkpipeline.type = PipelineType::Rasterization;
 
-	RasterPipeline& rasterPipeline = vkpipeline.m_pipelineVariant.emplace<RasterPipeline>();
-
-	rasterPipeline.m_info = std::move(info);
+	vkpipeline.info.emplace<RasterPipelineInfo>(std::move(info));
 
 	if constexpr (ENABLE_GPU_RESOURCE_DEBUG_NAMES)
 	{
 		vkdevice.setup_debug_name(vkpipeline);
 	}
 
-	return { vkdevice, id };
+	return Pipeline{ &vkpipeline, &vkdevice };
 }
 
-auto Pipeline::from(Device& device, ComputePipelineShaderInfo const& pipelineShaderInfo, ComputePipelineInfo&& info) -> handle_type
+auto Pipeline::from(Device& device, ComputePipelineShaderInfo const& pipelineShaderInfo, ComputePipelineInfo&& info) -> Pipeline
 {
 	// It is necessary for raster pipelines to have a vertex shader and fragment shader.
 	if (!pipelineShaderInfo.computeShader)
@@ -263,9 +238,9 @@ auto Pipeline::from(Device& device, ComputePipelineShaderInfo const& pipelineSha
 		return {};
 	}
 
-	vk::DeviceImpl& vkdevice = *static_cast<vk::DeviceImpl*>(&device);
+	DeviceImpl& vkdevice = *static_cast<DeviceImpl*>(&device);
 
-	vk::ShaderImpl const& vkComputeShader = static_cast<vk::ShaderImpl const&>(*pipelineShaderInfo.computeShader);
+	auto&& vkComputeShader = impl_of(pipelineShaderInfo.computeShader);
 
 	VkPipelineLayout layoutHandle = vkdevice.push_constant_pipeline_layout(info.pushConstantSize, vkdevice.properties.limits.maxPushConstantsSize);
 
@@ -276,7 +251,7 @@ auto Pipeline::from(Device& device, ComputePipelineShaderInfo const& pipelineSha
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
 			.stage = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT,
 			.module = vkComputeShader.handle,
-			.pName = vkComputeShader.info().entryPoint.c_str()
+			.pName = vkComputeShader.info.entryPoint.c_str()
 		},
 		.layout = layoutHandle
 	};
@@ -285,58 +260,38 @@ auto Pipeline::from(Device& device, ComputePipelineShaderInfo const& pipelineSha
 
 	CHECK_OP(vkCreateComputePipelines(vkdevice.device, VK_NULL_HANDLE, 1u, &pipelineCreateInfo, nullptr, &handle))
 
-	auto it = vkdevice.gpuResourcePool.stores.pipelines.emplace();
-
-	vk::_ResourceMeta meta{
-		.type 	= vk::detail::type_id_v<vk::PipelineImpl>,
-		.id 	= ++vkdevice.gpuResourcePool.idCounter.others
-	};
-
-	auto id = std::bit_cast<uint64>(meta);
-
-	vkdevice.gpuResourcePool.caches.pipeline.emplace(id, it);
-	vkdevice.begin_referencing(id);
-
-	auto&& vkpipeline = *it;
+	auto&& vkpipeline = *vkdevice.gpuResourcePool.stores.pipelines.emplace();
 
 	vkpipeline.handle = handle;
 	vkpipeline.layout = layoutHandle;
-	vkpipeline.m_type = PipelineType::Compute;
+	vkpipeline.type = PipelineType::Compute;
 
-	ComputePipeline& computePipeline = vkpipeline.m_pipelineVariant.emplace<ComputePipeline>();
-
-	computePipeline.m_info = std::move(info);
+	vkpipeline.info.emplace<ComputePipelineInfo>(std::move(info));
 
 	if constexpr (ENABLE_GPU_RESOURCE_DEBUG_NAMES)
 	{
 		vkdevice.setup_debug_name(vkpipeline);
 	}
 
-	return { vkdevice, id };
+	return Pipeline{ &vkpipeline, &vkdevice };
 }
 
-auto Pipeline::Deleter::operator()(Device& device, uint64 id) const -> void
+auto Pipeline::zombify(Device& dvc, ref_counted_base& resource) -> void
 {
-	ASSERTION(id != std::numeric_limits<uint64>::max() && "Attempting to destroy a Pipeline with an invalid id");
-	/*
-	* At this point, the ref count on the resource is only 1 which means ONLY the resource has a reference to itself and can be safely deleted.
-	*/
-	auto&& vkdevice = to_device(device);
-	auto&& vkpipeline = *vkdevice.gpuResourcePool.caches.pipeline[id];
-	
-	std::lock_guard const lock{ vkdevice.gpuResourcePool.zombieMutex };
+	auto&& device = static_cast<DeviceImpl&>(dvc);
+	auto&& pipeline = static_cast<PipelineImpl&>(resource);
 
-	uint64 const cpuTimelineValue = vkdevice.cpu_timeline();
+	std::lock_guard const lock{ device.gpuResourcePool.zombieMutex };
 
-	vkdevice.gpuResourcePool.zombies.emplace_back(
+	uint64 const cpuTimelineValue = device.cpu_timeline();
+
+	device.gpuResourcePool.zombies.emplace_back(
 		cpuTimelineValue,
-		[&vkpipeline, id](vk::DeviceImpl& device) -> void
+		[&pipeline](DeviceImpl& device) -> void
 		{
-			vkDestroyPipeline(device.device, vkpipeline.handle, nullptr);
+			vkDestroyPipeline(device.device, pipeline.handle, nullptr);
 
-			auto it = device.gpuResourcePool.caches.pipeline[id];
-
-			device.gpuResourcePool.caches.pipeline.erase(id);
+			auto it = device.gpuResourcePool.stores.pipelines.get_iterator(&pipeline);
 			device.gpuResourcePool.stores.pipelines.erase(it);
 		}
 	);

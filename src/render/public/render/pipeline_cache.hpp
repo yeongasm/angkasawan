@@ -75,36 +75,36 @@ public:
     /*
     * Serializes the shaders in the pipeline definition to disk and adds the pipeline into the cache.
     */
-    auto cache_pipeline(RasterPipelineDefinition const& definition, std::span<PipelineShaderCompileInfo const*> compileInfo) -> std::expected<gpu::resource<gpu::Pipeline>, std::string>;
+    auto cache_pipeline(RasterPipelineDefinition const& definition, std::span<PipelineShaderCompileInfo const*> compileInfo) -> std::expected<gpu::Pipeline, std::string>;
 
     /*
     * Serializes the shaders in the pipeline definition to disk and adds the pipeline into the cache.
     */
-    auto cache_pipeline(ComputePipelineDefinition const& definition, PipelineShaderCompileInfo const& compileInfo) -> std::expected<gpu::resource<gpu::Pipeline>, std::string>;
+    auto cache_pipeline(ComputePipelineDefinition const& definition, PipelineShaderCompileInfo const& compileInfo) -> std::expected<gpu::Pipeline, std::string>;
 
     auto remove_pipeline(std::string_view uri) -> void;
 
-    auto get_pipeline(std::string_view uri) -> std::expected<gpu::resource<gpu::Pipeline>, std::string>;
+    auto get_pipeline(std::string_view uri) -> std::expected<gpu::Pipeline, std::string>;
     auto contains(std::string_view uri) -> bool;
 
 private:
     PipelineCache(gpu::Device& device, PipelineCacheInfo const& info);
 
-    using UriToPipelineMap = ankerl::unordered_dense::map<std::string_view, plf::colony<gpu::resource<gpu::Pipeline>>::iterator>;
+    using UriToPipelineMap = ankerl::unordered_dense::map<std::string_view, plf::colony<gpu::Pipeline>::iterator>;
 
     gpu::Device& m_device;
     PipelineCacheInfo m_configuration;
     std::unique_ptr<gpu::ShaderCompiler> m_shaderCompiler;
-    plf::colony<gpu::resource<gpu::Pipeline>> m_pipelines;
+    plf::colony<gpu::Pipeline> m_pipelines;
     UriToPipelineMap m_uriToPipeline;
 
     auto load_pipeline(RasterPipelineDefinition const& definition) -> void;
     auto load_pipeline(ComputePipelineDefinition const& definition) -> void;
-    auto try_compile_shader(std::filesystem::path const& path, PipelineShaderCompileInfo const& compileInfo) -> std::expected<gpu::resource<gpu::Shader>, std::string>;
-    auto compile_shader(std::string_view path, std::filesystem::path const& output, PipelineShaderCompileInfo const& compileInfo) -> std::expected<gpu::resource<gpu::Shader>, std::string>;
+    auto try_compile_shader(std::filesystem::path const& path, PipelineShaderCompileInfo const& compileInfo) -> std::expected<gpu::Shader, std::string>;
+    auto compile_shader(std::string_view path, std::filesystem::path const& output, PipelineShaderCompileInfo const& compileInfo) -> std::expected<gpu::Shader, std::string>;
     auto compilation_error(std::string_view message, bool sourceFileOpen, bool sourceCodeExist) -> std::string;
     auto serialize_shader(std::filesystem::path const& path, gpu::CompiledShaderInfo const& compiledInfo) -> void;
-    auto deserialize_shader(std::filesystem::path const& path) -> gpu::resource<gpu::Shader>;
+    auto deserialize_shader(std::filesystem::path const& path) -> gpu::Shader;
 };
 }
 

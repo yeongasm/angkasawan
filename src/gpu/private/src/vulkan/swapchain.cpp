@@ -1,135 +1,124 @@
-#include "vulkan/vk.h"
 #include "vulkan/vkgpu.hpp"
 #include <atomic>
 
 namespace gpu
 {
-namespace vk
-{
-SwapchainImpl::SwapchainImpl(DeviceImpl& device) :
-	vkdevice{ &device }
-{}
-}
-
 auto Swapchain::info() const -> SwapchainInfo const&
 {
-	return m_info;
+	return __self().info;
 }
 
 auto Swapchain::valid() const -> bool
 {
-	auto const& self = to_impl(*this);
-
-	return self.handle != VK_NULL_HANDLE;
-}
-
-auto Swapchain::state() const -> SwapchainState
-{
-	return m_state;
+	return m_device && m_data && __self().handle != VK_NULL_HANDLE;
 }
 
 auto Swapchain::num_images() const -> uint32
 {
-	return static_cast<uint32>(m_images.size());
+	return static_cast<uint32>(__self().images.size());
 }
 
-auto Swapchain::current_image() const -> Image::handle_type
+auto Swapchain::current_image() const -> Image
 {
 	if (valid())
 	{
-		return m_images[m_currentImageIndex];
+		auto&& self = __self();
+		return self.images[self.currentImageIndex];
 	}
 	return {};
 }
 
 auto Swapchain::current_image_index() const -> uint32
 {
-	return valid() ? m_currentImageIndex : 0;
+	return valid() ?__self().currentImageIndex : 0;
 }
 
-auto Swapchain::acquire_next_image() -> Image::handle_type
+auto Swapchain::acquire_next_image() -> Image
 {
 	if (!valid())
 	{
 		return {};
 	}
 
-	auto const& self = to_impl(*this);
+	auto& device = __device();
+	auto& self = __self();
 
-	int64 const maxFramesInFlight = static_cast<int64>(self.vkdevice->config().maxFramesInFlight);
+	int64 const maxFramesInFlight = static_cast<int64>(device.config().maxFramesInFlight);
 	
-	auto&& gpuTimelineFence = *self.gpu_fence();
-	
-	// We wait until the gpu elapsed frame count is behind our swapchain's elapsed frame count.
-	gpuTimelineFence.wait_for_value(static_cast<uint64>(std::max(0ll, static_cast<int64>(m_cpuElapsedFrames) - maxFramesInFlight)));
-
+	auto&& gpuTimelineFence = self.gpuTimeline;
 	// Update swapchain's frame index for the next call to this function.
-	uint32 const cpuElapsedFrameCount = m_cpuElapsedFrames.load(std::memory_order_acquire);
-	m_acquireSemaphoreIndex = cpuElapsedFrameCount % (maxFramesInFlight + 1);
+	uint64 const cpuElapsedFrames = self.cpuTimeline.load(std::memory_order_acquire);
 
-	vk::SemaphoreImpl const& vksemaphore = to_impl(*m_acquireSemaphore[m_acquireSemaphoreIndex]);
+	// We wait until the gpu elapsed frame count is behind our swapchain's elapsed frame count.
+	gpuTimelineFence.wait_for_value(static_cast<uint64>(std::max(0ll, static_cast<int64>(cpuElapsedFrames) - maxFramesInFlight)));
+
+	self.acquireSemaphoreIndex = static_cast<uint32>(cpuElapsedFrames) % static_cast<uint32>(maxFramesInFlight + 1);
+
+
+	auto const& semaphore = impl_of(self.acquireSemaphore[self.acquireSemaphoreIndex]);
 
 	VkResult result = vkAcquireNextImageKHR(
-		self.vkdevice->device,
+		device.device,
 		self.handle,
 		UINT64_MAX,
-		vksemaphore.handle,
+		semaphore.handle,
 		nullptr,
-		&m_currentImageIndex
+		&self.currentImageIndex
 	);
 
+	// Do something with this.
 	switch (result)
 	{
 	case VK_SUCCESS:
-		m_state = SwapchainState::Ok;
 		break;
 	case VK_NOT_READY:
-		m_state = SwapchainState::Not_Ready;
 		break;
 	case VK_TIMEOUT:
-		m_state = SwapchainState::Timed_Out;
 		break;
 	case VK_SUBOPTIMAL_KHR:
-		m_state = SwapchainState::Suboptimal;
 		break;
 	default:
-		m_state = SwapchainState::Error;
 		break;
 	}
 
 	// Increment total swapchain elapsed frame count.
-	m_cpuElapsedFrames.fetch_add(1, std::memory_order_relaxed);
+	self.cpuTimeline.fetch_add(1, std::memory_order_relaxed);
 
-	return m_images[static_cast<size_t>(m_currentImageIndex)];
+	return self.images[static_cast<size_t>(self.currentImageIndex)];
 }
 
-auto Swapchain::current_acquire_semaphore() const -> Semaphore::handle_type
+auto Swapchain::current_acquire_semaphore() const -> Semaphore
 {
-	return m_acquireSemaphore[m_acquireSemaphoreIndex];
+	auto const& self = __self();
+	return self.acquireSemaphore[self.acquireSemaphoreIndex];
 }
 
-auto Swapchain::current_present_semaphore() const -> Semaphore::handle_type
+auto Swapchain::current_present_semaphore() const -> Semaphore
 {
-	return m_presentSemaphore[m_currentImageIndex];
+	auto const& self = __self();
+	return self.presentSemaphore[self.currentImageIndex];
 }
 
 auto Swapchain::cpu_frame_count() const -> uint64
 {
-	return m_cpuElapsedFrames.load(std::memory_order_acquire);
+	auto const& self = __self();
+	return self.cpuTimeline.load(std::memory_order_acquire);
 }
 
-auto Swapchain::gpu_fence() const -> Fence::handle_type
+auto Swapchain::gpu_fence() const -> Fence
 {
-	return m_gpuElapsedFrames;
+	auto const& self = __self();
+	return self.gpuTimeline;
 }
 
 auto Swapchain::image_format() const -> Format
 {
+	auto const& self = __self();
 	Format format = Format::Undefined;
 
-	if (!m_images.empty())
+	if (!self.images.empty())
 	{
-		format = (*m_images[0]).info().format;
+		format = self.images[self.currentImageIndex].info().format;
 	}
 
 	return format;
@@ -137,27 +126,27 @@ auto Swapchain::image_format() const -> Format
 
 auto Swapchain::resize(Extent2D dim) -> bool
 {
-	auto&& self = to_impl(*this);
-
+	auto&& self = __self();
+	auto&& device = __device();
 	auto&& surface = *self.surface;
 
-	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(self.vkdevice->gpu, surface.handle, &surface.capabilities);
+	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device.gpu, surface.handle, &surface.capabilities);
 
 	VkExtent2D const extent{
 		.width	= std::min(dim.width, surface.capabilities.currentExtent.width),
 		.height = std::min(dim.height, surface.capabilities.currentExtent.height)
 	};
-	uint32 imageCount{ std::min(std::max(m_info.imageCount, surface.capabilities.minImageCount), surface.capabilities.maxImageCount) };
+	uint32 imageCount{ std::min(std::max(self.info.imageCount, surface.capabilities.minImageCount), surface.capabilities.maxImageCount) };
 
-	VkImageUsageFlags imageUsage = vk::translate_image_usage_flags(m_info.imageUsage);
-	VkPresentModeKHR presentationMode = vk::translate_swapchain_presentation_mode(m_info.presentationMode);
+	VkImageUsageFlags imageUsage = translate_image_usage_flags(self.info.imageUsage);
+	VkPresentModeKHR presentationMode = translate_swapchain_presentation_mode(self.info.presentationMode);
 
 	bool foundPreferred = false;
 	VkSurfaceFormatKHR surfaceFormat = surface.availableColorFormats[0];
 
-	for (Format format : m_info.surfaceInfo.preferredSurfaceFormats)
+	for (Format format : self.info.surfaceInfo.preferredSurfaceFormats)
 	{
-		VkFormat preferredFormat = vk::translate_format(format);
+		VkFormat preferredFormat = translate_format(format);
 
 		if (foundPreferred)
 		{
@@ -186,7 +175,7 @@ auto Swapchain::resize(Extent2D dim) -> bool
 		.imageUsage = imageUsage,
 		.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
 		.queueFamilyIndexCount = 1,
-		.pQueueFamilyIndices = &self.vkdevice->mainQueue.familyIndex,
+		.pQueueFamilyIndices = &device.mainQueue.familyIndex,
 		.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR,
 		.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
 		.presentMode = presentationMode,
@@ -194,21 +183,21 @@ auto Swapchain::resize(Extent2D dim) -> bool
 		.oldSwapchain = self.handle
 	};
 
-	if (vkCreateSwapchainKHR(self.vkdevice->device, &swapchainCreateInfo, nullptr, &self.handle) != VK_SUCCESS)
+	if (vkCreateSwapchainKHR(device.device, &swapchainCreateInfo, nullptr, &self.handle) != VK_SUCCESS)
 	{
 		return false;
 	}
 
-	m_info.dimension.width	= extent.width;
-	m_info.dimension.height = extent.height;
+	self.info.dimension.width	= extent.width;
+	self.info.dimension.height = extent.height;
 
-	uint32 maxImageCount = (self.m_info.imageCount > MAX_FRAMES_IN_FLIGHT) ? MAX_FRAMES_IN_FLIGHT : self.m_info.imageCount;
+	uint32 maxImageCount = (self.info.imageCount > MAX_FRAMES_IN_FLIGHT) ? MAX_FRAMES_IN_FLIGHT : self.info.imageCount;
 
 	std::array<VkImage, MAX_FRAMES_IN_FLIGHT> vkImageHandles = {};
 
 	for (uint32 i = 0; i < maxImageCount; ++i)
 	{
-		vkGetSwapchainImagesKHR(self.vkdevice->device, self.handle, &maxImageCount, vkImageHandles.data());
+		vkGetSwapchainImagesKHR(device.device, self.handle, &maxImageCount, vkImageHandles.data());
 	}
 
 	VkImageViewCreateInfo imageViewInfo{
@@ -224,20 +213,20 @@ auto Swapchain::resize(Extent2D dim) -> bool
 		.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 }
 	};
 
-	for (size_t i = 0; auto&& image : m_images)
+	for (size_t i = 0; auto&& image : self.images)
 	{
-		auto&& vkimage = to_impl(*image);
+		auto&& vkimage = impl_of(image);
 
-		vkDestroyImageView(self.vkdevice->device, vkimage.imageView, nullptr);
+		vkDestroyImageView(device.device, vkimage.imageView, nullptr);
 
 		vkimage.handle = vkImageHandles[i];
 
-		vkimage.m_info.dimension.width	= m_info.dimension.width;
-		vkimage.m_info.dimension.height	= m_info.dimension.height;
+		vkimage.info.dimension.width	= self.info.dimension.width;
+		vkimage.info.dimension.height	= self.info.dimension.height;
 
 		imageViewInfo.image = vkimage.handle;
 
-		vkCreateImageView(self.vkdevice->device, &imageViewInfo, nullptr, &vkimage.imageView);
+		vkCreateImageView(device.device, &imageViewInfo, nullptr, &vkimage.imageView);
 
 		++i;
 	}
@@ -245,11 +234,11 @@ auto Swapchain::resize(Extent2D dim) -> bool
 	return true;
 }
 
-auto Swapchain::from(Device& device, SwapchainInfo&& info, handle_type previousSwapchain) -> handle_type
+auto Swapchain::from(Device& device, SwapchainInfo&& info, Swapchain previousSwapchain) -> Swapchain
 {
-	auto&& vkdevice = to_device(device);
+	auto&& vkdevice = static_cast<DeviceImpl&>(device);
 
-	auto create_surface = [&vkdevice](SurfaceInfo const& surfaceInfo) -> vk::SwapchainImpl::surface_iterator
+	auto create_surface = [&vkdevice](SurfaceInfo const& surfaceInfo) -> SwapchainImpl::surface_iterator
 	{
 		VkSurfaceKHR handle = VK_NULL_HANDLE;
 
@@ -296,12 +285,12 @@ auto Swapchain::from(Device& device, SwapchainInfo&& info, handle_type previousS
 		return {};
 	}
 
-	vk::SwapchainImpl::surface_iterator surface = {};
-	vk::SwapchainImpl* pOldSwapchain = nullptr;
+	SwapchainImpl::surface_iterator surface = {};
+	SwapchainImpl* pOldSwapchain = nullptr;
 
 	if (previousSwapchain.valid())
 	{
-		pOldSwapchain = &to_impl(*previousSwapchain);
+		pOldSwapchain = &impl_of(previousSwapchain);
 		surface = pOldSwapchain->surface;
 	}
 	else
@@ -319,8 +308,8 @@ auto Swapchain::from(Device& device, SwapchainInfo&& info, handle_type previousS
 	};
 	uint32 imageCount{ std::min(std::max(info.imageCount, surface->capabilities.minImageCount), surface->capabilities.maxImageCount) };
 
-	VkImageUsageFlags imageUsage = vk::translate_image_usage_flags(info.imageUsage);
-	VkPresentModeKHR presentationMode = vk::translate_swapchain_presentation_mode(info.presentationMode);
+	VkImageUsageFlags imageUsage = translate_image_usage_flags(info.imageUsage);
+	VkPresentModeKHR presentationMode = translate_swapchain_presentation_mode(info.presentationMode);
 
 	[[maybe_unused]] VkPresentModeKHR presentationModes[10];
 	[[maybe_unused]] uint32 numPresentModes = 0u;
@@ -333,7 +322,7 @@ auto Swapchain::from(Device& device, SwapchainInfo&& info, handle_type previousS
 
 	for (Format format : info.surfaceInfo.preferredSurfaceFormats)
 	{
-		VkFormat preferredFormat = vk::translate_format(format);
+		VkFormat preferredFormat = translate_format(format);
 
 		if (foundPreferred)
 		{
@@ -373,26 +362,8 @@ auto Swapchain::from(Device& device, SwapchainInfo&& info, handle_type previousS
 	VkSwapchainKHR handle = VK_NULL_HANDLE;
 
 	CHECK_OP(vkCreateSwapchainKHR(vkdevice.device, &swapchainCreateInfo, nullptr, &handle))
-
-	FenceInfo fenceInfo{ .initialValue = 0 };
-
-	auto it = vkdevice.gpuResourcePool.stores.swapchains.emplace(vkdevice);
 	
-	vk::_ResourceMeta meta{
-		.type 	= vk::detail::type_id_v<vk::SwapchainImpl>,
-		.id 	= ++vkdevice.gpuResourcePool.idCounter.others
-	};
-
-	auto id = std::bit_cast<uint64>(meta);
-
-	vkdevice.gpuResourcePool.caches.swapchain.emplace(id, it);
-	vkdevice.begin_referencing(id);
-
-	auto&& vkswapchain = *it;
-
-	vkswapchain.handle = handle;
-	vkswapchain.surface = surface;
-	vkswapchain.surfaceColorFormat = surfaceFormat;
+	FenceInfo fenceInfo{ .initialValue = 0 };
 
 	// Update info to contain the updated values.
 	if (!info.name.empty())
@@ -404,93 +375,89 @@ auto Swapchain::from(Device& device, SwapchainInfo&& info, handle_type previousS
 	info.dimension.width = extent.width;
 	info.dimension.height = extent.height;
 
-	vkswapchain.m_info = std::move(info);
+	auto&& vkswapchain = *vkdevice.gpuResourcePool.stores.swapchains.emplace();
 
-	vkswapchain.m_gpuElapsedFrames = Fence::from(device, std::move(fenceInfo));
+	vkswapchain.handle = handle;
+	vkswapchain.surface = surface;
+	vkswapchain.surfaceColorFormat = surfaceFormat;
+	vkswapchain.info = std::move(info);
+	vkswapchain.gpuTimeline = Fence::from(device, std::move(fenceInfo));
 
 	size_t const maxFramesInFlight = static_cast<size_t>(device.config().maxFramesInFlight);
-	size_t const numImages = vkswapchain.m_info.imageCount;
+	size_t const numImages = vkswapchain.info.imageCount;
 
-	vkswapchain.m_acquireSemaphore.reserve(maxFramesInFlight + 1);
-	vkswapchain.m_presentSemaphore.reserve(numImages);
+	vkswapchain.acquireSemaphore.reserve(maxFramesInFlight + 1);
+	vkswapchain.presentSemaphore.reserve(numImages);
 
-	bool const swapchainHasName = !vkswapchain.m_info.name.empty();
+	bool const swapchainHasName = !vkswapchain.info.name.empty();
+	
 	std::string name;
-
 	for (size_t i = 0; i < maxFramesInFlight + 1; ++i)
 	{
 		if (swapchainHasName)
 		{
-			name = fmt::format("<semaphore>:{}_acquire_{}", vkswapchain.m_info.name, i);
+			name = fmt::format("<semaphore>:{}_acquire_{}", vkswapchain.info.name, i);
 		}	
 		
-		vkswapchain.m_acquireSemaphore.push_back(Semaphore::from(device, { .name = std::move(name) }));
+		vkswapchain.acquireSemaphore.push_back(Semaphore::from(device, { .name = std::move(name) }));
 	}
 	
 	for (size_t i = 0; i < numImages; ++i)
 	{
 		if (swapchainHasName)
 		{
-			name = fmt::format("<semaphore>:{}_present_{}", vkswapchain.m_info.name, i);
+			name = fmt::format("<semaphore>:{}_present_{}", vkswapchain.info.name, i);
 		}
 		
-		vkswapchain.m_presentSemaphore.push_back(Semaphore::from(device, { .name = std::move(name) }));
+		vkswapchain.presentSemaphore.push_back(Semaphore::from(device, { .name = std::move(name) }));
 	}
 
-	vkswapchain.m_images = Image::from(vkswapchain);
+	vkswapchain.images = Image::from(vkdevice, vkswapchain);
 
 	if constexpr (ENABLE_GPU_RESOURCE_DEBUG_NAMES)
 	{
 		vkdevice.setup_debug_name(vkswapchain);
 	}
 
-	return handle_type{ vkdevice, id };
+	return Swapchain{ &vkswapchain, &vkdevice };
 }
 
-auto Swapchain::Deleter::operator()(Device& device, uint64 id) const -> void
+auto Swapchain::zombify(Device& dvc, ref_counted_base& resource) -> void
 {
-	ASSERTION(id != std::numeric_limits<uint64>::max() && "Attempting to destroy a Swapchain with an invalid id");
+	auto&& device = static_cast<DeviceImpl&>(dvc);
+	auto&& swapchain = static_cast<SwapchainImpl&>(resource);
 
-	/*
-	 * At this point, the ref count on the resource is only 1 which means ONLY the resource has a reference to itself and can be safely deleted.
-	 */
-	auto&& vkdevice = to_device(device);
-	auto&& vkswapchain = *vkdevice.gpuResourcePool.caches.swapchain[id];
+	swapchain.gpuTimeline.destroy();
 
-	vkswapchain.m_gpuElapsedFrames.destroy();
-
-	for (auto&& acquireSemaphore : vkswapchain.m_acquireSemaphore)
+	for (auto&& acquireSemaphore : swapchain.acquireSemaphore)
 	{
 		acquireSemaphore.destroy();
 	}
 
-	for (auto&& presentSemaphore : vkswapchain.m_presentSemaphore)
+	for (auto&& presentSemaphore : swapchain.presentSemaphore)
 	{
 		presentSemaphore.destroy();
 	}
 
-	for (auto&& swapchainImages : vkswapchain.m_images)
+	for (auto&& swapchainImages : swapchain.images)
 	{
 		swapchainImages.destroy();
 	}
 
-	std::lock_guard const lock{ vkdevice.gpuResourcePool.zombieMutex };
+	std::lock_guard const lock{ device.gpuResourcePool.zombieMutex };
 
-	uint64 const cpuTimelineValue = vkdevice.cpu_timeline();
+	uint64 const cpuTimelineValue = device.cpu_timeline();
 
-	vkdevice.gpuResourcePool.zombies.emplace_back(
+	device.gpuResourcePool.zombies.emplace_back(
 		cpuTimelineValue,
-		[&vkswapchain, id](vk::DeviceImpl& device) -> void
+		[&swapchain](DeviceImpl& device) -> void
 		{
-			auto surface = vkswapchain.surface;
-
-			vkDestroySwapchainKHR(device.device, vkswapchain.handle, nullptr);
-		
-			auto it = device.gpuResourcePool.caches.swapchain[id];
-
-			device.gpuResourcePool.caches.swapchain.erase(id);
-			device.gpuResourcePool.stores.swapchains.erase(it);
+			auto surface = swapchain.surface;
+			vkDestroySwapchainKHR(device.device, swapchain.handle, nullptr);
 			
+			auto it = device.gpuResourcePool.stores.swapchains.get_iterator(&swapchain);
+			device.gpuResourcePool.stores.swapchains.erase(it);
+
 			/**
 			* fetch_sub returns the previously held value of the atomic variable prior to the operation.
 			* That means, if it returns 2, the current value of the atomic refCount is 1 and the only reference to the surface is itself.

@@ -6,21 +6,21 @@ namespace render
 {
 auto HeapBlock::remaining_capacity() const -> size_t
 {
-	return (*buffer).size() - byteOffset;
+	return buffer.size() - byteOffset;
 }
 
 auto HeapBlock::write(void const* data, size_t size, size_t offset) -> void
 {
 	size_t const writeOffset = std::clamp(offset, 0ull, byteOffset);
 
-	(*buffer).write(data, size, writeOffset);
+	buffer.write(data, size, writeOffset);
 
 	byteOffset = writeOffset + size;
 }
 
 auto HeapBlock::data() const -> void*
 {
-	std::byte* ptr = static_cast<std::byte*>((*buffer).data());
+	std::byte* ptr = static_cast<std::byte*>(buffer.data());
 
 	ptr += byteOffset;
 
@@ -157,7 +157,7 @@ auto UploadHeap::upload_data_to_image(ImageDataUploadInfo&& info) -> upload_id
 	// Each "quadrant"'s offset and extent would then be pre-calculated before the actual upload.
 	// SO -> https://stackoverflow.com/questions/46501832/vulkan-vkbufferimagecopy-for-partial-transfer
 
-	auto const& imageInfo = (*info.image).info();
+	auto const& imageInfo = info.image.info();
 
 	auto recursive_upload_lambda_in_quadrants = [&info, &imageInfo, this](size_t const sizeToUpload, int32 x, int32 y, uint32 width, uint32 height, auto callback) -> void
 	{
@@ -209,14 +209,14 @@ auto UploadHeap::upload_data_to_image(ImageDataUploadInfo&& info) -> upload_id
 
 		auto const byteOffset = imageInfo.dimension.width * y + x;
 
-		(*heapBlock->buffer).write(&dataSpan[byteOffset], sizeToUpload, writtenByteOffset);
+		heapBlock->buffer.write(&dataSpan[byteOffset], sizeToUpload, writtenByteOffset);
 
 		heapBlock->byteOffset += sizeToUpload + (writtenByteOffset - heapBlock->byteOffset);
 
 		ImageUploadInfo uploadInfo{
 			.copyInfo = {
-				.src = *heapBlock->buffer,
-				.dst = *info.image,
+				.src = heapBlock->buffer,
+				.dst = info.image,
 				.bufferOffset = writtenByteOffset,
 				.dstImageLayout = gpu::ImageLayout::Transfer_Dst,
 				.imageSubresource = {
@@ -290,14 +290,14 @@ auto UploadHeap::upload_data_to_buffer(BufferDataUploadInfo&& info) -> upload_id
 
 			auto const writtenByteOffset = heapBlock.byteOffset;
 
-			(*heapBlock.buffer).write(data, writeSize, writtenByteOffset);
+			heapBlock.buffer.write(data, writeSize, writtenByteOffset);
 
 			heapBlock.byteOffset += writeSize;
 
 			BufferUploadInfo uploadInfo{
 				.copyInfo = {
-					.src = *heapBlock.buffer,
-					.dst = *info.dst,
+					.src = heapBlock.buffer,
+					.dst = info.dst,
 					.srcOffset = writtenByteOffset,
 					.dstOffset = info.dstOffset + (originalUploadSize - remainingSizeToUpload),
 					.size = writeSize,
@@ -329,8 +329,8 @@ auto UploadHeap::upload_heap_to_buffer(BufferHeapBlockUploadInfo&& info) -> uplo
 
 	BufferUploadInfo uploadInfo{
 		.copyInfo = {
-			.src = *info.heapBlock.buffer,
-			.dst = *info.dst,
+			.src = info.heapBlock.buffer,
+			.dst = info.dst,
 			.srcOffset = info.heapWriteOffset,
 			.dstOffset = info.dstOffset,
 			.size = info.heapWriteSize,
@@ -346,7 +346,7 @@ auto UploadHeap::upload_heap_to_buffer(BufferHeapBlockUploadInfo&& info) -> uplo
 
 auto UploadHeap::upload_completed(upload_id id) -> bool
 {
-	return (*m_gpuUploadTimeline).value() >= id.get();
+	return m_gpuUploadTimeline.value() >= id.get();
 }
 
 auto UploadHeap::current_upload_id() const -> upload_id

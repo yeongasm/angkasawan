@@ -71,7 +71,7 @@ SandboxApp::SandboxApp([[maybe_unused]] int32 argc, [[maybe_unused]] char** argv
 				.engineVersion = { 0, 1, 0, 0 },
 				.preferredDevice = gpu::DeviceType::Discrete_Gpu,
 				.config = {
-					.maxFramesInFlight = 1,
+					.maxFramesInFlight = 2,
 					.maxBuffers = gpu::MAX_BUFFERS,
 					.maxImages = gpu::MAX_IMAGES,
 					.maxSamplers = gpu::MAX_SAMPLERS,

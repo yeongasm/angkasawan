@@ -4,38 +4,41 @@ namespace gpu
 {
 auto Image::info() const -> ImageInfo const&
 {
-	return m_info;
+	/**
+	* Leaving out the non null check is intentional for all types of resources.
+	* Resources shouldn't be used once they are freed and preventing a crash by having the non null check would make this error less prevalent.
+	*/
+	return __self().info;
 }
 
 auto Image::valid() const -> bool
-{
-	auto const& self = to_impl(*this);
-	
-	return self.handle != VK_NULL_HANDLE;
+{	
+	return m_device && m_data && __self().handle != VK_NULL_HANDLE;
 }
 
 auto Image::is_swapchain_image() const -> bool
 {
-	auto const& self = to_impl(*this);
-
 	/**
 	* Swapchain images will not contain an allocation handle because they are retrieved from the driver instead.
 	*/
-	return !self.allocationBlock.valid();
+	return !__self().memoryBlock.valid();
 }
 
 auto Image::is_transient() const -> bool
 {
-	auto const& self = to_impl(*this);
+	return m_device && __self().memoryBlock.valid() && __self().memoryBlock.aliased();
+}
 
-	return self.allocationBlock.valid() && (*self.allocationBlock).aliased();
+auto Image::id() const -> resource_id_t
+{
+	return __self().id;
 }
 
 auto Image::memory_requirement(Device& device, ImageInfo const& info) -> MemoryRequirementInfo
 {
-	auto&& vkdevice = to_device(device);
+	auto&& vkdevice = static_cast<DeviceImpl&>(device);
 
-	VkImageCreateInfo imgCreateInfo = vk::get_image_create_info(info);
+	VkImageCreateInfo imgCreateInfo = get_image_create_info(info);
 
 	VkDeviceImageMemoryRequirements imageMemReq{
 		.sType = VK_STRUCTURE_TYPE_DEVICE_IMAGE_MEMORY_REQUIREMENTS,
@@ -55,9 +58,9 @@ auto Image::memory_requirement(Device& device, ImageInfo const& info) -> MemoryR
 	};
 }
 
-auto Image::from(Device& device, ImageInfo&& info, MemoryBlock::handle_type memoryBlock) -> handle_type
+auto Image::from(Device& device, ImageInfo&& info, MemoryBlock memoryBlock) -> Image
 {
-	auto&& vkdevice = to_device(device);
+	auto&& vkdevice = static_cast<DeviceImpl&>(device);
 
 	uint32 queueFamilyIndices[] = {
 		vkdevice.mainQueue.familyIndex,
@@ -65,7 +68,7 @@ auto Image::from(Device& device, ImageInfo&& info, MemoryBlock::handle_type memo
 		vkdevice.transferQueue.familyIndex
 	};
 
-	VkImageCreateInfo imgInfo = vk::get_image_create_info(info);
+	VkImageCreateInfo imgInfo = get_image_create_info(info);
 
 	if ((imgInfo.sharingMode & VK_SHARING_MODE_CONCURRENT) != 0)
 	{
@@ -77,7 +80,7 @@ auto Image::from(Device& device, ImageInfo&& info, MemoryBlock::handle_type memo
 
 	if (memoryBlock.valid())
 	{
-		auto const& memBlockImpl = to_impl(*memoryBlock);
+		auto const& memBlockImpl = impl_of(memoryBlock);
 		MemoryRequirementInfo const memReq = Image::memory_requirement(device, info);
 
 		if ((memReq.memoryTypeBits & memBlockImpl.allocationInfo.memoryType) != memReq.memoryTypeBits ||
@@ -92,7 +95,7 @@ auto Image::from(Device& device, ImageInfo&& info, MemoryBlock::handle_type memo
 	}
 	else
 	{
-		auto allocationFlags = vk::translate_memory_usage(info.memoryUsage);
+		auto allocationFlags = translate_memory_usage(info.memoryUsage);
 
 		if ((allocationFlags & VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT) != 0 ||
 			(allocationFlags & VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT) != 0)
@@ -110,40 +113,25 @@ auto Image::from(Device& device, ImageInfo&& info, MemoryBlock::handle_type memo
 
 		CHECK_OP(vmaCreateImage(vkdevice.allocator, &imgInfo, &allocInfo, &handle, &allocation, &allocationInfo))
 
-		auto it = vkdevice.gpuResourcePool.stores.memoryBlocks.emplace(false);
-
-		vk::_ResourceMeta meta{
-			.type 	= vk::detail::type_id_v<vk::MemoryBlockImpl>,
-			.id 	= ++vkdevice.gpuResourcePool.idCounter.others
-		};
-
-		auto id = std::bit_cast<uint64>(meta);
-
-		vkdevice.gpuResourcePool.caches.memoryBlock.emplace(id, it);
-		vkdevice.begin_referencing(id);
-
-		auto&& vkmemoryblock = *it;
+		auto&& vkmemoryblock = *vkdevice.gpuResourcePool.stores.memoryBlocks.emplace();
 
 		vkmemoryblock.handle = allocation;
 		vkmemoryblock.allocationInfo = std::move(allocationInfo);
 
-		new (&memoryBlock) MemoryBlock::handle_type{ vkdevice, id };
+		new (&memoryBlock) MemoryBlock{ &vkmemoryblock, &vkdevice };
 	}
 
-	auto it = vkdevice.gpuResourcePool.stores.images.emplace();
+	auto&& vkimage = *vkdevice.gpuResourcePool.stores.images.emplace();
 
-	vk::_ResourceMeta meta{ 
-		.type 	= vk::detail::type_id_v<vk::ImageImpl>, 
-		.id 	= vkdevice.gpuResourcePool.idCounter.images++ % vkdevice.config().maxImages
+	reflect::_ResourceMeta meta{ 
+		.id 	= vkdevice.gpuResourcePool.idCounter.images++ % vkdevice.config().maxImages,
+		.type 	= reflect::type_id_v<ImageImpl>, 
 	};
 
-	auto id = std::bit_cast<uint64>(meta);
-
-	auto&& vkimage = *it;
-
 	vkimage.handle = handle;
-	vkimage.allocationBlock = memoryBlock;
-	vkimage.m_info = std::move(info);
+	vkimage.memoryBlock = memoryBlock;
+	vkimage.info = std::move(info);
+	vkimage.id = std::bit_cast<uint64>(meta);
 
 	VkImageAspectFlags aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT;
 
@@ -170,7 +158,7 @@ auto Image::from(Device& device, ImageInfo&& info, MemoryBlock::handle_type memo
 	VkImageViewCreateInfo imgViewInfo{
 		.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
 		.image = vkimage.handle,
-		.viewType = vk::translate_image_view_type(vkimage.m_info.type),
+		.viewType = translate_image_view_type(vkimage.info.type),
 		.format = imgInfo.format,
 		.subresourceRange = {
 			.aspectMask = aspectFlags,
@@ -183,38 +171,35 @@ auto Image::from(Device& device, ImageInfo&& info, MemoryBlock::handle_type memo
 
 	vkCreateImageView(vkdevice.device, &imgViewInfo, nullptr, &vkimage.imageView);
 
-	vkdevice.gpuResourcePool.caches.image.emplace(id, it);
 	vkdevice.bind(vkimage, meta.id);
-	vkdevice.begin_referencing(id);
 
 	if constexpr (ENABLE_GPU_RESOURCE_DEBUG_NAMES)
 	{
 		vkdevice.setup_debug_name(vkimage);
 	}
 
-	return handle_type{ vkdevice, id };
+	return Image{ &vkimage, &vkdevice, };
 }
 
-auto Image::from(Swapchain& swapchain) -> lib::array<handle_type>
+auto Image::from(Device& device, SwapchainImpl& swapchain) -> lib::array<Image>
 {
-	auto&& vkswapchain = *static_cast<vk::SwapchainImpl*>(&swapchain);
-	auto&& vkdevice = *vkswapchain.vkdevice;
+	auto&& vkdevice = static_cast<DeviceImpl&>(device);
 
-	auto&& swapchainInfo = swapchain.info();
+	auto&& swapchainInfo = swapchain.info;
 
 	// Ideally should be const but vkGetSwapchainImagesKHR does not accept a const uint32* on pSwapchainImageCount.
 	uint32 maxImageCount = (swapchainInfo.imageCount > MAX_FRAMES_IN_FLIGHT) ? MAX_FRAMES_IN_FLIGHT : swapchainInfo.imageCount;
 
-	lib::array<handle_type> images{ static_cast<size_t>(maxImageCount) };
+	lib::array<Image> images{ static_cast<size_t>(maxImageCount) };
 	std::array<VkImage, MAX_FRAMES_IN_FLIGHT> vkImageHandles = {};
 	std::array<VkImageView, MAX_FRAMES_IN_FLIGHT> vkImageViewHandles = {};
 
-	vkGetSwapchainImagesKHR(vkdevice.device, vkswapchain.handle, &maxImageCount, vkImageHandles.data());
+	vkGetSwapchainImagesKHR(vkdevice.device, swapchain.handle, &maxImageCount, vkImageHandles.data());
 
 	VkImageViewCreateInfo imageViewInfo{
 		.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
 		.viewType = VK_IMAGE_VIEW_TYPE_2D,
-		.format = vkswapchain.surfaceColorFormat.format,
+		.format = swapchain.surfaceColorFormat.format,
 		.components = {
 			VK_COMPONENT_SWIZZLE_IDENTITY,
 			VK_COMPONENT_SWIZZLE_IDENTITY,
@@ -234,7 +219,7 @@ auto Image::from(Swapchain& swapchain) -> lib::array<handle_type>
 	{
 		ImageInfo imageInfo{
 			.type = ImageType::Image_2D,
-			.format = static_cast<Format>(vkswapchain.surfaceColorFormat.format),
+			.format = static_cast<Format>(swapchain.surfaceColorFormat.format),
 			.samples = SampleCount::Sample_Count_1,
 			.tiling = ImageTiling::Optimal,
 			.imageUsage = swapchainInfo.imageUsage,
@@ -252,76 +237,72 @@ auto Image::from(Swapchain& swapchain) -> lib::array<handle_type>
 			.mipLevel = 0
 		};
 
-		auto it = vkdevice.gpuResourcePool.stores.images.emplace();
+		auto&& vkimage = *vkdevice.gpuResourcePool.stores.images.emplace();
 
-		vk::_ResourceMeta meta{ 
-			.type 	= vk::detail::type_id_v<vk::ImageImpl>, 
-			.id 	= vkdevice.gpuResourcePool.idCounter.images++ % vkdevice.config().maxImages
+		reflect::_ResourceMeta meta{ 
+			.id 	= vkdevice.gpuResourcePool.idCounter.images++ % vkdevice.config().maxImages,
+			.type 	= reflect::type_id_v<ImageImpl>
 		};
-
-		auto const id = std::bit_cast<uint64>(meta);
-
-		vkdevice.gpuResourcePool.caches.image.emplace(id, it);
-		vkdevice.begin_referencing(id);
-
-		auto&& vkimage = *it;
 
 		vkimage.handle = vkImageHandles[i];
 		vkimage.imageView = vkImageViewHandles[i];
-		vkimage.m_info = std::move(imageInfo);
+		vkimage.info = std::move(imageInfo);
+		vkimage.id = std::bit_cast<uint64>(meta);
 
 		if constexpr (ENABLE_GPU_RESOURCE_DEBUG_NAMES)
 		{
 			vkdevice.setup_debug_name(vkimage);
 		}
 
-		images.emplace_back(vkdevice, id);
+		images.emplace_back(&vkimage, &vkdevice);
 	}
 
 	return images;
 }
 
-auto Image::Deleter::operator()(Device& device, uint64 id) const -> void
+auto Image::zombify(Device& dvc, ref_counted_base& resource) -> void
 {
-	ASSERTION(id != std::numeric_limits<uint64>::max() && "Attempting to destroy an Image with an invalid id");
-	/*
-	* At this point, the ref count on the resource is only 1 which means ONLY the resource has a reference to itself and can be safely deleted.
-	*/
-	auto&& vkdevice = to_device(device);
-	auto&& vkimage = *vkdevice.gpuResourcePool.caches.image[id];
+	DeviceImpl& device = static_cast<DeviceImpl&>(dvc);
+	ImageImpl& image = static_cast<ImageImpl&>(resource);
 
+	bool imageIsTransient = image.memoryBlock.valid() && image.memoryBlock.aliased();
 	/*
 	* Release ownership of it's memory allocation.
 	*/
-	vkimage.allocationBlock.destroy();
+	image.memoryBlock.destroy();
 
-	std::lock_guard const lock{ vkdevice.gpuResourcePool.zombieMutex };
+	std::lock_guard const lock{ device.gpuResourcePool.zombieMutex };
 
-	uint64 const cpuTimelineValue = vkdevice.cpu_timeline();
+	uint64 const cpuTimelineValue = device.cpu_timeline();
 
-	vkdevice.gpuResourcePool.zombies.emplace_back(
+	device.gpuResourcePool.zombies.emplace_back(
 		cpuTimelineValue,
-		[&vkimage, id](vk::DeviceImpl& device) -> void
+		[&image, imageIsTransient](DeviceImpl& device) -> void
 		{
-			if (!vkimage.is_transient())
+			// If it is not transient.
+			if (!imageIsTransient)
 			{
-				vkDestroyImageView(device.device, vkimage.imageView, nullptr);
+				auto&& block = shared_base::impl_of(image.memoryBlock);
+				
+				vkDestroyImageView(device.device, image.imageView, nullptr);
 
-				if (!vkimage.is_swapchain_image())
+				// If it is not a swapchain image.
+				if (image.memoryBlock.valid())
 				{
-					vkimage.allocationBlock.destroy();
+					vmaDestroyImage(device.allocator, image.handle, block.handle);
+
+					auto it = device.gpuResourcePool.stores.memoryBlocks.get_iterator(&block);
+					device.gpuResourcePool.stores.memoryBlocks.erase(it);
 				}
 			}
 			else
 			{
-				vkDestroyImageView(device.device, vkimage.imageView, nullptr);
-				vkDestroyImage(device.device, vkimage.handle, nullptr);
+				vkDestroyImageView(device.device, image.imageView, nullptr);
+				vkDestroyImage(device.device, image.handle, nullptr);
 			}
 
-			auto it = device.gpuResourcePool.caches.image[id];
-
+			auto it = device.gpuResourcePool.stores.images.get_iterator(&image);
 			device.gpuResourcePool.stores.images.erase(it);
-			device.gpuResourcePool.caches.image.erase(id);
 		}
 	);
 }
@@ -330,7 +311,7 @@ auto format_texel_info(Format format) -> FormatTexelInfo
 {
 	using enum Format;
 
-	auto const vkFormat = vk::translate_format(format);
+	auto const vkFormat = translate_format(format);
 
 	switch (vkFormat)
 	{

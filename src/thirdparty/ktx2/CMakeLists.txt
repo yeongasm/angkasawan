@@ -66,4 +66,7 @@ target_include_directories(
 		"utils"
 )
 set_target_properties(ktx PROPERTIES FOLDER thirdparty)
+if (MSVC)
+	target_compile_options(ktx PRIVATE /permissive- /wd5287)
+endif()
 target_compile_definitions(ktx PUBLIC KHRONOS_STATIC LIBKTX PRIVATE BASISU_SUPPORT_OPENCL=0 KTX_FEATURE_WRITE=1)

@@ -26,7 +26,7 @@ auto SubmissionGroup::submit(gpu::CommandRecorder&& commands) -> void
 	m_queue.submittedCommands[offset + m_data.numCommandBuffers++] = std::move(commands);
 }
 
-auto SubmissionGroup::signal(gpu::resource<gpu::Fence> const& fence, uint64 value) -> void
+auto SubmissionGroup::signal(gpu::Fence const& fence, uint64 value) -> void
 {
 	if (!fence.valid())
 	{
@@ -43,7 +43,7 @@ auto SubmissionGroup::signal(gpu::resource<gpu::Fence> const& fence, uint64 valu
 	m_queue.submittedFences[offset + m_data.numSignalFences++] = std::pair{ fence, value };
 }
 
-auto SubmissionGroup::signal(gpu::resource<gpu::Semaphore> const& semaphore) -> void
+auto SubmissionGroup::signal(gpu::Semaphore const& semaphore) -> void
 {
 	if (!semaphore.valid())
 	{
@@ -60,7 +60,7 @@ auto SubmissionGroup::signal(gpu::resource<gpu::Semaphore> const& semaphore) -> 
 	m_queue.submittedSemaphores[offset + m_data.numSignalSemaphores++] = semaphore;
 }
 
-auto SubmissionGroup::wait(gpu::resource<gpu::Fence> const& fence, uint64 value) -> void
+auto SubmissionGroup::wait(gpu::Fence const& fence, uint64 value) -> void
 {
 	if (!fence.valid())
 	{
@@ -77,7 +77,7 @@ auto SubmissionGroup::wait(gpu::resource<gpu::Fence> const& fence, uint64 value)
 	m_queue.submittedFences[offset + m_data.numWaitFences++] = std::pair{ fence, value };
 }
 
-auto SubmissionGroup::wait(gpu::resource<gpu::Semaphore> const& semaphore) -> void
+auto SubmissionGroup::wait(gpu::Semaphore const& semaphore) -> void
 {
 	if (!semaphore.valid())
 	{
@@ -139,7 +139,7 @@ auto CommandQueue::new_command_recorder(RequestCommandRecorder&& info) -> gpu::C
 
 		auto commandPool = gpu::CommandPool::from(m_device, { .name = fmt::format("<cmdpool>:type={}, tid={}", queue_type_name(info.queue), info.tid), .queue = info.queue });
 
-		if (!commandPool)
+		if (!commandPool.valid())
 		{
 			return {};
 		}

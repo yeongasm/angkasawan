@@ -124,7 +124,7 @@ struct MeshDataInfo
 
 struct Mesh
 {
-	gpu::resource<gpu::Buffer> buffer;
+	gpu::Buffer buffer;
 
 	struct
 	{

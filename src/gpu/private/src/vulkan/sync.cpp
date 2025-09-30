@@ -4,102 +4,62 @@ namespace gpu
 {
 auto Semaphore::info() const -> SemaphoreInfo const&
 {
-	return m_info;
+	return __self().info;
 }
 
 auto Semaphore::valid() const -> bool
 {
-	auto&& self = to_impl(*this);
-
-	return self.handle != VK_NULL_HANDLE;
+	return m_device && m_data && __self().handle != VK_NULL_HANDLE;
 }
 
-auto Semaphore::from(Device& device, SemaphoreInfo&& info) -> handle_type
+auto Semaphore::from(Device& device, SemaphoreInfo&& info) -> Semaphore
 {
-	auto&& vkdevice = to_device(device);
+	auto&& vkdevice = static_cast<DeviceImpl&>(device);
 		
 	VkSemaphoreCreateInfo semaphoreInfo{
 		.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO
 	};
 
-	VkSemaphore handle = VK_NULL_HANDLE;
+	VkSemaphore semaphore{};
 
-	CHECK_OP(vkCreateSemaphore(vkdevice.device, &semaphoreInfo, nullptr, &handle))
+	CHECK_OP(vkCreateSemaphore(vkdevice.device, &semaphoreInfo, nullptr, &semaphore))
 
-	auto it = vkdevice.gpuResourcePool.stores.binarySemaphore.emplace();
+	auto&& vksemaphore = *vkdevice.gpuResourcePool.stores.semaphores.emplace();
 
-	vk::_ResourceMeta meta{
-		.type 	= vk::detail::type_id_v<vk::SemaphoreImpl>,
-		.id 	= ++vkdevice.gpuResourcePool.idCounter.others
-	};
-
-	auto id = std::bit_cast<uint64>(meta);
-
-	vkdevice.gpuResourcePool.caches.binarySemaphore.emplace(id, it);
-	vkdevice.begin_referencing(id);
-
-	auto&& vksemaphore = *it;
-
-	vksemaphore.handle = handle;
-	vksemaphore.m_info = std::move(info);
+	vksemaphore.handle = semaphore;
+	vksemaphore.info = std::move(info);
 
 	if constexpr (ENABLE_GPU_RESOURCE_DEBUG_NAMES)
 	{         
 		vkdevice.setup_debug_name(vksemaphore);
 	}
 
-	return handle_type{ vkdevice, id };
-}
-
-auto Semaphore::Deleter::operator()(Device& device, uint64 id) const -> void
-{
-	ASSERTION(id != std::numeric_limits<uint64>::max() && "Attempting to destroy a Semaphore with an invalid id.");
-
-	auto&& vkdevice = to_device(device);
-	auto&& vksemaphore = *vkdevice.gpuResourcePool.caches.binarySemaphore[id];
-
-	std::lock_guard const lock{ vkdevice.gpuResourcePool.zombieMutex };
-
-	uint64 const cpuTimelineValue = vkdevice.cpu_timeline();
-
-	vkdevice.gpuResourcePool.zombies.emplace_back(
-		cpuTimelineValue,
-		[&vksemaphore, id](vk::DeviceImpl& device) -> void
-		{
-			vkDestroySemaphore(device.device, vksemaphore.handle, nullptr);
-
-			auto it = device.gpuResourcePool.caches.binarySemaphore[id];
-
-			device.gpuResourcePool.caches.binarySemaphore.erase(id);
-			device.gpuResourcePool.stores.binarySemaphore.erase(it);
-		}
-	);
+	return Semaphore{ &vksemaphore, &vkdevice };
 }
 
 auto Fence::info() const -> FenceInfo const&
 {
-	return m_info;
+	return __self().info;
 }
 
 auto Fence::valid() const -> bool
 {
-	auto&& self = to_impl(*this);
-
-	return self.handle != VK_NULL_HANDLE;
+	return m_device && m_data && __self().handle != VK_NULL_HANDLE;
 }
 
 auto Fence::value() const -> uint64
 {
-	auto const& self = to_impl(*this);
+	auto&& device = __device();
+	auto&& self = __self();
 	
 	uint64 value = {};
 
-	ASSERTION(self.vkdevice != nullptr && "No device referenced for current Fence.");
+	ASSERTION(m_device != nullptr && "No device referenced for current Fence.");
 	ASSERTION(self.handle != VK_NULL_HANDLE && "Attempting to retrieve value of an invalid Fence.");
 
 	if (valid())
 	{
-		vkGetSemaphoreCounterValue(self.vkdevice->device, self.handle, &value);
+		vkGetSemaphoreCounterValue(device.device, self.handle, &value);
 	}
 
 	return value;
@@ -109,11 +69,12 @@ auto Fence::signal(uint64 const value) const -> void
 {
 	if (valid())
 	{
-		auto const& self = to_impl(*this);
+		auto&& device = __device();
+		auto&& self = __self();
 
 		uint64 currentValue = {};
 
-		vkGetSemaphoreCounterValue(self.vkdevice->device, self.handle, &currentValue);
+		vkGetSemaphoreCounterValue(device.device, self.handle, &currentValue);
 		currentValue = std::max(std::max(currentValue, value), currentValue + 1);
 
 		VkSemaphoreSignalInfo signalInfo{
@@ -121,7 +82,7 @@ auto Fence::signal(uint64 const value) const -> void
 			.semaphore = self.handle,
 			.value = currentValue,
 		};
-		vkSignalSemaphore(self.vkdevice->device, &signalInfo);
+		vkSignalSemaphore(device.device, &signalInfo);
 	}
 }
 
@@ -129,10 +90,11 @@ auto Fence::signal() const -> void
 {
 	if (valid())
 	{
-		auto const& self = to_impl(*this);
+		auto&& device = __device();
+		auto&& self = __self();
 
 		uint64 currentValue = {};
-		vkGetSemaphoreCounterValue(self.vkdevice->device, self.handle, &currentValue);
+		vkGetSemaphoreCounterValue(device.device, self.handle, &currentValue);
 
 		++currentValue;
 
@@ -141,7 +103,7 @@ auto Fence::signal() const -> void
 			.semaphore = self.handle,
 			.value = currentValue,
 		};
-		vkSignalSemaphore(self.vkdevice->device, &signalInfo);
+		vkSignalSemaphore(device.device, &signalInfo);
 	}
 }
 
@@ -151,7 +113,8 @@ auto Fence::wait_for_value(uint64 value, uint64 timeout) const -> bool
 
 	if (valid())
 	{
-		auto const& self = to_impl(*this);
+		auto&& device = __device();
+		auto&& self = __self();
 
 		uint64 waitValue = value;
 		VkSemaphoreWaitInfo waitInfo{
@@ -160,15 +123,15 @@ auto Fence::wait_for_value(uint64 value, uint64 timeout) const -> bool
 			.pSemaphores = &self.handle,
 			.pValues = &waitValue,
 		};
-		result = vkWaitSemaphores(self.vkdevice->device, &waitInfo, timeout);
+		result = vkWaitSemaphores(device.device, &waitInfo, timeout);
 	}
 
 	return result == VK_SUCCESS;
 }
 
-auto Fence::from(Device& device, FenceInfo&& info) -> handle_type
+auto Fence::from(Device& device, FenceInfo&& info) -> Fence
 {
-	auto&& vkdevice = to_device(device);
+	auto&& vkdevice = static_cast<DeviceImpl&>(device);
 
 	VkSemaphoreTypeCreateInfo timelineSemaphoreInfo{
 		.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO,
@@ -181,138 +144,118 @@ auto Fence::from(Device& device, FenceInfo&& info) -> handle_type
 		.pNext = &timelineSemaphoreInfo
 	};
 
-	VkSemaphore handle = VK_NULL_HANDLE;
+	VkSemaphore timelineSemaphore = VK_NULL_HANDLE;
 
-	CHECK_OP(vkCreateSemaphore(vkdevice.device, &semaphoreInfo, nullptr, &handle))
+	CHECK_OP(vkCreateSemaphore(vkdevice.device, &semaphoreInfo, nullptr, &timelineSemaphore))
 
-	auto it = vkdevice.gpuResourcePool.stores.timelineSemaphore.emplace(vkdevice);
+	auto&& vkfence = *vkdevice.gpuResourcePool.stores.fences.emplace();
 
-	vk::_ResourceMeta meta{
-		.type 	= vk::detail::type_id_v<vk::FenceImpl>,
-		.id 	= ++vkdevice.gpuResourcePool.idCounter.others
-	};
-
-	auto id = std::bit_cast<uint64>(meta);
-
-	vkdevice.gpuResourcePool.caches.timelineSemaphore.emplace(id, it);
-	vkdevice.begin_referencing(id);
-
-	auto&& vksemaphore = *it;
-
-	vksemaphore.m_info = std::move(info);
-	vksemaphore.handle = handle;
+	vkfence.handle = timelineSemaphore;
+	vkfence.info = std::move(info);
 
 	if constexpr (ENABLE_GPU_RESOURCE_DEBUG_NAMES)
 	{
-		vkdevice.setup_debug_name(vksemaphore);
+		vkdevice.setup_debug_name(vkfence);
 	}
 
-	return handle_type{ vkdevice, id };
-}
-
-auto Fence::Deleter::operator()(Device& device, uint64 id) const -> void
-{
-	ASSERTION(id != std::numeric_limits<uint64>::max() && "Attempting to destroy a Fence with an invalid id.");
-
-	auto&& vkdevice = to_device(device);
-	auto&& vksemaphore = *vkdevice.gpuResourcePool.caches.timelineSemaphore[id];
-
-	std::lock_guard const lock{ vkdevice.gpuResourcePool.zombieMutex };
-
-	uint64 const cpuTimelineValue = vkdevice.cpu_timeline();
-
-	vkdevice.gpuResourcePool.zombies.emplace_back(
-		cpuTimelineValue,
-		[&vksemaphore, id](vk::DeviceImpl& device) -> void
-		{
-			vkDestroySemaphore(device.device, vksemaphore.handle, nullptr);
-
-			auto it = device.gpuResourcePool.caches.timelineSemaphore[id];
-
-			device.gpuResourcePool.caches.timelineSemaphore.erase(id);
-			device.gpuResourcePool.stores.timelineSemaphore.erase(it);
-		}
-	);
+	return Fence{ &vkfence, &vkdevice };
 }
 
 auto Event::info() const -> EventInfo const&
 {
-	return m_info;
+	return __self().info;
 }
 
 auto Event::valid() const -> bool
 {
-	auto const& vkevent = to_impl(*this);
-
-	return vkevent.handle != VK_NULL_HANDLE;
+	return m_device && m_data && __self().handle != VK_NULL_HANDLE;
 }
 
-auto Event::from(Device& device, EventInfo&& info) -> handle_type
+auto Event::from(Device& device, EventInfo&& info) -> Event
 {
-	auto&& vkdevice = to_device(device);
+	auto&& vkdevice = static_cast<DeviceImpl&>(device);
 
 	VkEventCreateInfo eventInfo{
 		.sType = VK_STRUCTURE_TYPE_EVENT_CREATE_INFO
 	};
 
-	VkEvent handle = VK_NULL_HANDLE;
+	VkEvent event = VK_NULL_HANDLE;
 
-	CHECK_OP(vkCreateEvent(vkdevice.device, &eventInfo, nullptr, &handle))
+	CHECK_OP(vkCreateEvent(vkdevice.device, &eventInfo, nullptr, &event))
 
-	auto it = vkdevice.gpuResourcePool.stores.events.emplace();
+	auto&& vkevent = *vkdevice.gpuResourcePool.stores.events.emplace();
 
-	vk::_ResourceMeta meta{
-		.type 	= vk::detail::type_id_v<vk::EventImpl>,
-		.id 	= ++vkdevice.gpuResourcePool.idCounter.others
-	};
-
-	auto id = std::bit_cast<uint64>(meta);
-
-	vkdevice.gpuResourcePool.caches.event.emplace(id, it);
-	vkdevice.begin_referencing(id);
-
-	auto&& vkevent = *it;
-
-	vkevent.handle = handle;
-	vkevent.m_info = std::move(info);
+	vkevent.handle = event;
+	vkevent.info = std::move(info);
 
 	if constexpr (ENABLE_GPU_RESOURCE_DEBUG_NAMES)
 	{
 		vkdevice.setup_debug_name(vkevent);
 	}
 
-	return handle_type{ vkdevice, id };
+	return Event{ &vkevent, &vkdevice };
 }
 
-auto Event::Deleter::operator()(Device& device, uint64 id) const -> void
+auto Semaphore::zombify(Device& dvc, ref_counted_base& resource) -> void
 {
-	ASSERTION(id != std::numeric_limits<uint64>::max() && "Attempting to destroy an Event with an invalid id.");
+	DeviceImpl& device = static_cast<DeviceImpl&>(dvc);
+	SemaphoreImpl& semaphore = static_cast<SemaphoreImpl&>(resource);
 
-	auto&& vkdevice = to_device(device);
-	auto&& vkevent = *vkdevice.gpuResourcePool.caches.event[id];
+	std::lock_guard const lock{ device.gpuResourcePool.zombieMutex };
 
-	std::lock_guard const lock{ vkdevice.gpuResourcePool.zombieMutex };
+	uint64 const cpuTimelineValue = device.cpu_timeline();
 
-	uint64 const cpuTimelineValue = vkdevice.cpu_timeline();
-
-	vkdevice.gpuResourcePool.zombies.emplace_back(
+	device.gpuResourcePool.zombies.emplace_back(
 		cpuTimelineValue,
-		[&vkevent, id] (vk::DeviceImpl& device) -> void
+		[&semaphore](DeviceImpl& device) -> void
 		{
-			vkDestroyEvent(device.device, vkevent.handle, nullptr);
+			vkDestroySemaphore(device.device, semaphore.handle, nullptr);
 
-			auto it = device.gpuResourcePool.caches.event[id];
-
-			device.gpuResourcePool.caches.event.erase(id);
-			device.gpuResourcePool.stores.events.erase(it);
+			auto it = device.gpuResourcePool.stores.semaphores.get_iterator(&semaphore);
+			device.gpuResourcePool.stores.semaphores.erase(it);
 		}
 	);
 }
 
-namespace vk
+auto Fence::zombify(Device& dvc, ref_counted_base& resource) -> void
 {
-FenceImpl::FenceImpl(DeviceImpl& device) :
-	vkdevice{ &device }
-{}
+	DeviceImpl& device = static_cast<DeviceImpl&>(dvc);
+	FenceImpl& fence = static_cast<FenceImpl&>(resource);
+
+	std::lock_guard const lock{ device.gpuResourcePool.zombieMutex };
+
+	uint64 const cpuTimelineValue = device.cpu_timeline();
+
+	device.gpuResourcePool.zombies.emplace_back(
+		cpuTimelineValue,
+		[&fence](DeviceImpl& device) -> void
+		{
+			vkDestroySemaphore(device.device, fence.handle, nullptr);
+
+			auto it = device.gpuResourcePool.stores.fences.get_iterator(&fence);
+			device.gpuResourcePool.stores.fences.erase(it);
+		}
+	);
+}
+
+auto Event::zombify(Device& dvc, ref_counted_base& resource) -> void
+{
+	DeviceImpl& device = static_cast<DeviceImpl&>(dvc);
+	EventImpl& event = static_cast<EventImpl&>(resource);
+
+	std::lock_guard const lock{ device.gpuResourcePool.zombieMutex };
+
+	uint64 const cpuTimelineValue = device.cpu_timeline();
+
+	device.gpuResourcePool.zombies.emplace_back(
+		cpuTimelineValue,
+		[&event] (DeviceImpl& device) -> void
+		{
+			vkDestroyEvent(device.device, event.handle, nullptr);
+
+			auto it = device.gpuResourcePool.stores.events.get_iterator(&event);
+			device.gpuResourcePool.stores.events.erase(it);
+		}
+	);
 }
 }

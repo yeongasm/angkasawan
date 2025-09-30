@@ -9,7 +9,7 @@ namespace render
 {
 struct HeapBlock
 {
-	gpu::resource<gpu::Buffer> buffer = {};
+	gpu::Buffer buffer = {};
 	size_t byteOffset = {};
 
 	auto remaining_capacity() const -> size_t;
@@ -23,7 +23,7 @@ struct HeapBlock
 
 struct BufferDataUploadInfo
 {
-	gpu::resource<gpu::Buffer> dst;
+	gpu::Buffer dst;
 	size_t dstOffset;
 	void* data;
 	size_t size;
@@ -36,7 +36,7 @@ struct BufferHeapBlockUploadInfo
 	HeapBlock& heapBlock;
 	size_t heapWriteOffset;
 	size_t heapWriteSize;
-	gpu::resource<gpu::Buffer> dst;
+	gpu::Buffer dst;
 	size_t dstOffset;
 	gpu::DeviceQueue srcQueue = gpu::DeviceQueue::None;
 	gpu::DeviceQueue dstQueue = gpu::DeviceQueue::Main;
@@ -44,7 +44,7 @@ struct BufferHeapBlockUploadInfo
 
 struct ImageDataUploadInfo
 {
-	gpu::resource<gpu::Image> image;
+	gpu::Image image;
 	void const* data;
 	size_t size;
 	uint32 mipLevel = 0;
@@ -57,7 +57,7 @@ using upload_id = lib::handle<struct UPLOAD_HEAP_ID, uint64, std::numeric_limits
 
 struct FenceInfo
 {
-	gpu::resource<gpu::Fence> fence;
+	gpu::Fence fence;
 	uint64 value;
 };
 
@@ -151,7 +151,7 @@ private:
 	uint64 m_cpuUploadTimeline;
 	gpu::Device& m_device;
 	CommandQueue& m_commandQueue;
-	gpu::resource<gpu::Fence> m_gpuUploadTimeline;
+	gpu::Fence m_gpuUploadTimeline;
 	uint32 m_nextPool;
 
 	auto allocate_heap(size_t count) -> void;

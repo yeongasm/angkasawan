@@ -777,6 +777,8 @@ enum class EventState : uint32
 	Unsignaled
 };
 
+using device_address_t = uint64;
+
 //enum class CommandBufferState : uint8
 //{
 //	Initial,
