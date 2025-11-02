@@ -17,10 +17,11 @@ inline constexpr uint32 MAX_BUFFERS = 10'000;
 inline constexpr uint32 MAX_IMAGES = 10'000;
 inline constexpr uint32 MAX_SAMPLERS = 100;
 // shader bindings.
-inline constexpr uint32 STORAGE_IMAGE_BINDING = 0;
-inline constexpr uint32 SAMPLED_IMAGE_BINDING = 1;
-inline constexpr uint32 SAMPLER_BINDING = 2;
-inline constexpr uint32 BUFFER_DEVICE_ADDRESS_BINDING = 3;
+inline constexpr uint32 STORAGE_BUFFER_BINDING = 0;
+inline constexpr uint32 STORAGE_IMAGE_BINDING = 1;
+inline constexpr uint32 SAMPLED_IMAGE_BINDING = 2;
+inline constexpr uint32 SAMPLER_BINDING = 3;
+inline constexpr uint32 BUFFER_DEVICE_ADDRESS_BINDING = 4;
 
 #ifndef ENABLE_GPU_VALIDATION_LAYER
 #define ENABLE_GPU_VALIDATION_LAYER 0

@@ -1,4 +1,5 @@
 #pragma once
+#include "gpu/shared_resource.hpp"
 #ifndef SANDBOX_CUBE_DEMO_APP_H
 #define SANDBOX_CUBE_DEMO_APP_H
 
@@ -26,7 +27,7 @@ public:
 	auto stop() -> void;
 
 private:
-	static inline constexpr gpu::ImageSubresource BASE_COLOR_SUBRESOURCE = { 
+	static inline constexpr gpu::ImageSubresource BASE_COLOR_SUBRESOURCE = {
 		.aspectFlags = gpu::ImageAspect::Color,
 		.mipLevel = 0u,
 		.levelCount = 1u,
@@ -71,6 +72,12 @@ private:
 		gpu::device_address renderInfo;
 	};
 
+	struct ComputePushConstant
+	{
+		gpu::resource_id_t imageId;
+		glm::vec2 dimension;
+	};
+
 	struct CameraProjectionView
 	{
 		glm::mat4 projection;
@@ -89,7 +96,7 @@ private:
 	gpu::Image m_baseColorAttachment = {};
 	gpu::Image m_metallicRoughnessAttachment = {};
 	gpu::Image m_normalAttachment = {};
-	
+
 	Camera m_camera = {};
 	CameraState m_cameraState = {};
 
@@ -101,7 +108,6 @@ private:
 	render::GpuPtr<CameraProjectionView[2]> m_cameraProjView = {};
 
 	gpu::Pipeline m_pipeline = {};
-	// core::filewatcher::file_watch_id m_pipelineShaderCodeWatchId = {};
 
 	uint32 m_currentFrame = {};
 

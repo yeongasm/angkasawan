@@ -1174,6 +1174,13 @@ auto DeviceImpl::create_descriptor_pool() -> bool
 
 auto DeviceImpl::create_descriptor_set_layout() -> bool
 {
+	VkDescriptorSetLayoutBinding storageBufferLayout{
+		.binding = STORAGE_BUFFER_BINDING,
+		.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+		.descriptorCount = m_config.maxBuffers,
+		.stageFlags = VK_SHADER_STAGE_ALL
+	};
+
 	VkDescriptorSetLayoutBinding storageImageLayout{
 		.binding = STORAGE_IMAGE_BINDING,
 		.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
@@ -1203,6 +1210,7 @@ auto DeviceImpl::create_descriptor_set_layout() -> bool
 	};
 
 	VkDescriptorSetLayoutBinding descriptorSetLayoutBindings[] = {
+		storageBufferLayout,
 		storageImageLayout,
 		sampledImageLayout,
 		samplerLayout,
@@ -1210,6 +1218,7 @@ auto DeviceImpl::create_descriptor_set_layout() -> bool
 	};
 
 	VkDescriptorBindingFlags bindingFlags[] = {
+		VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,
 		VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,
 		VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,
 		VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,
@@ -1379,6 +1388,25 @@ auto DeviceImpl::bind(ImageImpl const& image, uint32 at) -> void
 auto DeviceImpl::bind(BufferImpl const& buffer, uint32 at) -> void
 {
 	descriptorCache.bdaHostAddress[at] = buffer.address;
+
+	VkDescriptorBufferInfo descriptorBufferInfo{
+		.buffer = buffer.handle,
+		.offset = 0ull,
+		.range = buffer.info.size
+	};
+
+	VkWriteDescriptorSet writeDescriptorSetBuffer{
+		.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+		.pNext = nullptr,
+		.dstSet = descriptorCache.descriptorSet,
+		.dstBinding = STORAGE_BUFFER_BINDING,
+		.dstArrayElement = at,
+		.descriptorCount = 1,
+		.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+		.pBufferInfo = &descriptorBufferInfo
+	};
+
+	vkUpdateDescriptorSets(device, 1, &writeDescriptorSetBuffer, 0, nullptr);
 }
 
 auto DeviceImpl::bind(SamplerImpl const& sampler, uint32 at) -> void

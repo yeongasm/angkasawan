@@ -74,11 +74,11 @@ private:
 
     using super = detail::GpuDataContainer<T>;
 
-    GpuPtr(gpu::Buffer buffer) : 
+    GpuPtr(gpu::Buffer& buffer) : 
         super{ buffer }
     {}
 
-    GpuPtr(gpu::Buffer buffer, std::unique_ptr<detail::DeviceLocalDataStorage<T>> data) :
+    GpuPtr(gpu::Buffer& buffer, std::unique_ptr<detail::DeviceLocalDataStorage<T>> data) :
         super{ buffer, std::move(data) }
     {}
 
@@ -216,11 +216,11 @@ private:
     using type = T[N];
     using super = detail::GpuDataContainer<type>;
 
-    GpuPtr(gpu::Buffer storage) :
+    GpuPtr(gpu::Buffer& storage) :
         super{ storage }
     {}
 
-    GpuPtr(gpu::Buffer storage, std::unique_ptr<detail::DeviceLocalDataStorage<type>> data) :
+    GpuPtr(gpu::Buffer& storage, std::unique_ptr<detail::DeviceLocalDataStorage<type>> data) :
         super{ storage, std::move(data) }
     {}
 

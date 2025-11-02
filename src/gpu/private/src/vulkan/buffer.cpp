@@ -108,6 +108,9 @@ auto Buffer::from(Device& device, BufferInfo&& info, MemoryBlock memoryBlock) ->
 		vkdevice.transferQueue.familyIndex
 	};
 
+	// Since all buffers will be bound into the storage buffer descriptor, we implicitly add this flag into it's buffer usage flag.
+	info.bufferUsage |= BufferUsage::Storage;
+
 	VkBufferCreateInfo bufferInfo = get_buffer_create_info(info);
 
 	if ((bufferInfo.sharingMode & VK_SHARING_MODE_CONCURRENT) != 0)

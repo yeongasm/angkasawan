@@ -5,6 +5,7 @@
 #include "model_demo_app.hpp"
 
 #include "core.platform/file_watcher.hpp"
+#include "core.cmdline/cmdline.hpp"
 
 namespace sandbox
 {
@@ -14,6 +15,14 @@ SandboxApp::SandboxApp([[maybe_unused]] int32 argc, [[maybe_unused]] char** argv
 	m_applet{},
 	m_isRunning{true}
 {
+	core::cmdline::ProgramOptions po{ "usage: sandbox [options]" };
+	core::cmdline::Option workspaceDirOpt{ po, "", "--workspace-dir", "Path to file or directory.", Settings::workspaceDir };
+
+	if (!po.parse(core::cmdline::CommandLine{ argc, argv }))
+	{
+		return;
+	}
+
 	IOContext::update_configuration({
 		.keyDoubleTapTime			= 0.25f,
 		.keyMinDurationForHold		= 0.5f,

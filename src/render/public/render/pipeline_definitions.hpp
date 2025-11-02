@@ -20,10 +20,10 @@ struct RasterPipelineDefinition
     {
         std::string_view vertex;
         std::string_view pixel;
-        // std::string_view task;
-        // std::string_view mesh;
-        // std::string_view tesselationControl;
-        // std::string_view tesselationEvaluation;
+        std::string_view task;
+        std::string_view mesh;
+        std::string_view tesselationControl;
+        std::string_view tesselationEvaluation;
         
     } shaderPaths; // The pipeline cache will not look for the shaders in other directories than the one specified in these variables.
 
@@ -52,7 +52,7 @@ struct ComputePipelineDefinition
     struct ShaderPaths
     {
         std::string_view compute;
-
+		
     } shaderPaths;
 
     struct Info

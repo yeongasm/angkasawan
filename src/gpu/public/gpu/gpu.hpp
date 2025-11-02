@@ -494,6 +494,11 @@ private:
 	static auto zombify(Device&, ref_counted_base&) -> void;
 };
 
+constexpr auto workgroup_size(uint32 elementSize, uint32 blockSize) -> uint32
+{
+	return (elementSize + 1 - blockSize) / blockSize;
+}
+
 /*
 * Should not have persistent lifetimes.
 * If persistent lifetime is required, then have a CommandQueue for each frame in flight

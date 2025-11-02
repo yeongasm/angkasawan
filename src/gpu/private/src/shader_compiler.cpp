@@ -66,7 +66,7 @@ auto ShaderCompileInfo::remove_macro_definition(std::string_view key) -> void
 
 auto ShaderCompiler::add_include_directory(std::string_view dir) -> void
 {
-	if (std::find(m_includeDirectories.begin(), m_includeDirectories.end(), dir) != m_includeDirectories.end())
+	if (std::find(m_includeDirectories.begin(), m_includeDirectories.end(), dir) == m_includeDirectories.end())
 	{
 		m_includeDirectories.emplace_back(dir);
 	}

@@ -6,7 +6,11 @@
 
 #include "app_pipeline_definitions.hpp"
 #include "gpu/common.hpp"
+#include "gpu/constants.hpp"
+#include "gpu/gpu.hpp"
 #include "render/pipeline_cache.hpp"
+
+#include "sandbox_settings.hpp"
 
 template <>
 struct glz::meta<render::material::ImageType>
@@ -200,38 +204,6 @@ auto ModelDemoApp::start(
 				.dstQueue = gpu::DeviceQueue::Main
 			});
 		}
-
-		cmd.pipeline_image_barrier({
-			.image = m_depthBuffer,
-			.srcAccess = gpu::access::TOP_OF_PIPE_NONE,
-			.oldLayout = gpu::ImageLayout::Undefined,
-			.newLayout = gpu::ImageLayout::Depth_Attachment,
-			.subresource = DEPTH_SUBRESOURCE
-		});
-
-		cmd.pipeline_image_barrier({
-			.image = m_baseColorAttachment,
-			.srcAccess = gpu::access::TOP_OF_PIPE_NONE,
-			.oldLayout = gpu::ImageLayout::Undefined,
-			.newLayout = gpu::ImageLayout::Color_Attachment,
-			.subresource = BASE_COLOR_SUBRESOURCE
-		});
-
-		cmd.pipeline_image_barrier({
-			.image = m_metallicRoughnessAttachment,
-			.srcAccess = gpu::access::TOP_OF_PIPE_NONE,
-			.oldLayout = gpu::ImageLayout::Undefined,
-			.newLayout = gpu::ImageLayout::Attachment,
-			.subresource = BASE_COLOR_SUBRESOURCE
-		});
-
-		cmd.pipeline_image_barrier({
-			.image = m_normalAttachment,
-			.srcAccess = gpu::access::TOP_OF_PIPE_NONE,
-			.oldLayout = gpu::ImageLayout::Undefined,
-			.newLayout = gpu::ImageLayout::Color_Attachment,
-			.subresource = BASE_COLOR_SUBRESOURCE
-		});
 
 		cmd.end();
 
@@ -517,7 +489,50 @@ auto ModelDemoApp::make_render_targets(uint32 width, uint32 height) -> void
 		.imageLayout = gpu::ImageLayout::Color_Attachment,
 		.loadOp = gpu::AttachmentLoadOp::Clear,
 		.storeOp = gpu::AttachmentStoreOp::Store
-	};	
+	};
+
+	auto cmd = m_gpu->command_queue().new_command_recorder();
+
+	cmd.begin();
+
+	cmd.pipeline_image_barrier({
+		.image = m_depthBuffer,
+		.srcAccess = gpu::access::TOP_OF_PIPE_NONE,
+		.oldLayout = gpu::ImageLayout::Undefined,
+		.newLayout = gpu::ImageLayout::Depth_Attachment,
+		.subresource = DEPTH_SUBRESOURCE
+	});
+
+	cmd.pipeline_image_barrier({
+		.image = m_baseColorAttachment,
+		.srcAccess = gpu::access::TOP_OF_PIPE_NONE,
+		.oldLayout = gpu::ImageLayout::Undefined,
+		.newLayout = gpu::ImageLayout::Color_Attachment,
+		.subresource = BASE_COLOR_SUBRESOURCE
+	});
+
+	cmd.pipeline_image_barrier({
+		.image = m_metallicRoughnessAttachment,
+		.srcAccess = gpu::access::TOP_OF_PIPE_NONE,
+		.oldLayout = gpu::ImageLayout::Undefined,
+		.newLayout = gpu::ImageLayout::Attachment,
+		.subresource = BASE_COLOR_SUBRESOURCE
+	});
+
+	cmd.pipeline_image_barrier({
+		.image = m_normalAttachment,
+		.srcAccess = gpu::access::TOP_OF_PIPE_NONE,
+		.oldLayout = gpu::ImageLayout::Undefined,
+		.newLayout = gpu::ImageLayout::Color_Attachment,
+		.subresource = BASE_COLOR_SUBRESOURCE
+	});
+
+	cmd.end();
+
+	auto transitionSubmission = m_gpu->command_queue().new_submission_group();
+	transitionSubmission.submit(std::move(cmd));
+
+	m_gpu->command_queue().send_to_gpu();
 }
 
 auto ModelDemoApp::allocate_camera_buffers() -> void
@@ -973,12 +988,17 @@ auto ModelDemoApp::setup_shader_compiler_and_pipelines() -> void
 		.enableDebugSymbol = 1
 	};
 
+	render::PipelineShaderCompileInfo csCompileInfo{
+		.type = gpu::ShaderType::Compute,
+		.optimizationLevel = 3,
+		.enableDebugSymbol = 1
+	};
+
 	render::PipelineShaderCompileInfo const* compileInfos[] = { &vsCompileInfo, &psCompileInfo };
 	render::RasterPipelineDefinition const* rasterDefinitions[] = { &UBER_PIPELINE_DEFINITION };
 
 	render::PipelineCacheLoadDefinitionsInfo definitions{
-		.raster = rasterDefinitions,
-		.compute = {}
+		.raster = rasterDefinitions
 	};
 
 	// TODO(afiq):
@@ -988,15 +1008,30 @@ auto ModelDemoApp::setup_shader_compiler_and_pipelines() -> void
 	{
 		auto&& shaderCompiler = pipelineCache.shader_compiler();
 
+		shaderCompiler.add_macro_definition("STORAGE_BUFFER_BINDING", gpu::STORAGE_BUFFER_BINDING);
 		shaderCompiler.add_macro_definition("STORAGE_IMAGE_BINDING", gpu::STORAGE_IMAGE_BINDING);
 		shaderCompiler.add_macro_definition("SAMPLED_IMAGE_BINDING", gpu::SAMPLED_IMAGE_BINDING);
 		shaderCompiler.add_macro_definition("SAMPLER_BINDING", gpu::SAMPLER_BINDING);
 		shaderCompiler.add_macro_definition("BUFFER_DEVICE_ADDRESS_BINDING", gpu::BUFFER_DEVICE_ADDRESS_BINDING);
 
+		if (!Settings::workspaceDir.empty())
+		{
+			auto const modulePath = (Settings::workspaceDir / "src/gpu/public/gpu/").string();
+			shaderCompiler.add_include_directory(std::string_view{ modulePath.data(), modulePath.size() });
+		}
+
 		// Compile and build each pipeline when loading the cache fails.
 		for (auto definition : definitions.raster)
 		{
 			if (auto res = pipelineCache.cache_pipeline(*definition, compileInfos); !res)
+			{
+				fmt::print("[ERROR] {}", res.error());
+			}
+		}
+
+		for (auto definition : definitions.compute)
+		{
+			if (auto res = pipelineCache.cache_pipeline(*definition, csCompileInfo); !res)
 			{
 				fmt::print("[ERROR] {}", res.error());
 			}

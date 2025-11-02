@@ -2,10 +2,13 @@
 #ifndef SANDBOX_SETTINGS_HPP
 #define SANDBOX_SETTINGS_HPP
 
+#include <filesystem>
+
 namespace sandbox
 {
-struct SandboxSettings
+struct Settings
 {
+	inline static std::filesystem::path workspaceDir;
 };
 }
 
