@@ -47,7 +47,7 @@ if (mimalloc_ADDED)
 	if (NOT MSVC)
 		#target_compile_options(mimalloc PRIVATE -Wno-incompatible-pointer-types -Wno-int-conversion -Wno-pointer-sign -Wno-strict-prototypes)
 	endif()
-	
+
 	set_target_properties(mimalloc PROPERTIES FOLDER thirdparty)
 endif()
 
@@ -75,13 +75,16 @@ set(
 	"public/lib/map.hpp"
 	"public/lib/memory.hpp"
 	"public/lib/named_type.hpp"
+	"public/lib/optional.hpp"
 	#"public/lib/paged_array.hpp"
 	"public/lib/resource.hpp"
 	"public/lib/set_once.hpp"
 	"public/lib/set.hpp"
 	"public/lib/string.hpp"
+	"public/lib/tuple.hpp"
 	"public/lib/type.hpp"
 	"public/lib/utility.hpp"
+	"public/lib/variant.hpp"
 	"private/memory.cpp"
 )
 

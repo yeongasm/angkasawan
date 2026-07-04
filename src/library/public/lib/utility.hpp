@@ -171,6 +171,20 @@ private:
     iterator m_current;
 };
 
+template <typename Container, typename NewType>
+struct rebound_container;
+
+template <template<typename, typename...> typename Container,
+	typename OldType,
+	typename... Args,
+	typename NewType>
+struct rebound_container<Container<OldType, Args...>, NewType>
+{
+	using type = Container<NewType, Args...>;
+};
+
+template <typename Container, typename NewType>
+using rebound_container_t = typename rebound_container<Container, NewType>::type;
 }
 
 #endif // !LIB_UTILITY_HPP

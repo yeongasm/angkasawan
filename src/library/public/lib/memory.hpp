@@ -15,7 +15,7 @@ namespace lib
 {
 constexpr auto is_power_of_two(size_t num) -> bool
 {
-	return (num > 0) & ((num & (num - 1)) == 0);
+	return (num > 0) && ((num & (num - 1)) == 0);
 };
 
 constexpr auto pad_address(const uintptr_t address, const size_t alignment) -> uintptr_t
@@ -192,71 +192,71 @@ private:
 // Allocators can not be:
 // 1. Copy constructable & assignable.
 // 2. Move constructable & assignable.
-class allocator_base : non_copyable_non_movable
-{
-public:
-	using value_type = std::byte;
-	using pointer = void*;
-	using const_pointer = void const*;
-	using void_pointer = void*;
-	using const_void_pointer = void const*;
-	using difference_type = std::ptrdiff_t;
-	using size_type = size_t;
+// class allocator_base : non_copyable_non_movable
+// {
+// public:
+// 	using value_type = std::byte;
+// 	using pointer = void*;
+// 	using const_pointer = void const*;
+// 	using void_pointer = void*;
+// 	using const_void_pointer = void const*;
+// 	using difference_type = std::ptrdiff_t;
+// 	using size_type = size_t;
 
-	constexpr allocator_base() = default;
-	constexpr ~allocator_base() = default;
+// 	constexpr allocator_base() = default;
+// 	constexpr ~allocator_base() = default;
 
-protected:
+// protected:
 
-	struct memory_header
-	{
-		memory_resource* pAllocator;
-		size_t bytesAllocated;
-	};
+// 	struct memory_header
+// 	{
+// 		memory_resource* pAllocator;
+// 		size_t bytesAllocated;
+// 	};
 
-	/**
-	* This does not allocate, rather it returns the alligned address from the supplied pointer.
-	*/
-	void* aligned_alloc(void* pointer, size_t bytes, size_t alignment, size_t& allocated)
-	{
-		static auto aligned_pointer = [](void* ptr, size_t align) -> uint8*
-		{
-			const uintptr_t address = reinterpret_cast<uintptr_t>(ptr);
-			const uintptr_t aligned = [](uintptr_t add, size_t al) -> uintptr_t
-			{
-				const size_t mask = al - 1;
-				ASSERTION((al + mask) != 0);
-				return(add + mask) & ~mask;
-			}(address, align);
+// 	/**
+// 	* This does not allocate, rather it returns the alligned address from the supplied pointer.
+// 	*/
+// 	void* aligned_alloc(void* pointer, size_t bytes, size_t alignment, size_t& allocated)
+// 	{
+// 		static auto aligned_pointer = [](void* ptr, size_t align) -> uint8*
+// 		{
+// 			const uintptr_t address = reinterpret_cast<uintptr_t>(ptr);
+// 			const uintptr_t aligned = [](uintptr_t add, size_t al) -> uintptr_t
+// 			{
+// 				const size_t mask = al - 1;
+// 				ASSERTION((al + mask) != 0);
+// 				return(add + mask) & ~mask;
+// 			}(address, align);
 
-			return reinterpret_cast<uint8*>(aligned);
-		};
+// 			return reinterpret_cast<uint8*>(aligned);
+// 		};
 
-		allocated += (bytes + alignment);
-		uint8* ptr = aligned_pointer(pointer, alignment);
-		ptrdiff_t shift = ptr - static_cast<uint8*>(pointer);
+// 		allocated += (bytes + alignment);
+// 		uint8* ptr = aligned_pointer(pointer, alignment);
+// 		ptrdiff_t shift = ptr - static_cast<uint8*>(pointer);
 
-		ASSERTION(shift >= 0 && shift <= 256);
+// 		ASSERTION(shift >= 0 && shift <= 256);
 
-		ptr[-1] = static_cast<uint8>(shift & 0xff);
+// 		ptr[-1] = static_cast<uint8>(shift & 0xff);
 
-		return static_cast<void*>(ptr);
-	}
+// 		return static_cast<void*>(ptr);
+// 	}
 
-	/**
-	* This does not deallocate, rather it returns the root pointer that the block was allocated from.
-	*/
-	void* aligned_free(void* pointer)
-	{
-		uint8* block = static_cast<uint8*>(pointer);
-		ptrdiff_t shift = block[-1];
-		if (!shift)
-		{
-			shift = 256;
-		}
-		return block - shift;
-	}
-};
+// 	/**
+// 	* This does not deallocate, rather it returns the root pointer that the block was allocated from.
+// 	*/
+// 	void* aligned_free(void* pointer)
+// 	{
+// 		uint8* block = static_cast<uint8*>(pointer);
+// 		ptrdiff_t shift = block[-1];
+// 		if (!shift)
+// 		{
+// 			shift = 256;
+// 		}
+// 		return block - shift;
+// 	}
+// };
 
 /**
 * References a unique_ptr or a pointer.
