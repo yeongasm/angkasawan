@@ -1,0 +1,11 @@
+{
+	"languages": {
+		"C++": {
+			"hard_tabs": false,
+			"tab_size": 4
+		}
+	},
+	"auto_indent": false,
+	"hard_tabs": false,
+	"show_wrap_guides": false
+}

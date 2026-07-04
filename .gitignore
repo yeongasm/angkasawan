@@ -347,3 +347,5 @@ healthchecksdb
 
 # Tokei Ignore file
 .tokeignore
+
+CLAUDE.md

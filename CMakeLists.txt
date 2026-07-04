@@ -7,9 +7,16 @@ message("CMake version: ${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION}.${CMAKE_PA
 
 enable_testing()
 
+file(
+    DOWNLOAD
+    https://github.com/cpm-cmake/CPM.cmake/releases/download/v0.40.8/CPM.cmake
+    ${CMAKE_SOURCE_DIR}/cmake/CPM.cmake
+    EXPECTED_HASH SHA256=78ba32abdf798bc616bab7c73aac32a17bbd7b06ad9e26a6add69de8f3ae4791
+)
+
 project(AngkasaOne)
 include(CheckIPOSupported)
-include(cmake/CPM.cmake)
+include(${CMAKE_SOURCE_DIR}/cmake/CPM.cmake)
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
@@ -29,6 +36,7 @@ endif()
 
 message("CPM_SOURCE_CACHE: ${CPM_SOURCE_CACHE}")
 message("CMAKE_BINARY_DIR: ${CMAKE_BINARY_DIR}")
+message("CMAKE_SOURCE_DIR: ${CMAKE_SOURCE_DIR}")
 
 check_ipo_supported(RESULT result OUTPUT output)
 
@@ -46,3 +54,6 @@ if (PROJECT_IS_TOP_LEVEL AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif()
 
 add_subdirectory(src)
+
+message("CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
+message("CMAKE_CXX_COMPILER: ${CMAKE_CXX_COMPILER}")
