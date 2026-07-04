@@ -1,0 +1,10 @@
+#pragma once
+#ifndef WARP_WORK_STEALING_SCHEDULER_HPP
+#define WARP_WORK_STEALING_SCHEDULER_HPP
+
+namespace warp
+{
+
+}
+
+#endif // !WARP_WORK_STEALING_SCHEDULER_HPP
