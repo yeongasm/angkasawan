@@ -161,7 +161,7 @@ private:
 	friend class Window;
 	friend struct EventQueueHandler;
 
-	plf::colony<Window> 	m_windows = {};
+	plf::colony<Window> m_windows = {};
 	lib::array<uint64>	m_zombies = {};
 	IOContext*			m_pIoContext = {};
 };

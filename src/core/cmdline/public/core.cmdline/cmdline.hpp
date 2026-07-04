@@ -41,7 +41,7 @@ constexpr bool is_string_like_v = requires (T s)
 {
 	typename T::const_pointer;
 	{ s.c_str() } -> std::same_as<typename T::const_pointer>;
-	requires requires { std::same_as<typename T::value_type, char> || std::same_as<typename T::value_type, wchar_t>; };
+	requires std::same_as<typename T::value_type, char> || std::same_as<typename T::value_type, wchar_t>;
 };
 
 template <typename T>

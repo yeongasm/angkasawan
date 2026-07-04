@@ -273,8 +273,8 @@ auto ModelDemoApp::render() -> void
 
 	auto const& swapchainInfo = swapchainImage.info();
 
-	float32 const width = static_cast<float32>(swapchainInfo.dimension.width);
-	float32 const height = static_cast<float32>(swapchainInfo.dimension.height);
+	auto const width = static_cast<float32>(swapchainInfo.dimension.width);
+	auto const height = static_cast<float32>(swapchainInfo.dimension.height);
 
 	cmd.begin_rendering(renderingInfo);
 	cmd.set_viewport({

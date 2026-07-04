@@ -39,11 +39,17 @@ auto Window::from(WindowContext& ctx, WindowCreateInfo&& info) -> std::expected<
 		return windowClass;
 	}();
 
+	DWORD windowStyle = WS_OVERLAPPEDWINDOW;
+	if ((info.config & WindowConfig::Borderless) != WindowConfig::None)
+	{
+		windowStyle = WS_POPUP | WS_VISIBLE | WS_SYSMENU | WS_MAXIMIZEBOX | WS_MINIMIZEBOX;
+	}
+
 	HWND hwnd = CreateWindowEx(
 		WS_EX_APPWINDOW,
 		windowClassName,
 		info.title.data(),
-		WS_OVERLAPPEDWINDOW,
+		windowStyle,
 		info.position.x,
 		info.position.y,
 		info.dimension.width,
@@ -65,9 +71,6 @@ auto Window::from(WindowContext& ctx, WindowCreateInfo&& info) -> std::expected<
 		DragAcceptFiles(hwnd, TRUE);
 	}
 
-	ShowWindow(hwnd, SW_SHOW);
-	UpdateWindow(hwnd);
-
 	if ((info.config & WindowConfig::Catch_Input) != WindowConfig::None)
 	{
 		// Register raw input device to receive WM_INPUT events.
@@ -79,6 +82,9 @@ auto Window::from(WindowContext& ctx, WindowCreateInfo&& info) -> std::expected<
 
 		RegisterRawInputDevices(&device, 1, sizeof(device));
 	}
+
+	ShowWindow(hwnd, SW_SHOW);
+	UpdateWindow(hwnd);
 
 	// auto&& [id, window] = ctx.m_windows.emplace();
 	auto it = ctx.m_windows.emplace();

@@ -1,12 +1,10 @@
 #pragma once
-#include "gpu/shared_resource.hpp"
 #ifndef SANDBOX_CUBE_DEMO_APP_H
 #define SANDBOX_CUBE_DEMO_APP_H
 
 #include "core.platform/file_watcher.hpp"
 #include "core.platform/application.hpp"
 #include "camera.hpp"
-#include "gpu/shader_compiler.hpp"
 #include "render/render.hpp"
 
 namespace sandbox

@@ -2,6 +2,8 @@
 #ifndef PLATFORM_INPUT_IO_H
 #define PLATFORM_INPUT_IO_H
 
+#include <atomic>
+
 #include "lib/bitset.hpp"
 #include "lib/set_once.hpp"
 #include "platform_minimal.hpp"
@@ -65,6 +67,18 @@ private:
 		Point clickPos[MAX_IO_MOUSE_BUTTONS] = {};
 	} m_mouse = {};
 
+	struct ConfigurationInternal
+	{
+		std::atomic<float32> keyDoubleTapTime;
+		std::atomic<float32> keyMinDurationForHold;
+		std::atomic<float32> mouseDoubleClickTime;
+		std::atomic<float32> mouseDoubleClickDistance;
+		std::atomic<float32> mouseMinDurationForHold;
+	} m_config = {};
+
+	std::atomic_bool m_enableIOStateUpdate = true;
+public:
+
 	struct Configuration
 	{
 		float32 keyDoubleTapTime;
@@ -72,13 +86,15 @@ private:
 		float32 mouseDoubleClickTime;
 		float32 mouseDoubleClickDistance;
 		float32 mouseMinDurationForHold;
-	} m_config = {};
+	};
 
-	bool m_enableIOStateUpdate = true;
-
-public:
-
+	/*
+	* Should only be called once. Inherently thread safe if called only in 1 thread.
+	*/
 	auto update() -> void;
+	/*
+	* Should only be called once. Inherently thread safe if called only in 1 thread.
+	*/
 	auto reset_mouse_wheel_state() -> void;
 	auto update_configuration(IOConfigurationInfo const& info) -> void;
 	auto configuration() const -> Configuration;

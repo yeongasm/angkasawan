@@ -1,5 +1,6 @@
 #include "io.hpp"
 #include "performance_counter.hpp"
+#include <atomic>
 
 namespace core
 {
@@ -10,7 +11,7 @@ auto IOContext::update() -> void
 	// Update mouse state.
 	const float32 elapsedTime = static_cast<float32>(PerformanceCounter::elapsed_time());
 
-	if (!m_enableIOStateUpdate)
+	if (!m_enableIOStateUpdate.load(std::memory_order_acquire))
 	{
 		return;
 	}
@@ -115,29 +116,35 @@ auto IOContext::update_configuration(IOConfigurationInfo const& info) -> void
 {
 	if (info.keyDoubleTapTime)
 	{
-		m_config.keyDoubleTapTime = *info.keyDoubleTapTime;
+		m_config.keyDoubleTapTime.store(*info.keyDoubleTapTime, std::memory_order_relaxed);
 	}
 	if (info.keyMinDurationForHold)
 	{
-		m_config.keyMinDurationForHold = *info.keyMinDurationForHold;
+		m_config.keyMinDurationForHold.store(*info.keyMinDurationForHold, std::memory_order_relaxed);
 	}
 	if (info.mouseDoubleClickDistance)
 	{
-		m_config.mouseDoubleClickDistance = *info.mouseDoubleClickDistance;
+		m_config.mouseDoubleClickDistance.store(*info.mouseDoubleClickDistance, std::memory_order_relaxed);
 	}
 	if (info.mouseDoubleClickTime)
 	{
-		m_config.mouseDoubleClickTime = *info.mouseDoubleClickTime;
+		m_config.mouseDoubleClickTime.store(*info.mouseDoubleClickTime, std::memory_order_relaxed);
 	}
 	if (info.mouseMinDurationForHold)
 	{
-		m_config.mouseMinDurationForHold = *info.mouseMinDurationForHold;
+		m_config.mouseMinDurationForHold.store(*info.mouseMinDurationForHold, std::memory_order_relaxed);
 	}
 }
 
 auto IOContext::configuration() const -> Configuration
 {
-	return m_config;
+	return {
+		.keyDoubleTapTime = m_config.keyDoubleTapTime.load(std::memory_order_acquire),
+		.keyMinDurationForHold = m_config.keyMinDurationForHold.load(std::memory_order_acquire),
+		.mouseDoubleClickTime = m_config.mouseDoubleClickTime.load(std::memory_order_acquire),
+		.mouseDoubleClickDistance = m_config.mouseDoubleClickDistance.load(std::memory_order_acquire),
+		.mouseMinDurationForHold = m_config.mouseMinDurationForHold.load(std::memory_order_acquire)
+	};
 }
 
 auto IOContext::key_pressed(IOKey key) -> bool
@@ -245,7 +252,7 @@ auto IOContext::shift() -> bool
 
 auto IOContext::enable_io_state_update(bool v) -> void
 {
-	m_enableIOStateUpdate = v;
+	m_enableIOStateUpdate.store(v, std::memory_order_relaxed);
 }
 }
 }
