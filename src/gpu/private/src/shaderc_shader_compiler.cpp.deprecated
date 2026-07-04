@@ -1,0 +1,229 @@
+#include <spirv_reflect.h>
+#include <shaderc/shaderc.hpp>
+#include "shader_compiler.hpp"
+
+namespace gpu
+{
+namespace util
+{
+
+class ShadercDefaultIncluder : public shaderc::CompileOptions::IncluderInterface
+{
+private:
+	struct IncludeData
+	{
+		std::string source;
+		std::string content;
+	};
+	//std::filesystem::path base_path = std::filesystem::current_path();
+	std::span<std::filesystem::path> m_include_directories;
+public:
+	ShadercDefaultIncluder(std::span<std::filesystem::path> includeDirs) :
+		m_include_directories{ includeDirs }
+	{}
+
+	// Handles shaderc_include_resolver_fn callbacks.
+	virtual auto GetInclude(const char* requested_source,
+		[[maybe_unused]] shaderc_include_type type,
+		const char* requesting_source,
+		[[maybe_unused]] size_t include_depth) -> shaderc_include_result* override
+	{
+		IncludeData* data = new IncludeData;
+		std::ostringstream buf;
+
+		auto requester_path = std::filesystem::absolute(std::filesystem::path{ requesting_source }).remove_filename();
+		auto alternative_path = std::filesystem::current_path() / requested_source;
+		auto path = requester_path / requested_source;
+
+		if (std::ifstream input{ path, std::ios::in | std::ios::binary }; input)
+		{
+			// 1. Look for the file in the same directory as the requesting source.
+			buf << input.rdbuf();
+			data->content = buf.str();
+			data->source = path.string();
+		}
+		else if (m_include_directories.size())
+		{
+			// 2. Look for list of supplied include directories.
+			for (auto const& include_dir : m_include_directories)
+			{
+				path = include_dir / requested_source;
+				if (input = std::ifstream{ path / requested_source, std::ios::in | std::ios::binary }; input)
+				{
+					buf << input.rdbuf();
+					data->content = buf.str();
+					data->source = path.string();
+					break;
+				}
+			}
+		}
+		else if (input = std::ifstream{ alternative_path, std::ios::in | std::ios::binary }; input)
+		{
+			// 3. Look for file in current working directory.
+			buf << input.rdbuf();
+			data->content = buf.str();
+			data->source = path.string();
+		}
+		else
+		{	
+			// 4. Force compilation error.
+			data->content = "file could not be read.";
+		}
+
+		shaderc_include_result* result = new shaderc_include_result;
+		result->user_data = data;
+		result->content = data->content.data();
+		result->content_length = data->content.size();
+		result->source_name = data->source.data();
+		result->source_name_length = data->source.size();
+
+		return result;
+	}
+
+	// Handles shaderc_include_result_release_fn callbacks.
+	virtual auto ReleaseInclude(shaderc_include_result* data) -> void override
+	{
+		delete static_cast<IncludeData*>(data->user_data);
+		delete data;
+	}
+};
+
+auto translate_shader_type_to_shaderc_kind(ShaderType type) -> shaderc_shader_kind
+{
+	switch (type)
+	{
+	case ShaderType::Fragment:
+		return shaderc_fragment_shader;
+	case ShaderType::Geometry:
+		return shaderc_geometry_shader;
+	case ShaderType::Tesselation_Control:
+		return shaderc_tess_control_shader;
+	case ShaderType::Tesselation_Evaluation:
+		return shaderc_tess_evaluation_shader;
+	case ShaderType::Compute:
+		return shaderc_compute_shader;
+	case ShaderType::None:
+	case ShaderType::Vertex:
+	default:
+		return shaderc_vertex_shader;
+	}
+}
+
+auto translate_to_shader_attribute_format(SpvReflectFormat spvFormat) -> Format
+{
+	switch (spvFormat)
+	{
+	case SPV_REFLECT_FORMAT_R32_UINT:
+		return Format::R32_Uint;
+	case SPV_REFLECT_FORMAT_R32_SINT:
+		return Format::R32_Int;
+	case SPV_REFLECT_FORMAT_R32_SFLOAT:
+		return Format::R32_Float;
+	case SPV_REFLECT_FORMAT_R32G32_SFLOAT:
+		return Format::R32G32_Float;
+	case SPV_REFLECT_FORMAT_R32G32B32_SFLOAT:
+		return Format::R32G32B32_Float;
+	case SPV_REFLECT_FORMAT_R32G32B32A32_SFLOAT:
+		return Format::R32G32B32A32_Float;
+	case SPV_REFLECT_FORMAT_R64_SINT:
+		return Format::R64_Int;
+	case SPV_REFLECT_FORMAT_R64_UINT:
+		return Format::R64_Uint;
+	case SPV_REFLECT_FORMAT_R64_SFLOAT:
+		return Format::R64_Float;
+	case SPV_REFLECT_FORMAT_R64G64_SFLOAT:
+		return Format::R64G64_Float;
+	case SPV_REFLECT_FORMAT_R64G64B64_SFLOAT:
+		return Format::R64G64B64_Float;
+	case SPV_REFLECT_FORMAT_R64G64B64A64_SFLOAT:
+		return Format::R64G64B64A64_Float;
+	case SPV_REFLECT_FORMAT_UNDEFINED:
+	default:
+		return Format::Undefined;
+	}
+}
+
+auto ShaderCompiler::compile_shader(ShaderCompileInfo const& info) -> std::expected<CompiledShaderInfo, std::string_view>
+{
+	shaderc::Compiler compiler = {};
+	shaderc::CompileOptions options = {};
+
+	// These are macro that are defined in the shader compiler instance.
+	for (auto const& macro : m_macroDefinitions)
+	{
+		if (macro.second.size())
+		{
+			options.AddMacroDefinition(std::string{ macro.first }, std::string{ macro.second });
+		}
+		else
+		{
+			options.AddMacroDefinition(std::string{ macro.first });
+		}
+	}
+
+	// These are macros defined in the ShaderCompileInfo struct.
+	for (auto const& macro : info.macroDefinitions)
+	{
+		if (macro.second.size())
+		{
+			options.AddMacroDefinition(std::string{ macro.first }, std::string{ macro.second });
+		}
+		else
+		{
+			options.AddMacroDefinition(std::string{ macro.first });
+		}
+	}
+
+	shaderc_shader_kind type = translate_shader_type_to_shaderc_kind(info.type);
+
+	options.SetIncluder(std::make_unique<ShadercDefaultIncluder>(std::span{ m_includeDirectories.data(), m_includeDirectories.size() }));
+	options.SetTargetEnvironment(shaderc_target_env_vulkan, shaderc_env_version_vulkan_1_3);
+	options.SetSourceLanguage(shaderc_source_language_glsl);
+	//auto foo = compiler.PreprocessGlsl(info.sourceCode.c_str(), type, info.path.data(), options);
+	//fmt::print("\n{}", foo.cbegin());
+	// Unoptimized compilation to enable robust reflection.
+	auto unoptimized = compiler.CompileGlslToSpv(info.sourceCode.data(), type, info.name.data(), options);
+
+	// Set optimization level.
+	for (uint32 i = 1; i < info.optimizationLevel; ++i)
+	{
+		options.SetOptimizationLevel((shaderc_optimization_level)i);
+	}
+
+	// Set debug info generation. 
+	if (info.enableDebugSymbols == 1)
+	{
+		options.SetGenerateDebugInfo();
+	}
+
+	// Final compilation output that will be used to create the shader module.
+	auto optimized = compiler.CompileGlslToSpv(info.sourceCode.data(), type, info.name.data(), options);
+
+	if (unoptimized.GetCompilationStatus() != shaderc_compilation_status_success ||
+		optimized.GetCompilationStatus() != shaderc_compilation_status_success)
+	{
+		return std::unexpected{ m_stringPool.append(optimized.GetErrorMessage().c_str()) };
+	}
+
+	std::string_view name = m_stringPool.append(info.name);
+	std::string_view entryPoint = m_stringPool.append((std::string_view)info.entryPoint);
+
+	lib::hash_string_view key = m_stringPool.append("<shader:{}>:{}", SHADER_TYPES[(size_t)info.type], name);
+
+	auto&& [_, compiledUnit] = m_shaderCompilations.emplace(key, CompiledUnit{ .type = info.type, .name = name, .entryPoint = entryPoint });
+	
+	compiledUnit.binaries.assign(unoptimized.begin(), unoptimized.end());
+
+	compiledUnit.binaries.clear();
+	compiledUnit.binaries.assign(optimized.begin(), optimized.end());
+
+	CompiledShaderInfo compiledInfo{
+		.type = info.type,
+		.entryPoint = compiledUnit.entryPoint,
+		.binaries = std::span{ compiledUnit.binaries.data(), compiledUnit.binaries.size() }
+	};
+
+	return compiledInfo;
+}
+}
+}

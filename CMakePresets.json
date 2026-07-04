@@ -1,79 +1,165 @@
 {
-    "version": 3,
-    "configurePresets": [
-        {
-            "name": "defaults",
-            "hidden": true,
-            "binaryDir": "${sourceDir}/build/${presetName}",
-            "installDir": "${sourceDir}/install/${presetName}",
-            "toolchainFile": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
-            "cacheVariables": {
-                "CMAKE_CXX_STANDARD": "20",
-                "CMAKE_CXX_STANDARD_REQUIRED": true,
-                "USE_VULKAN": true,
-                "VCPKG_APPLOCAL_DEPS": "OFF",
-                "CMAKE_ARCHIVE_OUTPUT_DIRECTORY": "${sourceDir}/build/${presetName}/build",
-                "CMAKE_LIBRARY_OUTPUT_DIRECTORY": "${sourceDir}/build/${presetName}/build",
-                "CMAKE_RUNTIME_OUTPUT_DIRECTORY": "${sourceDir}/build/${presetName}/bin"
-            }
-        },
-        {
-            "name": "windows-msvc-base",
-            "hidden": true,
-            "inherits": "defaults",
-            "condition": {
-                "type": "equals",
-                "lhs": "${hostSystemName}",
-                "rhs": "Windows"
-            },
-            "cacheVariables": {
-                "CMAKE_SYSTEM_PROCESSOR": "x64"
-            }
-        },
-        {
-            "name": "ninja-generator",
-            "hidden": true,
-            "generator": "Ninja",
-            "cacheVariables": {
-                "VCPKG_CHAINLOAD_TOOLCHAIN_FILE": "${sourceDir}/cmake/Windows.MSVC.toolchain.cmake"
-            }
-        },
-        {
-            "name": "visual-studio-generator",
-            "hidden": true,
-            "generator": "Visual Studio 17 2022"
-        },
-        {
-            "name": "windows-msvc-x64-ninja",
-            "displayName": "windows-msvc-x64-ninja",
-            "inherits": ["windows-msvc-base", "ninja-generator"],
-            "architecture": {
-                "value": "x64",
-                "strategy": "external"
-            }
-        },
-        {
-            "name": "windows-msvc-x64-vs",
-            "displayName": "windows-msvc-x64-vs",
-            "inherits": ["windows-msvc-base", "visual-studio-generator"],
-            "architecture": {
-                "value": "x64",
-                "strategy": "external"
-            }
-        }
-    ],
-    "buildPresets": [
-        {
-            "name": "windows-msvc-x64-debug",
-            "displayName": "MSVC x64 Debug",
-            "configurePreset": "windows-msvc-x64-vs",
-            "configuration": "Debug"
-        },
-        {
-            "name": "windows-msvc-x64-release",
-            "displayName": "MSVC x64 Release",
-            "configurePreset": "windows-msvc-x64-vs",
-            "configuration": "Release"
-        }
-    ]
+	"version": 3,
+	"configurePresets": [
+		{
+			"name": "defaults",
+			"hidden": true,
+			"binaryDir": "${sourceDir}/build/${presetName}",
+			"installDir": "${sourceDir}/install/${presetName}",
+			"cacheVariables": {
+				"CMAKE_CXX_STANDARD": "23",
+				"CMAKE_CXX_STANDARD_REQUIRED": true,
+				"USE_VULKAN": true,
+				"CMAKE_ARCHIVE_OUTPUT_DIRECTORY": "${sourceDir}/build/${presetName}/build",
+				"CMAKE_LIBRARY_OUTPUT_DIRECTORY": "${sourceDir}/build/${presetName}/build",
+				"CMAKE_RUNTIME_OUTPUT_DIRECTORY": "${sourceDir}/build/${presetName}/bin",
+				"CMAKE_CXX_COMPILER_LAUNCHER": "ccache"
+			}
+		},
+		{
+			"name": "windows-base",
+			"hidden": true,
+			"inherits": "defaults",
+			"condition": {
+				"type": "equals",
+				"lhs": "${hostSystemName}",
+				"rhs": "Windows"
+			},
+			"cacheVariables": {
+				"CMAKE_SYSTEM_PROCESSOR": "x64"
+			}
+		},
+		{
+			"name": "ninja-generator",
+			"hidden": true,
+			"generator": "Ninja Multi-Config",
+			"cacheVariables": {
+				"CMAKE_EXPORT_COMPILE_COMMANDS": true
+			}
+		},
+		{
+			"name": "visual-studio-generator",
+			"hidden": true,
+			"generator": "Visual Studio 18 2026"
+		},
+		{
+			"name": "ninja-msvc",
+			"hidden": true,
+			"inherits": ["ninja-generator"],
+			"toolchainFile": "${sourceDir}/cmake/Windows.MSVC.toolchain.cmake"
+		},
+		{
+			"name": "ninja-clang",
+			"hidden": true,
+			"inherits": ["ninja-generator"],
+			"toolchainFile": "${sourceDir}/cmake/Windows.Clang.toolchain.cmake"
+		},
+		{
+			"name": "windows-msvc-x64-ninja",
+			"displayName": "windows-msvc-x64-ninja",
+			"inherits": ["windows-base", "ninja-msvc"],
+			"architecture": {
+				"value": "x64",
+				"strategy": "external"
+			}
+		},
+		{
+			"name": "windows-msvc-x64-vs",
+			"displayName": "windows-msvc-x64-vs",
+			"inherits": ["windows-base", "visual-studio-generator"],
+			"architecture": {
+				"value": "x64",
+				"strategy": "external"
+			}
+		},
+		{
+			"name": "windows-clang-x64-ninja",
+			"displayName": "windows-clang-x64-ninja",
+			"inherits": ["windows-base", "ninja-clang"],
+			"architecture": {
+				"value": "x64",
+				"strategy": "external"
+			}
+		},
+		{
+			"name": "windows-clang-x64-ninja-asan-ubsan",
+			"displayName": "windows-clang-x64-ninja-asan-ubsan",
+			"inherits": ["windows-base", "ninja-clang"],
+			"architecture": {
+				"value": "x64",
+				"strategy": "external"
+			},
+			"cacheVariables": {
+				"ENABLE_ASAN_AND_UBSAN": true
+			}
+		}
+	],
+	"buildPresets": [
+		{
+			"name": "vs-msvc-x64-debug",
+			"displayName": "MSVC x64 Debug",
+			"configurePreset": "windows-msvc-x64-vs",
+			"configuration": "Debug"
+		},
+		{
+			"name": "vs-msvc-x64-release",
+			"displayName": "MSVC x64 Release",
+			"configurePreset": "windows-msvc-x64-vs",
+			"configuration": "Release"
+		},
+		{
+			"name": "vs-msvc-x64-relwithdebinfo",
+			"displayName": "MSVC x64 Release With Debug Info",
+			"configurePreset": "windows-msvc-x64-vs",
+			"configuration": "RelWithDebInfo"
+		},
+		{
+			"name": "ninja-msvc-x64-debug",
+			"displayName": "Ninja MSVC x64 Debug",
+			"configurePreset": "windows-msvc-x64-ninja",
+			"configuration": "Debug"
+		},
+		{
+			"name": "ninja-msvc-x64-release",
+			"displayName": "Ninja MSVC x64 Release",
+			"configurePreset": "windows-msvc-x64-ninja",
+			"configuration": "Release"
+		},
+		{
+			"name": "ninja-msvc-x64-relwithdebinfo",
+			"displayName": "Ninja MSVC x64 Release With Debug Info",
+			"configurePreset": "windows-msvc-x64-ninja",
+			"configuration": "RelWithDebInfo"
+		},
+		{
+			"name": "ninja-clang-x64-debug",
+			"displayName": "Ninja Clang x64 Debug",
+			"configurePreset": "windows-clang-x64-ninja",
+			"configuration": "Debug"
+		},
+		{
+			"name": "ninja-clang-x64-release",
+			"displayName": "Ninja Clang x64 Release",
+			"configurePreset": "windows-clang-x64-ninja",
+			"configuration": "Release"
+		},
+		{
+			"name": "ninja-clang-x64-relwithdebinfo",
+			"displayName": "Ninja Clang x64 Release With Debug Info",
+			"configurePreset": "windows-clang-x64-ninja",
+			"configuration": "RelWithDebInfo"
+		},
+		{
+			"name": "ninja-clang-x64-debug-asan-ubsan",
+			"displayName": "Ninja Clang x64 Debug ASAN UBSAN",
+			"configurePreset": "windows-clang-x64-ninja-asan-ubsan",
+			"configuration": "Debug"
+		},
+		{
+			"name": "ninja-clang-x64-relwithdebinfo-asan-ubsan",
+			"displayName": "Ninja Clang x64 Release With Debug Info ASAN UBSAN",
+			"configurePreset": "windows-clang-x64-ninja-asan-ubsan",
+			"configuration": "RelWithDebInfo"
+		}
+	]
 }

@@ -7,11 +7,18 @@ message("CMake version: ${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION}.${CMAKE_PA
 
 enable_testing()
 
+file(
+    DOWNLOAD
+    https://github.com/cpm-cmake/CPM.cmake/releases/download/v0.40.8/CPM.cmake
+    ${CMAKE_SOURCE_DIR}/cmake/CPM.cmake
+    EXPECTED_HASH SHA256=78ba32abdf798bc616bab7c73aac32a17bbd7b06ad9e26a6add69de8f3ae4791
+)
+
 project(AngkasaOne)
-include(cmake/CPM.cmake)
+include(CheckIPOSupported)
+include(${CMAKE_SOURCE_DIR}/cmake/CPM.cmake)
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
-#set(EXECUTABLE_DIR "${PROJECT_BINARY_DIR}/exe/")
 
 get_filename_component(
     DEP_PATH
@@ -20,15 +27,33 @@ get_filename_component(
     BASE_DIR "${CMAKE_BINARY_DIR}"
 )
 set(CPM_SOURCE_CACHE "${DEP_PATH}")
-message("CPM_SOURCE_CACHE: ${CPM_SOURCE_CACHE}")
 
-# Include sub-projects.
-add_subdirectory(exe)
-add_subdirectory(library)
-#add_subdirectory(math)
-add_subdirectory(core)
-add_subdirectory(gpu)
-#add_subdirectory(renderer)
-add_subdirectory(sandbox)
-add_subdirectory(thirdparty)
-add_subdirectory(unit_tests)
+set(CMAKE_VERBOSE_MAKEFILE ON)
+
+if (MSVC)
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
+endif()
+
+message("CPM_SOURCE_CACHE: ${CPM_SOURCE_CACHE}")
+message("CMAKE_BINARY_DIR: ${CMAKE_BINARY_DIR}")
+message("CMAKE_SOURCE_DIR: ${CMAKE_SOURCE_DIR}")
+
+check_ipo_supported(RESULT result OUTPUT output)
+
+if (result)
+    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+else()
+    message(WARNING "IPO is not supported: ${output}")
+endif()
+
+if (PROJECT_IS_TOP_LEVEL AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    execute_process(
+        COMMAND ${CMAKE_COMMAND} -E create_symlink
+        ${CMAKE_BINARY_DIR}/compile_commands.json ${CMAKE_SOURCE_DIR}/build/compile_commands.json
+    )
+endif()
+
+add_subdirectory(src)
+
+message("CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
+message("CMAKE_CXX_COMPILER: ${CMAKE_CXX_COMPILER}")
